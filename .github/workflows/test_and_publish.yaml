@@ -31,7 +31,7 @@ jobs:
           python -m pip install .[tests]
 
       - name: Run tests
-        run: python -m pytest tests/
+        run: python --cov=src/hyped -m pytest tests/
 
       - name: Upload coverage report
         run: |
