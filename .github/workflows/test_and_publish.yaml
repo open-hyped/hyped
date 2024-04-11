@@ -31,7 +31,7 @@ jobs:
           python -m pip install .[tests]
 
       - name: Run tests
-        run: python -m pytest --cov=src/hyped tests/
+        run: python -m pytest --cov=src tests/date/processors
 
       - name: Upload coverage report
         run: coveralls --service=github
