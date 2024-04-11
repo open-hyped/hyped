@@ -9,22 +9,19 @@ on:
     types: 
       - review_requested
       - ready_for_review
-      - auto_merge_enabled]
+      - auto_merge_enabled
 
 jobs:
   build:
     
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.10"]
     
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.10'
           cache: 'pip'
 
       - name: Install dependencies
