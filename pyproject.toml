@@ -38,6 +38,7 @@ build-backend = "setuptools.build_meta"
 [tool.black]
 target-version = ["py311"]
 line-length = 79
+docstring-style = "google"
 
 [tool.isort]
 profile = "black"
@@ -45,3 +46,12 @@ line_length = 79
 
 [tool.ruff]
 line-length = 79
+# check docstrings
+select = ["D"]
+
+[tool.ruff.pydocstyle]
+convention = "google"
+
+[tool.ruff.per-file-ignores]
+# Don't check docstrings of `tests`
+"tests/**" = ["D"]
