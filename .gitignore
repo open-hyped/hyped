@@ -141,8 +141,8 @@ tags
 
 checkpoints
 data
-docs/source/generated
-docs/source/api
+docs/source/api/*
+!docs/source/api/.gitkeep
 
 # explicitly unignore data directory
 !src/hyped/data

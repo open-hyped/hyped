@@ -54,5 +54,6 @@ select = ["D"]
 convention = "google"
 
 [tool.ruff.per-file-ignores]
-# Don't check docstrings of `tests`
+# Don't check docstrings of `tests` and `docs`
 "tests/**" = ["D"]
+"docs/**" = ["D"]
