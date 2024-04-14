@@ -9,9 +9,10 @@ import sys
 
 sys.path.insert(0, os.path.abspath("../../src"))
 
-import hyped.data.graph
 
 # import all modules
+import hyped
+import hyped.data.graph
 import hyped.data.pipe
 import hyped.data.processors.base
 import hyped.data.processors.features.filter
@@ -47,6 +48,8 @@ import hyped.data.processors.tokenizers.hf
 project = "hyped"
 copyright = "2024, open-hyped"
 author = "open-hyped"
+version = hyped.__version__
+release = hyped.__version__
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
