@@ -1,6 +1,6 @@
 [project]
 name = "hyped"
-version = "0.1.0"
+dynamic = ["version"]
 description = "TODO"
 classifiers = [
     "License :: Freely Distributable",
@@ -33,8 +33,11 @@ peft = [
 ]
 
 [build-system]
-requires = ["setuptools >= 61.0.0"]
+requires = ["setuptools >= 61.0.0", "setuptools_scm>=8.0.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+version_file = "src/hyped/__version__.py"
 
 [tool.black]
 target-version = ["py311"]
