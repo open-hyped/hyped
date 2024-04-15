@@ -2,6 +2,7 @@
 name = "hyped"
 dynamic = ["version"]
 description = "TODO"
+readme = "README.md"
 classifiers = [
     "License :: Freely Distributable",
     "License :: OSI Approved :: Apache Software License",
