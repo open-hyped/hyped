@@ -3,7 +3,7 @@ name: Linting
 on:
   push:
     branches: 
-      - feature/cicd
+      - hyped-v2
   workflow_dispatch:
   pull_request:
     types: 
