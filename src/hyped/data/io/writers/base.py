@@ -21,6 +21,7 @@ class BaseDatasetWriter(BaseDatasetConsumer, ABC):
         self,
         save_dir: str,
         exist_ok: bool = False,
+        num_proc: None | int = None,
         tqdm_kwargs: dict[str, Any] = {},
         tqdm_update_interval: float = 0.2,
     ) -> None:
@@ -41,7 +42,11 @@ class BaseDatasetWriter(BaseDatasetConsumer, ABC):
                 is updated
         """
         # initialize consumer
-        super(BaseDatasetWriter, self).__init__(**kwargs)
+        super(BaseDatasetWriter, self).__init__(
+            num_proc=num_proc,
+            tqdm_kwargs=tqdm_kwargs,
+            tqdm_update_interval=tqdm_update_interval,
+        )
         # create save directory if needed
         self.save_dir = save_dir
         os.makedirs(self.save_dir, exist_ok=exist_ok)
