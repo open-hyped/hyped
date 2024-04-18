@@ -1,6 +1,6 @@
 """Jinja2 Template Data Processor."""
 from functools import partial
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 from datasets import Features, Value
 from jinja2 import Environment
@@ -61,6 +61,22 @@ class Jinja2Config(BaseDataProcessorConfig):
     template: str
     output: str
 
+    @property
+    def required_feature_keys(self) -> Iterable[FeatureKey]:
+        """Required Feature Keys.
+
+        Not computed on configuration level, please use the
+        `required_feature_keys` property of the respective `Jinja2`
+        processor.
+
+        Raises TypeError
+        """
+        raise TypeError(
+            "`required_feature_keys` are not collected on configuration "
+            "level. Please refer to the corresponding property of the "
+            "`Jinja2` processor instance."
+        )
+
 
 class Jinja2(BaseDataProcessor[Jinja2Config]):
     """Jinja2 Template Data Processor Config.
@@ -86,22 +102,37 @@ class Jinja2(BaseDataProcessor[Jinja2Config]):
         # create template
         self.template = self.env.from_string(self.config.template)
         # collect feature keys mentioned in template
-        self.feature_keys = self._collect_required_feature_keys()
+        self.feature_keys: None | set[FeatureKey] = None
 
-    def _collect_required_feature_keys(self) -> set[FeatureKey]:
+    def _collect_required_feature_keys(self, features: Features):
         """Collect all feature keys referenced in the template.
 
-        Returns:
-            feature_keys (set[FeatureKey]):
-                a set of all feature keys referenced in the template
+        Clears the current feature keys set and adds all feature keys
+        referenced in the template, given a specific dataset feature
+        mapping.
+
+        Arguments:
+            features (Features):
+                input dataset features
         """
-        feature_keys = set()
+        self.feature_keys = set()
+
+        def _index_example(key):
+            """Collect feature key and build value matching feature."""
+            self.feature_keys.add(key)
+            # TODO: build some value matching the feature
+            return None
+
+        def _index_features(key):
+            """Collect feature key and index features."""
+            self.feature_keys.add(key)
+            return key.index_features(features)
 
         with _set_filters(
             self.env,
             {
-                "index_example": lambda key: feature_keys.add(key),
-                "index_features": lambda key: feature_keys.add(key),
+                "index_example": _index_example,
+                "index_features": _index_features,
             },
         ):
             try:
@@ -115,7 +146,26 @@ class Jinja2(BaseDataProcessor[Jinja2Config]):
             except:
                 pass
 
-        return feature_keys
+    @property
+    def required_feature_keys(self) -> set[FeatureKey]:
+        """Input dataset feature keys required for execution of the processor.
+
+        In this case the required feature keys are not inferred from the
+        configuration of the data processor directly, but instead are
+        extracted from the template.
+
+        Returns:
+            feature_keys (set[FeatureKey]):
+                set of required feature keys
+        """
+        if not self.is_prepared:
+            raise RuntimeError(
+                "Jinja2 Data Processor must be prepared before accessing "
+                "the required feature keys."
+            )
+        # feature keys should be set after preparation
+        assert self.feature_keys is not None
+        return self.feature_keys
 
     def map_features(self, features: Features) -> Features:
         """Map features.
@@ -131,6 +181,7 @@ class Jinja2(BaseDataProcessor[Jinja2Config]):
             out_features: (datasets.Features):
                 output dataset features
         """
+        self._collect_required_feature_keys(features)
         # check if all features exist
         for key in self.feature_keys:
             key.index_features(features)
@@ -161,9 +212,11 @@ class Jinja2(BaseDataProcessor[Jinja2Config]):
         with _set_filters(
             self.env,
             {
-                "index_example": lambda key: key.index_example(example),
-                "index_features": lambda key: key.index_features(
-                    self.in_features
+                "index_example": partial(
+                    FeatureKey.index_example, example=example
+                ),
+                "index_features": partial(
+                    FeatureKey.index_features, features=self.in_features
                 ),
             },
         ):
