@@ -2,6 +2,7 @@ import pytest
 from datasets import ClassLabel, Features, Sequence, Value
 
 from hyped.common.feature_key import FeatureKey
+from hyped.data.processors.base import BaseDataProcessor
 from hyped.data.processors.templates.jinja2 import Jinja2, Jinja2Config
 from tests.data.processors.base import BaseTestDataProcessor
 
@@ -152,6 +153,12 @@ class TestJinja2(BaseTestDataProcessor):
         return Jinja2(Jinja2Config(template=template, output="out"))
 
     def test_required_feature_keys(self, in_features, processor, feature_keys):
+        # reset data processor preparation state
+        BaseDataProcessor.__init__(processor, config=processor.config)
+        # cannot access required feature keys before preparation
+        with pytest.raises(RuntimeError):
+            processor.required_feature_keys
+        # prepare the data processor
         processor.prepare(in_features)
         assert processor.required_feature_keys == feature_keys
 
