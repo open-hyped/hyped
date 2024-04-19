@@ -2,6 +2,11 @@ import datasets
 import pytest
 
 from hyped.data.pipe import DataPipe
+from hyped.data.processors.statistics.report import StatisticsReport
+from tests.data.processors.statistics.test_base import (
+    ConstantStatistic,
+    ConstantStatisticConfig,
+)
 from tests.data.processors.test_base import (
     ConstantDataProcessor,
     ConstantDataProcessorConfig,
@@ -150,3 +155,51 @@ class TestDataPipe:
         assert all(a == "3" for a in ds["C"])
         # check features
         assert sample_data_pipe.out_features == ds.features
+
+    def test_warning_on_use_cache_and_statistic(self):
+        # create sample dataset
+        ds = datasets.Dataset.from_dict(
+            {"X": ["example %i" % i for i in range(1)]}
+        )
+
+        with StatisticsReport() as report:
+            # create data pipe containing a statistics processor
+            sample_data_pipe = DataPipe(
+                [ConstantStatistic(ConstantStatisticConfig(), report)]
+            )
+            # should not warn as the statistic is always computed
+            sample_data_pipe.apply(
+                ds, batch_size=1, load_from_cache_file=False
+            )
+
+        with StatisticsReport() as report:
+            # create data pipe containing a statistics processor
+            sample_data_pipe = DataPipe(
+                [ConstantStatistic(ConstantStatisticConfig(), report)]
+            )
+            # check for warning when statistic might not be computed
+            with pytest.warns(UserWarning):
+                sample_data_pipe.apply(
+                    ds, batch_size=1, load_from_cache_file=True
+                )
+
+    def test_error_on_missing_features(self, sample_data_pipe, tmp_path):
+        # create sample data file in json format
+        p = tmp_path / "data.json"
+        p.write_text('{"A": 0}')
+        # stream data from file
+        # datasets cannot infer the features when streaming from a file
+        ds = datasets.load_dataset(
+            "json", data_files=p.as_posix(), split="train", streaming=True
+        )
+        assert ds.features is None
+
+        # should lead to a runtime error as the pipe cannot be prepared
+        with pytest.raises(RuntimeError):
+            sample_data_pipe.apply(ds)
+
+        # need to be prepared manually
+        sample_data_pipe.prepare(
+            datasets.Features({"A": datasets.Value("int32")})
+        )
+        sample_data_pipe.apply(ds)
