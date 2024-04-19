@@ -51,6 +51,16 @@ class Jinja2Config(BaseDataProcessorConfig):
     Creates a new feature by applying a jinja2 template
     to the given datapoints.
 
+    Access to the specific example values and their features is given
+    through `FeatureKey` instances and jinja2 filters. Specifically see
+    the following example on how to access the respective values:
+
+    .. highlight:: python
+    .. code-block:: python
+
+        valA = "The value of A is {{ FeatureKey('A') | index_example }}."
+        featA = "The feature of A is {{ FeatureKey('A') | index_features }}."
+
     Attributes:
         template (str):
             string template to apply
@@ -83,6 +93,16 @@ class Jinja2(BaseDataProcessor[Jinja2Config]):
 
     Creates a new feature by applying a jinja2 template
     to the given datapoints.
+
+    Access to the specific example values and their features is given
+    through `FeatureKey` instances and jinja2 filters. Specifically see
+    the following example on how to access the respective values:
+
+    .. highlight:: python
+    .. code-block:: python
+
+        valA = "The value of A is {{ FeatureKey('A') | index_example }}."
+        featA = "The feature of A is {{ FeatureKey('A') | index_features }}."
     """
 
     def __init__(self, config: Jinja2Config) -> None:
