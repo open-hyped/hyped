@@ -152,6 +152,10 @@ class BaseTestProcessGraph(object):
         # test if graph matches expected topology
         assert nx.is_isomorphic(G, graph)
 
+    def test_plot(self, G):
+        # hard to test but at least check for errors
+        G.plot()
+
 
 class TestSimplePath(BaseTestProcessGraph):
     @pytest.fixture
