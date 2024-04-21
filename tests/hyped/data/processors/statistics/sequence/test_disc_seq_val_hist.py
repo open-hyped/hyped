@@ -35,10 +35,10 @@ class TestDiscreteHistogramWithStrings(BaseTestDataStatistic):
         ]
     )
     def in_batch(self, request, in_features):
-        if isinstance(in_features["A"], Value):
+        if isinstance(in_features["A"].feature, Value):
             return {"A": [list(map(str, request.param))] * 3}
-        elif isinstance(in_features["A"], ClassLabel):
-            return {"A": [in_features["A"].str2int(request.param)] * 3}
+        elif isinstance(in_features["A"].feature, ClassLabel):
+            return {"A": [in_features["A"].feature.str2int(request.param)] * 3}
 
     @pytest.fixture
     def statistic(self, in_batch):
@@ -55,13 +55,13 @@ class TestDiscreteHistogramWithStrings(BaseTestDataStatistic):
 
     @pytest.fixture
     def expected_stat_value(self, in_features, in_batch, statistic):
-        if isinstance(in_features["A"], Value):
+        if isinstance(in_features["A"].feature, Value):
             return dict(Counter(chain.from_iterable(in_batch["A"])))
-        elif isinstance(in_features["A"], ClassLabel):
+        elif isinstance(in_features["A"].feature, ClassLabel):
             return dict(
                 Counter(
                     chain.from_iterable(
-                        in_features["A"].int2str(in_batch["A"])
+                        map(in_features["A"].feature.int2str, in_batch["A"])
                     )
                 )
             )
