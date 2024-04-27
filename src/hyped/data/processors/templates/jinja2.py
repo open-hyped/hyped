@@ -1,15 +1,50 @@
 """Jinja2 Template Data Processor."""
+import warnings
 from functools import partial
 from typing import Any, Callable, Iterable
 
-from datasets import Features, Value
+from datasets import ClassLabel, Features, Sequence, Value
+from datasets.features.features import FeatureType
 from jinja2 import Environment
 
+from hyped.common.feature_checks import (
+    get_sequence_feature,
+    get_sequence_length,
+)
 from hyped.common.feature_key import FeatureKey
 from hyped.data.processors.base import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
 )
+
+
+def build_sample(feature: FeatureType) -> dict[str, Any]:
+    """Build a sample according to the given feature.
+
+    Arguments:
+        feature (FeatureType):
+            feature type for which to build a sample value for
+
+    Returns:
+        sample (dict[str, Any]):
+            sample matching the given feature
+    """
+    if isinstance(feature, (dict, Features)):
+        return {key: build_sample(val) for key, val in feature.items()}
+
+    if isinstance(feature, (list, Sequence)):
+        f = get_sequence_feature(feature)
+        l = get_sequence_length(feature)
+        return [build_sample(f) for _ in range(l if (l != -1) else 1)]
+
+    if isinstance(feature, ClassLabel):
+        assert feature.num_classes > 0
+        return 0
+
+    if isinstance(feature, Value):
+        return feature.pa_type.to_pandas_dtype()(0)
+
+    raise TypeError("Unexpected feature type: %s" % feature)
 
 
 def _map_to_none(*args, **kwargs):
@@ -124,7 +159,7 @@ class Jinja2(BaseDataProcessor[Jinja2Config]):
         # collect feature keys mentioned in template
         self.feature_keys: None | set[FeatureKey] = None
 
-    def _collect_required_feature_keys(self, features: Features):
+    def _collect_required_feature_keys(self, features: Features) -> None:
         """Collect all feature keys referenced in the template.
 
         Clears the current feature keys set and adds all feature keys
@@ -136,12 +171,12 @@ class Jinja2(BaseDataProcessor[Jinja2Config]):
                 input dataset features
         """
         self.feature_keys = set()
+        example = build_sample(features)
 
         def _index_example(key):
             """Collect feature key and build value matching feature."""
             self.feature_keys.add(key)
-            # TODO: build some value matching the feature
-            return None
+            return key.index_example(example)
 
         def _index_features(key):
             """Collect feature key and index features."""
@@ -156,15 +191,14 @@ class Jinja2(BaseDataProcessor[Jinja2Config]):
             },
         ):
             try:
-                # TODO: aborts processing of the template at first
-                #       exception and doesn't capture feature keys
-                #       mentioned after that, the exception itself
-                #       might be raised because the filters return
-                #       None while the template further processes
-                #       the filter output
+                # render template with collection features
                 self.template.render(FeatureKey=FeatureKey)
-            except:
-                pass
+            except Exception as e:
+                warnings.warn(
+                    "Encountered an expcetion while collecting referenced "
+                    "feature keys in the template: %s" % str(e),
+                    RuntimeWarning,
+                )
 
     @property
     def required_feature_keys(self) -> set[FeatureKey]:

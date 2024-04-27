@@ -152,6 +152,14 @@ class TestJinja2(BaseTestDataProcessor):
     def processor(self, template):
         return Jinja2(Jinja2Config(template=template, output="out"))
 
+    @pytest.fixture
+    def expected_out_features(self):
+        return Features({"out": Value("string")})
+
+    @pytest.fixture
+    def expected_out_batch(self, target):
+        return {"out": [target]}
+
     def test_required_feature_keys(self, in_features, processor, feature_keys):
         # reset data processor preparation state
         BaseDataProcessor.__init__(processor, config=processor.config)
@@ -162,10 +170,10 @@ class TestJinja2(BaseTestDataProcessor):
         processor.prepare(in_features)
         assert processor.required_feature_keys == feature_keys
 
-    @pytest.fixture
-    def expected_out_features(self):
-        return Features({"out": Value("string")})
-
-    @pytest.fixture
-    def expected_out_batch(self, target):
-        return {"out": [target]}
+    def test_warning_on_parse_error(self, in_features):
+        # invalid feature key, 'INVALID' not part of features
+        template = "{{ FeatureKey('INVALID') | index_example }}"
+        processor = Jinja2(Jinja2Config(template=template, output="out"))
+        # should warn about error in template
+        with pytest.warns(RuntimeWarning, match="Encountered an expcetion"):
+            processor._collect_required_feature_keys(in_features)
