@@ -12,7 +12,7 @@ from datasets import Features
 from datasets.iterable_dataset import _batch_to_examples, _examples_to_batch
 
 from hyped.base.config import BaseConfig, BaseConfigurable
-from hyped.common.feature_key import Feature, FeatureDict, FeatureKey
+from hyped.common.feature_key import FeatureCollection, FeatureDict, FeatureKey
 
 
 class BaseDataProcessorConfig(BaseConfig):
@@ -51,7 +51,7 @@ class BaseDataProcessorConfig(BaseConfig):
             if isinstance(col, (list, tuple)):
                 yield from chain.from_iterable(map(_iter_feature_keys, col))
 
-            if isinstance(col, Feature):
+            if isinstance(col, FeatureCollection):
                 yield from col.feature_keys
 
             if isinstance(col, dict):

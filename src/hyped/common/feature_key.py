@@ -530,18 +530,18 @@ class Const(BaseModel):
         return Dataset.from_dict({"feature": [self.value]}).features["feature"]
 
 
-class Feature(BaseModel):
-    """Feature Descriptor.
+class FeatureCollection(BaseModel):
+    """Feature Collection.
 
-    A Feature Descriptor is a more complex variant of a `FeatureKey`. Where a
-    feature key is only used to index a single feature, a `Feature` can be used
-    to build a complex collection of features on the fly.
+    A Feature Collection is a more complex variant of a `FeatureKey`. Where a
+    feature key is only used to index a single feature, a `FeatureCollection`
+    can be used to build a complex collection of features on the fly.
 
     Consider the following example:
 
     .. code-block: python
 
-        seq_feature = Feature(
+        seq_feature = FeatureCollection(
             [
                 FeatureKey("a"),
                 FeatureKey("b"),
@@ -552,11 +552,13 @@ class Feature(BaseModel):
         seq = seq_feature.index_example(...)
 
     Arguments:
-        scheme (FeatureKey | list[Feature] | dict[str, Feature] | Const):
+        scheme (FeatureKey | list[FeatureCollection] | dict[str, FeatureCollection] | Const):
             recipe of the feature, i.e. a specification on how to construct the feature
     """
 
-    scheme: FeatureKey | list[Feature] | dict[str, Feature] | Const
+    scheme: FeatureKey | list[FeatureCollection] | dict[
+        str, FeatureCollection
+    ] | Const
 
     def __init__(self, scheme: Any = None, **kwargs) -> None:
         """Constructor."""
@@ -564,15 +566,15 @@ class Feature(BaseModel):
             scheme = kwargs
 
         scheme = type(self)._parse_scheme(scheme)
-        super(Feature, self).__init__(scheme=scheme)
+        super(FeatureCollection, self).__init__(scheme=scheme)
 
     @classmethod
-    def _parse_scheme(cls, scheme: Any) -> Feature:
+    def _parse_scheme(cls, scheme: Any) -> FeatureCollection:
         """Helper function used to parse a schema."""
         if isinstance(scheme, dict):
-            return {key: Feature(val) for key, val in scheme.items()}
+            return {key: FeatureCollection(val) for key, val in scheme.items()}
         if isinstance(scheme, list):
-            return list(map(Feature, scheme))
+            return list(map(FeatureCollection, scheme))
         if isinstance(scheme, (str, tuple)):
             return FeatureKey(scheme)
 
@@ -701,10 +703,10 @@ class Feature(BaseModel):
         return str(self)
 
 
-class FeatureDict(Feature):
+class FeatureDict(FeatureCollection):
     """Feature Dictionary.
 
-    A special `Feature` type guaranteed to be a dictionary on top-level
+    A special Feature Collection type guaranteed to be a dictionary on top-level
     but can still contain nested sub-features.
 
     Arguments:
@@ -712,7 +714,7 @@ class FeatureDict(Feature):
             recipe of the feature, i.e. a specification on how to construct the feature
     """
 
-    scheme: dict[str, Feature]
+    scheme: dict[str, FeatureCollection]
 
     @staticmethod
     def from_feature_keys(feature_keys: Iterable[FeatureKey]) -> FeatureDict:
