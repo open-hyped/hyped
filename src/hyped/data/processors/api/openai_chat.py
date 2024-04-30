@@ -1,5 +1,6 @@
 """OpenAI LLM API Data Processor."""
 import asyncio
+import warnings
 from contextlib import nullcontext
 from typing import Annotated, Any
 
@@ -8,7 +9,7 @@ from openai import AsyncOpenAI
 from pydantic import Field
 
 from hyped.common.feature_checks import raise_feature_is_sequence
-from hyped.common.feature_key import FeatureCollection
+from hyped.common.feature_key import FeatureCollection, FeatureKey
 from hyped.common.lazy import LazyInstance
 from hyped.data.processors.base import (
     BaseDataProcessor,
@@ -20,7 +21,7 @@ class OpenAIChatCompletionConfig(BaseDataProcessorConfig):
     """OpenAI Chat Completion Data Processor Config.
 
     Attributes:
-        messages (FeatureCollection):
+        messages (FeatureKey | FeatureCollection):
             input chat messages, following the openai chat message format
         model (str):
             openai model to use
@@ -30,7 +31,7 @@ class OpenAIChatCompletionConfig(BaseDataProcessorConfig):
             `max_concurrent_calls` calls to the api at a time.
     """
 
-    messages: FeatureCollection
+    messages: FeatureCollection | FeatureKey
 
     model: str = "gpt-3.5-turbo-0125"
     frequency_penalty: float = Field(default=0, ge=-2, le=2)
@@ -78,7 +79,10 @@ class OpenAIChatCompletion(BaseDataProcessor[OpenAIChatCompletionConfig]):
         self.client = LazyInstance(AsyncOpenAI)
 
         # check if there are any non-constant values in the messages
-        if len(list(self.config.messages.feature_keys)) == 0:
+        if (
+            isinstance(self.config.messages, FeatureCollection)
+            and len(list(self.config.messages.feature_keys)) == 0
+        ):
             warnings.warn(
                 "The specified messages do not contain any variables, i.e. "
                 "FeatureKeys. The prompt will be constant for all examples.",
