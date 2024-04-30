@@ -20,15 +20,23 @@ from hyped.data.processors.base import (
 class OpenAIChatCompletionConfig(BaseDataProcessorConfig):
     """OpenAI Chat Completion Data Processor Config.
 
+    For more information about the arguments, please refer to the
+    openai documentation.
+
     Attributes:
         messages (FeatureKey | FeatureCollection):
-            input chat messages, following the openai chat message format
+            input chat messages, following the openai chat message format.
+            This can either be a feature key, refering to a dataset feature
+            already in the correct format, or a feature collection describing
+            the input feature.
         model (str):
-            openai model to use
+            openai model to use, check the openai documentation for further
+            information.
         max_concurrent_calls (None | int):
             the maximum number of concurrent calls to the api. When using
             multiple processes, each process can have up to a total of
             `max_concurrent_calls` calls to the api at a time.
+        ...
     """
 
     messages: FeatureCollection | FeatureKey
@@ -51,6 +59,30 @@ class OpenAIChatCompletionConfig(BaseDataProcessorConfig):
 
 class OpenAIChatCompletion(BaseDataProcessor[OpenAIChatCompletionConfig]):
     """OpenAI Chat Completion Data Processor.
+
+    Check the following example on how to use the processor
+    using a feature collection:
+
+    .. code-block:: python
+
+        processor = OpenAIChatCompletion(
+            OpenAIChatCompletionConfig(
+                model=...,
+                messages=FeatureCollection(
+                    [
+                        {
+                            "role": Const("system"),
+                            "content": Const("This is a system message")
+                        },
+                        {
+                            "role": Const("user"),
+                            "content": FeatureKey("prompt")
+                        }
+                    ]
+                )
+            )
+        )
+
 
     MacOS users might have to set the following environment variable when using
     this processor in a multiprocessing setting:
@@ -90,7 +122,17 @@ class OpenAIChatCompletion(BaseDataProcessor[OpenAIChatCompletionConfig]):
             )
 
     def map_features(self, features: Features) -> Features:
-        """Map features."""
+        """Map dataset features.
+
+        Arguments:
+            features (Features):
+                input dataset features
+
+        Returns:
+            out (Features):
+                completion features including the completion message
+                as well as meta information such as the token usage.
+        """
         # check the messages feature
         raise_feature_is_sequence(
             self.config.messages,
@@ -122,7 +164,20 @@ class OpenAIChatCompletion(BaseDataProcessor[OpenAIChatCompletionConfig]):
     async def process(
         self, example: dict[str, Any], index: int, rank: int
     ) -> dict[str, Any]:
-        """Process example."""
+        """Process example.
+
+        Arguments:
+            example (dict[str, Any]):
+                example to process
+            index (int):
+                dataset index of the example
+            rank (int):
+                execution process rank
+
+        Returns:
+            out (dict[str, Any]):
+                processed example
+        """
         with self.sem:
             resp = await self.client.chat.completions.create(
                 messages=self.config.messages.index_example(example),
