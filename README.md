@@ -40,8 +40,8 @@ git clone https://github.com/open-hyped/hyped.git
 # Navigate to the cloned repository
 cd hyped
 
-# Install the package using pip
-pip install -e .
+# Install the package including optional developer dependencies
+pip install -e .[linting, tests]
 ```
 
 Now you're ready to start using Hyped for managing and executing your data pipelines!
@@ -128,6 +128,22 @@ ds = pipe.apply(ds)
 # Write processed examples to disk using 4 worker processes
 JsonDatasetWriter("dump/", num_proc=4).consume(ds)
 ```
+
+## Running Tests
+
+Hyped Serve includes a suite of tests to ensure its functionality. You can run these tests using pytest:
+
+```bash
+pytest tests
+```
+
+Ensure that you have pytest installed in your environment. You can install it via pip:
+
+```bash
+pip install pytest
+```
+
+Running the tests will execute various test cases to validate the behavior of Hyped.
 
 ## Contribution Guidelines
 
