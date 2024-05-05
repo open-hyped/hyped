@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from hyped.common.feature_checks import raise_feature_equals
 from hyped.common.feature_key import FeatureKey
-from hyped.data.io.datasets.typed_json import pydantic_model_from_features
+from hyped.common.pydantic import pydantic_model_from_features
 from hyped.data.processors.base import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
