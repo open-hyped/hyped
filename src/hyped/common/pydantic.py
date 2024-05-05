@@ -1,9 +1,10 @@
 """Pydantic helper functionality."""
 import datetime
-from typing import Literal
+from functools import partial
 
 import datasets
 import pydantic
+from typing_extensions import Annotated
 
 # map datasets value dtype to
 DATASETS_VALUE_TYPE_MAPPING = {
@@ -26,6 +27,33 @@ DATASETS_VALUE_TYPE_MAPPING = {
     "time32": datetime.time,
     "time64": datetime.time,
 }
+
+
+def _class_label_validator(
+    v: str | int | None,
+    info: pydantic.ValidationInfo,
+    feature: datasets.ClassLabel,
+) -> int | None:
+    """Class Label validator.
+
+    Converts string labels to their integer representations.
+
+    Arguments:
+        v (str | int | None): value to validate
+        info (pydantic.ValidationInfo): validation info
+        feature (datasets.ClassLabel): class label feature
+
+    Returns:
+        validated_v (int | None): validated value
+    """
+    if (v is None) or isinstance(v, int):
+        return v
+    if isinstance(v, str):
+        return feature.str2int(v)
+
+    raise TypeError(
+        "Invalid type for class label feature, expected str or int, got %s" % v
+    )
 
 
 def pydantic_model_from_features(
@@ -54,7 +82,17 @@ def pydantic_model_from_features(
             )
 
         elif isinstance(field_type, datasets.ClassLabel):
-            fields[k] = (Literal[tuple(field_type.names)] | None, None)
+            fields[k] = (
+                Annotated[
+                    int,
+                    pydantic.BeforeValidator(
+                        partial(_class_label_validator, feature=field_type)
+                    ),
+                ]
+                | None,
+                None,
+            )
+            # fields[k] = (Literal[tuple(field_type.names)] | None, None)
 
         elif isinstance(field_type, datasets.Sequence):
             # infer dtype for sequence values
