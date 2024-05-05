@@ -2,7 +2,6 @@
 import io
 from dataclasses import dataclass, field
 from itertools import chain, count
-from typing import Literal
 
 import datasets
 import orjson
