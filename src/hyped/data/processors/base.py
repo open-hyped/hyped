@@ -8,6 +8,7 @@ from itertools import chain, repeat
 from types import GeneratorType
 from typing import Any, ClassVar, Generator, Iterable, TypeVar
 
+import nest_asyncio
 from datasets import Features
 from datasets.iterable_dataset import _batch_to_examples, _examples_to_batch
 
@@ -507,6 +508,11 @@ class BaseDataProcessor(BaseConfigurable[T], ABC):
             )(examples, index, rank)
             # get the event loop to run the async function
             loop = asyncio.get_event_loop()
+            # apply nest_asyncio fix if the event loop is already running
+            # this fixes #26
+            if loop.is_running():
+                nest_asyncio.apply()
+            # run the event loop and return coroutine results
             return loop.run_until_complete(future)
 
         # run sync
