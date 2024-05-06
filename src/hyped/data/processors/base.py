@@ -8,12 +8,23 @@ from itertools import chain, repeat
 from types import GeneratorType
 from typing import Any, ClassVar, Generator, Iterable, TypeVar
 
-import nest_asyncio
 from datasets import Features
 from datasets.iterable_dataset import _batch_to_examples, _examples_to_batch
 
 from hyped.base.config import BaseConfig, BaseConfigurable
 from hyped.common.feature_key import FeatureCollection, FeatureDict, FeatureKey
+
+# patch asyncio if running in an async environment, such as jupyter notebook
+# this fixes #26
+try:
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        import nest_asyncio
+
+        nest_asyncio.apply()
+
+except RuntimeError:
+    pass
 
 
 class BaseDataProcessorConfig(BaseConfig):
@@ -507,11 +518,7 @@ class BaseDataProcessor(BaseConfigurable[T], ABC):
                 else self._async_batch_process
             )(examples, index, rank)
             # get the event loop to run the async function
-            loop = asyncio.get_event_loop()
-            # apply nest_asyncio fix if the event loop is already running
-            # this fixes #26
-            if loop.is_running():
-                nest_asyncio.apply()
+            loop = asyncio.new_event_loop()
             # run the event loop and return coroutine results
             return loop.run_until_complete(future)
 
