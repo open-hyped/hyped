@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from datasets import Features, Sequence, Value
+from openai import RateLimitError
 from openai.types.chat.chat_completion import (
     ChatCompletion,
     ChatCompletionMessage,
@@ -17,7 +18,7 @@ from hyped.data.processors.api.openai_chat import (
 from tests.hyped.data.processors.base import BaseTestDataProcessor
 
 
-async def dummy_chat_completion_response(*args, **kwargs):
+async def dummy_chat_completion(*args, **kwargs):
     return ChatCompletion(
         id="0",
         choices=[
@@ -41,6 +42,21 @@ async def dummy_chat_completion_response(*args, **kwargs):
     )
 
 
+class dummy_chat_completion_with_rate_limit(object):
+    NUM_CALLS = 0
+
+    @classmethod
+    async def call(cls, *args, **kwargs):
+        cls.NUM_CALLS += 1
+
+        if cls.NUM_CALLS < 3:
+            raise RateLimitError(
+                "Dummy Rate Limit Error", response=MagicMock(), body=None
+            )
+
+        return await dummy_chat_completion(*args, **kwargs)
+
+
 class TestOpenAIChatCompletion(BaseTestDataProcessor):
     @pytest.fixture
     def in_features(self):
@@ -52,15 +68,18 @@ class TestOpenAIChatCompletion(BaseTestDataProcessor):
             }
         )
 
-    @pytest.fixture
-    def processor(self):
+    @pytest.fixture(
+        params=[
+            dummy_chat_completion,
+            dummy_chat_completion_with_rate_limit.call,
+        ]
+    )
+    def processor(self, request):
         # create a mock chat client to be used in the processor
         mock_chat_client = MagicMock()
         mock_chat_client.chat = MagicMock()
         mock_chat_client.chat.completions = MagicMock()
-        mock_chat_client.chat.completions.create.side_effect = (
-            dummy_chat_completion_response
-        )
+        mock_chat_client.chat.completions.create.side_effect = request.param
 
         # patch the async openai client with the mock client
         with patch(

@@ -1,11 +1,12 @@
 """OpenAI LLM API Data Processor."""
 import asyncio
+import random
 import warnings
 from contextlib import nullcontext
 from typing import Annotated, Any, Literal, TypedDict
 
 from datasets import Features, Sequence, Value
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, RateLimitError
 from openai._constants import DEFAULT_MAX_RETRIES
 from pydantic import Field
 
@@ -50,6 +51,12 @@ class OpenAIChatCompletionConfig(BaseDataProcessorConfig):
             This can either be a feature key, refering to a dataset feature
             already in the correct format, or a feature collection describing
             the input feature.
+        rate_limit_max_retries (int):
+            Maximum number of retries in case of rate limit error. Defaults
+            to 3.
+        rate_limit_exp_backoff (int):
+            Exponential backoff factor (i.e. the base of the exponent) for
+            rate limit error handling. Defaults to 2.
         max_concurrent_calls (None | int):
             the maximum number of concurrent calls to the api. When using
             multiple processes, each process can have up to a total of
@@ -144,6 +151,8 @@ class OpenAIChatCompletionConfig(BaseDataProcessorConfig):
 
     messages: FeatureCollection | FeatureKey
     max_concurrent_calls: None | int = None
+    rate_limit_max_retries: int = 10
+    rate_limit_exp_backoff: int = 2
     # client arguments
     api_key: str | None = None
     organization: str | None = None
@@ -282,10 +291,10 @@ class OpenAIChatCompletion(BaseDataProcessor[OpenAIChatCompletionConfig]):
             }
         }
 
-    async def process(
+    async def api_call(
         self, example: dict[str, Any], index: int, rank: int
     ) -> dict[str, Any]:
-        """Process example.
+        """OpenAI API Call.
 
         Arguments:
             example (dict[str, Any]):
@@ -299,27 +308,26 @@ class OpenAIChatCompletion(BaseDataProcessor[OpenAIChatCompletionConfig]):
             out (dict[str, Any]):
                 processed example
         """
-        with self.sem:
-            resp = await self.client.chat.completions.create(
-                messages=self.config.messages.index_example(example),
-                model=self.config.model,
-                frequency_penalty=self.config.frequency_penalty,
-                presence_penalty=self.config.presence_penalty,
-                logit_bias=self.config.logit_bias,
-                logprobs=self.config.logprobs,
-                top_logprobs=self.config.top_logprobs,
-                temperature=self.config.temperature,
-                top_p=self.config.top_p,
-                max_tokens=self.config.max_tokens,
-                tools=self.config.tools,
-                tool_choice=self.config.tool_choice,
-                response_format=self.config.response_format,
-                seed=self.config.seed,
-                stop=self.config.stop,
-                extra_headers=self.config.extra_headers,
-                extra_query=self.config.extra_query,
-                extra_body=self.config.extra_body,
-            )
+        resp = await self.client.chat.completions.create(
+            messages=self.config.messages.index_example(example),
+            model=self.config.model,
+            frequency_penalty=self.config.frequency_penalty,
+            presence_penalty=self.config.presence_penalty,
+            logit_bias=self.config.logit_bias,
+            logprobs=self.config.logprobs,
+            top_logprobs=self.config.top_logprobs,
+            temperature=self.config.temperature,
+            top_p=self.config.top_p,
+            max_tokens=self.config.max_tokens,
+            tools=self.config.tools,
+            tool_choice=self.config.tool_choice,
+            response_format=self.config.response_format,
+            seed=self.config.seed,
+            stop=self.config.stop,
+            extra_headers=self.config.extra_headers,
+            extra_query=self.config.extra_query,
+            extra_body=self.config.extra_body,
+        )
 
         return {
             "run_id": resp.id,
@@ -334,3 +342,36 @@ class OpenAIChatCompletion(BaseDataProcessor[OpenAIChatCompletionConfig]):
                 "total_tokens": resp.usage.total_tokens,
             },
         }
+
+    async def process(
+        self, example: dict[str, Any], index: int, rank: int
+    ) -> dict[str, Any]:
+        """Process example.
+
+        Implements basic error handling for api call.
+
+        Arguments:
+            example (dict[str, Any]):
+                example to process
+            index (int):
+                dataset index of the example
+            rank (int):
+                execution process rank
+
+        Returns:
+            out (dict[str, Any]):
+                processed example
+        """
+        # TODO: outsource this logic into a base api data processor
+        with self.sem:
+            for i in range(1, 1 + self.config.rate_limit_max_retries):
+                try:
+                    return await self.api_call(example, index, rank)
+                except RateLimitError:
+                    # Increment the delay
+                    delay = self.config.rate_limit_exp_backoff * (
+                        i + random.random()
+                    )
+                    await asyncio.sleep(delay)
+
+            raise Exception("Maximum number of retries exceeded.")
