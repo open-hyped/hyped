@@ -365,13 +365,13 @@ class OpenAIChatCompletion(BaseDataProcessor[OpenAIChatCompletionConfig]):
         """
         # TODO: outsource this logic into a base api data processor
         with self.sem:
-            for i in range(1, 1 + self.config.rate_limit_max_retries):
+            for i in range(0, 1 + self.config.rate_limit_max_retries):
                 try:
                     return await self.api_call(example, index, rank)
                 except RateLimitError:
                     # Increment the delay
                     delay = self.config.rate_limit_exp_backoff ** (
-                        i + random.random()
+                        1 + i + random.random()
                     )
                     warnings.warn(
                         "API rate limit exceeded. Retrying in %.01f seconds."
