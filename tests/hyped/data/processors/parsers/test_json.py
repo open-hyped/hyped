@@ -64,7 +64,7 @@ class TestJsonParser(BaseTestDataProcessor):
 
     @pytest.fixture
     def processor(self, scheme):
-        return JsonParser(JsonParserConfig(json="json", scheme=scheme))
+        return JsonParser(JsonParserConfig(json_str="json", scheme=scheme))
 
     @pytest.fixture
     def in_batch(self, json_string):

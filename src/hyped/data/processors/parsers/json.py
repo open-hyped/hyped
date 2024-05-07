@@ -27,7 +27,7 @@ class JsonParserConfig(BaseDataProcessorConfig):
         scheme (FeatureType): feature scheme of the parsed object
     """
 
-    json: FeatureKey
+    json_str: FeatureKey
     scheme: FeatureType
 
 
@@ -66,8 +66,8 @@ class JsonParser(BaseDataProcessor[JsonParserConfig]):
         """Map features."""
         # make sure the feature to parse is a string
         raise_feature_equals(
-            self.config.json,
-            self.config.json.index_features(features),
+            self.config.json_str,
+            self.config.json_str.index_features(features),
             Value("string"),
         )
         # return expected scheme
@@ -88,7 +88,7 @@ class JsonParser(BaseDataProcessor[JsonParserConfig]):
             index (list[int]): pass through of the input indices
         """
         # combine all json strings to a batch json string
-        json_strings = self.config.json.index_batch(examples)
+        json_strings = self.config.json_str.index_batch(examples)
         large_json_string = '{"parsed": [%s]}' % ",".join(json_strings)
         # load batch in one validation step
         parsed_batch = self._feature_model.model_validate_json(

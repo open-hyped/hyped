@@ -28,7 +28,7 @@ class RepairJsonParserConfig(BaseDataProcessorConfig):
             string or directly assume the string to be broken
     """
 
-    json: FeatureKey
+    json_str: FeatureKey
     scheme: FeatureType
 
     skip_json_loads: bool = False
@@ -66,8 +66,8 @@ class RepairJsonParser(BaseDataProcessor[RepairJsonParserConfig]):
         """Map features."""
         # make sure the feature to parse is a string
         raise_feature_equals(
-            self.config.json,
-            self.config.json.index_features(features),
+            self.config.json_str,
+            self.config.json_str.index_features(features),
             Value("string"),
         )
         # return expected scheme
@@ -79,7 +79,7 @@ class RepairJsonParser(BaseDataProcessor[RepairJsonParserConfig]):
         """Process example."""
         # parse json string
         obj = json_repair.loads(
-            json_str=self.config.json.index_example(example),
+            json_str=self.config.json_str.index_example(example),
             skip_json_loads=self.config.skip_json_loads,
         )
         # validate parsed object

@@ -12,5 +12,5 @@ class TestRepairJsonParser(_TestJsonParser):
     @pytest.fixture
     def processor(self, scheme):
         return RepairJsonParser(
-            RepairJsonParserConfig(json="json", scheme=scheme)
+            RepairJsonParserConfig(json_str="json", scheme=scheme)
         )
