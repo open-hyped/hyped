@@ -3,12 +3,13 @@ import asyncio
 import random
 import warnings
 from contextlib import nullcontext
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, Literal
 
 from datasets import Features, Sequence, Value
 from openai import AsyncOpenAI, RateLimitError
 from openai._constants import DEFAULT_MAX_RETRIES
 from pydantic import Field
+from typing_extensions import TypedDict
 
 from hyped.common.feature_checks import raise_feature_is_sequence
 from hyped.common.feature_key import FeatureCollection, FeatureKey
