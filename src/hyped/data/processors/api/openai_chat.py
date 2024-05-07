@@ -227,10 +227,6 @@ class OpenAIChatCompletion(BaseDataProcessor[OpenAIChatCompletionConfig]):
             config (OpenAIChatCompletionConfig):
                 configuration of the processor
         """
-        if config.logprobs:
-            # logprobs are not collected as output features yet
-            raise NotImplementedError()
-
         super(OpenAIChatCompletion, self).__init__(config)
         # create semaphore object to control the maximum
         # number of concurrent calls to the api
@@ -288,6 +284,21 @@ class OpenAIChatCompletion(BaseDataProcessor[OpenAIChatCompletionConfig]):
             "completion": {
                 "run_id": Value("string"),
                 "message": Value("string"),
+                "logprobs": Sequence(
+                    {
+                        "token": Value("string"),
+                        "logprob": Value("float32"),
+                        "top_logprobs": Sequence(
+                            {
+                                "token": Value("string"),
+                                "logprob": Value("float32"),
+                            },
+                            length=0
+                            if self.config.top_logprobs is None
+                            else self.config.top_logprobs,
+                        ),
+                    }
+                ),
                 "tool_calls": Sequence(
                     {
                         "type": Value("string"),
@@ -347,6 +358,28 @@ class OpenAIChatCompletion(BaseDataProcessor[OpenAIChatCompletionConfig]):
             "run_id": resp.id,
             "completion": {
                 "message": resp.choices[0].message.content,
+                "logprobs": (
+                    None
+                    if not self.config.logprobs
+                    else [
+                        {
+                            "token": token.token,
+                            "logprob": token.logprob,
+                            "top_logprobs": (
+                                None
+                                if self.config.top_logprobs is None
+                                else [
+                                    {
+                                        "token": top_token.token,
+                                        "logprob": top_token.logprob,
+                                    }
+                                    for top_token in token.top_logprobs
+                                ]
+                            ),
+                        }
+                        for token in resp.choices[0].logprobs.content
+                    ]
+                ),
                 "function_call": resp.choices[0].message.function_call,
                 "tool_calls": resp.choices[0].message.tool_calls,
             },
