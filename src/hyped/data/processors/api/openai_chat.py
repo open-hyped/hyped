@@ -30,8 +30,55 @@ class OpenAIChatCompletionConfig(BaseDataProcessorConfig):
             already in the correct format, or a feature collection describing
             the input feature.
         model (str):
-            openai model to use, check the openai documentation for further
-            information.
+            id of the model to use
+        frequency_penalty (float):
+            Number between -2.0 and 2.0. Positive values penalize new tokens
+            based on their existing frequency in the text so far, decreasing
+            the model's likelihood to repeat the same line verbatim.
+        presence_penalty (float):
+            Number between -2.0 and 2.0. Positive values penalize new tokens
+            based on whether they appear in the text so far, increasing the
+            model's likelihood to talk about new topics.
+        logit_bias (dict[int, float]):
+            Modify the likelihood of specified tokens appearing in the
+            completion. See the openai documentation for more information.
+        logprobs (bool):
+            Whether to return log probabilities of the output tokens or not.
+            If true, returns the log probabilities of each output token
+            returned in the content of message. Default to `False`.
+        top_logprobs (None | int):
+            An integer between 0 and 20 specifying the number of most likely
+            tokens to return at each token position, each with an associated
+            log probability. logprobs must be set to true if this parameter
+            is used.
+        temperature (float):
+            What sampling temperature to use, between 0 and 2. Higher values
+            like 0.8 will make the output more random, while lower values like
+            0.2 will make it more focused and deterministic.
+        top_p (float):
+            An alternative to sampling with temperature, called nucleus sampling,
+            where the model considers the results of the tokens with top_p
+            probability mass. So 0.1 means only the tokens comprising the top
+            10% probability mass are considered.
+        max_tokens (int):
+            The maximum number of tokens that can be generated in the chat
+            completion.
+        response_format (None | dict[str, str]):
+            An object specifying the format that the model must output. Setting
+            to `{ "type": "json_object" }` enables JSON mode, which guarantees the
+            message the model generates is valid JSON.
+        seed (None | int):
+            If specified, the openai system will make a best effort to sample
+            deterministically, such that repeated requests with the same seed
+            and parameters should return the same result.
+        stop (None | str):
+            Sequence where the API will stop generating further tokens.
+        extra_headers (None | dict[str, str]):
+            Send extra headers
+        extra_query (None | dict[str, str]):
+            Add additional query parameters to the request
+        extra_body (None | dict[str, str]):
+            Add additional JSON properties to the request
         max_concurrent_calls (None | int):
             the maximum number of concurrent calls to the api. When using
             multiple processes, each process can have up to a total of
@@ -53,6 +100,10 @@ class OpenAIChatCompletionConfig(BaseDataProcessorConfig):
     response_format: None | dict[str, str] = None
     seed: None | int = None
     stop: None | str = None
+    # extra
+    extra_headers: None | dict[str, str] = None
+    extra_query: None | dict[str, str] = None
+    extra_body: None | dict[str, str] = None
 
     max_concurrent_calls: None | int = None
 
@@ -99,6 +150,10 @@ class OpenAIChatCompletion(BaseDataProcessor[OpenAIChatCompletionConfig]):
             config (OpenAIChatCompletionConfig):
                 configuration of the processor
         """
+        if config.logprobs:
+            # logprobs are not collected as output features yet
+            raise NotImplementedError()
+
         super(OpenAIChatCompletion, self).__init__(config)
         # create semaphore object to control the maximum
         # number of concurrent calls to the api
@@ -193,6 +248,9 @@ class OpenAIChatCompletion(BaseDataProcessor[OpenAIChatCompletionConfig]):
                 response_format=self.config.response_format,
                 seed=self.config.seed,
                 stop=self.config.stop,
+                extra_headers=self.config.extra_headers,
+                extra_query=self.config.extra_query,
+                extra_body=self.config.extra_body,
             )
 
         return {
