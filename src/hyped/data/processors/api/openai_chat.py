@@ -3,6 +3,7 @@ import asyncio
 import random
 import warnings
 from contextlib import nullcontext
+from functools import partial
 from typing import Annotated, Any, Literal
 
 from datasets import Features, Sequence, Value
@@ -174,7 +175,7 @@ class OpenAIChatCompletionConfig(BaseDataProcessorConfig):
     top_p: float = Field(default=1, ge=0, le=1)
     max_tokens: None | int = None
     tools: None | list[OpenAITool] = None
-    tool_choice: str | OpenAITool = "auto"
+    tool_choice: None | str | OpenAITool = None
     response_format: None | dict[str, str] = None
     seed: None | int = None
     stop: None | str = None
@@ -239,7 +240,19 @@ class OpenAIChatCompletion(BaseDataProcessor[OpenAIChatCompletionConfig]):
             else nullcontext()
         )
         # create a lazy instance of the openai client
-        self.client = LazyInstance(AsyncOpenAI)
+        self.client = LazyInstance(
+            partial(
+                AsyncOpenAI,
+                api_key=self.config.api_key,
+                organization=self.config.organization,
+                project=self.config.project,
+                base_url=self.config.base_url,
+                timeout=self.config.timeout,
+                max_retries=self.config.max_retries,
+                default_headers=self.config.default_headers,
+                default_query=self.config.default_query,
+            )
+        )
 
         # check if there are any non-constant values in the messages
         if (
