@@ -370,8 +370,13 @@ class OpenAIChatCompletion(BaseDataProcessor[OpenAIChatCompletionConfig]):
                     return await self.api_call(example, index, rank)
                 except RateLimitError:
                     # Increment the delay
-                    delay = self.config.rate_limit_exp_backoff * (
+                    delay = self.config.rate_limit_exp_backoff ** (
                         i + random.random()
+                    )
+                    warnings.warn(
+                        "API rate limit exceeded. Retrying in %.01f seconds."
+                        % delay,
+                        UserWarning,
                     )
                     await asyncio.sleep(delay)
 
