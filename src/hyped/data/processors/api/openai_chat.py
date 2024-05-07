@@ -2,10 +2,11 @@
 import asyncio
 import warnings
 from contextlib import nullcontext
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal, TypedDict
 
 from datasets import Features, Sequence, Value
 from openai import AsyncOpenAI
+from openai._constants import DEFAULT_MAX_RETRIES
 from pydantic import Field
 
 from hyped.common.feature_checks import raise_feature_is_sequence
@@ -15,6 +16,26 @@ from hyped.data.processors.base import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
 )
+
+
+class OpenAIToolFunction(TypedDict):
+    """OpenAI compatible Tool Function."""
+
+    description: str
+    """description of the function"""
+    name: str
+    """name of the function"""
+    parameters: object
+    """description of the function parameters in json-schema format"""
+
+
+class OpenAITool(TypedDict):
+    """OpenAI compatible Tool."""
+
+    type: Literal["function"]
+    """type of the tool, currently only supports `function`"""
+    function: OpenAIToolFunction
+    """description of the function"""
 
 
 class OpenAIChatCompletionConfig(BaseDataProcessorConfig):
@@ -29,6 +50,33 @@ class OpenAIChatCompletionConfig(BaseDataProcessorConfig):
             This can either be a feature key, refering to a dataset feature
             already in the correct format, or a feature collection describing
             the input feature.
+        max_concurrent_calls (None | int):
+            the maximum number of concurrent calls to the api. When using
+            multiple processes, each process can have up to a total of
+            `max_concurrent_calls` calls to the api at a time.
+
+    Client Arguments:
+        api_key (str):
+            By default, this is loaded from the `OPENAI_API_KEY` environment
+            variable.
+        organization (str):
+            By default, this is loaded from the `OPENAI_ORG_ID` environment
+            variable.
+        project (str):
+            By default, this is loaded from the `OPENAI_PROJECT_ID` environment
+            variable.
+        base_url (str):
+            Base API URL.
+        timeout (str):
+            Timeout duration.
+        max_retries (int):
+            Maximum number of retries.
+        default_headers (dict[str, str]):
+            Default headers.
+        default_query (dict[str, str]):
+            Default query parameters.
+
+    Completion Arguments:
         model (str):
             id of the model to use
         frequency_penalty (float):
@@ -63,6 +111,19 @@ class OpenAIChatCompletionConfig(BaseDataProcessorConfig):
         max_tokens (int):
             The maximum number of tokens that can be generated in the chat
             completion.
+        tools (None | list[OpenAITool]):
+            A list of tools the model may call. Currently, only functions are
+            supported as a tool. Use this to provide a list of functions the
+            model may generate JSON inputs for. A max of 128 functions are
+            supported.
+        tool_choice (str | OpenAITool):
+            Controls which (if any) tool is called by the model. `none` means the
+            model will not call any tool and instead generates a message. `auto`
+            means the model can pick between generating a message or calling one
+            or more tools. `required` means the model must call one or more tools.
+            Specifying a particular tool via
+            `{"type": "function", "function": {"name": "my_function"}}`
+            forces the model to call that tool.
         response_format (None | dict[str, str]):
             An object specifying the format that the model must output. Setting
             to `{ "type": "json_object" }` enables JSON mode, which guarantees the
@@ -79,15 +140,20 @@ class OpenAIChatCompletionConfig(BaseDataProcessorConfig):
             Add additional query parameters to the request
         extra_body (None | dict[str, str]):
             Add additional JSON properties to the request
-        max_concurrent_calls (None | int):
-            the maximum number of concurrent calls to the api. When using
-            multiple processes, each process can have up to a total of
-            `max_concurrent_calls` calls to the api at a time.
-        ...
     """
 
     messages: FeatureCollection | FeatureKey
-
+    max_concurrent_calls: None | int = None
+    # client arguments
+    api_key: str | None = None
+    organization: str | None = None
+    project: str | None = None
+    base_url: str | None = None
+    timeout: float | None = None
+    max_retries: int = DEFAULT_MAX_RETRIES
+    default_headers: dict[str, str] | None = None
+    default_query: dict[str, str] | None = None
+    # completion arguments
     model: str = "gpt-3.5-turbo-0125"
     frequency_penalty: float = Field(default=0, ge=-2, le=2)
     presence_penalty: float = Field(default=0, ge=-2, le=2)
@@ -97,6 +163,8 @@ class OpenAIChatCompletionConfig(BaseDataProcessorConfig):
     temperature: float = Field(default=1, ge=0, le=2)
     top_p: float = Field(default=1, ge=0, le=1)
     max_tokens: None | int = None
+    tools: None | list[OpenAITool] = None
+    tool_choice: str | OpenAITool = "auto"
     response_format: None | dict[str, str] = None
     seed: None | int = None
     stop: None | str = None
@@ -104,8 +172,6 @@ class OpenAIChatCompletionConfig(BaseDataProcessorConfig):
     extra_headers: None | dict[str, str] = None
     extra_query: None | dict[str, str] = None
     extra_body: None | dict[str, str] = None
-
-    max_concurrent_calls: None | int = None
 
 
 class OpenAIChatCompletion(BaseDataProcessor[OpenAIChatCompletionConfig]):
@@ -245,6 +311,8 @@ class OpenAIChatCompletion(BaseDataProcessor[OpenAIChatCompletionConfig]):
                 temperature=self.config.temperature,
                 top_p=self.config.top_p,
                 max_tokens=self.config.max_tokens,
+                tools=self.config.tools,
+                tool_choice=self.config.tool_choice,
                 response_format=self.config.response_format,
                 seed=self.config.seed,
                 stop=self.config.stop,
