@@ -11,6 +11,7 @@ import datasets
 import pyarrow as pa
 from pydantic import Field
 from torch.utils.data import get_worker_info
+from typing_extensions import TypeAlias
 
 from hyped.common.arrow import convert_features_to_arrow_schema
 from hyped.common.feature_checks import check_feature_equals
@@ -19,6 +20,13 @@ from hyped.data.processors.statistics.base import BaseDataStatistic
 from hyped.data.processors.statistics.report import statistics_report_manager
 
 from .processors.base import BaseDataProcessor, BaseDataProcessorConfig
+
+DatasetType: TypeAlias = (
+    datasets.Dataset
+    | datasets.DatasetDict
+    | datasets.IterableDataset
+    | datasets.IterableDatasetDict
+)
 
 
 class DataPipeConfig(BaseDataProcessorConfig):
@@ -279,24 +287,20 @@ class DataPipe(list, BaseDataProcessor[DataPipeConfig]):
 
     def apply(
         self,
-        data: (
-            datasets.Dataset
-            | datasets.DatasetDict
-            | datasets.IterableDataset
-            | datasets.IterableDatasetDict
-        ),
+        data: DatasetType,
         **kwargs,
     ) -> datasets.Dataset | datasets.DatasetDict:
         """Apply the data pipe to a dataset.
 
         Arguments:
-            data (Dataset|DatasetDict|IterableDataset|IterableDatasetDict):
+            data (DatasetType):
                 source dataset(s)
             **kwargs (dict[str, Any]):
                 arguments forwarded to datasets `.map` function
 
         Returns:
-            out (datasets.Dataset|datasets.DatasetDict): processed dataset(s)
+            out (DatasetType):
+                processed dataset(s)
         """
         # get the dataset features
         if isinstance(data, (datasets.Dataset, datasets.IterableDataset)):
@@ -343,31 +347,12 @@ class DataPipe(list, BaseDataProcessor[DataPipeConfig]):
                     UserWarning,
                 )
 
-        # required settings
-        kwargs["batched"] = True
-        kwargs["with_indices"] = True
-        # for in-memory datasets let the map function provide the rank
-        if isinstance(data, (datasets.Dataset, datasets.DatasetDict)):
-            kwargs["with_rank"] = True
+        # apply data pipe to dataset
+        data = self.internal_apply(data, **kwargs)
 
-        if isinstance(data, (datasets.Dataset, datasets.DatasetDict)):
-            # use pyarrow table as output format for in-memory
-            # datasets that support caching since it includes
-            # the output feature information
-            data = data.map(self._batch_process_to_pyarrow, **kwargs)
-
-        elif isinstance(
+        if isinstance(
             data, (datasets.IterableDataset, datasets.IterableDatasetDict)
         ):
-            # iterable dataset class doesn't support pyarrow
-            # outputs in map function, but it also doesn't cache
-            # and thus doesn't need the features while processing
-            data = data.map(
-                self.batch_process,
-                remove_columns=set(self.in_features.keys())
-                - set(self.out_features.keys()),
-                **kwargs,
-            )
             # set output features for lazy datasets manually
             if isinstance(data, datasets.IterableDataset):
                 data.info.features = self.out_features
@@ -376,3 +361,49 @@ class DataPipe(list, BaseDataProcessor[DataPipeConfig]):
                     split.info.features = self.out_features
 
         return data
+
+    def internal_apply(
+        self,
+        data: DatasetType,
+        **kwargs,
+    ) -> DatasetType:
+        """Internal apply function.
+
+        Arguments:
+            data (DatasetType):
+                source dataset(s)
+            **kwargs:
+                keyword arguments passed to the map function
+                appropriate for the given dataset type
+
+        Returns:
+            out (DatasetType):
+                processed dataset(s)
+        """
+        # required settings
+        kwargs["batched"] = True
+        kwargs["with_indices"] = True
+        # for non-iterable datasets the map function provide the rank
+        if isinstance(data, (datasets.Dataset, datasets.DatasetDict)):
+            kwargs["with_rank"] = True
+
+        if isinstance(data, (datasets.Dataset, datasets.DatasetDict)):
+            # use pyarrow table as output format for in-memory
+            # datasets that support caching since it includes
+            # the output feature information
+            return data.map(self._batch_process_to_pyarrow, **kwargs)
+
+        elif isinstance(
+            data, (datasets.IterableDataset, datasets.IterableDatasetDict)
+        ):
+            # iterable dataset class doesn't support pyarrow
+            # outputs in map function, but it also doesn't cache
+            # and thus doesn't need the features while processing
+            return data.map(
+                self.batch_process,
+                remove_columns=set(self.in_features.keys())
+                - set(self.out_features.keys()),
+                **kwargs,
+            )
+
+        raise ValueError("Unexpected Dataset type, got %s" % data)
