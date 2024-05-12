@@ -32,7 +32,7 @@ DatasetType: TypeAlias = (
 class DataPipeConfig(BaseDataProcessorConfig):
     """Data Pipeline Configuration."""
 
-    keep_input_features: Literal[None] = Field(default=None, init_var=False)
+    keep_input_features: Literal[True] = Field(default=True, init_var=False)
     output_format: Literal[None] = Field(default=None, init_var=False)
 
 
