@@ -41,7 +41,7 @@ Usage Example:
 """
 from typing import Callable, Optional
 
-from datasets.features.features import FeatureType
+from datasets.features.features import Features, FeatureType
 from pydantic import AfterValidator
 
 from hyped.common.feature_checks import (
@@ -273,3 +273,21 @@ class InputRefs(BaseModelWithTypeValidation):
         # assumes that all feature refs refer to the same flow
         # this is checked later when a processor is added to the flow
         return next(iter(self.refs)).flow_
+
+    @property
+    def features(self) -> Features:
+        """Get the dataset features for the input references.
+
+        This property returns a :code:`Features` object that represents the
+        features of the dataset as defined by the input references in the
+        :class:`InputRefs` instance. Each key in the :code:`Features` object
+        corresponds to the name of an input reference, and the associated value
+        is the feature type of that input reference.
+
+        Returns:
+            Features: A dictionary-like object containing the feature types
+            of the input references.
+        """
+        return Features(
+            {key: ref.feature_ for key, ref in self.named_refs.items()}
+        )
