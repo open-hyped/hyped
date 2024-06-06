@@ -61,7 +61,7 @@ try:
     nest_asyncio._patch_asyncio()
     loop = asyncio.get_event_loop()
     nest_asyncio.apply(loop)
-except ValueError:
+except ValueError:  # pragma: not covered
     # TODO: log warning
     pass
 
@@ -257,7 +257,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             node_id,
             **{
                 DataFlowGraph.NodeProperty.PROCESSOR: processor,
-                DataFlowGraph.NodeProperty.IN_FEATURES: inputs.features,
+                DataFlowGraph.NodeProperty.IN_FEATURES: inputs.features_,
                 DataFlowGraph.NodeProperty.OUT_FEATURES: output_features,
                 DataFlowGraph.NodeProperty.DEPTH: -1,  # placeholder
             },
@@ -272,7 +272,11 @@ class DataFlowGraph(nx.MultiDiGraph):
             # make sure the input is a valid output of the referred node
             assert ref.node_id_ in self
             assert (
-                ref.key_.index_features(self.nodes[ref.node_id_]["features"])
+                ref.key_.index_features(
+                    self.nodes[ref.node_id_][
+                        DataFlowGraph.NodeProperty.OUT_FEATURES
+                    ]
+                )
                 is not None
             )
             # add edge to other nodes
@@ -694,7 +698,11 @@ class DataFlow(object):
                 for ref in aggregators.values()
             )
         ):
-            raise TypeError()
+            raise TypeError(
+                f"Expected aggregators to be a dictionary with values of type "
+                f"`DataAggregationRef`, but got {type(aggregators)} with "
+                f"values {aggregators.values()}"
+            )
 
         # collect all requested leaf nodes
         leaf_nodes = set([collect.node_id_])
@@ -879,7 +887,7 @@ class DataFlow(object):
         elif aggregators is None:
             flow = self.build(collect=collect)
         else:
-            flow, aggregated_vals = self.build(
+            flow, aggregated_values = self.build(
                 collect=collect, aggregators=aggregators
             )
 

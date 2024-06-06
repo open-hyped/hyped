@@ -39,10 +39,10 @@ Usage Example:
     In this example, :class:`CustomInputRefs` extends :class:`InputRefs` to define a collection of input
     references with specified validators for feature type checking.
 """
-from typing import Callable, Optional
+from typing import Callable
 
 from datasets.features.features import Features, FeatureType
-from pydantic import AfterValidator
+from pydantic import AfterValidator, ConfigDict
 
 from hyped.common.feature_checks import (
     get_sequence_length,
@@ -88,12 +88,8 @@ class FeatureValidator(AfterValidator):
                 FeatureRef: The validated FeatureRef instance.
 
             Raises:
-                TypeError: If the provided reference is not a FeatureRef instance.
                 TypeError: If the feature does not conform to the expected feature type.
             """
-            if not isinstance(ref, FeatureRef):
-                raise TypeError("Expected a FeatureRef instance.")
-
             if ref == NONE_REF:
                 return ref
 
@@ -206,6 +202,8 @@ class InputRefs(BaseModelWithTypeValidation):
             specified feature type validation.
     """
 
+    model_config = ConfigDict(validate_default=True)
+
     @classmethod
     def type_validator(cls) -> None:
         """Validate the type of input references.
@@ -275,7 +273,7 @@ class InputRefs(BaseModelWithTypeValidation):
         return next(iter(self.refs)).flow_
 
     @property
-    def features(self) -> Features:
+    def features_(self) -> Features:
         """Get the dataset features for the input references.
 
         This property returns a :code:`Features` object that represents the

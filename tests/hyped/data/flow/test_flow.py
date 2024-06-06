@@ -1,5 +1,6 @@
 import asyncio
-from unittest.mock import patch
+from types import MappingProxyType
+from unittest.mock import MagicMock, patch
 
 import datasets
 import matplotlib.pyplot as plt
@@ -7,6 +8,13 @@ import pytest
 from datasets import Features, Value
 
 from hyped.common.feature_key import FeatureKey
+from hyped.data.flow.aggregators.base import (
+    BaseDataAggregator,
+    BaseDataAggregatorConfig,
+    Batch,
+    DataAggregationManager,
+    DataAggregationRef,
+)
 from hyped.data.flow.flow import (
     SRC_NODE_ID,
     DataFlow,
@@ -30,8 +38,30 @@ class MockFeatureRef(FeatureRef):
         )
 
 
+MockAggregatorInputRefs = NoOpInputRefs
+
+
+class MockAggregatorConfig(BaseDataAggregatorConfig):
+    ...
+
+
+class MockAggregator(
+    BaseDataAggregator[
+        MockAggregatorConfig, MockAggregatorInputRefs, type(None)
+    ]
+):
+    def initialize(self, features):
+        return 0, None
+
+    async def extract(self, inputs, index, rank):
+        return sum(inputs["x"])
+
+    async def update(self, val, ctx, ext):
+        return val + ext, None
+
+
 # fixtures
-@pytest.fixture
+@pytest.fixture(scope="function")
 def setup_graph():
     # create the graph
     graph = DataFlowGraph()
@@ -48,34 +78,48 @@ def setup_graph():
         NoOp(), NoOpInputRefs(x=out1.y), mock_features
     )
     out2 = MockFeatureRef(node_id2, graph)
+
+    node_id3 = graph.add_processor_node(
+        MockAggregator(), MockAggregatorInputRefs(x=out2.y), None
+    )
+    agg = DataAggregationRef(node_id_=node_id3, flow_=graph, type_=type(None))
+
     # return setup
-    return graph, src, out1, out2
+    return graph, src, out1, out2, agg
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def setup_executor(setup_graph):
-    graph, src, out1, out2 = setup_graph
-    executor = DataFlowExecutor(graph, out2)
-    return executor, graph, src, out1, out2
+    graph, src, out1, out2, agg = setup_graph
+    manager = DataAggregationManager(
+        {
+            "agg": graph.nodes[agg.node_id_][
+                DataFlowGraph.NodeProperty.PROCESSOR
+            ]
+        },
+        {"agg": Features({"x": out2.y.feature_})},
+    )
+    executor = DataFlowExecutor(graph, out2, manager)
+    return executor, graph, src, out1, out2, agg
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def setup_state(setup_graph):
-    graph, src, out1, out2 = setup_graph
+    graph, src, out1, out2, agg = setup_graph
     batch = {"y": [-1, -2, -3]}
     index = [0, 1, 2]
     rank = 0
     state = ExecutionState(graph, batch, index, rank)
-    return state, graph, src, out1, out2
+    return state, graph, src, out1, out2, agg
 
 
 @pytest.fixture
 def setup_flow(setup_graph):
-    graph, src, out1, out2 = setup_graph
+    graph, src, out1, out2, agg = setup_graph
     # create data flow
     flow = DataFlow(mock_features)
     flow._graph = graph
-    return flow, src, out1, out2
+    return flow, src, out1, out2, agg
 
 
 class TestDataFlowGraph:
@@ -93,7 +137,11 @@ class TestDataFlowGraph:
             is None
         )
         assert (
-            graph.nodes[SRC_NODE_ID][DataFlowGraph.NodeProperty.FEATURES]
+            graph.nodes[SRC_NODE_ID][DataFlowGraph.NodeProperty.IN_FEATURES]
+            == mock_features
+        )
+        assert (
+            graph.nodes[SRC_NODE_ID][DataFlowGraph.NodeProperty.OUT_FEATURES]
             == mock_features
         )
 
@@ -107,8 +155,11 @@ class TestDataFlowGraph:
             graph.nodes[node_id1][DataFlowGraph.NodeProperty.PROCESSOR]
             == proc1
         )
+        assert graph.nodes[node_id1][
+            DataFlowGraph.NodeProperty.IN_FEATURES
+        ] == Features({"x": mock_features["y"]})
         assert (
-            graph.nodes[node_id1][DataFlowGraph.NodeProperty.FEATURES]
+            graph.nodes[node_id1][DataFlowGraph.NodeProperty.OUT_FEATURES]
             == mock_features
         )
         # check edge
@@ -132,8 +183,11 @@ class TestDataFlowGraph:
             graph.nodes[node_id2][DataFlowGraph.NodeProperty.PROCESSOR]
             == proc2
         )
+        assert graph.nodes[node_id2][
+            DataFlowGraph.NodeProperty.IN_FEATURES
+        ] == Features({"x": mock_features["y"]})
         assert (
-            graph.nodes[node_id2][DataFlowGraph.NodeProperty.FEATURES]
+            graph.nodes[node_id2][DataFlowGraph.NodeProperty.OUT_FEATURES]
             == mock_features
         )
         # check edge
@@ -282,19 +336,19 @@ class TestDataFlowGraph:
             )
 
     def test_dependency_graph(self, setup_graph):
-        graph, src, out1, out2 = setup_graph
+        graph, src, out1, out2, agg = setup_graph
         node_id1, node_id2 = out1.node_id_, out2.node_id_
 
-        subgraph = graph.dependency_graph(node_id2)
+        subgraph = graph.dependency_graph({node_id2})
         assert set(subgraph.nodes) == {SRC_NODE_ID, node_id1, node_id2}
-        subgraph = graph.dependency_graph(node_id1)
+        subgraph = graph.dependency_graph({node_id1})
         assert set(subgraph.nodes) == {SRC_NODE_ID, node_id1}
 
 
 class TestExecutionState:
     @pytest.mark.asyncio
     async def test_wait_for(self, setup_state):
-        state, graph, src, out1, out2 = setup_state
+        state, graph, src, out1, out2, agg = setup_state
         node_id1, node_id2 = out1.node_id_, out2.node_id_
 
         assert not state.ready[node_id2].is_set()
@@ -333,7 +387,7 @@ class TestExecutionState:
         assert collected == {"x": ["a", "b", "c"]}
 
     def test_collect_inputs(self, setup_state):
-        state, graph, src, out1, out2 = setup_state
+        state, graph, src, out1, out2, agg = setup_state
 
         batch = {"y": [-1, -2, -3]}
 
@@ -352,7 +406,7 @@ class TestExecutionState:
         assert collected == {"x": [-1, -2, -3]}
 
     def test_collect_inputs_parent_not_ready(self, setup_state):
-        state, graph, src, out1, out2 = setup_state
+        state, graph, src, out1, out2, agg = setup_state
         node_id1, node_id2 = out1.node_id_, out2.node_id_
 
         # Ensure the parent's output is not ready
@@ -362,7 +416,7 @@ class TestExecutionState:
             state.collect_inputs(node_id2)
 
     def test_capture_output(self, setup_state):
-        state, graph, src, out1, out2 = setup_state
+        state, graph, src, out1, out2, agg = setup_state
         node_id1, node_id2 = out1.node_id_, out2.node_id_
 
         output = {"x": [1, 2, 3]}
@@ -375,8 +429,8 @@ class TestExecutionState:
 class TestDataFlowExecutor:
     @pytest.mark.asyncio
     async def test_execute_node(self, setup_executor, setup_state):
-        executor, graph, src, out1, out2 = setup_executor
-        state, graph, src, out1, out2 = setup_state
+        executor, graph, src, out1, out2, agg = setup_executor
+        state, graph, src, out1, out2, agg = setup_state
         node_id1, node_id2 = out1.node_id_, out2.node_id_
 
         await executor.execute_node(node_id1, state)
@@ -386,7 +440,7 @@ class TestDataFlowExecutor:
 
     @pytest.mark.asyncio
     async def test_execute(self, setup_executor):
-        executor, graph, src, node_id1, node_id2 = setup_executor
+        executor, graph, src, out1, out2, agg = setup_executor
         batch = {"y": [1, 2, 3]}
         index = [0, 1, 2]
         rank = 0
@@ -396,11 +450,16 @@ class TestDataFlowExecutor:
 
 class TestDataFlow:
     def test_build_flow(self, setup_flow):
-        flow, src, out1, out2 = setup_flow
+        flow, src, out1, out2, agg = setup_flow
 
         # out features only set after build
         with pytest.raises(RuntimeError):
             flow.out_features
+
+        sub_flow, vals = flow.build(collect=out2, aggregators={"val": agg})
+        assert len(sub_flow._graph) == 4
+        assert sub_flow.out_features == out2
+        assert ("val" in vals) and (vals["val"] == 0)
 
         sub_flow = flow.build(collect=out2)
         assert len(sub_flow._graph) == 3
@@ -416,8 +475,8 @@ class TestDataFlow:
 
     def test_batch_process(self, setup_flow):
         # build flow
-        flow, src, out1, out2 = setup_flow
-        flow = flow.build(collect=out2)
+        flow, src, out1, out2, agg = setup_flow
+        flow, vals = flow.build(collect=out2, aggregators={"val": agg})
         # create input
         batch = {"y": [0, 1, 2]}
         index = [0, 1, 2]
@@ -425,10 +484,31 @@ class TestDataFlow:
         # batch process and check output
         out = flow.batch_process(batch, index, rank)
         assert out == {"y": [0, 1, 2]}
+        assert vals["val"] == 3
+
+    def test_apply(self, setup_flow):
+        # build flow
+        flow, src, out1, out2, agg = setup_flow
+        # create dummy dataset
+        ds = datasets.Dataset.from_dict(
+            {"y": list(range(100))}, features=flow.src_features.feature_
+        )
+
+        with pytest.raises(RuntimeError):
+            flow.apply(ds)
+
+        # apply flow to dataset
+        out_ds = flow.apply(ds, collect=out2)
+        assert isinstance(out_ds, datasets.Dataset)
+
+        # apply flow to dataset
+        out_ds, vals = flow.apply(ds, collect=out2, aggregators={"val": agg})
+        assert isinstance(out_ds, datasets.Dataset)
+        assert isinstance(vals, MappingProxyType)
 
     def test_apply_to_dataset(self, setup_flow):
         # build flow
-        flow, src, out1, out2 = setup_flow
+        flow, src, out1, out2, agg = setup_flow
         flow = flow.build(collect=out2)
         # create dummy dataset
         ds = datasets.Dataset.from_dict(
@@ -442,7 +522,7 @@ class TestDataFlow:
 
     def test_apply_to_dataset_dict(self, setup_flow):
         # build flow
-        flow, src, out1, out2 = setup_flow
+        flow, src, out1, out2, agg = setup_flow
         flow = flow.build(collect=out2)
         # create dummy dataset
         ds = datasets.Dataset.from_dict(
@@ -457,7 +537,7 @@ class TestDataFlow:
 
     def test_apply_to_iterable_dataset(self, setup_flow):
         # build flow
-        flow, src, out1, out2 = setup_flow
+        flow, src, out1, out2, agg = setup_flow
         flow = flow.build(collect=out2)
         # create dummy dataset
         ds = datasets.Dataset.from_dict(
@@ -476,7 +556,7 @@ class TestDataFlow:
 
     def test_apply_to_iterable_dataset_dict(self, setup_flow):
         # build flow
-        flow, src, out1, out2 = setup_flow
+        flow, src, out1, out2, agg = setup_flow
         flow = flow.build(collect=out2)
         # create dummy dataset
         ds = datasets.Dataset.from_dict(
@@ -504,13 +584,15 @@ class TestDataFlow:
         ],
     )
     def test_plot(self, setup_flow, with_edge_labels, edge_label_format):
-        flow, src, out1, out2 = setup_flow
+        flow, src, out1, out2, agg = setup_flow
         # Ensure the plot function runs without errors and returns an Axes object
         with patch(
             "matplotlib.pyplot.show"
         ):  # Mock plt.show to avoid displaying the plot during tests
             ax = flow.plot(
-                src_node_label="[ROOT]", with_edge_labels=with_edge_labels
+                src_node_label="[ROOT]",
+                with_edge_labels=with_edge_labels,
+                node_font_size=1e-5,
             )
             assert isinstance(ax, plt.Axes)
 
