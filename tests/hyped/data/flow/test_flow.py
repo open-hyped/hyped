@@ -1,6 +1,7 @@
 import asyncio
+from time import sleep
 from types import MappingProxyType
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import datasets
 import matplotlib.pyplot as plt
@@ -483,6 +484,7 @@ class TestDataFlow:
         rank = 0
         # batch process and check output
         out = flow.batch_process(batch, index, rank)
+        sleep(0.2)
         assert out == {"y": [0, 1, 2]}
         assert vals["val"] == 3
 

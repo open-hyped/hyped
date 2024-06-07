@@ -175,8 +175,8 @@ class DataAggregationManager(object):
         # compute udpated value and context
         val, ctx = await aggregator.update(val, ctx, ext)
         # write new values to buffers
-        loop.run_in_executor(None, self._val_buffer.__setitem__, name, val)
-        loop.run_in_executor(None, self._ctx_buffer.__setitem__, name, ctx)
+        self._val_buffer[name] = val
+        self._ctx_buffer[name] = ctx
 
     async def aggregate(
         self,

@@ -20,7 +20,7 @@ import re
 from enum import Enum
 from functools import partial
 from itertools import groupby
-from typing import Any, TypeVar, overload
+from typing import Any, Literal, TypeVar, overload
 
 import datasets
 import matplotlib.pyplot as plt
@@ -28,6 +28,7 @@ import nest_asyncio
 import networkx as nx
 import numpy as np
 import pyarrow as pa
+from matplotlib import colormaps
 from torch.utils.data import get_worker_info
 from typing_extensions import TypeAlias
 
@@ -74,6 +75,36 @@ class DataFlowGraph(nx.MultiDiGraph):
     edges define the data flow between these processors.
     """
 
+    class NodeType(Enum):
+        """Enum representing types of nodes in the data flow graph."""
+
+        SOURCE = "SOURCE_NODE"
+        """
+        Represents a source node in the data flow graph.
+
+        This type of node acts as the starting point of the data flow graph,
+        typically representing raw input data sources.
+        """
+
+        DATA_PROCESSOR = "DATA_PROCESSOR_NODE"
+        """
+        Represents a data processor node in the data flow graph.
+
+        This type of node represents a data processing component within the
+        data flow graph. Data processors perform specific transformations
+        on input data and produce output data based on defined processing logic.
+        """
+
+        DATA_AGGREGATOR = "DATA_AGGREGATOR_NODE"
+        """
+        Represents a data aggregator node in the data flow graph.
+
+        This type of node is responsible for aggregating data from multiple
+        sources or processing stages within the data flow graph. Aggregator
+        nodes typically perform dataset-wide computations or combine data
+        from different sources into a unified representation.
+        """
+
     class NodeProperty(str, Enum):
         """Enum representing properties of a node in the data flow graph."""
 
@@ -81,10 +112,20 @@ class DataFlowGraph(nx.MultiDiGraph):
         """
         Represents the data processor associated with the node.
 
-        Type: :class:`BaseDataProcessor`
+        Type: :code:`None`| :class:`BaseDataProcessor` | :class:`BaseDataAugmentor`
 
         This property holds a reference to the data processor instance that the node
-        represents within the data flow graph.
+        represents within the data flow graph. Set to :code:`None` for the source node.
+        """
+
+        PROCESSOR_TYPE = "processor_type"
+        """
+        Represents the type of the data processor associated with the node.
+
+        Type: :class:`NodeType`
+
+        This property indicates the type of data processor. It helps in categorizing
+        and identifying the nature of the processor in the data flow graph.
         """
 
         IN_FEATURES = "in_features"
@@ -205,6 +246,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             SRC_NODE_ID,
             **{
                 DataFlowGraph.NodeProperty.PROCESSOR: None,
+                DataFlowGraph.NodeProperty.PROCESSOR_TYPE: DataFlowGraph.NodeType.SOURCE,
                 DataFlowGraph.NodeProperty.IN_FEATURES: features,
                 DataFlowGraph.NodeProperty.OUT_FEATURES: features,
                 DataFlowGraph.NodeProperty.DEPTH: 0,
@@ -250,6 +292,18 @@ class DataFlowGraph(nx.MultiDiGraph):
         if isinstance(processor, BaseDataAggregator):
             assert output_features is None
 
+        # get processor type
+        processor_type = (
+            DataFlowGraph.NodeType.DATA_PROCESSOR
+            if isinstance(processor, BaseDataProcessor)
+            else DataFlowGraph.NodeType.DATA_AGGREGATOR
+            if isinstance(processor, BaseDataAggregator)
+            else None
+        )
+        assert (
+            processor_type is not None
+        ), f"Invalid processor type {type(processor)}."
+
         # add processor to graph
         depth = -1
         node_id = self.number_of_nodes()
@@ -257,6 +311,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             node_id,
             **{
                 DataFlowGraph.NodeProperty.PROCESSOR: processor,
+                DataFlowGraph.NodeProperty.PROCESSOR_TYPE: processor_type,
                 DataFlowGraph.NodeProperty.IN_FEATURES: inputs.features_,
                 DataFlowGraph.NodeProperty.OUT_FEATURES: output_features,
                 DataFlowGraph.NodeProperty.DEPTH: -1,  # placeholder
@@ -519,8 +574,11 @@ class DataFlowExecutor(object):
         processor = self.graph.nodes[node_id][
             DataFlowGraph.NodeProperty.PROCESSOR
         ]
+        processor_type = self.graph.nodes[node_id][
+            DataFlowGraph.NodeProperty.PROCESSOR_TYPE
+        ]
 
-        if isinstance(processor, BaseDataProcessor):
+        if processor_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
             # run processor and check the output batch size
             out = await processor.batch_process(
                 inputs, state.index, state.rank
@@ -531,7 +589,7 @@ class DataFlowExecutor(object):
             # capture output in execution state
             state.capture_output(node_id, out)
 
-        if isinstance(processor, BaseDataAggregator):
+        elif processor_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
             # run aggregator
             await self.aggregation_manager.aggregate(
                 processor, inputs, state.index, state.rank
@@ -960,6 +1018,14 @@ class DataFlow(object):
         node_font_size: int = 6,
         node_size: int = 5_000,
         arrowsize: int = 25,
+        color_map: dict[
+            Literal[
+                DataFlowGraph.NodeType.SOURCE,
+                DataFlowGraph.NodeType.DATA_PROCESSOR,
+                DataFlowGraph.NodeType.DATA_AGGREGATOR,
+            ],
+            str,
+        ] = {},
         ax: None | plt.Axes = None,
     ) -> plt.Axes:
         """Plot the data flow graph.
@@ -972,6 +1038,8 @@ class DataFlow(object):
             node_font_size (int): The font size for node labels. Defaults to 6.
             node_size (int): The size of the nodes. Defaults to 5_000.
             arrowsize (int): The size of the arrows on the edges. Defaults to 25.
+            color_map (dict[None | type, str]): indicate custom color scheme based on the processor
+                type. `None` refers to the source node.
             ax (Optional[plt.Axes]): Matplotlib axes object to draw the plot on. Defaults to None.
 
         Returns:
@@ -988,12 +1056,28 @@ class DataFlow(object):
             self._graph, subset_key=DataFlowGraph.NodeProperty.DEPTH
         )
 
+        # build color map
+        cmap = colormaps.get_cmap("Pastel1")
+        default_color_map = {
+            DataFlowGraph.NodeType.SOURCE: cmap.colors[0],
+            DataFlowGraph.NodeType.DATA_PROCESSOR: cmap.colors[1],
+            DataFlowGraph.NodeType.DATA_AGGREGATOR: cmap.colors[2],
+        }
+        color_map = default_color_map | color_map
+
+        # apply color map
+        node_colors = [
+            color_map[data[DataFlowGraph.NodeProperty.PROCESSOR_TYPE]]
+            for _, data in self._graph.nodes(data=True)
+        ]
+
         # plot the raw graph
         nx.draw(
             self._graph,
             pos,
             with_labels=False,
             node_size=node_size,
+            node_color=node_colors,
             arrowsize=arrowsize,
             ax=ax,
         )
