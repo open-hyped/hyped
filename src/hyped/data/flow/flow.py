@@ -34,6 +34,7 @@ from typing_extensions import TypeAlias
 
 from hyped.common.arrow import convert_features_to_arrow_schema
 from hyped.common.feature_checks import check_feature_equals
+from hyped.common.feature_key import FeatureKey
 from hyped.common.lazy import LazyInstance
 
 from .aggregators.base import (
@@ -43,6 +44,7 @@ from .aggregators.base import (
 )
 from .processors.base import BaseDataProcessor
 from .refs.inputs import InputRefs
+from .refs.outputs import OutputRefs
 from .refs.ref import FeatureRef
 
 Batch: TypeAlias = dict[str, list[Any]]
@@ -118,6 +120,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         represents within the data flow graph. Set to :code:`None` for the source node.
         """
 
+        # TODO: rename this property to NODE_TYPE
         PROCESSOR_TYPE = "processor_type"
         """
         Represents the type of the data processor associated with the node.
@@ -356,6 +359,66 @@ class DataFlowGraph(nx.MultiDiGraph):
         assert nx.is_directed_acyclic_graph(self)
 
         return node_id
+
+    def get_node_output_ref(
+        self, node_id: int
+    ) -> FeatureRef | OutputRefs | DataAggregationRef:
+        """Retrieves the output reference for a given node in the data flow graph.
+
+        This method returns an appropriate output reference based on the type of the node specified by the
+        given node ID. The method constructs the appropriate reference object based on the node type:
+
+            - For source nodes, this method builds a feature reference using the output features of the node.
+            - For data processor nodes, it retrieves the processor's output references type and constructs the full output reference.
+            - For data aggregator nodes, it builds a data aggregation reference using the node's value type.
+
+        Args:
+            node_id (int): The ID of the node for which to retrieve the output reference.
+
+        Returns:
+            FeatureRef | OutputRefs | DataAggregationRef: The output reference associated with the specified node.
+
+        Raises:
+            KeyError: If the node ID does not exist in the data flow graph.
+            TypeError: If the node type is not recognized.
+        """
+        if node_id not in self:
+            raise KeyError(
+                f"Node ID {node_id} does not exist in the data flow graph."
+            )
+
+        # get node
+        node = self.nodes[node_id]
+        node_type = node[DataFlowGraph.NodeProperty.PROCESSOR_TYPE]
+
+        if node_type == DataFlowGraph.NodeType.SOURCE:
+            features = node[DataFlowGraph.NodeProperty.OUT_FEATURES]
+            # build feature reference
+            return FeatureRef(
+                key_=FeatureKey(),
+                node_id_=node_id,
+                flow_=self,
+                feature_=features,
+            )
+
+        elif node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
+            # get processor and output features
+            proc = node[DataFlowGraph.NodeProperty.PROCESSOR]
+            features = node[DataFlowGraph.NodeProperty.OUT_FEATURES]
+            # build the full output reference
+            return proc._out_refs_type(self, node_id, features)
+
+        elif node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
+            # get aggregator and build reference
+            proc = node[DataFlowGraph.NodeProperty.PROCESSOR]
+            return DataAggregationRef(
+                node_id_=node_id, flow_=self, type_=proc._value_type
+            )
+
+        else:
+            raise TypeError(
+                f"Unrecognized node type {node_type} for node ID {node_id}."
+            )
 
     def dependency_graph(self, nodes: set[int]) -> DataFlowGraph:
         """Generate the dependency subgraph for a given node.
