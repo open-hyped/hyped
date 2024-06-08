@@ -131,7 +131,7 @@ class DataAggregationManager(object):
         ctx_buffer = {}
         # fill buffers with initial values from aggregators
         for name, agg in aggregators.items():
-            (val_buffer[name], ctx_buffer[name]) = agg.initialize(
+            val_buffer[name], ctx_buffer[name] = agg.initialize(
                 in_features[name]
             )
         # create thread-safe buffers
@@ -139,6 +139,7 @@ class DataAggregationManager(object):
         self._ctx_buffer = _manager.dict(ctx_buffer)
         # create a lock for each entry to synchronize access
         self._locks = {name: _manager.Lock() for name in aggregators.keys()}
+        self._locks = _manager.dict(self._locks)
 
         # create aggregator lookup
         self._lookup: dict[BaseDataAggregator, list[str]] = defaultdict(set)
@@ -177,6 +178,8 @@ class DataAggregationManager(object):
         # write new values to buffers
         self._val_buffer[name] = val
         self._ctx_buffer[name] = ctx
+        # release lock
+        self._locks[name].release()
 
     async def aggregate(
         self,
