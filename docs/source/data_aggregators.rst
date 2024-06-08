@@ -1,0 +1,147 @@
+Data Aggregators
+================
+
+Data aggregators are a crucial component of the data flow architecture, serving as one of the three primary types of nodes within a data flow. Specifically, data aggregator nodes implement dataset-wide computations, such as calculating the sum, mean, or standard deviation of features across all examples in a dataset. Unlike data processors that operate on individual examples, data aggregators focus on aggregating values from multiple examples to compute summary statistics or other collective metrics.
+
+:code:`Hyped` includes a variety of pre-built, general-purpose data aggregators designed to perform common statistical operations. These aggregators provide robust solutions for calculating dataset-wide metrics, enabling users to easily integrate these computations into their data processing pipelines.
+
+Design Principles
+-----------------
+
+- **Thread-Safety**: Data aggregators ensure thread-safety to handle concurrent access and updates to shared resources. This prevents race conditions and maintains the integrity of aggregated data, enabling reliable operation in multi-threaded environments.
+- **Efficient Computation**: To achieve computational efficiency, data aggregators separate the extraction and update phases of aggregation. Asynchronous and parallel extraction maximizes resource utilization, while synchronous and thread-safe updates ensure data integrity. This approach balances performance optimization with concurrency control, enabling scalable and responsive aggregation processes.
+
+Data aggregators also adhere to the design principles for data processors, ensuring modularity, isolation, configurability, and clear, type-safe input/output definitions to facilitate seamless integration into diverse data flow architectures.
+
+Working with Data Aggregators
+-----------------------------
+
+This section covers essential aspects such as configuring data aggregators and invoking them through the call method. Understanding these functionalities is crucial for effective data aggregation workflows.
+
+Configuring Data Aggregators
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Data aggregators in the Hyped library are highly configurable, allowing users to tailor their behavior to specific tasks or requirements. This section explores the various configuration options available for data aggregators and provides examples to illustrate their usage.
+
+**Configuration Options**
+
+Each data aggregator comes with a set of configuration options that define its behavior. These options are encapsulated within a :class:`Pydantic` model, providing a structured and type-safe way to specify the aggregator's parameters.
+
+**Example: Configuring a Sum Aggregator**
+
+Let's consider the example of configuring a Sum Aggregator. This aggregator is responsible for calculating the sum of specified input features across all examples in a dataset.
+
+.. code-block:: python
+
+    from hyped.data.flow.aggregators.ops import (
+        SumAggregator, SumAggregatorConfig
+    )
+
+    # Define the configuration for the Sum Aggregator
+    sum_config = SumAggregatorConfig(
+        start=0.0  # Initial value for the sum calculation
+    )
+
+    # Create the sum aggregator instance
+    sum_aggregator = SumAggregator(sum_config)
+
+In this example, we define a configuration for the :class:`SumAggregator`, specifying the initial value for the sum calculation (:code:`start`). This parameter can be adjusted based on the specific requirements of the aggregation task.
+
+Invoking Data Aggregators
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The :code:`call` method serves as the gateway for invoking data aggregators. It plays a crucial role in applying the specified aggregation operations to input features, ultimately computing the desired dataset-wide metrics.
+
+The primary purpose of a data aggregator's :code:`call` method is to integrate it into the data flow graph. This method accepts input features as arguments, which can come from either the outputs of data processors within the data flow or directly from the source features of the dataset. By calling this method, users can seamlessly apply aggregation operations, facilitating the creation of complex data processing pipelines.
+
+**Example: Invoking a Sum Aggregator**
+
+Let's illustrate the usage of the :code:`call` method with a practical example. Consider a scenario where we want to calculate the sum of a numerical feature using a :class:`SumAggregator` within a data flow. Here's how we can achieve this using the :code:`call` method:
+
+.. code-block:: python
+
+    # Using the imdb dataset as an example
+    ds = datasets.load_dataset("imdb", split="train")
+
+    # Create a data flow with the features from the dataset
+    flow = DataFlow(ds.features)
+
+    # Call the sum aggregator with input features
+    sum_feature = sum_aggregator.call(x=flow.src_features["numerical_feature"])
+
+Implementing Custom Data Aggregators
+------------------------------------
+
+Custom data aggregators provide a way to extend the functionality of the data flow framework by implementing custom aggregation operations tailored to specific use cases. Here's a step-by-step guide on how to implement a custom data aggregator:
+
+1. Define Input References
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Start by defining input reference class (:code:`InputRefs`). This class specifies the structure and types of input features expected by the data aggregator. Ensure that input references match the features required for aggregation.
+
+.. code-block:: python
+
+    import datasets
+    from hyped.data.flow.refs.ref import FeatureRef
+    from hyped.data.flow.refs.inputs import InputRefs, CheckFeatureEquals
+
+    class CustomAggregatorInputRefs(InputRefs):
+        x: Annotated[FeatureRef, CheckFeatureEquals(datasets.Value("float32"))]
+
+For more information on specifying input references, please refer to the :doc:`InputRefs <api/data.flow.refs.inputs>` documentation.
+
+2. Define Configuration
+~~~~~~~~~~~~~~~~~~~~~~~
+
+If your custom data aggregator requires configurable parameters, define a configuration class (:class:`CustomConfig`) inheriting from :class:`BaseDataAggregatorConfig`. This class allows users to customize the behavior of the aggregator by adjusting configuration parameters.
+
+.. code-block:: python
+
+    from hyped.data.flow.aggregators.base import BaseDataAggregatorConfig
+
+    class CustomConfig(BaseDataAggregatorConfig):
+        initial_value: float = 0.0
+
+3. Implement Custom Aggregator
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Create a custom aggregator class (:code:`CustomAggregator`) inheriting from :class:`BaseDataAggregator`. Override the :code:`initialize`, :code:`extract`, and :code:`update` methods to define the aggregation logic. Access configuration values and input features within these methods to perform custom aggregations.
+
+.. code-block:: python
+
+    from hyped.data.flow.aggregators.base import Batch, BaseDataAggregator
+
+    class CustomAggregator(BaseDataAggregator[CustomConfig, CustomAggregatorInputRefs, float]):
+
+        def initialize(self, features: Features) -> tuple[float, None]:
+            return self.config.initial_value, None
+
+        async def extract(self, inputs: Batch, index: list[int], rank: int) -> float:
+            return sum(inputs["x"])
+
+        async def update(self, val: float, ctx: None, ext: float) -> tuple[float, None]:
+            return val + ext, None
+
+Here's a breakdown of each method:
+
+- :code:`initialize`: The :code:`initialize` function is responsible for initializing the aggregator before the aggregation process begins. It takes the dataset's features as input and returns an initial value for aggregation and an initial context. The initial value represents the starting point for the aggregation process, while the initial context provides any additional state information required during aggregation. In some cases, the context might not be applicable, in which case it can be set to :code:`None`.
+- :code:`extract`: The :code:`extract` function extracts information from the input data batch. It takes the batch of input data along with any additional parameters required for extraction. This function typically operates asynchronously and in parallel, allowing for efficient processing, especially in multi-process setups. It should return the extracted information relevant to the aggregation process.
+- :code:`update`: The :code:`update` function is responsible for updating the aggregated value based on the extracted information, taking into account the current aggregated value, context, and newly extracted information. It's important to note that the executor calls the :code:`update` function in a thread-safe manner, relieving users from implementing locking mechanisms themselves. The update function returns the updated aggregated value and, optionally, an updated context.
+  
+**Best Practices**:
+
+- **Optimize Extract Function**: Since the extract function runs in parallel and can benefit from parallel processing, it's recommended to handle all possible overhead within this function. By optimizing the extract function, you can improve the overall efficiency of the aggregation process.
+- **Keep Update Lightweight**: While the extract function can handle heavier computations efficiently, the update function should focus on lightweight update computations. Since the update function is called in a thread-safe manner, heavy computations within this function may impact performance. Keeping the update function lightweight ensures faster aggregation updates and maintains overall system performance.
+
+4. Instantiate and Apply the Custom Aggregator
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Instantiate the custom aggregator with optional configuration parameters. Use the :code:`call` method to apply the aggregator to input features within the data flow. Provide input features as arguments to the :code:`call` method, and retrieve the aggregated output values for further analysis or processing.
+
+.. code-block:: python
+
+    # Instantiate the custom aggregator
+    custom_aggregator = CustomAggregator(CustomConfig(initial_value=10.0))
+
+    # Apply the custom aggregator to input features
+    aggregated_value = custom_aggregator.call(x=flow.src_features["numerical_feature"])
