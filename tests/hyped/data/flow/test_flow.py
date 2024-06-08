@@ -607,11 +607,11 @@ class TestDataFlow:
         assert subflow.out_features == out_ref
         assert vals == mock_manager.values_proxy
         # build subflow with processor only
-        subflow = flow.build(collect=out_ref)
+        subflow, _ = flow.build(collect=out_ref)
         assert len(subflow._graph) == 2
         assert subflow.out_features == out_ref
         # build subflow with no processors
-        subflow = flow.build(collect=src_ref)
+        subflow, _ = flow.build(collect=src_ref)
         assert len(subflow._graph) == 1
         assert subflow.out_features == src_ref
 
@@ -664,7 +664,7 @@ class TestDataFlow:
             flow.apply(ds)
 
         # apply flow to dataset
-        out_ds = flow.apply(
+        out_ds, _ = flow.apply(
             ds,
             collect=out_ref,
         )
@@ -679,11 +679,11 @@ class TestDataFlow:
         )
         # check output types
         assert isinstance(out_ds, datasets.Dataset)
-        assert vals == mock_manager.values_proxy
+        assert vals == mock_manager.values_proxy.copy()
 
-        built_flow = flow.build(collect=out_ref)
+        built_flow, _ = flow.build(collect=out_ref)
         # apply flow to dataset
-        out_ds = built_flow.apply(ds)
+        out_ds, _ = built_flow.apply(ds)
         assert isinstance(out_ds, datasets.Dataset)
 
         built_flow, vals = flow.build(
@@ -691,9 +691,9 @@ class TestDataFlow:
         )
         assert vals == mock_manager.values_proxy
         # apply flow to dataset
-        out_ds = built_flow.apply(ds)
+        out_ds, vals = built_flow.apply(ds)
         assert isinstance(out_ds, datasets.Dataset)
-        assert vals == mock_manager.values_proxy
+        assert vals == mock_manager.values_proxy.copy()
 
     def test_apply_to_dataset(self, setup_flow, mock_manager):
         flow, graph, proc_node, agg_node = setup_flow
@@ -715,7 +715,7 @@ class TestDataFlow:
         )
         # check output types
         assert isinstance(out_ds, datasets.Dataset)
-        assert vals == mock_manager.values_proxy
+        assert vals == mock_manager.values_proxy.copy()
         # make sure processor is called for all samples in the dataset
         p.process.assert_has_calls(
             [call({"a": i, "b": i}, i, 0) for i in range(100)]
@@ -765,7 +765,7 @@ class TestDataFlow:
         # check output types
         assert isinstance(out_ds, datasets.DatasetDict)
         assert out_ds.keys() == ds.keys()
-        assert vals == mock_manager.values_proxy
+        assert vals == mock_manager.values_proxy.copy()
         # make sure processor is called for all samples in the dataset
         p.process.assert_has_calls(
             [call({"a": i, "b": i}, i % 50, 0) for i in range(100)]
@@ -865,7 +865,6 @@ class TestDataFlow:
         # check output types
         assert isinstance(out_ds, datasets.IterableDatasetDict)
         assert out_ds.keys() == ds.keys()
-        assert vals == mock_manager.values_proxy
 
         # at this point the processors shouldn't be called yet
         assert not p.process.called

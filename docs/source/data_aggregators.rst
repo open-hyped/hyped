@@ -67,7 +67,57 @@ Let's illustrate the usage of the :code:`call` method with a practical example. 
     flow = DataFlow(ds.features)
 
     # Call the sum aggregator with input features
-    sum_feature = sum_aggregator.call(x=flow.src_features["numerical_feature"])
+    sum_feature = sum_aggregator.call(x=len(flow.src_features["text"]))
+
+Advanced Usage: Aggregating Values Over Multiple Datasets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In some scenarios, you may need to aggregate values across multiple datasets rather than within a single dataset. This can be achieved by manually building the data flow with the specified aggregators and then applying the built data flow multiple times. By doing this, the aggregation states are maintained across the different apply calls, resulting in a final aggregated value that encompasses all datasets.
+
+**Example: Aggregating Sum Over Multiple Datasets**
+
+Let's illustrate this process with an example where we calculate the sum of a numerical feature across multiple datasets using a :class:`SumAggregator`.
+
+.. code-block:: python
+
+    from datasets import load_dataset
+    from hyped.data.flow import DataFlow
+    from hyped.data.flow.aggregators.ops import SumAggregator
+
+    # Load multiple datasets
+    ds1 = load_dataset("imdb", split="train[:10%]")
+    ds2 = load_dataset("imdb", split="train[10%:20%]")
+
+    # Create a data flow and add the sum aggregator
+    flow = DataFlow(ds1.features)
+    ref = SumAggregator().call(x=len(flow.src_features["text"]))
+
+    # manually build the data flow
+    flow, vals = flow.build(collect=flow.src_features, aggregators={"sum": ref})
+
+    # Apply the data flow to the first dataset
+    ds1, vals1 = flow.apply(ds1)
+    print(f"Aggregated Value after first dataset: {vals1}")
+
+    # Apply the data flow to the second dataset
+    ds1, vals2 = flow.apply(ds1)
+    print(f"Aggregated Value after second dataset: {vals2}")
+
+    # the values object returned by the build function always contains
+    # the up-to-date values, while the apply function returns a snapshot
+    # of the aggregated values at that point
+    assert vals != vals1  # vals1 is outdated
+    assert vals == vals2  # vals2 is up-to-date
+
+In this example, we first create a data flow and configure a :class:`SumAggregator` to calculate the sum of a numerical feature (length of the :code:`text`). We manually build the data flow graph by adding the sum aggregator node. We then apply the data flow to two different datasets sequentially.
+
+**Notes:**
+
+- **Maintaining State**: By building the data flow graph manually and then applying it, the state of the aggregations is maintained across apply calls. This ensures that the aggregations are cumulative and not reset between calls.
+- **Output Values**: The :code:`apply` calls return the aggregated values at that point. These values represent the global aggregated values, encompassing all data processed up to that point. The :code:`build` function returns a values object that is always up-to-date.
+
+This advanced usage enables efficient aggregation of values across multiple datasets, making it a powerful feature for comprehensive data analysis tasks.
+
 
 Implementing Custom Data Aggregators
 ------------------------------------

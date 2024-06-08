@@ -20,7 +20,8 @@ import re
 from enum import Enum
 from functools import partial
 from itertools import groupby
-from typing import Any, Literal, TypeVar, overload
+from types import MappingProxyType
+from typing import Any, Literal, TypeVar
 
 import datasets
 import matplotlib.pyplot as plt
@@ -768,25 +769,36 @@ class DataFlow(object):
             raise RuntimeError("Flow has not been build yet.")
         return self._executor.collect
 
-    @overload
-    def build(self, collect: FeatureRef) -> DataFlow:
-        ...
+    @property
+    def aggregates(self) -> None | MappingProxyType[str, Any]:
+        """Access the aggregated values computed by data aggregators.
 
-    @overload
-    def build(self, collect: FeatureRef, aggregators: None) -> DataFlow:
-        ...
+        This property provides access to the aggregated values computed by data
+        aggregators during the execution of the data flow. These aggregated values
+        represent dataset-wide metrics or summary statistics calculated based on the
+        input data.
 
-    @overload
-    def build(
-        self, collect: FeatureRef, aggregators: dict[str, DataAggregationRef]
-    ) -> tuple[DataFlow, dict[str, Any]]:
-        ...
+        Returns:
+            None | MappingProxyType[str, Any]: A read-only view of the aggregated
+            values as a mapping from aggregation names to their respective values.
+
+        Raises:
+            RuntimeError: If the flow has not been built yet.
+        """
+        if self._executor is None:
+            raise RuntimeError("Flow has not been build yet.")
+
+        return (
+            None
+            if (self._executor.aggregation_manager is None)
+            else self._executor.aggregation_manager.values_proxy
+        )
 
     def build(
         self,
         collect: FeatureRef,
         aggregators: None | dict[str, DataAggregationRef] = None,
-    ) -> DataFlow | tuple[DataFlow, dict[str, Any]]:
+    ) -> tuple[DataFlow, None | MappingProxyType[str, Any]]:
         """Build a sub-data flow to compute the requested output features.
 
         This method constructs a sub-graph of the data flow to compute the specified
@@ -798,9 +810,9 @@ class DataFlow(object):
                 aggregators for computing dataset-wide values. Defaults to None.
 
         Returns:
-            DataFlow | tuple[DataFlow, dict[str, Any]]: The sub-data flow. If aggregators are
-                provided, returns a tuple containing the sub-data flow and a dictionary of
-                aggregated values.
+            tuple[DataFlow, None | MappingProxyType[str, Any]]: The sub-data flow and a proxy
+            object of the aggregated values. The aggregated values object is None in case
+            no aggregators were provided.
 
         Raises:
             TypeError: If the collect feature is not of type `datasets.Features` or `dict`.
@@ -861,11 +873,7 @@ class DataFlow(object):
             )
         )
 
-        return (
-            flow
-            if aggregation_manager is None
-            else (flow, aggregation_manager.values_proxy)
-        )
+        return flow, flow.aggregates
 
     def batch_process(
         self, batch: Batch, index: list[int], rank: None | int = None
@@ -927,37 +935,13 @@ class DataFlow(object):
             ),
         )
 
-    @overload
-    def apply(self, ds: D, **kwargs) -> D:
-        ...
-
-    @overload
-    def apply(self, ds: D, collect: None | FeatureRef, **kwargs) -> D:
-        ...
-
-    @overload
-    def apply(
-        self, ds: D, collect: None | FeatureRef, aggregators: None, **kwargs
-    ) -> D:
-        ...
-
-    @overload
-    def apply(
-        self,
-        ds: D,
-        collect: None | FeatureRef,
-        aggregators: dict[str, DataAggregationRef],
-        **kwargs,
-    ) -> tuple[D, dict[str, Any]]:
-        ...
-
     def apply(
         self,
         ds: D,
         collect: None | FeatureRef = None,
         aggregators: None | dict[str, DataAggregationRef] = None,
         **kwargs,
-    ) -> D | tuple[D, dict[str, Any]]:
+    ) -> tuple[D, None | dict[str, Any] | MappingProxyType[str, Any]]:
         """Apply the data flow to a dataset.
 
         This method applies the data flow to the given dataset, processing the data according to the defined
@@ -972,8 +956,9 @@ class DataFlow(object):
                 Datasets.map function for the respective dataset type.
 
         Returns:
-            D | tuple[D, dict[str, Any]]: The processed dataset. If aggregators are provided, returns a tuple
-                containing the processed dataset and a dictionary of aggregated values.
+            tuple[D, None | dict[str, Any] | MappingProxyType[str, Any]]: The processed dataset and a snapshot
+            of the aggregated values after processing the dataset. In case of iterable datasets, the aggregated
+            values proxy object is returned instead of a snapshot.
 
         Raises:
             ValueError: If the dataset type is not supported.
@@ -1001,16 +986,15 @@ class DataFlow(object):
             #       i.e. they should be a subset and don't need to match exactly
             raise TypeError("Dataset features do not match source features.")
 
-        aggregated_values = None
         # build the sub data flow required to compute the requested output features
         if (collect is None) and (aggregators is None):
             flow = self
-        elif aggregators is None:
-            flow = self.build(collect=collect)
         else:
-            flow, aggregated_values = self.build(
-                collect=collect, aggregators=aggregators
-            )
+            # default to output features of self
+            if (collect is None) and (self._executor is not None):
+                collect = self.out_features
+            # build the flow
+            flow, _ = self.build(collect=collect, aggregators=aggregators)
 
         if flow._executor is None:
             raise RuntimeError(
@@ -1032,7 +1016,14 @@ class DataFlow(object):
                 for split in ds.values():
                     split.info.features = flow._executor.collect.feature_
 
-        return ds if aggregated_values is None else (ds, aggregated_values)
+        # return the processed dataset and a snapshot of the aggregated values
+        return ds, (
+            None
+            if flow.aggregates is None
+            else flow.aggregates.copy()
+            if isinstance(ds, (datasets.Dataset, datasets.DatasetDict))
+            else flow.aggregates
+        )
 
     def _internal_apply(self, ds: D, **kwargs) -> D:
         """(Internal) Apply the data flow to a dataset.
