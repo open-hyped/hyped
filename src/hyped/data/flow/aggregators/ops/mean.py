@@ -9,6 +9,7 @@ useful for tasks where an average of certain features is required.
 from typing import Annotated
 
 from datasets import Features, Value
+from pydantic import Field
 
 from hyped.data.flow.aggregators.base import (
     BaseDataAggregator,
@@ -67,7 +68,7 @@ class MeanAggregatorConfig(BaseDataAggregatorConfig):
     start: float = 0
     """The initial value to start the mean calculation. Defaults to 0."""
 
-    start_count: float = 0
+    start_count: float = Field(default=0, ge=0)
     """The initial count to start the mean calculation. Defaults to 0."""
 
 
@@ -120,5 +121,4 @@ class MeanAggregator(
             tuple[float, float]: The updated running mean and the new count of items.
         """
         ext_val, ext_ctx = ext
-        ctx += ext_ctx
-        return (val * ctx + ext_val) / ctx, ctx
+        return (val * ctx + ext_val) / (ctx + ext_ctx), (ctx + ext_ctx)
