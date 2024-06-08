@@ -28,8 +28,8 @@ Types of Nodes
 Nodes in a data flow can be of various types, each performing a specific function:
 
 - **Source Node**: A Data Flow always has exactly one source node, representing the entry points of data into the flow. The data going into this node is provided from the dataset to be processed.
-- **Data Processor Nodes**: These nodes apply transformations to the features of an example in the dataset. This might include tokenization or normalization.
-- **Data Statistic Nodes**: Coming Soon
+- **Data Processor Nodes**: Processor nodes apply transformations to the features of an isolated example in the dataset. This might include tokenization or normalization.
+- **Data Aggregator Nodes**: Aggregator nodes perform dataset-wide statistical operations on the features. This might include summation or averaging.
 - **Data Augmentation Nodes**: Coming Soon
 
 

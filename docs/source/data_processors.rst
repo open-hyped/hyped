@@ -168,7 +168,7 @@ Create a custom processor class (:code:`CustomProcessor`) inheriting from :class
 
 **Asynchronous Processing Example:**
 
-Asynchronous processing is particularly useful for IO-bound tasks or operations that involve waiting for external resources. It allows the processor to execute other tasks while waiting, thus improving overall efficiency. Hyped supports asynchronous processing, enabling seamless integration of asynchronous operations into your data processing pipeline.
+Hyped supports asynchronous processing, enabling seamless integration of asynchronous operations into your data processing pipeline.
 
 .. code-block:: python
 
@@ -183,7 +183,7 @@ Asynchronous processing is particularly useful for IO-bound tasks or operations 
 
 **Batch Processing Example:**
 
-Implementing the :code:`batch_process` function allows for batch processing, which can significantly improve the efficiency of data processing tasks, especially for operations that can be vectorized. By overriding this function, you can define custom batch processing logic tailored to your specific requirements.
+By implementing the :code:`batch_process` function you can define custom batch processing logic tailored to your specific requirements.
 
 .. code-block:: python
 
