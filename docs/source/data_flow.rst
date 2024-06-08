@@ -145,7 +145,7 @@ To build a data flow, you can use the build method of the DataFlow class:
 
 The :code:`build` method takes the desired output features as the collect argument and returns a new :class:`DataFlow` instance containing only the nodes necessary to compute these features. This new flow represents a subset of the original data flow, tailored specifically to the computation of the specified outputs.
 
-In addition, the build function takes an optional argument :code:`aggregates` specifying all the aggregator nodes to be computed and returns a proxy object to the aggregate values. This proxy object is a dictionary mirroring the given :code:`aggregates` argument but contains the up-to-date aggregate values instead of the aggregator nodes. 
+In addition, the build function takes an optional argument :code:`aggregators` specifying all the aggregator nodes to be computed and returns a proxy object to the aggregate values (:code:`aggregates`). This proxy object is a dictionary mirroring the given :code:`aggregators` argument but contains the up-to-date aggregate values instead of the aggregator nodes. 
 
 Executing Data Processing Tasks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
