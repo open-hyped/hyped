@@ -31,10 +31,10 @@ class BaseDataAggregatorTest:
     input_index: None | list[int] = None
     # expected initial state
     expected_initial_value: None | Any = UNSET
-    expected_initial_context: None | Any = UNSET
+    expected_initial_state: None | Any = UNSET
     # expected output
     expected_output_value: None | Any = UNSET
-    expected_output_context: None | Any = UNSET
+    expected_output_state: None | Any = UNSET
     # others
     rank: int = 0
 
@@ -99,19 +99,19 @@ class BaseDataAggregatorTest:
         # check initial aggregation state
         if cls.expected_initial_value != UNSET:
             assert (
-                manager._val_buffer[cls.aggregation_name]
+                manager._value_buffer[cls.aggregation_name]
                 == cls.expected_initial_value
             ), (
-                f"Expected {manager._val_buffer[cls.aggregation_name]}, "
+                f"Expected {manager._value_buffer[cls.aggregation_name]}, "
                 f"got {cls.expected_initial_value}"
             )
-        if cls.expected_initial_context != UNSET:
+        if cls.expected_initial_state != UNSET:
             assert (
-                manager._ctx_buffer[cls.aggregation_name]
-                == cls.expected_initial_context
+                manager._state_buffer[cls.aggregation_name]
+                == cls.expected_initial_state
             ), (
-                f"Expected {manager._ctx_buffer[cls.aggregation_name]}, "
-                f"got {cls.expected_initial_context}"
+                f"Expected {manager._state_buffer[cls.aggregation_name]}, "
+                f"got {cls.expected_initial_state}"
             )
 
         # run aggregation
@@ -122,17 +122,17 @@ class BaseDataAggregatorTest:
         # check aggregation state after execution
         if cls.expected_output_value != UNSET:
             assert (
-                manager._val_buffer[cls.aggregation_name]
+                manager._value_buffer[cls.aggregation_name]
                 == cls.expected_output_value
             ), (
-                f"Expected {manager._val_buffer[cls.aggregation_name]}, "
+                f"Expected {manager._value_buffer[cls.aggregation_name]}, "
                 f"got {cls.expected_output_value}"
             )
-        if cls.expected_output_context != UNSET:
+        if cls.expected_output_state != UNSET:
             assert (
-                manager._ctx_buffer[cls.aggregation_name]
-                == cls.expected_output_context
+                manager._state_buffer[cls.aggregation_name]
+                == cls.expected_output_state
             ), (
-                f"Expected {manager._ctx_buffer[cls.aggregation_name]}, "
+                f"Expected {manager._state_buffer[cls.aggregation_name]}, "
                 f"got {cls.expected_output_ctx}"
             )

@@ -12,19 +12,19 @@ from hyped.data.flow.aggregators.base import (
 )
 from hyped.data.flow.refs.inputs import InputRefs
 
-mock_init_val = MagicMock()
-mock_init_ctx = MagicMock()
-mock_ext = MagicMock()
-mock_val = MagicMock()
+mock_init_value = MagicMock()
+mock_init_state = MagicMock()
 mock_ctx = MagicMock()
+mock_value = MagicMock()
+mock_state = MagicMock()
 
 
 class MockAggregator(
     BaseDataAggregator[BaseDataAggregatorConfig, InputRefs, MagicMock]
 ):
-    initialize = MagicMock(return_value=(mock_init_val, mock_init_ctx))
-    extract = AsyncMock(return_value=mock_ext)
-    update = AsyncMock(return_value=(mock_val, mock_ctx))
+    initialize = MagicMock(return_value=(mock_init_value, mock_init_state))
+    extract = AsyncMock(return_value=mock_ctx)
+    update = AsyncMock(return_value=(mock_value, mock_state))
 
 
 class TestDataAggregationManager:
@@ -46,14 +46,14 @@ class TestDataAggregationManager:
 
         assert mock_manager.dict.called
         assert mock_manager.Lock.called
-        assert isinstance(manager._val_buffer, dict)
-        assert isinstance(manager._ctx_buffer, dict)
+        assert isinstance(manager._value_buffer, dict)
+        assert isinstance(manager._state_buffer, dict)
         assert isinstance(manager._locks, dict)
         assert isinstance(manager._lookup, defaultdict)
         # check initial buffer values
-        assert manager.values_proxy["agg"] == mock_init_val
-        assert manager._val_buffer["agg"] == mock_init_val
-        assert manager._ctx_buffer["agg"] == mock_init_ctx
+        assert manager.values_proxy["agg"] == mock_init_value
+        assert manager._value_buffer["agg"] == mock_init_value
+        assert manager._state_buffer["agg"] == mock_init_state
 
     @pytest.mark.asyncio
     @patch("hyped.data.flow.aggregators.base._manager")
@@ -67,25 +67,25 @@ class TestDataAggregationManager:
         manager = DataAggregationManager(aggregators, in_features)
 
         # mock extracted value
-        mock_ext = MagicMock()
+        mock_ctx = MagicMock()
         # call update
-        await manager._safe_update("agg", aggregators["agg"], mock_ext)
+        await manager._safe_update("agg", aggregators["agg"], mock_ctx)
         # make sure the lock has been acquired and released
         assert mock_lock.acquire.called
         assert mock_lock.release.called
         # make sure update is called with the expected arguments
         aggregators["agg"].update.assert_called_with(
-            mock_init_val, mock_init_ctx, mock_ext
+            mock_init_value, mock_ctx, mock_init_state
         )
         # check updated values
-        assert manager._val_buffer["agg"] == mock_val
-        assert manager._ctx_buffer["agg"] == mock_ctx
+        assert manager._value_buffer["agg"] == mock_value
+        assert manager._state_buffer["agg"] == mock_state
 
         # call update
-        await manager._safe_update("agg", aggregators["agg"], mock_ext)
+        await manager._safe_update("agg", aggregators["agg"], mock_ctx)
         # make sure update is called with the expected arguments
         aggregators["agg"].update.assert_called_with(
-            mock_val, mock_ctx, mock_ext
+            mock_value, mock_ctx, mock_state
         )
 
     @pytest.mark.asyncio

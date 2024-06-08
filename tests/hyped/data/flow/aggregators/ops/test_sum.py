@@ -17,10 +17,10 @@ class TestSum(BaseDataAggregatorTest):
     input_index = list(range(100))
     # expected initial value
     expected_initial_value = 0
-    expected_initial_context = None
+    expected_initial_state = None
     # expected output
     expected_output_value = sum(range(100))
-    expected_output_context = None
+    expected_output_state = None
 
 
 class TestSumWithOffset(BaseDataAggregatorTest):
@@ -33,7 +33,7 @@ class TestSumWithOffset(BaseDataAggregatorTest):
     input_index = list(range(100))
     # expected initial value
     expected_initial_value = -10
-    expected_initial_context = None
+    expected_initial_state = None
     # expected output
     expected_output_value = sum(range(100)) - 10
-    expected_output_context = None
+    expected_output_state = None

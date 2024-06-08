@@ -57,8 +57,8 @@ class MockAggregator(
     async def extract(self, inputs, index, rank):
         return sum(inputs["x"])
 
-    async def update(self, val, ctx, ext):
-        return val + ext, None
+    async def update(self, val, ctx, state):
+        return val + ctx, None
 
 
 # fixtures

@@ -108,17 +108,19 @@ class MeanAggregator(
         return sum(inputs["x"]), len(index)
 
     async def update(
-        self, val: float, ctx: float, ext: tuple[float, int]
+        self, val: float, ctx: tuple[float, int], state: float
     ) -> tuple[float, None]:
         """Updates the running mean with the extracted value and count.
 
         Args:
             val (float): The current running mean.
-            ctx (float): The current count of items.
-            ext (tuple[float, int]): The extracted sum and count from the current batch.
+            ctx (tuple[float, int]): The extracted sum and count from the current batch.
+            state (float): The current count of items.
 
         Returns:
             tuple[float, float]: The updated running mean and the new count of items.
         """
-        ext_val, ext_ctx = ext
-        return (val * ctx + ext_val) / (ctx + ext_ctx), (ctx + ext_ctx)
+        ext_val, ext_count = ctx
+        return (val * state + ext_val) / (state + ext_count), (
+            state + ext_count
+        )

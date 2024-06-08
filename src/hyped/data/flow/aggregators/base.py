@@ -38,9 +38,9 @@ Usage Example:
                 # Define extraction logic here
                 return sum(v for v in inputs["x"] if v >= self.config.treshold)
 
-            async def update(self, val: int, ctx: Any, ext: Any) -> tuple[int, Any]:
+            async def update(self, val: int, ctx: Any, state: Any) -> tuple[int, Any]:
                 # Define update logic here
-                return val + ext, ctx
+                return val + ctx, state
 
     In this example, :class:`CustomAggregator` extends :class:`BaseDataAggregator` and
     implements the :class:`BaseDataAggregator.initialize`, :class:`BaseDataAggregator.extract`,
@@ -108,8 +108,8 @@ class DataAggregationManager(object):
     locks to ensure safe concurrent updates during the data processing.
 
     Attributes:
-        _val_buffer (dict): Thread-safe buffer for aggregation values.
-        _ctx_buffer (dict): Thread-safe buffer for aggregation contexts.
+        _value_buffer (dict): Thread-safe buffer for aggregation values.
+        _state_buffer (dict): Thread-safe buffer for aggregation states.
         _locks (dict): Locks for synchronizing access to aggregators.
         _lookup (dict): Lookup table mapping aggregators to their respective names.
     """
@@ -127,16 +127,16 @@ class DataAggregationManager(object):
         """
         global _manager
         # create buffers
-        val_buffer = {}
-        ctx_buffer = {}
+        value_buffer = {}
+        state_buffer = {}
         # fill buffers with initial values from aggregators
         for name, agg in aggregators.items():
-            val_buffer[name], ctx_buffer[name] = agg.initialize(
+            value_buffer[name], state_buffer[name] = agg.initialize(
                 in_features[name]
             )
         # create thread-safe buffers
-        self._val_buffer = _manager.dict(val_buffer)
-        self._ctx_buffer = _manager.dict(ctx_buffer)
+        self._value_buffer = _manager.dict(value_buffer)
+        self._state_buffer = _manager.dict(state_buffer)
         # create a lock for each entry to synchronize access
         self._locks = {name: _manager.Lock() for name in aggregators.keys()}
         self._locks = _manager.dict(self._locks)
@@ -153,31 +153,31 @@ class DataAggregationManager(object):
         Returns:
             MappingProxyType[str, Any]: A read-only view of the aggregation values.
         """
-        return MappingProxyType(self._val_buffer)
+        return MappingProxyType(self._value_buffer)
 
     async def _safe_update(
-        self, name: str, aggregator: BaseDataAggregator, ext: Any
+        self, name: str, aggregator: BaseDataAggregator, ctx: Any
     ) -> None:
         """Safely update an aggregation value.
 
         Args:
             name (str): The name of the aggregator.
             aggregator (BaseDataAggregator): The aggregator object.
-            ext (Any): The extracted values from the input batch.
+            ctx (Any): The context values extracted from the input batch.
         """
-        assert name in self._val_buffer
+        assert name in self._value_buffer
         # get the running event loop
         loop = asyncio.get_running_loop()
         # acquire the lock for the current aggregator
         await loop.run_in_executor(None, self._locks[name].acquire)
         # get current value and context
-        val = self._val_buffer[name]
-        ctx = self._ctx_buffer[name]
+        value = self._value_buffer[name]
+        state = self._state_buffer[name]
         # compute udpated value and context
-        val, ctx = await aggregator.update(val, ctx, ext)
+        value, state = await aggregator.update(value, ctx, state)
         # write new values to buffers
-        self._val_buffer[name] = val
-        self._ctx_buffer[name] = ctx
+        self._value_buffer[name] = value
+        self._state_buffer[name] = state
         # release lock
         self._locks[name].release()
 
@@ -197,11 +197,11 @@ class DataAggregationManager(object):
             rank (int): The rank of the processor in a distributed setting.
         """
         # extract values required for update from current input batch
-        ext = await aggregator.extract(inputs, index, rank)
+        ctx = await aggregator.extract(inputs, index, rank)
         # update all entries
         await asyncio.gather(
             *(
-                self._safe_update(name, aggregator, ext)
+                self._safe_update(name, aggregator, ctx)
                 for name in self._lookup[aggregator]
             )
         )
@@ -286,7 +286,7 @@ class BaseDataAggregator(BaseConfigurable[C], Generic[C, I, T], ABC):
             features (Features): The features to initialize the aggregator with.
 
         Returns:
-            tuple[T, Any]: The initial value and context for the aggregator.
+            tuple[T, Any]: The initial value and state for the aggregator.
         """
         ...
 
@@ -300,20 +300,20 @@ class BaseDataAggregator(BaseConfigurable[C], Generic[C, I, T], ABC):
             rank (int): The rank of the processor in a distributed setting.
 
         Returns:
-            Any: The extracted values required for aggregation.
+            Any: The extracted context values required for aggregation.
         """
         ...
 
     @abstractmethod
-    async def update(self, val: T, ctx: Any, ext: Any) -> tuple[T, Any]:
+    async def update(self, val: T, state: Any, ctx: Any) -> tuple[T, Any]:
         """Update the aggregation value and context.
 
         Args:
             val (T): The current aggregation value.
-            ctx (Any): The current aggregation context.
-            ext (Any): The extracted values from the input batch.
+            state (Any): The current aggregation state.
+            ctx (Any): The context values extracted from the input batch.
 
         Returns:
-            tuple[T, Any]: The updated aggregation value and context.
+            tuple[T, Any]: The updated aggregation value and state.
         """
         ...

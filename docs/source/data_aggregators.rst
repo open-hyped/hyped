@@ -119,14 +119,14 @@ Create a custom aggregator class (:code:`CustomAggregator`) inheriting from :cla
         async def extract(self, inputs: Batch, index: list[int], rank: int) -> float:
             return sum(inputs["x"])
 
-        async def update(self, val: float, ctx: None, ext: float) -> tuple[float, None]:
-            return val + ext, None
+        async def update(self, val: float, ctx: float, state: None) -> tuple[float, None]:
+            return val + ctx, None
 
 Here's a breakdown of each method:
 
 - :code:`initialize`: The :code:`initialize` function is responsible for initializing the aggregator before the aggregation process begins. It takes the dataset's features as input and returns an initial value for aggregation and an initial context. The initial value represents the starting point for the aggregation process, while the initial context provides any additional state information required during aggregation. In some cases, the context might not be applicable, in which case it can be set to :code:`None`.
 - :code:`extract`: The :code:`extract` function extracts information from the input data batch. It takes the batch of input data along with any additional parameters required for extraction. This function typically operates asynchronously and in parallel, allowing for efficient processing, especially in multi-process setups. It should return the extracted information relevant to the aggregation process.
-- :code:`update`: The :code:`update` function is responsible for updating the aggregated value based on the extracted information, taking into account the current aggregated value, context, and newly extracted information. It's important to note that the executor calls the :code:`update` function in a thread-safe manner, relieving users from implementing locking mechanisms themselves. The update function returns the updated aggregated value and, optionally, an updated context.
+- :code:`update`: The :code:`update` function is responsible for updating the aggregated value based on the extracted information, taking into account the current aggregated value, newly extracted context values, and the current aggregation state. It's important to note that the executor calls the :code:`update` function in a thread-safe manner, relieving users from implementing locking mechanisms themselves. The update function returns the updated aggregated value and state.
   
 **Best Practices**:
 

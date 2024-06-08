@@ -83,14 +83,14 @@ class SumAggregator(
             features (Features): The features of the dataset.
 
         Returns:
-            tuple[float, None]: A tuple containing the starting value and None for the context.
+            tuple[float, None]: A tuple containing the starting value and None for the state.
         """
         return self.config.start, None
 
     async def extract(
         self, inputs: Batch, index: list[int], rank: int
     ) -> float:
-        """Extracts the sum of the input feature `x` from the batch of data.
+        """Extracts the sum of the input feature :code:`x` from the batch of data.
 
         Args:
             inputs (Batch): The batch of input data.
@@ -103,16 +103,16 @@ class SumAggregator(
         return sum(inputs["x"])
 
     async def update(
-        self, val: float, ctx: None, ext: float
+        self, val: float, ctx: float, state: None
     ) -> tuple[float, None]:
         """Updates the running total with the extracted value.
 
         Args:
             val (float): The current running total.
-            ctx (None): The context, which is not used in this aggregator.
-            ext (float): The extracted sum from the current batch.
+            ctx (float): The extracted sum from the current batch.
+            state (None): The context, which is not used in this aggregator.
 
         Returns:
-            tuple[float, None]: The updated running total and None for the context.
+            tuple[float, None]: The updated running total and None for the state.
         """
-        return val + ext, None
+        return val + ctx, None
