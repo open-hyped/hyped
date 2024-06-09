@@ -90,7 +90,7 @@ class FeatureValidator(AfterValidator):
             Raises:
                 TypeError: If the feature does not conform to the expected feature type.
             """
-            if ref == NONE_REF:
+            if ref is NONE_REF:
                 return ref
 
             try:
@@ -257,7 +257,7 @@ class InputRefs(BaseModelWithTypeValidation):
             key: getattr(self, key) for key in self.model_fields.keys()
         }
         named_refs = {
-            key: ref for key, ref in named_refs.items() if ref != NONE_REF
+            key: ref for key, ref in named_refs.items() if ref is not NONE_REF
         }
         return named_refs
 
