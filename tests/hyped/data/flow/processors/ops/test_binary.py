@@ -1,51 +1,12 @@
 from datasets import Features, Value
 
-from hyped.data.flow.processors.ops.binary import (
-    Add,
-    AddConfig,
-    ClosedOp,
-    ClosedOpConfig,
-    Comparator,
-    ComparatorConfig,
-    Div,
-    DivConfig,
-    Equals,
-    EqualsConfig,
-    FloorDiv,
-    FloorDivConfig,
-    GreaterThan,
-    GreaterThanConfig,
-    GreaterThanOrEqual,
-    GreaterThanOrEqualConfig,
-    LessThan,
-    LessThanConfig,
-    LessThanOrEqual,
-    LessThanOrEqualConfig,
-    LogicalAnd,
-    LogicalAndConfig,
-    LogicalOp,
-    LogicalOpConfig,
-    LogicalOr,
-    LogicalOrConfig,
-    LogicalXOr,
-    LogicalXOrConfig,
-    Mod,
-    ModConfig,
-    Mul,
-    MulConfig,
-    NotEquals,
-    NotEqualsConfig,
-    Pow,
-    PowConfig,
-    Sub,
-    SubConfig,
-)
+from hyped.data.flow.processors.ops import binary
 from tests.hyped.data.flow.processors.base import BaseDataProcessorTest
 
 
 class TestComparator(BaseDataProcessorTest):
-    processor_type = Comparator
-    processor_config = ComparatorConfig(op=lambda a, b: False)
+    processor_type = binary.Comparator
+    processor_config = binary.ComparatorConfig(op=lambda a, b: False)
 
     input_features = Features({"a": Value("int32"), "b": Value("int32")})
     input_data = {"a": [0, 0, 1], "b": [0, 1, 0]}
@@ -56,8 +17,8 @@ class TestComparator(BaseDataProcessorTest):
 
 
 class TestEquals(BaseDataProcessorTest):
-    processor_type = Equals
-    processor_config = EqualsConfig()
+    processor_type = binary.Equals
+    processor_config = binary.EqualsConfig()
 
     input_features = Features({"a": Value("int32"), "b": Value("int32")})
     input_data = {"a": [0, 0, 1], "b": [0, 1, 0]}
@@ -68,8 +29,8 @@ class TestEquals(BaseDataProcessorTest):
 
 
 class TestNotEquals(BaseDataProcessorTest):
-    processor_type = NotEquals
-    processor_config = NotEqualsConfig()
+    processor_type = binary.NotEquals
+    processor_config = binary.NotEqualsConfig()
 
     input_features = Features({"a": Value("int32"), "b": Value("int32")})
     input_data = {"a": [0, 0, 1], "b": [0, 1, 0]}
@@ -80,8 +41,8 @@ class TestNotEquals(BaseDataProcessorTest):
 
 
 class TestLessThan(BaseDataProcessorTest):
-    processor_type = LessThan
-    processor_config = LessThanConfig()
+    processor_type = binary.LessThan
+    processor_config = binary.LessThanConfig()
 
     input_features = Features({"a": Value("int32"), "b": Value("int32")})
     input_data = {"a": [0, 0, 1], "b": [0, 1, 0]}
@@ -92,8 +53,8 @@ class TestLessThan(BaseDataProcessorTest):
 
 
 class TestLessThanOrEqual(BaseDataProcessorTest):
-    processor_type = LessThanOrEqual
-    processor_config = LessThanOrEqualConfig()
+    processor_type = binary.LessThanOrEqual
+    processor_config = binary.LessThanOrEqualConfig()
 
     input_features = Features({"a": Value("int32"), "b": Value("int32")})
     input_data = {"a": [0, 0, 1], "b": [0, 1, 0]}
@@ -104,8 +65,8 @@ class TestLessThanOrEqual(BaseDataProcessorTest):
 
 
 class TestGreaterThan(BaseDataProcessorTest):
-    processor_type = GreaterThan
-    processor_config = GreaterThanConfig()
+    processor_type = binary.GreaterThan
+    processor_config = binary.GreaterThanConfig()
 
     input_features = Features({"a": Value("int32"), "b": Value("int32")})
     input_data = {"a": [0, 0, 1], "b": [0, 1, 0]}
@@ -116,8 +77,8 @@ class TestGreaterThan(BaseDataProcessorTest):
 
 
 class TestGreaterThanOrEqual(BaseDataProcessorTest):
-    processor_type = GreaterThanOrEqual
-    processor_config = GreaterThanOrEqualConfig()
+    processor_type = binary.GreaterThanOrEqual
+    processor_config = binary.GreaterThanOrEqualConfig()
 
     input_features = Features({"a": Value("int32"), "b": Value("int32")})
     input_data = {"a": [0, 0, 1], "b": [0, 1, 0]}
@@ -128,8 +89,8 @@ class TestGreaterThanOrEqual(BaseDataProcessorTest):
 
 
 class TestLogicalOp(BaseDataProcessorTest):
-    processor_type = LogicalOp
-    processor_config = LogicalOpConfig(op=lambda a, b: False)
+    processor_type = binary.LogicalOp
+    processor_config = binary.LogicalOpConfig(op=lambda a, b: False)
 
     input_features = Features({"a": Value("bool"), "b": Value("bool")})
     input_data = {"a": [False, False, True], "b": [False, True, True]}
@@ -140,8 +101,8 @@ class TestLogicalOp(BaseDataProcessorTest):
 
 
 class TestLogicalAnd(BaseDataProcessorTest):
-    processor_type = LogicalAnd
-    processor_config = LogicalAndConfig()
+    processor_type = binary.LogicalAnd
+    processor_config = binary.LogicalAndConfig()
 
     input_features = Features({"a": Value("bool"), "b": Value("bool")})
     input_data = {"a": [False, False, True], "b": [False, True, True]}
@@ -152,8 +113,8 @@ class TestLogicalAnd(BaseDataProcessorTest):
 
 
 class TestLogicalOr(BaseDataProcessorTest):
-    processor_type = LogicalOr
-    processor_config = LogicalOrConfig()
+    processor_type = binary.LogicalOr
+    processor_config = binary.LogicalOrConfig()
 
     input_features = Features({"a": Value("bool"), "b": Value("bool")})
     input_data = {"a": [False, False, True], "b": [False, True, True]}
@@ -164,8 +125,8 @@ class TestLogicalOr(BaseDataProcessorTest):
 
 
 class TestLogicalXOr(BaseDataProcessorTest):
-    processor_type = LogicalXOr
-    processor_config = LogicalXOrConfig()
+    processor_type = binary.LogicalXOr
+    processor_config = binary.LogicalXOrConfig()
 
     input_features = Features({"a": Value("bool"), "b": Value("bool")})
     input_data = {"a": [False, False, True], "b": [False, True, True]}
@@ -176,8 +137,8 @@ class TestLogicalXOr(BaseDataProcessorTest):
 
 
 class TestClosedOp_Int32_Int32(BaseDataProcessorTest):
-    processor_type = ClosedOp
-    processor_config = ClosedOpConfig(op=lambda a, b: 0)
+    processor_type = binary.ClosedOp
+    processor_config = binary.ClosedOpConfig(op=lambda a, b: 0)
 
     input_features = Features({"a": Value("int32"), "b": Value("int32")})
     input_data = {"a": [0, 0, 0], "b": [0, 0, 0]}
@@ -188,8 +149,8 @@ class TestClosedOp_Int32_Int32(BaseDataProcessorTest):
 
 
 class TestClosedOp_Int16_Int32(BaseDataProcessorTest):
-    processor_type = ClosedOp
-    processor_config = ClosedOpConfig(op=lambda a, b: 0)
+    processor_type = binary.ClosedOp
+    processor_config = binary.ClosedOpConfig(op=lambda a, b: 0)
 
     input_features = Features({"a": Value("int16"), "b": Value("int32")})
     input_data = {"a": [0, 0, 0], "b": [0, 0, 0]}
@@ -200,8 +161,8 @@ class TestClosedOp_Int16_Int32(BaseDataProcessorTest):
 
 
 class TestClosedOp_Float32_Float32(BaseDataProcessorTest):
-    processor_type = ClosedOp
-    processor_config = ClosedOpConfig(op=lambda a, b: 0.0)
+    processor_type = binary.ClosedOp
+    processor_config = binary.ClosedOpConfig(op=lambda a, b: 0.0)
 
     input_features = Features({"a": Value("float32"), "b": Value("float32")})
     input_data = {"a": [0.0, 0.0, 0.0], "b": [0.0, 0.0, 0.0]}
@@ -212,8 +173,8 @@ class TestClosedOp_Float32_Float32(BaseDataProcessorTest):
 
 
 class TestClosedOp_Int32_Float32(BaseDataProcessorTest):
-    processor_type = ClosedOp
-    processor_config = ClosedOpConfig(op=lambda a, b: 0.0)
+    processor_type = binary.ClosedOp
+    processor_config = binary.ClosedOpConfig(op=lambda a, b: 0.0)
 
     input_features = Features({"a": Value("int32"), "b": Value("float32")})
     input_data = {"a": [0, 0, 0], "b": [0.0, 0.0, 0.0]}
@@ -224,8 +185,8 @@ class TestClosedOp_Int32_Float32(BaseDataProcessorTest):
 
 
 class TestAdd(BaseDataProcessorTest):
-    processor_type = Add
-    processor_config = AddConfig()
+    processor_type = binary.Add
+    processor_config = binary.AddConfig()
 
     input_features = Features({"a": Value("int32"), "b": Value("int32")})
     input_data = {"a": [1, 2, 3], "b": [1, 2, 3]}
@@ -236,8 +197,8 @@ class TestAdd(BaseDataProcessorTest):
 
 
 class TestSub(BaseDataProcessorTest):
-    processor_type = Sub
-    processor_config = SubConfig()
+    processor_type = binary.Sub
+    processor_config = binary.SubConfig()
 
     input_features = Features({"a": Value("int32"), "b": Value("int32")})
     input_data = {"a": [1, 2, 3], "b": [1, 2, 3]}
@@ -248,8 +209,8 @@ class TestSub(BaseDataProcessorTest):
 
 
 class TestMul(BaseDataProcessorTest):
-    processor_type = Mul
-    processor_config = MulConfig()
+    processor_type = binary.Mul
+    processor_config = binary.MulConfig()
 
     input_features = Features({"a": Value("int32"), "b": Value("int32")})
     input_data = {"a": [1, 2, 3], "b": [1, 2, 3]}
@@ -260,8 +221,8 @@ class TestMul(BaseDataProcessorTest):
 
 
 class TestPow(BaseDataProcessorTest):
-    processor_type = Pow
-    processor_config = PowConfig()
+    processor_type = binary.Pow
+    processor_config = binary.PowConfig()
 
     input_features = Features({"a": Value("int32"), "b": Value("int32")})
     input_data = {"a": [1, 2, 3], "b": [1, 2, 3]}
@@ -272,8 +233,8 @@ class TestPow(BaseDataProcessorTest):
 
 
 class TestMod(BaseDataProcessorTest):
-    processor_type = Mod
-    processor_config = ModConfig()
+    processor_type = binary.Mod
+    processor_config = binary.ModConfig()
 
     input_features = Features({"a": Value("int32"), "b": Value("int32")})
     input_data = {"a": [4, 5, 6], "b": [2, 2, 4]}
@@ -284,8 +245,8 @@ class TestMod(BaseDataProcessorTest):
 
 
 class TestFloorDiv(BaseDataProcessorTest):
-    processor_type = FloorDiv
-    processor_config = FloorDivConfig()
+    processor_type = binary.FloorDiv
+    processor_config = binary.FloorDivConfig()
 
     input_features = Features({"a": Value("int32"), "b": Value("int32")})
     input_data = {"a": [4, 6, 9], "b": [2, 4, 4]}
@@ -296,8 +257,8 @@ class TestFloorDiv(BaseDataProcessorTest):
 
 
 class TestDiv(BaseDataProcessorTest):
-    processor_type = Div
-    processor_config = DivConfig()
+    processor_type = binary.Div
+    processor_config = binary.DivConfig()
 
     input_features = Features({"a": Value("int32"), "b": Value("int32")})
     input_data = {"a": [4, 6, 9], "b": [2, 4, 4]}
