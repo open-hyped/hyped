@@ -337,8 +337,6 @@ class ClosedOp(BinaryOp[ClosedOpConfig, MathInputRefs, ClosedOpOutputRefs]):
     result.
     """
 
-    pass
-
 
 class AddConfig(ClosedOpConfig):
     """Configuration class for the addition operation."""
@@ -416,8 +414,6 @@ class FloorDivOutputRefs(BinaryOpOutputRefs):
 class FloorDiv(BinaryOp[FloorDivConfig, MathInputRefs, FloorDivOutputRefs]):
     """Processor for the floor division operation."""
 
-    pass
-
 
 class DivConfig(BinaryOpConfig):
     """Configuration class for the true division operation."""
@@ -434,5 +430,3 @@ class DivOutputRefs(BinaryOpOutputRefs):
 
 class Div(BinaryOp[DivConfig, MathInputRefs, DivOutputRefs]):
     """Processor for the true division operation."""
-
-    pass
