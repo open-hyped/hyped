@@ -12,6 +12,7 @@ within the data flow.
 from __future__ import annotations
 
 import json
+from typing import TypeAlias
 
 from datasets.features.features import Features, FeatureType, Sequence, Value
 from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
@@ -19,6 +20,8 @@ from typing_extensions import Annotated
 
 from hyped.common.feature_key import FeatureKey
 from hyped.data.flow.aggregators.ref import DataAggregationRef
+
+FeaturePointer: TypeAlias = tuple[int, FeatureKey, object]
 
 
 class FeatureRef(BaseModel):
@@ -28,9 +31,9 @@ class FeatureRef(BaseModel):
     These objects are used when defining a data flow but are not instantiated manually.
     Instead instances are provided by the data flow system.
 
-    The reference to the feature is fully defined by the
+    The pointer to the feature is fully defined by the
     (:class:`flow\_`, :class:`node_id\_`, :class:`key\_`)-tuple. In addition the
-    feature reference still keeps track of the feature type referenced by the tuple.
+    feature reference still keeps track of the feature type referenced by the pointer.
 
     The class supports dynamic access to sub-features, enabling the specification and
     retrieval of nested features using both attribute-style and index-style access.
@@ -103,19 +106,32 @@ class FeatureRef(BaseModel):
     The type of the feature referenced by this instance.
     """
 
+    @property
+    def ptr(self) -> FeaturePointer:
+        r"""Retrieve the pointer to the referenced feature.
+
+        This property returns a pointer-tuple
+        (:class:`node_id\_`, :class:`key\_`, :class:`flow\_`)
+
+        Returns:
+            tuple[int, FeatureKey, object]: A ptr-tuple containing the node ID,
+            key, and flow.
+        """
+        return (self.node_id_, self.key_, self.flow_)
+
     def __hash__(self) -> str:
         r"""Compute the hash value of the FeatureRef instance.
 
         Note that the hash value of a FeatureRef instance is independent
-        of the feature type, it only considers the index
-        (:class:`flow\_`, :class:`node_id\_`, :class:`key\_`)
+        of the feature type, it only considers the pointer
+        (:class:`node_id\_`, :class:`key\_`, :class:`flow\_`)
         of the feature.
 
         Returns:
             str: The hash value of the FeatureRef instance, computed
                 based on its attributes.
         """
-        return hash((self.flow_, self.node_id_, self.key_))
+        return hash(self.ptr)
 
     def __getattr__(self, key: str) -> FeatureRef:
         """Access a sub-feature within the FeatureRef instance via attribute-style access.

@@ -63,8 +63,8 @@ class TestFeatureRef(object):
         rec_ref = FeatureRef.model_validate(ref.model_dump())
         rec_ref_json = FeatureRef.model_validate_json(ref.model_dump_json())
         # check reconstructed reference
-        assert rec_ref == ref
-        assert rec_ref_json == ref
+        assert rec_ref.model_dump() == ref.model_dump()
+        assert rec_ref_json.model_dump() == ref.model_dump()
 
     def test_basics(self):
         ref = FeatureRef(
@@ -95,51 +95,61 @@ class TestFeatureRef(object):
 
         # basic sub-feature access checks
         assert (
-            ref["x"]
-            == ref.x
+            ref["x"].model_dump()
+            == ref.x.model_dump()
             == FeatureRef(
                 key_=FeatureKey("x"),
                 feature_=Value("int32"),
                 node_id_=-1,
                 flow_=None,
-            )
+            ).model_dump()
         )
         assert (
-            ref["y"]
-            == ref.y
+            ref["y"].model_dump()
+            == ref.y.model_dump()
             == FeatureRef(
                 key_=FeatureKey("y"),
                 feature_=Sequence(Value("string")),
                 node_id_=-1,
                 flow_=None,
-            )
-        )
-        assert ref.y[:] == FeatureRef(
-            key_=FeatureKey("y", slice(None)),
-            feature_=Sequence(Value("string")),
-            node_id_=-1,
-            flow_=None,
-        )
-        assert ref.y[0] == FeatureRef(
-            key_=FeatureKey("y", 0),
-            feature_=Value("string"),
-            node_id_=-1,
-            flow_=None,
-        )
-        assert ref.z[0] == FeatureRef(
-            key_=FeatureKey("z", 0),
-            feature_=Value("string"),
-            node_id_=-1,
-            flow_=None,
+            ).model_dump()
         )
         assert (
-            ref["a"]["a_x"]
-            == ref["a", "a_x"]
-            == ref.a.a_x
+            ref.y[:].model_dump()
+            == FeatureRef(
+                key_=FeatureKey("y", slice(None)),
+                feature_=Sequence(Value("string")),
+                node_id_=-1,
+                flow_=None,
+            ).model_dump()
+        )
+        assert (
+            ref.y[0].model_dump()
+            == FeatureRef(
+                key_=FeatureKey("y", 0),
+                feature_=Value("string"),
+                node_id_=-1,
+                flow_=None,
+            ).model_dump()
+        )
+        assert (
+            ref.z[0].model_dump()
+            == FeatureRef(
+                key_=FeatureKey("z", 0),
+                feature_=Value("string"),
+                node_id_=-1,
+                flow_=None,
+            ).model_dump()
+        )
+
+        assert (
+            ref["a"]["a_x"].model_dump()
+            == ref["a", "a_x"].model_dump()
+            == ref.a.a_x.model_dump()
             == FeatureRef(
                 key_=FeatureKey("a", "a_x"),
                 feature_=Value("int32"),
                 node_id_=-1,
                 flow_=None,
-            )
+            ).model_dump()
         )
