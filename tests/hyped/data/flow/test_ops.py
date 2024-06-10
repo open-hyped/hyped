@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
 from datasets import Features, Sequence, Value
 
@@ -7,6 +9,38 @@ from hyped.data.flow.aggregators.ops.sum import SumAggregator
 from hyped.data.flow.flow import DataFlow, DataFlowGraph
 from hyped.data.flow.processors.ops import binary
 from hyped.data.flow.processors.ops.collect import CollectFeatures
+from hyped.data.flow.refs.ref import FeatureRef
+
+
+def test_binary_op_constant_inputs_handler():
+    mock_binary_op = MagicMock()
+    # wrap mock binary operator
+    wrapped_binary_op = ops._handle_constant_inputs_for_binary_op(
+        mock_binary_op
+    )
+    # create a feature reference instance
+    ref = FeatureRef(
+        node_id_=-1, key_=tuple(), flow_=None, feature_=Value("int32")
+    )
+
+    # expected error on only constant inputs
+    with pytest.raises(RuntimeError):
+        wrapped_binary_op(0, 0)
+
+    # called with only references
+    wrapped_binary_op(ref, ref)
+    mock_binary_op.assert_called_with(ref, ref)
+
+    # called with mixture of reference and constants
+    with patch("hyped.data.flow.ops.collect") as mock_collect:
+        # first constant then reference
+        wrapped_binary_op(0, ref)
+        mock_collect.assert_called_with({"0": 0}, flow=ref.flow_)
+        mock_binary_op.assert_called_with(mock_collect()["0"], ref)
+        # first reference then constant
+        wrapped_binary_op(ref, 0)
+        mock_collect.assert_called_with({"0": 0}, flow=ref.flow_)
+        mock_binary_op.assert_called_with(ref, mock_collect()["0"])
 
 
 def test_collect():

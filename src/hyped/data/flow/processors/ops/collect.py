@@ -454,7 +454,7 @@ class CollectFeatures(
             flow (None | object, optional): The flow object to which to add the processor.
                 This defaults to the flow object associated with the feature collection,
                 but is required if the collection only contains constant features, as
-                the flow cannot be inferred from it.
+                in that case the flow cannot be inferred.
             **kwargs: Alternatively, the collection can also be specified implicitly
                 by keyword arguments.
 
