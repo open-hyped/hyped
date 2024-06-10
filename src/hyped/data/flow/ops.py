@@ -130,7 +130,7 @@ def mul(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     return binary.Mul().call(a=a, b=b).result
 
 
-def div(a: FeatureRef, b: FeatureRef) -> FeatureRef:
+def truediv(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     """Divide one feature by another.
 
     Args:
@@ -140,7 +140,7 @@ def div(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the division.
     """
-    return binary.Div().call(a=a, b=b).result
+    return binary.TrueDiv().call(a=a, b=b).result
 
 
 def floordiv(a: FeatureRef, b: FeatureRef) -> FeatureRef:

@@ -213,9 +213,9 @@ class FeatureRef(BaseModel):
         Returns:
             FeatureRef: Reference to the result of the division.
         """
-        from hyped.data.flow.ops import div
+        from hyped.data.flow.ops import truediv
 
-        return div(self, other)
+        return truediv(self, other)
 
     def __floordiv__(self, other: FeatureRef) -> FeatureRef:
         """Perform floor division with another feature.

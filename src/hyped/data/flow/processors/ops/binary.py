@@ -415,18 +415,18 @@ class FloorDiv(BinaryOp[FloorDivConfig, MathInputRefs, FloorDivOutputRefs]):
     """Processor for the floor division operation."""
 
 
-class DivConfig(BinaryOpConfig):
+class TrueDivConfig(BinaryOpConfig):
     """Configuration class for the true division operation."""
 
     op: Callable[[int | float, int | float], float] = operator.truediv
 
 
-class DivOutputRefs(BinaryOpOutputRefs):
+class TrueDivOutputRefs(BinaryOpOutputRefs):
     """Defines output references for the true division operation."""
 
     result: Annotated[FeatureRef, OutputFeature(Value("float32"))]
     """The result of the true division operation."""
 
 
-class Div(BinaryOp[DivConfig, MathInputRefs, DivOutputRefs]):
+class TrueDiv(BinaryOp[TrueDivConfig, MathInputRefs, TrueDivOutputRefs]):
     """Processor for the true division operation."""
