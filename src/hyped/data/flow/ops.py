@@ -46,10 +46,9 @@ from typing import Any, Callable
 
 from .aggregators.ops.mean import MeanAggregator
 from .aggregators.ops.sum import SumAggregator
-from .aggregators.ref import DataAggregationRef
+from .core.refs.ref import AggregationRef, FeatureRef
 from .processors.ops import binary
 from .processors.ops.collect import CollectFeatures, Const
-from .refs.ref import FeatureRef
 
 
 def _handle_constant_inputs_for_binary_op(
@@ -133,26 +132,26 @@ def collect(
     )
 
 
-def sum_(a: FeatureRef) -> DataAggregationRef:
+def sum_(a: FeatureRef) -> AggregationRef:
     """Calculate the sum of feature values.
 
     Args:
         a (FeatureRef): The feature to aggregate.
 
     Returns:
-        DataAggregationRef: A reference to the result of the sum operation.
+        AggregationRef: A reference to the result of the sum operation.
     """
     return SumAggregator().call(x=a)
 
 
-def mean(a: FeatureRef) -> DataAggregationRef:
+def mean(a: FeatureRef) -> AggregationRef:
     """Calculate the mean of feature values.
 
     Args:
         a (FeatureRef): The feature to aggregate.
 
     Returns:
-        DataAggregationRef: A reference to the result of the mean operation.
+        AggregationRef: A reference to the result of the mean operation.
     """
     return MeanAggregator().call(x=a)
 

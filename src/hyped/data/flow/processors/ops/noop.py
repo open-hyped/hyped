@@ -8,14 +8,14 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from hyped.data.flow.processors.base import (
+from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     Batch,
 )
-from hyped.data.flow.refs.inputs import FeatureValidator, InputRefs
-from hyped.data.flow.refs.outputs import LambdaOutputFeature, OutputRefs
-from hyped.data.flow.refs.ref import FeatureRef
+from hyped.data.flow.core.refs.inputs import FeatureValidator, InputRefs
+from hyped.data.flow.core.refs.outputs import LambdaOutputFeature, OutputRefs
+from hyped.data.flow.core.refs.ref import FeatureRef
 
 
 class NoOpInputRefs(InputRefs):

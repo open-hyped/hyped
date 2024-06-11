@@ -17,18 +17,18 @@ from transformers.tokenization_utils_base import TruncationStrategy
 from transformers.utils import PaddingStrategy
 from typing_extensions import Annotated
 
-from hyped.data.flow.processors.base import (
+from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     Batch,
 )
-from hyped.data.flow.refs.inputs import CheckFeatureEquals, InputRefs
-from hyped.data.flow.refs.outputs import (
+from hyped.data.flow.core.refs.inputs import CheckFeatureEquals, InputRefs
+from hyped.data.flow.core.refs.outputs import (
     ConditionalOutputFeature,
     LambdaOutputFeature,
     OutputRefs,
 )
-from hyped.data.flow.refs.ref import NONE_REF, FeatureRef
+from hyped.data.flow.core.refs.ref import NONE_REF, FeatureRef
 
 
 def _get_output_sequence_length(config: TransformersTokenizerConfig) -> int:

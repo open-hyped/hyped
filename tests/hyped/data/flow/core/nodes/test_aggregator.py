@@ -4,13 +4,13 @@ from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 import pytest
 from datasets import Features
 
-from hyped.data.flow.aggregators.base import (
+from hyped.data.flow.core.nodes.aggregator import (
     BaseDataAggregator,
     BaseDataAggregatorConfig,
     DataAggregationManager,
-    DataAggregationRef,
 )
-from hyped.data.flow.refs.inputs import InputRefs
+from hyped.data.flow.core.refs.inputs import InputRefs
+from hyped.data.flow.core.refs.ref import AggregationRef
 
 mock_init_value = MagicMock()
 mock_init_state = MagicMock()
@@ -36,7 +36,7 @@ class TestDataAggregationManager:
     def in_features(self):
         return {"agg": MagicMock(spec=Features)}
 
-    @patch("hyped.data.flow.aggregators.base._manager")
+    @patch("hyped.data.flow.core.nodes.aggregator._manager")
     def test_initialization(self, mock_manager, aggregators, in_features):
         # Mock the _manager object
         mock_manager.dict = MagicMock(side_effect=lambda x: dict(x))
@@ -56,7 +56,7 @@ class TestDataAggregationManager:
         assert manager._state_buffer["agg"] == mock_init_state
 
     @pytest.mark.asyncio
-    @patch("hyped.data.flow.aggregators.base._manager")
+    @patch("hyped.data.flow.core.nodes.aggregator._manager")
     async def test_safe_update(self, mock_manager, aggregators, in_features):
         mock_lock = MagicMock()
         # Mock the _manager object
@@ -89,7 +89,7 @@ class TestDataAggregationManager:
         )
 
     @pytest.mark.asyncio
-    @patch("hyped.data.flow.aggregators.base._manager")
+    @patch("hyped.data.flow.core.nodes.aggregator._manager")
     async def test_aggregate(self, mock_manager, aggregators, in_features):
         # Mock the _manager object
         mock_manager.dict = MagicMock(side_effect=lambda x: dict(x))
@@ -145,7 +145,7 @@ class TestDataAggregator:
         )
 
         # make sure the aggregation reference is correct
-        assert ref == DataAggregationRef(
+        assert ref == AggregationRef(
             node_id_=mock_node_id, flow_=mock_flow, type_=MagicMock
         )
 

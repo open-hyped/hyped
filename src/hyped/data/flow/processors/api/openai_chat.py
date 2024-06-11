@@ -20,18 +20,18 @@ from pydantic import Field
 from typing_extensions import TypedDict
 
 from hyped.common.lazy import LazyInstance
-from hyped.data.flow.processors.base import (
+from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     Sample,
 )
-from hyped.data.flow.refs.inputs import CheckFeatureIsSequence, InputRefs
-from hyped.data.flow.refs.outputs import (
+from hyped.data.flow.core.refs.inputs import CheckFeatureIsSequence, InputRefs
+from hyped.data.flow.core.refs.outputs import (
     LambdaOutputFeature,
     OutputFeature,
     OutputRefs,
 )
-from hyped.data.flow.refs.ref import FeatureRef
+from hyped.data.flow.core.refs.ref import FeatureRef
 
 
 class OpenAIToolFunction(TypedDict):

@@ -37,18 +37,18 @@ from typing import Annotated, Any, Callable, TypeVar
 import numpy as np
 from datasets import Value
 
-from hyped.data.flow.processors.base import (
+from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     Batch,
 )
-from hyped.data.flow.refs.inputs import CheckFeatureEquals, InputRefs
-from hyped.data.flow.refs.outputs import (
+from hyped.data.flow.core.refs.inputs import CheckFeatureEquals, InputRefs
+from hyped.data.flow.core.refs.outputs import (
     LambdaOutputFeature,
     OutputFeature,
     OutputRefs,
 )
-from hyped.data.flow.refs.ref import FeatureRef
+from hyped.data.flow.core.refs.ref import FeatureRef
 
 INTS = {"int8", "int16", "int32", "int64"}
 FLOATS = {"float16", "float32", "float64"}

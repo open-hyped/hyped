@@ -5,7 +5,7 @@ import pytest
 from datasets import Features, Sequence, Value
 from typing_extensions import Annotated
 
-from hyped.data.flow.refs.inputs import (
+from hyped.data.flow.core.refs.inputs import (
     CheckFeatureEquals,
     CheckFeatureIsSequence,
     FeatureValidator,
@@ -13,7 +13,7 @@ from hyped.data.flow.refs.inputs import (
 )
 
 # import hyped.data.processors.base
-from hyped.data.flow.refs.ref import NONE_REF, FeaturePointer, FeatureRef
+from hyped.data.flow.core.refs.ref import NONE_REF, FeaturePointer, FeatureRef
 
 
 def ptr_set(refs: Iterable[FeatureRef]) -> set[FeaturePointer]:

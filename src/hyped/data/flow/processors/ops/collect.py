@@ -22,14 +22,14 @@ from pydantic._internal._model_construction import ModelMetaclass
 from typing_extensions import Annotated
 
 from hyped.common.feature_checks import check_feature_equals
-from hyped.data.flow.processors.base import (
+from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     Batch,
 )
-from hyped.data.flow.refs.inputs import InputRefs
-from hyped.data.flow.refs.outputs import LambdaOutputFeature, OutputRefs
-from hyped.data.flow.refs.ref import FeatureRef
+from hyped.data.flow.core.refs.inputs import InputRefs
+from hyped.data.flow.core.refs.outputs import LambdaOutputFeature, OutputRefs
+from hyped.data.flow.core.refs.ref import FeatureRef
 
 T = typing.TypeVar("T", str, int, float)
 

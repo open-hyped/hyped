@@ -6,10 +6,11 @@ from datasets import Features, Sequence, Value
 from hyped.data.flow import ops
 from hyped.data.flow.aggregators.ops.mean import MeanAggregator
 from hyped.data.flow.aggregators.ops.sum import SumAggregator
-from hyped.data.flow.flow import DataFlow, DataFlowGraph
+from hyped.data.flow.core.flow import DataFlow
+from hyped.data.flow.core.graph import DataFlowGraph
+from hyped.data.flow.core.refs.ref import FeatureRef
 from hyped.data.flow.processors.ops import binary
 from hyped.data.flow.processors.ops.collect import CollectFeatures
-from hyped.data.flow.refs.ref import FeatureRef
 
 
 def test_binary_op_constant_inputs_handler():

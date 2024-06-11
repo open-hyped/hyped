@@ -14,13 +14,13 @@ Usage Example:
     .. code-block:: python
 
         # Import necessary classes from the module
-        from hyped.data.processors.base import (
+        from hyped.data.flow.core.nodes.processor import (
             BaseDataProcessor, BaseDataProcessorConfig
         )
-        from hyped.data.flow.refs.inputs import (
+        from hyped.data.flow.core.refs.inputs import (
             InputRefs, CheckFeatureEquals
         )
-        from hyped.data.flow.refs.outputs import (
+        from hyped.data.flow.core.refs.outputs import (
             OutputRefs, OutputFeature
         )
         from datasets.features.features import Value
@@ -57,8 +57,9 @@ from typing_extensions import TypeAlias
 
 from hyped.base.config import BaseConfig, BaseConfigurable
 from hyped.base.generic import solve_typevar
-from hyped.data.flow.refs.inputs import InputRefs
-from hyped.data.flow.refs.outputs import OutputRefs
+
+from ..refs.inputs import InputRefs
+from ..refs.outputs import OutputRefs
 
 Batch: TypeAlias = dict[str, list[Any]]
 Sample: TypeAlias = dict[str, Any]
