@@ -35,16 +35,19 @@ class TestDataFlow:
             collect=out_ref, aggregators={"val": agg_ref}
         )
         assert len(subflow._graph) == 3
-        assert subflow.out_features is out_ref
+        assert subflow.out_features.key_ is out_ref.key_
+        assert subflow.out_features.feature_ is out_ref.feature_
         assert vals == mock_manager.values_proxy
         # build subflow with processor only
         subflow, _ = flow.build(collect=out_ref)
         assert len(subflow._graph) == 2
-        assert subflow.out_features is out_ref
+        assert subflow.out_features.key_ is out_ref.key_
+        assert subflow.out_features.feature_ is out_ref.feature_
         # build subflow with no processors
         subflow, _ = flow.build(collect=src_ref)
         assert len(subflow._graph) == 1
-        assert subflow.out_features is src_ref
+        assert subflow.out_features.key_ is src_ref.key_
+        assert subflow.out_features.feature_ is src_ref.feature_
 
     def test_batch_process(self, setup_flow, mock_manager):
         flow, graph, proc_node, agg_node = setup_flow
