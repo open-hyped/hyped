@@ -263,7 +263,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         ), f"Invalid processor type {type(processor)}."
 
         # add processor to graph
-        depth = -1
+        depth = 0
         node_id = self.number_of_nodes()
         self.add_node(
             node_id,

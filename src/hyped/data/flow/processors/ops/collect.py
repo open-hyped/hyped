@@ -18,7 +18,6 @@ import typing
 from datasets import Dataset
 from datasets.features.features import Features, FeatureType, Sequence, Value
 from pydantic import BaseModel, BeforeValidator, Field
-from pydantic._internal._model_construction import ModelMetaclass
 from typing_extensions import Annotated
 
 from hyped.common.feature_checks import check_feature_equals
@@ -286,6 +285,48 @@ class FeatureCollection(BaseModel):
         # collect values
         return collect(self, inputs)
 
+    def _map(
+        self, f: typing.Callable[[FeatureRef | Const], typing.Any]
+    ) -> object:
+        """Apply a function to all feature references and constants in the collection.
+
+        This method applies the provided function to all nested values in the collection,
+        which include both :class:`FeatureRef` instances and :class:`Const` instances.
+        It traverses the nested structure and applies the function recursively.
+
+        Args:
+            f (Callable[[FeatureRef | Const], Any]): The function to be applied to
+                each nested value. It should accept a single argument, which can be
+                either a :class:`FeatureRef` or a :class:`Const`, and return any
+                desired value.
+
+        Returns:
+            object: A new collection with the function applied to all nested values.
+        """
+        if isinstance(self.collection, dict):
+            return {
+                k: (
+                    f(v)
+                    if isinstance(v, (Const, FeatureRef))
+                    else v.map(f)
+                    if isinstance(v, FeatureCollection)
+                    else None  # unexpected type in collection
+                )
+                for k, v in self.collection.items()
+            }
+
+        if isinstance(self.collection, list):
+            return list(
+                (
+                    f(v)
+                    if isinstance(v, (Const, FeatureRef))
+                    else v.map(f)
+                    if isinstance(v, FeatureCollection)
+                    else None  # unexpected type in collection
+                )
+                for v in self.collection
+            )
+
 
 class CollectFeaturesInputRefs(InputRefs):
     """Input references for the CollectFeatures data processor.
@@ -470,7 +511,9 @@ class CollectFeatures(
         if self.collection is not None:
             # feature collector is already in use
             # create a new one for this call
-            return CollectFeatures().call(collection=collection, **kwargs)
+            return CollectFeatures().call(
+                collection=collection, flow=flow, **kwargs
+            )
 
         # check inputs
         if (collection is not None) and len(kwargs) > 0:

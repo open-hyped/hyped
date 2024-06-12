@@ -27,10 +27,12 @@ from typing_extensions import TypeAlias
 from hyped.common.arrow import convert_features_to_arrow_schema
 from hyped.common.feature_checks import check_feature_equals
 from hyped.common.lazy import LazyInstance
-from hyped.data.flow.core.executor import DataFlowExecutor
-from hyped.data.flow.core.graph import DataFlowGraph
-from hyped.data.flow.core.nodes.aggregator import DataAggregationManager
-from hyped.data.flow.core.refs.ref import AggregationRef, FeatureRef
+
+from .executor import DataFlowExecutor
+from .graph import DataFlowGraph
+from .nodes.aggregator import DataAggregationManager
+from .optim import DataFlowGraphOptimizer
+from .refs.ref import AggregationRef, FeatureRef
 
 Batch: TypeAlias = dict[str, list[Any]]
 D = TypeVar(
@@ -165,24 +167,29 @@ class DataFlow(object):
         collect: FeatureRef,
         aggregators: None | dict[str, AggregationRef] = None,
     ) -> tuple[DataFlow, None | MappingProxyType[str, Any]]:
-        """Build a sub-data flow to compute the requested output features.
+        """Build an optimized sub-data flow to compute the requested output features.
 
         This method constructs a sub-graph of the data flow to compute the specified
-        output features and optionally includes aggregators for dataset-wide computations.
+        output features. It can optionally include aggregators for dataset-wide computations.
+
+        The constructed sub-graph undergoes optimization, including techniques such as
+        common subexpression elimination (CSE) and other AST optimizations.
 
         Args:
             collect (FeatureRef): The feature reference to collect.
-            aggregators (None | dict[str, AggregationRef]): Optional dictionary of
+            aggregators (None | dict[str, AggregationRef], optional): Dictionary of
                 aggregators for computing dataset-wide values. Defaults to None.
 
         Returns:
             tuple[DataFlow, None | MappingProxyType[str, Any]]: The sub-data flow and a proxy
-            object of the aggregated values. The aggregated values object is None in case
-            no aggregators were provided.
+                object of the aggregated values. The aggregated values object is None in case
+                no aggregators were provided.
 
         Raises:
             TypeError: If the collect feature is not of type `datasets.Features` or `dict`.
             TypeError: If aggregators are provided but are not of the expected type.
+            RuntimeError: If the collect feature does not belong to this flow.
+            RuntimeError: If any of the aggregators does not belong to this flow.
         """
         if not isinstance(collect.feature_, (datasets.Features, dict)):
             raise TypeError(
@@ -202,19 +209,39 @@ class DataFlow(object):
                 f"values {aggregators.values()}"
             )
 
+        if collect.flow_ != self._graph:
+            raise RuntimeError(
+                "The collect feature does not belong to the current graph."
+            )
+
+        if (aggregators is not None) and any(
+            ref.flow_ != self._graph for ref in aggregators.values()
+        ):
+            raise RuntimeError(
+                "One or more aggregators do not belong to the current graph."
+            )
+
         # collect all requested leaf nodes
         leaf_nodes = set([collect.node_id_])
         if aggregators is not None:
             leaf_nodes.update([ref.node_id_ for ref in aggregators.values()])
 
-        # build dependency graph for the given set of nodes
-        sub_graph = self._graph.dependency_graph(leaf_nodes)
+        # optimize data flow graph
+        optim = DataFlowGraphOptimizer()
+        optim_graph, node_mapping = optim.optimize(self._graph, leaf_nodes)
+
+        # update collect reference to optimized graph
+        collect = collect.model_copy(
+            update=dict(
+                node_id_=node_mapping[collect.node_id_], flow_=optim_graph
+            )
+        )
 
         aggregation_manager = None
         # create the aggregation manager
         if aggregators is not None:
             aggregators = {
-                name: self._graph.nodes[ref.node_id_][
+                name: optim_graph.nodes[node_mapping[ref.node_id_]][
                     DataFlowGraph.NodeProperty.PROCESSOR
                 ]
                 for name, ref in aggregators.items()
@@ -228,11 +255,11 @@ class DataFlow(object):
         # TODO: restrict input features to only the
         #       ones required by the sub-graph
         flow = DataFlow(self.src_features.feature_)
-        flow._graph = sub_graph
+        flow._graph = optim_graph
         flow._executor = LazyInstance(
             partial(
                 DataFlowExecutor,
-                graph=sub_graph,
+                graph=optim_graph,
                 collect=collect,
                 aggregation_manager=aggregation_manager,
             )
