@@ -46,9 +46,10 @@ from typing import Any, Callable
 
 from .aggregators.ops.mean import MeanAggregator
 from .aggregators.ops.sum import SumAggregator
+from .core.nodes.const import Const
 from .core.refs.ref import AggregationRef, FeatureRef
 from .processors.ops import binary
-from .processors.ops.collect import CollectFeatures, Const
+from .processors.ops.collect import CollectFeatures
 
 
 def _handle_constant_inputs_for_binary_op(
@@ -75,7 +76,7 @@ def _handle_constant_inputs_for_binary_op(
 
     @wraps(binary_op)
     def wrapped_binary_op(
-        a: FeatureRef | Const | Any, b: FeatureRef | Const | Any
+        a: FeatureRef | Any, b: FeatureRef | Any
     ) -> FeatureRef:
         if not isinstance(a, FeatureRef) and not isinstance(b, FeatureRef):
             raise RuntimeError(
@@ -88,13 +89,11 @@ def _handle_constant_inputs_for_binary_op(
 
         # collect constant value a
         if not isinstance(a, FeatureRef):
-            name = str(a.value) if isinstance(a, Const) else str(a)
-            a = collect({name: a}, flow=flow)[name]
+            a = Const(value=a).to(flow).value
 
         # collect constant value b
         if not isinstance(b, FeatureRef):
-            name = str(b.value) if isinstance(b, Const) else str(b)
-            b = collect({name: b}, flow=flow)[name]
+            b = Const(value=b).to(flow).value
 
         # apply binary operation on feature refs
         return binary_op(a, b)

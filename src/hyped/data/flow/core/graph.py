@@ -9,19 +9,22 @@ and edges (data flow between processors).
 from __future__ import annotations
 
 from enum import Enum
+from functools import wraps
 from itertools import groupby
+from typing import Any
 
 import datasets
 import networkx as nx
+from datasets.features.features import FeatureType
 
 from hyped.common.feature_key import FeatureKey
 from hyped.data.flow.core.nodes.aggregator import BaseDataAggregator
+from hyped.data.flow.core.nodes.base import BaseNode
+from hyped.data.flow.core.nodes.const import Const
 from hyped.data.flow.core.nodes.processor import BaseDataProcessor
 from hyped.data.flow.core.refs.inputs import InputRefs
 from hyped.data.flow.core.refs.outputs import OutputRefs
 from hyped.data.flow.core.refs.ref import AggregationRef, FeatureRef
-
-SRC_NODE_ID = 0
 
 
 class DataFlowGraph(nx.MultiDiGraph):
@@ -31,6 +34,9 @@ class DataFlowGraph(nx.MultiDiGraph):
     where nodes represent data processors of `BaseDataProcessor` type, and
     edges define the data flow between these processors.
     """
+
+    class GraphProperty(str, Enum):
+        SRC_NODE_ID = "src_node_id"
 
     class NodeType(Enum):
         """Enum representing types of nodes in the data flow graph."""
@@ -42,6 +48,8 @@ class DataFlowGraph(nx.MultiDiGraph):
         This type of node acts as the starting point of the data flow graph,
         typically representing raw input data sources.
         """
+
+        CONST = "CONST_NODE"
 
         DATA_PROCESSOR = "DATA_PROCESSOR_NODE"
         """
@@ -65,20 +73,18 @@ class DataFlowGraph(nx.MultiDiGraph):
     class NodeProperty(str, Enum):
         """Enum representing properties of a node in the data flow graph."""
 
-        PROCESSOR = "processor"
+        NODE_OBJ = "node_object"
         """
-        Represents the data processor associated with the node.
-
-        Type: :code:`None`| :class:`BaseDataProcessor` | :class:`BaseDataAugmentor`
-
-        This property holds a reference to the data processor instance that the node
-        represents within the data flow graph. Set to :code:`None` for the source node.
+        The object associated with the node.
+        
+        The value of this property is dependent on the type of node. For
+        nodes of type :class:`NodeType.DATA_PROCESSOR`, this property
+        refers to the processor instance of the node. 
         """
 
-        # TODO: rename this property to NODE_TYPE
-        PROCESSOR_TYPE = "processor_type"
+        NODE_TYPE = "node_type"
         """
-        Represents the type of the data processor associated with the node.
+        Indicates the type of node.
 
         Type: :class:`NodeType`
 
@@ -166,6 +172,22 @@ class DataFlowGraph(nx.MultiDiGraph):
             + 1
         )
 
+    @wraps(nx.MultiDiGraph)
+    def __init__(self, *args, **kwargs) -> None:
+        kwargs[DataFlowGraph.GraphProperty.SRC_NODE_ID] = -1
+        super(DataFlowGraph, self).__init__(*args, **kwargs)
+
+    @property
+    def src_node_id(self) -> int:
+        return self.graph[DataFlowGraph.GraphProperty.SRC_NODE_ID]
+
+    @src_node_id.setter
+    def src_node_id(self, node_id: int) -> None:
+        if self.src_node_id >= 0:
+            raise RuntimeError("Graph already contains a source node.")
+
+        self.graph[DataFlowGraph.GraphProperty.SRC_NODE_ID] = node_id
+
     @property
     def width(self) -> int:
         """Computes the width of the data flow graph.
@@ -198,25 +220,15 @@ class DataFlowGraph(nx.MultiDiGraph):
         Raises:
             AssertionError: If the graph already contains a source node
         """
-        assert SRC_NODE_ID not in self, "Graph already contains a source node"
-        # add src node to graph
-        self.add_node(
-            SRC_NODE_ID,
-            **{
-                DataFlowGraph.NodeProperty.PROCESSOR: None,
-                DataFlowGraph.NodeProperty.PROCESSOR_TYPE: DataFlowGraph.NodeType.SOURCE,
-                DataFlowGraph.NodeProperty.IN_FEATURES: features,
-                DataFlowGraph.NodeProperty.OUT_FEATURES: features,
-                DataFlowGraph.NodeProperty.DEPTH: 0,
-            },
-        )
-        return SRC_NODE_ID
+        print(features)
+        self.src_node_id = self.add_processor_node(None, None, features)
+        return self.src_node_id
 
     def add_processor_node(
         self,
-        processor: BaseDataProcessor | BaseDataAggregator,
-        inputs: InputRefs,
-        output_features: None | datasets.Features,
+        obj: BaseNode,
+        inputs: None | InputRefs,
+        output_features: datasets.Features,
     ) -> int:
         """Add a processor node to the graph.
 
@@ -225,99 +237,98 @@ class DataFlowGraph(nx.MultiDiGraph):
         processor.
 
         Args:
-            processor (BaseDataProcessor | BaseDataAggregator): The processor or aggregator to add.
-            inputs (InputRefs): The input references for the processor.
-            output_features (None | datasets.Features):
-                The output features generated by the processor. Must be None for aggregator nodes.
+            obj (BaseNode): The node object.
+            inputs (None | InputRefs): The input references to the node. If None, the node will be a source node.
+            output_features (datasets.Features): The output features generated by the node.
 
         Returns:
             int: The node id of the processor within the graph.
 
-        Raises:
-            RuntimeError: If input references are not from this data flow.
-            AssertionError: If the graph does not contain a source node.
-            AssertionError: If input references are not of the expected type
-            AssertionError: If input features do not match the output features
-                of the referred node.
+        Raises: TODO
         """
-        # make sure the input refs match the processor
-        assert SRC_NODE_ID in self, "No source node in graph."
-        assert isinstance(inputs, processor._in_refs_type), (
-            f"Expected input references of type {processor._in_refs_type}, "
-            f"but got {type(inputs)}"
-        )
-        # aggregators have no output features
-        if isinstance(processor, BaseDataAggregator):
-            assert output_features is None
-
         # get processor type
-        processor_type = (
-            DataFlowGraph.NodeType.DATA_PROCESSOR
-            if isinstance(processor, BaseDataProcessor)
+        node_type = (
+            DataFlowGraph.NodeType.SOURCE
+            if obj is None
+            else DataFlowGraph.NodeType.CONST
+            if isinstance(obj, Const)
+            else DataFlowGraph.NodeType.DATA_PROCESSOR
+            if isinstance(obj, BaseDataProcessor)
             else DataFlowGraph.NodeType.DATA_AGGREGATOR
-            if isinstance(processor, BaseDataAggregator)
+            if isinstance(obj, BaseDataAggregator)
             else None
         )
-        assert (
-            processor_type is not None
-        ), f"Invalid processor type {type(processor)}."
+        # make sure the object is valid
+        assert node_type is not None, f"Invalid processor type {type(obj)}."
 
-        # add processor to graph
-        depth = 0
+        # make sure all input references belong to this graph
+        if (inputs is not None) and any(
+            ref.flow_ is not self for ref in inputs.refs
+        ):
+            raise RuntimeError(
+                "Input reference does not belong to this data flow."
+            )
+
+        # compute the depth of the node in the graph based
+        # on it's input references
+        depth = (
+            0
+            if inputs is None
+            else max(
+                (
+                    self.nodes[ref.node_id_][DataFlowGraph.NodeProperty.DEPTH]
+                    + 1
+                    for ref in inputs.refs
+                ),
+                default=0,
+            )
+        )
+
+        # add the node to the graph
         node_id = self.number_of_nodes()
         self.add_node(
             node_id,
             **{
-                DataFlowGraph.NodeProperty.PROCESSOR: processor,
-                DataFlowGraph.NodeProperty.PROCESSOR_TYPE: processor_type,
-                DataFlowGraph.NodeProperty.IN_FEATURES: inputs.features_,
+                DataFlowGraph.NodeProperty.NODE_OBJ: obj,
+                DataFlowGraph.NodeProperty.NODE_TYPE: node_type,
+                DataFlowGraph.NodeProperty.IN_FEATURES: (
+                    None if inputs is None else inputs.features_
+                ),
                 DataFlowGraph.NodeProperty.OUT_FEATURES: output_features,
-                DataFlowGraph.NodeProperty.DEPTH: -1,  # placeholder
+                DataFlowGraph.NodeProperty.DEPTH: depth,
             },
         )
-        # add dependency edges to graph
-        for name, ref in inputs.named_refs.items():
-            # make sure the inputs come from this flow
-            if ref.flow_ != self:
-                raise RuntimeError(
-                    "Input reference does not belong to this data flow."
-                )
-            # make sure the input is a valid output of the referred node
-            assert ref.node_id_ in self
-            assert (
-                ref.key_.index_features(
-                    self.nodes[ref.node_id_][
-                        DataFlowGraph.NodeProperty.OUT_FEATURES
-                    ]
-                )
-                is not None
-            )
-            # add edge to other nodes
-            x = self.add_edge(
-                ref.node_id_,
-                node_id,
-                key=name,
-                **{
-                    DataFlowGraph.EdgeProperty.NAME: name,
-                    DataFlowGraph.EdgeProperty.KEY: ref.key_,
-                },
-            )
-            # update the depth of the node based on the depth of the source node
-            depth = max(
-                depth,
-                self.nodes[ref.node_id_][DataFlowGraph.NodeProperty.DEPTH] + 1,
-            )
 
-        # update the depth of the node
-        self.nodes[node_id][DataFlowGraph.NodeProperty.DEPTH] = depth
+        if inputs is not None:
+            # add dependency edges to graph
+            for name, ref in inputs.named_refs.items():
+                # make sure the input is a valid output of the referred node
+                assert ref.node_id_ in self
+                assert (
+                    ref.key_.index_features(
+                        self.nodes[ref.node_id_][
+                            DataFlowGraph.NodeProperty.OUT_FEATURES
+                        ]
+                    )
+                    is not None
+                )
+                # add the edge
+                self.add_edge(
+                    ref.node_id_,
+                    node_id,
+                    key=name,
+                    **{
+                        DataFlowGraph.EdgeProperty.NAME: name,
+                        DataFlowGraph.EdgeProperty.KEY: ref.key_,
+                    },
+                )
+
         # make sure the graph is a DAG
         assert nx.is_directed_acyclic_graph(self)
 
         return node_id
 
-    def get_node_output_ref(
-        self, node_id: int
-    ) -> FeatureRef | OutputRefs | AggregationRef:
+    def get_node_output_ref(self, node_id: int) -> FeatureRef | OutputRefs:
         """Retrieves the output reference for a given node in the data flow graph.
 
         This method returns an appropriate output reference based on the type of the node specified by the
@@ -342,11 +353,28 @@ class DataFlowGraph(nx.MultiDiGraph):
                 f"Node ID {node_id} does not exist in the data flow graph."
             )
 
-        # get node
+        # get node properties
         node = self.nodes[node_id]
-        node_type = node[DataFlowGraph.NodeProperty.PROCESSOR_TYPE]
+        node_type = node[DataFlowGraph.NodeProperty.NODE_TYPE]
 
         if node_type == DataFlowGraph.NodeType.SOURCE:
+            # build a feature reference to the source features of the graph
+            features = node[DataFlowGraph.NodeProperty.OUT_FEATURES]
+            print(features)
+            return FeatureRef(
+                key_=tuple(), node_id_=node_id, flow_=self, feature_=features
+            )
+
+        node_obj = node[DataFlowGraph.NodeProperty.NODE_OBJ]
+        features = node[DataFlowGraph.NodeProperty.OUT_FEATURES]
+
+        assert isinstance(node_obj, BaseNode)
+        return node_obj._out_refs_type(self, node_id, features)
+
+        if node_type in {
+            DataFlowGraph.NodeType.SOURCE,
+            DataFlowGraph.NodeType.CONST,
+        }:
             features = node[DataFlowGraph.NodeProperty.OUT_FEATURES]
             # build feature reference
             return FeatureRef(
@@ -358,14 +386,14 @@ class DataFlowGraph(nx.MultiDiGraph):
 
         elif node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
             # get processor and output features
-            proc = node[DataFlowGraph.NodeProperty.PROCESSOR]
+            proc = node[DataFlowGraph.NodeProperty.NODE_OBJ]
             features = node[DataFlowGraph.NodeProperty.OUT_FEATURES]
             # build the full output reference
             return proc._out_refs_type(self, node_id, features)
 
         elif node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
             # get aggregator and build reference
-            proc = node[DataFlowGraph.NodeProperty.PROCESSOR]
+            proc = node[DataFlowGraph.NodeProperty.NODE_OBJ]
             return AggregationRef(
                 node_id_=node_id, flow_=self, type_=proc._value_type
             )

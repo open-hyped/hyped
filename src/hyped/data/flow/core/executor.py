@@ -21,7 +21,7 @@ from hyped.data.flow.core.nodes.aggregator import (
 )
 from hyped.data.flow.core.refs.ref import FeatureRef
 
-from .graph import SRC_NODE_ID, DataFlowGraph
+from .graph import DataFlowGraph
 
 Batch: TypeAlias = dict[str, list[Any]]
 
@@ -44,17 +44,18 @@ class ExecutionState(object):
             index (list[int]): The index of the batch.
             rank (int): The rank of the process in a distributed setting.
         """
+        self.graph = graph
         self.index = index
-        self.outputs = {SRC_NODE_ID: batch}
+        self.outputs = {graph.src_node_id: batch}
 
         self.rank = rank
         self.ready = {
             node_id: asyncio.Event()
             for node_id in graph.nodes()
             if (
-                (node_id != SRC_NODE_ID)
+                (node_id != graph.src_node_id)
                 and not isinstance(
-                    graph.nodes[node_id][DataFlowGraph.NodeProperty.PROCESSOR],
+                    graph.nodes[node_id][DataFlowGraph.NodeProperty.NODE_OBJ],
                     BaseDataAggregator,
                 )
             )
@@ -119,7 +120,7 @@ class ExecutionState(object):
         for u, _, name, data in self.graph.in_edges(
             node_id, keys=True, data=True
         ):
-            assert (u == SRC_NODE_ID) or self.ready[
+            assert (u == self.graph.src_node_id) or self.ready[
                 u
             ].is_set(), f"Node {u} is not ready."
             # get feature key from data
@@ -217,28 +218,31 @@ class DataFlowExecutor(object):
 
         # collect inputs for processor execution
         inputs = state.collect_inputs(node_id)
-        processor = self.graph.nodes[node_id][
-            DataFlowGraph.NodeProperty.PROCESSOR
+        node_obj = self.graph.nodes[node_id][
+            DataFlowGraph.NodeProperty.NODE_OBJ
         ]
-        processor_type = self.graph.nodes[node_id][
-            DataFlowGraph.NodeProperty.PROCESSOR_TYPE
+        node_type = self.graph.nodes[node_id][
+            DataFlowGraph.NodeProperty.NODE_TYPE
         ]
 
-        if processor_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
+        if node_type == DataFlowGraph.NodeType.CONST:
+            # get constants from node object
+            consts = node_obj.get_const_batch(batch_size=len(state.index))
+            state.capture_output(node_id, consts)
+
+        elif node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
             # run processor and check the output batch size
-            out = await processor.batch_process(
-                inputs, state.index, state.rank
-            )
+            out = await node_obj.batch_process(inputs, state.index, state.rank)
             assert all(
                 len(vals) == len(state.index) for vals in out.values()
             ), "Output values length does not match index length."
             # capture output in execution state
             state.capture_output(node_id, out)
 
-        elif processor_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
+        elif node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
             # run aggregator
             await self.aggregation_manager.aggregate(
-                processor, inputs, state.index, state.rank
+                node_obj, inputs, state.index, state.rank
             )
 
     async def execute(
@@ -261,7 +265,7 @@ class DataFlowExecutor(object):
             *[
                 self.execute_node(node_id, state)
                 for node_id in self.graph.nodes()
-                if node_id != SRC_NODE_ID
+                if node_id != self.graph.src_node_id
             ]
         )
         # collect output values

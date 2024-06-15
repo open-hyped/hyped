@@ -23,6 +23,8 @@ from dataclasses import dataclass, field
 from itertools import groupby
 
 from hyped.common.feature_key import FeatureKey
+from hyped.data.flow.core.nodes.const import Const
+from hyped.data.flow.core.refs.inputs import InputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
 from hyped.data.flow.processors.ops.collect import CollectFeatures
 
@@ -83,7 +85,6 @@ class DataFlowGraphOptimizer(object):
 
             node_type: DataFlowGraph.NodeType
             node_config: str
-            node_consts: object
             in_edge_identifiers: list[tuple[int, str, FeatureKey]]
             node_id: int = field(default=-1, compare=False)
 
@@ -109,14 +110,11 @@ class DataFlowGraphOptimizer(object):
                 ]
 
                 node_data = graph.nodes[node_id]
-                proc = node_data[DataFlowGraph.NodeProperty.PROCESSOR]
+                obj = node_data[DataFlowGraph.NodeProperty.NODE_OBJ]
                 # create cse node identifier
                 identifier = _CSE_NodeIdentifier(
-                    node_type=node_data[
-                        DataFlowGraph.NodeProperty.PROCESSOR_TYPE
-                    ],
-                    node_config=getattr(proc, "config", None),
-                    node_consts=getattr(proc, "collection", None),
+                    node_type=node_data[DataFlowGraph.NodeProperty.NODE_TYPE],
+                    node_config=getattr(obj, "config", None),
                     in_edge_identifiers=in_edge_identifiers,
                 )
 
@@ -126,16 +124,25 @@ class DataFlowGraphOptimizer(object):
                     node_id_mapping[node_id] = cse_node.node_id
 
                 else:
-                    if proc is None:
+                    if obj is None:
                         # add source node to optimized graph
                         features = node_data[
-                            DataFlowGraph.NodeProperty.IN_FEATURES
+                            DataFlowGraph.NodeProperty.OUT_FEATURES
                         ]
                         identifier.node_id = cse_graph.add_source_node(
                             features
                         )
 
-                    elif isinstance(proc, CollectFeatures):
+                    elif isinstance(obj, Const):
+                        # add the constant to the cse graph
+                        features = node_data[
+                            DataFlowGraph.NodeProperty.OUT_FEATURES
+                        ]
+                        identifier.node_id = cse_graph.add_processor_node(
+                            obj, None, features
+                        )
+
+                    elif isinstance(obj, CollectFeatures):
                         map_node_id = lambda r: (
                             r.model_copy(
                                 update=dict(
@@ -146,8 +153,8 @@ class DataFlowGraphOptimizer(object):
                             if isinstance(r, FeatureRef)
                             else r
                         )
-                        collection = proc.collection._map(map_node_id)
-                        identifier.node_id = proc.call(
+                        collection = obj.collection._map(map_node_id)
+                        identifier.node_id = obj.call(
                             collection=collection, flow=cse_graph
                         ).node_id_
 
@@ -160,7 +167,7 @@ class DataFlowGraphOptimizer(object):
                             for src_node_id, name, key in in_edge_identifiers
                         }
                         # call processor
-                        identifier.node_id = proc.call(**named_refs).node_id_
+                        identifier.node_id = obj.call(**named_refs).node_id_
 
                     # update cse layer and node id mapping
                     cse_layer.append(identifier)

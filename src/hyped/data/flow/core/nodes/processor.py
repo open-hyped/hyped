@@ -51,21 +51,19 @@ from __future__ import annotations
 import asyncio
 import inspect
 from abc import ABC
-from typing import Any, Generic, TypeVar, overload
+from typing import Any, TypeVar, overload
 
 from typing_extensions import TypeAlias
 
-from hyped.base.config import BaseConfig, BaseConfigurable
-from hyped.base.generic import solve_typevar
-
 from ..refs.inputs import InputRefs
 from ..refs.outputs import OutputRefs
+from .base import BaseNode, BaseNodeConfig
 
 Batch: TypeAlias = dict[str, list[Any]]
 Sample: TypeAlias = dict[str, Any]
 
 
-class BaseDataProcessorConfig(BaseConfig):
+class BaseDataProcessorConfig(BaseNodeConfig):
     """Base configuration class for data processors.
 
     This class serves as the base configuration class for data processors.
@@ -79,7 +77,7 @@ I = TypeVar("I", bound=InputRefs)
 O = TypeVar("O", bound=OutputRefs)
 
 
-class BaseDataProcessor(BaseConfigurable[C], Generic[C, I, O], ABC):
+class BaseDataProcessor(BaseNode[C, I, O], ABC):
     """Base class for data processors in a data flow graph.
 
     This class serves as the base for all data processors, representing nodes in a data flow graph.
@@ -109,9 +107,6 @@ class BaseDataProcessor(BaseConfigurable[C], Generic[C, I, O], ABC):
         super(BaseDataProcessor, self).__init__(config, **kwargs)
         # check whether the process function is a coroutine
         self._is_process_async = inspect.iscoroutinefunction(self.process)
-
-        self._in_refs_type = solve_typevar(type(self), I)
-        self._out_refs_type = solve_typevar(type(self), O)
 
     @property
     def required_input_keys(self) -> set[str]:

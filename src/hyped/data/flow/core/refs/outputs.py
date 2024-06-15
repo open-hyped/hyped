@@ -51,7 +51,7 @@ class LambdaOutputFeature(object):
     """
 
     def __init__(
-        self, f: Callable[[BaseConfig, InputRefs], None | FeatureType]
+        self, f: Callable[[BaseConfig, None | InputRefs], None | FeatureType]
     ) -> None:
         """Initialize the LambdaOutputFeature instance.
 
@@ -76,7 +76,7 @@ class ConditionalOutputFeature(LambdaOutputFeature):
     def __init__(
         self,
         feature_type: FeatureType,
-        cond: Callable[[BaseConfig, InputRefs], bool],
+        cond: Callable[[BaseConfig, None | InputRefs], bool],
     ) -> None:
         """Initialize the ConditionalOutputFeature instance.
 
