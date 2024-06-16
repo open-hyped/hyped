@@ -92,15 +92,15 @@ class TestBaseDataProcessor:
         rank = 0
         index = list(range(10))
         batch = {"x": index}
-        io = IOContext(
+        io_ctx = IOContext(
             _IOContext__node_id=-1,
             inputs=Features({"x": Value("int32")}),
             outputs=Features({"out": Value("int32")}),
         )
         # run batch process
-        out_batch = await proc.batch_process(batch, index, rank, io)
+        out_batch = await proc.batch_process(batch, index, rank, io_ctx)
         # check output
         assert out_batch == {"out": [0] * 10}
         # make sure the process function was called for each input sample
-        calls = [call({"x": i}, i, rank) for i in index]
+        calls = [call({"x": i}, i, rank, io_ctx) for i in index]
         proc.process.assert_has_calls(calls, any_order=True)

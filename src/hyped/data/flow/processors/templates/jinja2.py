@@ -1,24 +1,19 @@
 """Jinja2 Template Data Processor."""
-import warnings
 from functools import partial
-from typing import Annotated, Any, Callable, Iterable
+from typing import Annotated
 
-from datasets import ClassLabel, Features, Sequence, Value
-from datasets.features.features import FeatureType
+from datasets import Features, Value
 from jinja2 import Environment, Template
 
 from hyped.common.lazy import LazyInstance
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
+    IOContext,
     Sample,
 )
 from hyped.data.flow.core.refs.inputs import CheckFeatureEquals, InputRefs
-from hyped.data.flow.core.refs.outputs import (
-    LambdaOutputFeature,
-    OutputFeature,
-    OutputRefs,
-)
+from hyped.data.flow.core.refs.outputs import OutputFeature, OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
 
 
@@ -88,7 +83,9 @@ class Jinja2(
             partial(_setup_jinja_env, self.config.template)
         )
 
-    async def process(self, inputs: Sample, index: int, rank: int) -> Sample:
+    async def process(
+        self, inputs: Sample, index: int, rank: int, io: IOContext
+    ) -> Sample:
         """Process example.
 
         Renders the template based on the given example and it's

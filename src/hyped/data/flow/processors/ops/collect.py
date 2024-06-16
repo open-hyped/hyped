@@ -4,7 +4,7 @@ from functools import cache
 from typing import Any, Callable, Generic, Hashable, Mapping, TypeVar
 
 from datasets.features.features import Features, FeatureType, Sequence
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, field_validator
 from typing_extensions import Annotated
 
 from hyped.common.feature_checks import check_feature_equals
@@ -40,14 +40,6 @@ class NestedContainer(BaseModel, Generic[T]):
             else x
         )
 
-    def flatten(self) -> dict[Hashable, T]:
-        # collect all values in the flattened dictionary with
-        # the key being the corresponding path
-        flattened = {}
-        self.map(flattened.__setitem__, None)
-        # return the flat dictionary
-        return flattened
-
     def map(
         self,
         f: Callable[[tuple[Hashable | int], T], U],
@@ -71,6 +63,14 @@ class NestedContainer(BaseModel, Generic[T]):
             )
 
         return NestedContainer[target_type](data=f(_path, self.data))
+
+    def flatten(self) -> dict[Hashable, T]:
+        # collect all values in the flattened dictionary with
+        # the key being the corresponding path
+        flattened = {}
+        self.map(flattened.__setitem__, None)
+        # return the flat dictionary
+        return flattened
 
     def unpack(self) -> dict | list | T:
         if isinstance(self.data, dict):
@@ -104,6 +104,19 @@ class CollectFeaturesInputRefs(InputRefs):
             _path_to_str(key): ref
             for key, ref in self.collection.flatten().items()
         }
+
+    @classmethod
+    @property
+    def required_keys(cls) -> set[str]:
+        """Get the required keys.
+
+        Since the input references are dynamic and based on the collection,
+        this method returns an empty set.
+
+        Returns:
+            set[str]: An empty set.
+        """
+        return set()
 
 
 def _infer_feature_type(
@@ -141,12 +154,6 @@ class CollectFeaturesOutputRefs(OutputRefs):
             lambda _, inputs: _infer_feature_type(inputs.collection)
         ),
     ]
-
-    @model_validator(mode="after")
-    def _validate_output_feature_type(self) -> CollectFeaturesOutputRefs:
-        if not isinstance(self.collected.feature_, Features):
-            raise TypeError()
-        return self
 
 
 class CollectFeatures(

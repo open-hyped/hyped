@@ -11,6 +11,7 @@ from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     Batch,
+    IOContext,
 )
 from hyped.data.flow.core.refs.inputs import InputRefs
 from hyped.data.flow.core.refs.outputs import OutputRefs
@@ -77,9 +78,18 @@ class BaseDataProcessorTest:
         if len(cls.input_data) > 0:
             assert len(input_index) == len(next(iter(cls.input_data.values())))
 
+        # build the io context
+        io = IOContext(
+            _IOContext__node_id=-1,
+            inputs=cls.input_features,
+            outputs=processor._out_refs_type.build_features(
+                processor.config, input_refs
+            ),
+        )
+
         # apply processor
         output = await processor.batch_process(
-            cls.input_data, input_index, cls.rank
+            cls.input_data, input_index, cls.rank, io
         )
 
         # check output format

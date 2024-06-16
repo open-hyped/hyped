@@ -6,6 +6,7 @@ from datasets import Features, Value
 
 from hyped.data.flow.core.executor import DataFlowExecutor, ExecutionState
 from hyped.data.flow.core.graph import DataFlowGraph
+from hyped.data.flow.core.nodes.processor import IOContext
 
 from .mock import MockInputRefs, MockProcessor
 
@@ -144,13 +145,24 @@ class TestDataFlowExecutor:
         # run processor node in executor
         await executor.execute_node(proc_node, state)
 
+        # build io context for the processor
+        io_ctx = IOContext(
+            _IOContext__node_id=proc_node,
+            inputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.IN_FEATURES
+            ],
+            outputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.OUT_FEATURES
+            ],
+        )
+
         # make sure the processor was called correctly
         p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.NODE_OBJ]
         p.process.assert_has_calls(
             [
-                call({"a": 1, "b": 0}, 0, 0),
-                call({"a": 2, "b": 0}, 1, 0),
-                call({"a": 3, "b": 0}, 2, 0),
+                call({"a": 1, "b": 0}, 0, 0, io_ctx),
+                call({"a": 2, "b": 0}, 1, 0, io_ctx),
+                call({"a": 3, "b": 0}, 2, 0, io_ctx),
             ]
         )
         # check state after execution
@@ -188,13 +200,24 @@ class TestDataFlowExecutor:
         # execute graph
         batch, index, rank = {"x": [1, 2, 3]}, [0, 1, 2], 0
         await executor.execute(batch, index, rank)
+
+        # build io context for the processor
+        io_ctx = IOContext(
+            _IOContext__node_id=proc_node,
+            inputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.IN_FEATURES
+            ],
+            outputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.OUT_FEATURES
+            ],
+        )
         # make sure the processor is called correctly
         p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.NODE_OBJ]
         p.process.assert_has_calls(
             [
-                call({"a": 1, "b": 0}, 0, 0),
-                call({"a": 2, "b": 0}, 1, 0),
-                call({"a": 3, "b": 0}, 2, 0),
+                call({"a": 1, "b": 0}, 0, 0, io_ctx),
+                call({"a": 2, "b": 0}, 1, 0, io_ctx),
+                call({"a": 3, "b": 0}, 2, 0, io_ctx),
             ]
         )
         # make sure the aggregator is called correctly

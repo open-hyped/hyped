@@ -15,6 +15,7 @@ from hyped.common.pydantic import pydantic_model_from_features
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
+    IOContext,
     Sample,
 )
 from hyped.data.flow.core.refs.inputs import CheckFeatureEquals, InputRefs
@@ -145,7 +146,9 @@ class JsonParser(
         self.__dict__ = d
         self._feature_model = self._build_feature_model()
 
-    def process(self, inputs: Sample, index: int, rank: int) -> Sample:
+    def process(
+        self, inputs: Sample, index: int, rank: int, io: IOContext
+    ) -> Sample:
         """Processes a single input sample synchronously and returns the corresponding output sample.
 
         This method parses a JSON string contained within the input sample and validates it

@@ -170,7 +170,7 @@ class BaseDataProcessor(BaseNode[C, I, O], ABC):
         # apply process function to each sample in the input batch
         keys = inputs.keys()
         outputs = [
-            self.process(dict(zip(keys, values)), i, rank)
+            self.process(dict(zip(keys, values)), i, rank, io)
             for i, values in zip(index, zip(*inputs.values()))
         ]
         # gather all outputs in case the process function
