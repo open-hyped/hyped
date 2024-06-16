@@ -19,6 +19,7 @@ from hyped.data.flow.core.nodes.aggregator import (
     BaseDataAggregator,
     DataAggregationManager,
 )
+from hyped.data.flow.core.nodes.processor import IOContext
 from hyped.data.flow.core.refs.ref import FeatureRef
 
 from .graph import DataFlowGraph
@@ -231,8 +232,20 @@ class DataFlowExecutor(object):
             state.capture_output(node_id, consts)
 
         elif node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
+            # build io context for processor
+            io = IOContext(
+                _IOContext__node_id=node_id,
+                inputs=self.graph.nodes[node_id][
+                    DataFlowGraph.NodeProperty.IN_FEATURES
+                ],
+                outputs=self.graph.nodes[node_id][
+                    DataFlowGraph.NodeProperty.OUT_FEATURES
+                ],
+            )
             # run processor and check the output batch size
-            out = await node_obj.batch_process(inputs, state.index, state.rank)
+            out = await node_obj.batch_process(
+                inputs, state.index, state.rank, io
+            )
             assert all(
                 len(vals) == len(state.index) for vals in out.values()
             ), "Output values length does not match index length."

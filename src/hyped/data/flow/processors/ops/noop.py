@@ -12,6 +12,7 @@ from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     Batch,
+    IOContext,
 )
 from hyped.data.flow.core.refs.inputs import FeatureValidator, InputRefs
 from hyped.data.flow.core.refs.outputs import LambdaOutputFeature, OutputRefs
@@ -66,7 +67,7 @@ class NoOp(BaseDataProcessor[NoOpConfig, NoOpInputRefs, NoOpOutputRefs]):
         return cls()
 
     async def batch_process(
-        self, inputs: Batch, index: list[int], rank: int
+        self, inputs: Batch, index: list[int], rank: int, io: IOContext
     ) -> Batch:
         """Processes a batch of inputs and returns the corresponding batch of outputs.
 

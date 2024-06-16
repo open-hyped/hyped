@@ -51,8 +51,10 @@ from __future__ import annotations
 import asyncio
 import inspect
 from abc import ABC
-from typing import Any, TypeVar, overload
+from dataclasses import dataclass
+from typing import Any, TypedDict, TypeVar, overload
 
+from datasets import Features
 from typing_extensions import TypeAlias
 
 from ..refs.inputs import InputRefs
@@ -61,6 +63,17 @@ from .base import BaseNode, BaseNodeConfig
 
 Batch: TypeAlias = dict[str, list[Any]]
 Sample: TypeAlias = dict[str, Any]
+
+
+@dataclass(frozen=True)
+class IOContext:
+    __node_id: int
+
+    inputs: None | Features
+    outputs: Features
+
+    def __hash__(self) -> str:
+        return hash(self.__node_id)
 
 
 class BaseDataProcessorConfig(BaseNodeConfig):
@@ -142,7 +155,7 @@ class BaseDataProcessor(BaseNode[C, I, O], ABC):
         return self._out_refs_type(inputs.flow, node_id, out_features)
 
     async def batch_process(
-        self, inputs: Batch, index: list[int], rank: int
+        self, inputs: Batch, index: list[int], rank: int, io: IOContext
     ) -> Batch:
         """Processes a batch of inputs and returns the corresponding batch of outputs.
 
@@ -169,10 +182,14 @@ class BaseDataProcessor(BaseNode[C, I, O], ABC):
         return {key: [d[key] for d in outputs] for key in outputs[0].keys()}
 
     @overload
-    async def process(self, inputs: Sample, index: int, rank: int) -> Sample:
+    async def process(
+        self, inputs: Sample, index: int, rank: int, io: IOContext
+    ) -> Sample:
         ...
 
-    def process(self, inputs: Sample, index: int, rank: int) -> Sample:
+    def process(
+        self, inputs: Sample, index: int, rank: int, io: IOContext
+    ) -> Sample:
         """Processes a single input sample synchronously and returns the corresponding output sample.
 
         Asynchronous processing is also supported by defining this function as :class:`async`.

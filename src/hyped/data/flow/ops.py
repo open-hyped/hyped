@@ -49,7 +49,7 @@ from .aggregators.ops.sum import SumAggregator
 from .core.nodes.const import Const
 from .core.refs.ref import AggregationRef, FeatureRef
 from .processors.ops import binary
-from .processors.ops.collect import CollectFeatures
+from .processors.ops.collect import CollectFeatures, NestedContainer
 
 
 def _handle_constant_inputs_for_binary_op(
@@ -104,31 +104,40 @@ def _handle_constant_inputs_for_binary_op(
 def collect(
     collection: None | dict | list = None, flow: None | object = None, **kwargs
 ) -> FeatureRef:
-    """Collect features from a given collection.
+    if (collection is not None) and len(kwargs) > 0:
+        raise ValueError()  # TODO: only one allowed
 
-    This function provides a high-level operator for collecting features from a given collection,
-    such as a dictionary or a list. It delegates the collection process to the :class:`CollectFeatures`
-    class and returns a :class:`FeatureRef` instance representing the collected features.
-
-    Args:
-        collection (None | FeatureCollection | dict | list, optional): The feature
-            collection defining the structure of the features to be collected.
-            Can also be a nested structure from which the feature collection will
-            be constructed. Defaults to None.
-        flow (None | object, optional): The flow object to which to add the processor.
-            This defaults to the flow object associated with the feature collection,
-            but is required if the collection only contains constant features, as
-            in that case the flow cannot be inferred.
-        **kwargs: Additional keyword arguments to pass to the collection process.
-
-    Returns:
-        FeatureRef: A FeatureRef instance representing the collected features.
-    """
-    return (
-        CollectFeatures()
-        .call(collection=collection, flow=flow, **kwargs)
-        .collected
+    # create a nested container from the inputs
+    # this collection might contain constants of any type
+    container = NestedContainer[FeatureRef | Any](
+        data=collection if collection is not None else kwargs
     )
+
+    if flow is None:
+        # get the flow referenced in the collection in case it
+        # contains any feature reference
+        vals = container.flatten().values()
+        vals = [v for v in vals if isinstance(v, FeatureRef)]
+
+        if len(vals) == 0:
+            raise RuntimeError(
+                "Could not infer flow from constant collection, please "
+                "specify the flow explicitly by setting the `flow` argument."
+            )
+
+        # get the flow from the first valid feature reference
+        # in the nested collection
+        flow = next(iter(vals)).flow_
+
+    def _add_const(p: tuple[str, int], v: FeatureRef | Any) -> FeatureRef:
+        return (
+            v if isinstance(v, FeatureRef) else Const(value=v).to(flow).value
+        )
+
+    # add all constants in the collection to the flow
+    container = container.map(_add_const, FeatureRef)
+
+    return CollectFeatures().call(collection=container).collected
 
 
 def sum_(a: FeatureRef) -> AggregationRef:

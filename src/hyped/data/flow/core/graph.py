@@ -220,7 +220,6 @@ class DataFlowGraph(nx.MultiDiGraph):
         Raises:
             AssertionError: If the graph already contains a source node
         """
-        print(features)
         self.src_node_id = self.add_processor_node(None, None, features)
         return self.src_node_id
 

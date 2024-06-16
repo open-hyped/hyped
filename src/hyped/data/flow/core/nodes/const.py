@@ -38,7 +38,7 @@ class Const(BaseNode[ConstConfig, None, ConstOutputRefs]):
     def get_const_batch(self, batch_size: int) -> list[Any]:
         return {"value": [self.config.value] * batch_size}
 
-    def to(self, flow: object) -> OutputRefs:
+    def to(self, flow: object) -> ConstOutputRefs:
         # add node to flow
         out_features = self._out_refs_type.build_features(self.config, None)
         node_id = flow.add_processor_node(self, None, out_features)

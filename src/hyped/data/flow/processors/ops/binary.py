@@ -41,6 +41,7 @@ from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     Batch,
+    IOContext,
 )
 from hyped.data.flow.core.refs.inputs import CheckFeatureEquals, InputRefs
 from hyped.data.flow.core.refs.outputs import (
@@ -87,7 +88,7 @@ class BinaryOp(BaseDataProcessor[C, I, O], ABC):
     """Base class for binary operations."""
 
     async def batch_process(
-        self, inputs: Batch, index: list[int], rank: int
+        self, inputs: Batch, index: list[int], rank: int, io: IOContext
     ) -> Batch:
         """Processes a batch of inputs, applying the binary operation.
 
