@@ -181,13 +181,6 @@ class DataFlowGraph(nx.MultiDiGraph):
     def src_node_id(self) -> int:
         return self.graph[DataFlowGraph.GraphProperty.SRC_NODE_ID]
 
-    @src_node_id.setter
-    def src_node_id(self, node_id: int) -> None:
-        if self.src_node_id >= 0:
-            raise RuntimeError("Graph already contains a source node.")
-
-        self.graph[DataFlowGraph.GraphProperty.SRC_NODE_ID] = node_id
-
     @property
     def width(self) -> int:
         """Computes the width of the data flow graph.
@@ -220,8 +213,14 @@ class DataFlowGraph(nx.MultiDiGraph):
         Raises:
             AssertionError: If the graph already contains a source node
         """
-        self.src_node_id = self.add_processor_node(None, None, features)
-        return self.src_node_id
+        # make sure the graph has no source node yet
+        if self.src_node_id >= 0:
+            raise RuntimeError("Graph already contains a source node.")
+        # add the source node and set the source node id in the graph properties
+        node_id = self.add_processor_node(None, None, features)
+        self.graph[DataFlowGraph.GraphProperty.SRC_NODE_ID] = node_id
+        # return the source node id
+        return node_id
 
     def add_processor_node(
         self,
@@ -354,53 +353,26 @@ class DataFlowGraph(nx.MultiDiGraph):
 
         # get node properties
         node = self.nodes[node_id]
+        node_obj = node[DataFlowGraph.NodeProperty.NODE_OBJ]
         node_type = node[DataFlowGraph.NodeProperty.NODE_TYPE]
+        features = node[DataFlowGraph.NodeProperty.OUT_FEATURES]
 
         if node_type == DataFlowGraph.NodeType.SOURCE:
             # build a feature reference to the source features of the graph
             features = node[DataFlowGraph.NodeProperty.OUT_FEATURES]
-            print(features)
             return FeatureRef(
                 key_=tuple(), node_id_=node_id, flow_=self, feature_=features
             )
 
-        node_obj = node[DataFlowGraph.NodeProperty.NODE_OBJ]
-        features = node[DataFlowGraph.NodeProperty.OUT_FEATURES]
+        # get aggregator and build reference
+        if node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
+            return AggregationRef(
+                node_id_=node_id, flow_=self, type_=node_obj._value_type
+            )
 
+        # build the output references object
         assert isinstance(node_obj, BaseNode)
         return node_obj._out_refs_type(self, node_id, features)
-
-        if node_type in {
-            DataFlowGraph.NodeType.SOURCE,
-            DataFlowGraph.NodeType.CONST,
-        }:
-            features = node[DataFlowGraph.NodeProperty.OUT_FEATURES]
-            # build feature reference
-            return FeatureRef(
-                key_=FeatureKey(),
-                node_id_=node_id,
-                flow_=self,
-                feature_=features,
-            )
-
-        elif node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
-            # get processor and output features
-            proc = node[DataFlowGraph.NodeProperty.NODE_OBJ]
-            features = node[DataFlowGraph.NodeProperty.OUT_FEATURES]
-            # build the full output reference
-            return proc._out_refs_type(self, node_id, features)
-
-        elif node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
-            # get aggregator and build reference
-            proc = node[DataFlowGraph.NodeProperty.NODE_OBJ]
-            return AggregationRef(
-                node_id_=node_id, flow_=self, type_=proc._value_type
-            )
-
-        else:
-            raise TypeError(
-                f"Unrecognized node type {node_type} for node ID {node_id}."
-            )
 
     def dependency_graph(self, nodes: set[int]) -> DataFlowGraph:
         """Generate the dependency subgraph for a given node.

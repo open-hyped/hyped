@@ -14,24 +14,25 @@ from .base import BaseNode, BaseNodeConfig
 class ConstConfig(BaseNodeConfig):
     value: Any
 
-    ftype: None | FeatureType = None
+    feature: None | FeatureType = None
 
     @model_validator(mode="after")
     def _validate_feature_type(self):
-        if self.ftype is None:
+        if self.feature is None:
             # infer feature type from value
             ds = Dataset.from_dict({"x": [self.value]})
-            self.ftype = ds.features["x"]
+            self.feature = ds.features["x"]
 
         else:
+            print(self.feature)
             # make sure feature type aligns with the value
-            raise_object_matches_feature(self.value, self.ftype)
+            raise_object_matches_feature(self.value, self.feature)
 
         return self
 
 
 class ConstOutputRefs(OutputRefs):
-    value: Annotated[FeatureRef, LambdaOutputFeature(lambda c, _: c.ftype)]
+    value: Annotated[FeatureRef, LambdaOutputFeature(lambda c, _: c.feature)]
 
 
 class Const(BaseNode[ConstConfig, None, ConstOutputRefs]):

@@ -60,7 +60,7 @@ def test_collect():
     # make sure the node has been added
     assert out.node_id_ in flow._graph
     assert isinstance(
-        flow._graph.nodes[out.node_id_][DataFlowGraph.NodeProperty.PROCESSOR],
+        flow._graph.nodes[out.node_id_][DataFlowGraph.NodeProperty.NODE_OBJ],
         CollectFeatures,
     )
     # check the connections
@@ -79,7 +79,7 @@ def test_simple_aggregators(op, agg_type):
     # make sure the node for the binary operation has been added
     assert out.node_id_ in flow._graph
     assert isinstance(
-        flow._graph.nodes[out.node_id_][DataFlowGraph.NodeProperty.PROCESSOR],
+        flow._graph.nodes[out.node_id_][DataFlowGraph.NodeProperty.NODE_OBJ],
         agg_type,
     )
     # check the connections
@@ -122,7 +122,7 @@ def test_simple_binary_op(op, proc_type, dtype):
     # make sure the node for the binary operation has been added
     assert out.node_id_ in flow._graph
     assert isinstance(
-        flow._graph.nodes[out.node_id_][DataFlowGraph.NodeProperty.PROCESSOR],
+        flow._graph.nodes[out.node_id_][DataFlowGraph.NodeProperty.NODE_OBJ],
         proc_type,
     )
     # check the connections

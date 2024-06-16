@@ -1,7 +1,7 @@
 import pytest
 from datasets import Features, Value
 
-from hyped.data.flow.core.graph import SRC_NODE_ID, DataFlowGraph
+from hyped.data.flow.core.graph import DataFlowGraph
 from hyped.data.flow.core.refs.ref import AggregationRef, FeatureRef
 
 from .mock import MockAggregator, MockInputRefs, MockOutputRefs, MockProcessor
@@ -16,17 +16,21 @@ class TestDataFlowGraph:
         src_node_id = graph.add_source_node(src_features)
 
         # check source node was added
-        assert SRC_NODE_ID in graph
+        assert src_node_id in graph
         # check node properties
-        node = graph.nodes[SRC_NODE_ID]
+        node = graph.nodes[src_node_id]
         assert node[DataFlowGraph.NodeProperty.DEPTH] == 0
-        assert node[DataFlowGraph.NodeProperty.PROCESSOR] is None
+        assert node[DataFlowGraph.NodeProperty.NODE_OBJ] is None
         assert (
-            node[DataFlowGraph.NodeProperty.PROCESSOR_TYPE]
+            node[DataFlowGraph.NodeProperty.NODE_TYPE]
             == DataFlowGraph.NodeType.SOURCE
         )
-        assert node[DataFlowGraph.NodeProperty.IN_FEATURES] == src_features
+        assert node[DataFlowGraph.NodeProperty.IN_FEATURES] is None
         assert node[DataFlowGraph.NodeProperty.OUT_FEATURES] == src_features
+
+        # try to add another source node
+        with pytest.raises(RuntimeError):
+            graph.add_source_node(src_features)
 
     def test_add_processor_node(self):
         # create graph
@@ -50,19 +54,19 @@ class TestDataFlowGraph:
         # check node properties
         node = graph.nodes[node_id]
         assert node[DataFlowGraph.NodeProperty.DEPTH] == 1
-        assert node[DataFlowGraph.NodeProperty.PROCESSOR] == p
+        assert node[DataFlowGraph.NodeProperty.NODE_OBJ] == p
         assert (
-            node[DataFlowGraph.NodeProperty.PROCESSOR_TYPE]
+            node[DataFlowGraph.NodeProperty.NODE_TYPE]
             == DataFlowGraph.NodeType.DATA_PROCESSOR
         )
         assert node[DataFlowGraph.NodeProperty.IN_FEATURES] == i.features_
         assert node[DataFlowGraph.NodeProperty.OUT_FEATURES] == o
         # check edges
-        assert graph.has_edge(SRC_NODE_ID, node_id)
+        assert graph.has_edge(src_node_id, node_id)
         for n, r in i.named_refs.items():
-            assert n in graph[SRC_NODE_ID][node_id]
+            assert n in graph[src_node_id][node_id]
             assert (
-                graph[SRC_NODE_ID][node_id][n][DataFlowGraph.EdgeProperty.KEY]
+                graph[src_node_id][node_id][n][DataFlowGraph.EdgeProperty.KEY]
                 == r.key_
             )
 
@@ -86,19 +90,19 @@ class TestDataFlowGraph:
         # check node properties
         node = graph.nodes[node_id]
         assert node[DataFlowGraph.NodeProperty.DEPTH] == 1
-        assert node[DataFlowGraph.NodeProperty.PROCESSOR] == a
+        assert node[DataFlowGraph.NodeProperty.NODE_OBJ] == a
         assert (
-            node[DataFlowGraph.NodeProperty.PROCESSOR_TYPE]
+            node[DataFlowGraph.NodeProperty.NODE_TYPE]
             == DataFlowGraph.NodeType.DATA_AGGREGATOR
         )
         assert node[DataFlowGraph.NodeProperty.IN_FEATURES] == i.features_
         assert node[DataFlowGraph.NodeProperty.OUT_FEATURES] is None
         # check edges
-        assert graph.has_edge(SRC_NODE_ID, node_id)
+        assert graph.has_edge(src_node_id, node_id)
         for n, r in i.named_refs.items():
-            assert n in graph[SRC_NODE_ID][node_id]
+            assert n in graph[src_node_id][node_id]
             assert (
-                graph[SRC_NODE_ID][node_id][n][DataFlowGraph.EdgeProperty.KEY]
+                graph[src_node_id][node_id][n][DataFlowGraph.EdgeProperty.KEY]
                 == r.key_
             )
 
@@ -215,20 +219,16 @@ class TestDataFlowGraph:
         src_features = Features({"x": Value("int64")})
         src_node_id = graph.add_source_node(src_features)
 
-        # create processor and aggregator
+        # create mock processor
         p = MockProcessor()
-        a = MockAggregator()
-
         # create input refs from source features
         i = MockInputRefs(
             a=graph.get_node_output_ref(src_node_id).x,
             b=graph.get_node_output_ref(src_node_id).x,
         )
         o = p._out_refs_type.build_features(p.config, i)
-
-        # add processor and aggregator
-        node_id_1 = graph.add_processor_node(p, i, o)
-        node_id_2 = graph.add_processor_node(a, i, None)
+        # add processor to the graph
+        node_id = graph.add_processor_node(p, i, o)
 
         # test feature reference to source features
         ref = graph.get_node_output_ref(src_node_id)
@@ -242,22 +242,15 @@ class TestDataFlowGraph:
             ).model_dump()
         )
         # test feature reference to processor output
-        ref = graph.get_node_output_ref(node_id_1)
+        ref = graph.get_node_output_ref(node_id)
         assert isinstance(ref, MockOutputRefs)
         assert (
-            ref.model_dump()
-            == MockOutputRefs(graph, node_id_1, o).model_dump()
+            ref.model_dump() == MockOutputRefs(graph, node_id, o).model_dump()
         )
 
-        # test feature reference to processor output
-        ref = graph.get_node_output_ref(node_id_2)
-        assert isinstance(ref, AggregationRef)
-        assert (
-            ref.model_dump()
-            == AggregationRef(
-                node_id_=node_id_2, flow_=graph, type_=int
-            ).model_dump()
-        )
+        # test invalid node id
+        with pytest.raises(KeyError):
+            graph.get_node_output_ref(-1)
 
     def test_dependency_graph(self):
         # create graph
