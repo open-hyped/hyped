@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import pytest
 
 from hyped.data.flow.core.flow import DataFlow
-from hyped.data.flow.core.graph import SRC_NODE_ID, DataFlowGraph
+from hyped.data.flow.core.graph import DataFlowGraph
+from hyped.data.flow.core.nodes.processor import IOContext
 
 
 class TestDataFlow:
@@ -20,9 +21,10 @@ class TestDataFlow:
             yield mock_manager
 
     def test_build_flow(self, setup_flow, mock_manager):
-        flow, graph, proc_node, agg_node = setup_flow
+        flow, graph, const_node, proc_node, agg_node = setup_flow
 
-        src_ref = graph.get_node_output_ref(SRC_NODE_ID)
+        src_ref = graph.get_node_output_ref(graph.src_node_id)
+        cst_ref = graph.get_node_output_ref(const_node)
         out_ref = graph.get_node_output_ref(proc_node)
         agg_ref = graph.get_node_output_ref(agg_node)
 
@@ -34,13 +36,13 @@ class TestDataFlow:
         subflow, vals = flow.build(
             collect=out_ref, aggregators={"val": agg_ref}
         )
-        assert len(subflow._graph) == 3
+        assert len(subflow._graph) == 4
         assert subflow.out_features.key_ is out_ref.key_
         assert subflow.out_features.feature_ is out_ref.feature_
         assert vals == mock_manager.values_proxy
         # build subflow with processor only
         subflow, _ = flow.build(collect=out_ref)
-        assert len(subflow._graph) == 2
+        assert len(subflow._graph) == 3
         assert subflow.out_features.key_ is out_ref.key_
         assert subflow.out_features.feature_ is out_ref.feature_
         # build subflow with no processors
@@ -50,7 +52,7 @@ class TestDataFlow:
         assert subflow.out_features.feature_ is src_ref.feature_
 
     def test_batch_process(self, setup_flow, mock_manager):
-        flow, graph, proc_node, agg_node = setup_flow
+        flow, graph, const_node, proc_node, agg_node = setup_flow
 
         out_ref = graph.get_node_output_ref(proc_node)
         agg_ref = graph.get_node_output_ref(agg_node)
@@ -64,29 +66,37 @@ class TestDataFlow:
         batch, index, rank = {"x": [1, 2, 3]}, [0, 1, 2], 0
         out = flow.batch_process(batch, index, rank)
 
+        # build io context for the processor
+        io_ctx = IOContext(
+            _IOContext__node_id=proc_node,
+            inputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.IN_FEATURES
+            ],
+            outputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.OUT_FEATURES
+            ],
+        )
+
         # make sure the processor is called correctly
-        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.PROCESSOR]
+        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.NODE_OBJ]
         p.process.assert_has_calls(
             [
-                call({"a": 1, "b": 1}, 0, 0),
-                call({"a": 2, "b": 2}, 1, 0),
-                call({"a": 3, "b": 3}, 2, 0),
+                call({"a": 1, "b": 0}, 0, 0, io_ctx),
+                call({"a": 2, "b": 0}, 1, 0, io_ctx),
+                call({"a": 3, "b": 0}, 2, 0, io_ctx),
             ]
         )
         # make sure the aggregator is called correctly
-        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.PROCESSOR]
+        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.NODE_OBJ]
         mock_manager.aggregate.assert_called_with(
-            a, {"a": [1, 2, 3], "b": [1, 2, 3]}, [0, 1, 2], 0
+            a, {"a": [1, 2, 3], "b": [0, 0, 0]}, [0, 1, 2], 0
         )
 
     def test_apply_overload(self, setup_flow, mock_manager):
-        flow, graph, proc_node, agg_node = setup_flow
+        flow, graph, const_node, proc_node, agg_node = setup_flow
         # get references
         out_ref = graph.get_node_output_ref(proc_node)
         agg_ref = graph.get_node_output_ref(agg_node)
-        # get the processor and aggregator instance
-        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.PROCESSOR]
-        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.PROCESSOR]
 
         # create dummy dataset
         ds = datasets.Dataset.from_dict(
@@ -130,13 +140,13 @@ class TestDataFlow:
         assert vals == mock_manager.values_proxy.copy()
 
     def test_apply_to_dataset(self, setup_flow, mock_manager):
-        flow, graph, proc_node, agg_node = setup_flow
+        flow, graph, const_node, proc_node, agg_node = setup_flow
         # get references
         out_ref = graph.get_node_output_ref(proc_node)
         agg_ref = graph.get_node_output_ref(agg_node)
         # get the processor and aggregator instance
-        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.PROCESSOR]
-        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.PROCESSOR]
+        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.NODE_OBJ]
+        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.NODE_OBJ]
 
         # create dummy dataset
         ds = datasets.Dataset.from_dict(
@@ -150,9 +160,20 @@ class TestDataFlow:
         # check output types
         assert isinstance(out_ds, datasets.Dataset)
         assert vals == mock_manager.values_proxy.copy()
+
+        # build io context for the processor
+        io_ctx = IOContext(
+            _IOContext__node_id=proc_node,
+            inputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.IN_FEATURES
+            ],
+            outputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.OUT_FEATURES
+            ],
+        )
         # make sure processor is called for all samples in the dataset
         p.process.assert_has_calls(
-            [call({"a": i, "b": i}, i, 0) for i in range(100)]
+            [call({"a": i, "b": 0}, i, 0, io_ctx) for i in range(100)]
         )
         # make sure the aggregator is called for all batches
         mock_manager.aggregate.assert_has_calls(
@@ -161,7 +182,7 @@ class TestDataFlow:
                     a,
                     {
                         "a": list(range(i * 10, (i + 1) * 10)),
-                        "b": list(range(i * 10, (i + 1) * 10)),
+                        "b": [0] * 10,
                     },
                     list(range(i * 10, (i + 1) * 10)),
                     0,
@@ -171,13 +192,13 @@ class TestDataFlow:
         )
 
     def test_apply_to_dataset_dict(self, setup_flow, mock_manager):
-        flow, graph, proc_node, agg_node = setup_flow
+        flow, graph, const_node, proc_node, agg_node = setup_flow
         # get references
         out_ref = graph.get_node_output_ref(proc_node)
         agg_ref = graph.get_node_output_ref(agg_node)
         # get the processor and aggregator instance
-        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.PROCESSOR]
-        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.PROCESSOR]
+        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.NODE_OBJ]
+        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.NODE_OBJ]
 
         # create dummy dataset
         ds = datasets.DatasetDict(
@@ -200,9 +221,20 @@ class TestDataFlow:
         assert isinstance(out_ds, datasets.DatasetDict)
         assert out_ds.keys() == ds.keys()
         assert vals == mock_manager.values_proxy.copy()
+
+        # build io context for the processor
+        io_ctx = IOContext(
+            _IOContext__node_id=proc_node,
+            inputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.IN_FEATURES
+            ],
+            outputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.OUT_FEATURES
+            ],
+        )
         # make sure processor is called for all samples in the dataset
         p.process.assert_has_calls(
-            [call({"a": i, "b": i}, i % 50, 0) for i in range(100)]
+            [call({"a": i, "b": 0}, i % 50, 0, io_ctx) for i in range(100)]
         )
         # make sure the aggregator is called for all batches
         mock_manager.aggregate.assert_has_calls(
@@ -211,7 +243,7 @@ class TestDataFlow:
                     a,
                     {
                         "a": list(range(i * 10, (i + 1) * 10)),
-                        "b": list(range(i * 10, (i + 1) * 10)),
+                        "b": [0] * 10,
                     },
                     list(range((i % 5) * 10, ((i % 5) + 1) * 10)),
                     0,
@@ -221,13 +253,13 @@ class TestDataFlow:
         )
 
     def test_apply_to_iterable_dataset(self, setup_flow, mock_manager):
-        flow, graph, proc_node, agg_node = setup_flow
+        flow, graph, const_node, proc_node, agg_node = setup_flow
         # get references
         out_ref = graph.get_node_output_ref(proc_node)
         agg_ref = graph.get_node_output_ref(agg_node)
         # get the processor and aggregator instance
-        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.PROCESSOR]
-        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.PROCESSOR]
+        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.NODE_OBJ]
+        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.NODE_OBJ]
 
         # create dummy dataset
         ds = datasets.Dataset.from_dict(
@@ -250,9 +282,19 @@ class TestDataFlow:
         for _ in out_ds:
             pass
 
+        # build io context for the processor
+        io_ctx = IOContext(
+            _IOContext__node_id=proc_node,
+            inputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.IN_FEATURES
+            ],
+            outputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.OUT_FEATURES
+            ],
+        )
         # make sure processor is called for all samples in the dataset
         p.process.assert_has_calls(
-            [call({"a": i, "b": i}, i, 0) for i in range(100)]
+            [call({"a": i, "b": 0}, i, 0, io_ctx) for i in range(100)]
         )
         # make sure the aggregator is called for all batches
         mock_manager.aggregate.assert_has_calls(
@@ -261,7 +303,7 @@ class TestDataFlow:
                     a,
                     {
                         "a": list(range(i * 10, (i + 1) * 10)),
-                        "b": list(range(i * 10, (i + 1) * 10)),
+                        "b": [0] * 10,
                     },
                     list(range(i * 10, (i + 1) * 10)),
                     0,
@@ -271,13 +313,13 @@ class TestDataFlow:
         )
 
     def test_apply_to_iterable_dataset_dict(self, setup_flow, mock_manager):
-        flow, graph, proc_node, agg_node = setup_flow
+        flow, graph, const_node, proc_node, agg_node = setup_flow
         # get references
         out_ref = graph.get_node_output_ref(proc_node)
         agg_ref = graph.get_node_output_ref(agg_node)
         # get the processor and aggregator instance
-        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.PROCESSOR]
-        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.PROCESSOR]
+        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.NODE_OBJ]
+        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.NODE_OBJ]
 
         # create dummy dataset
         ds = datasets.IterableDatasetDict(
@@ -308,19 +350,26 @@ class TestDataFlow:
         for _ in out_ds["train"]:
             pass
 
+        # build io context for the processor
+        io_ctx = IOContext(
+            _IOContext__node_id=proc_node,
+            inputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.IN_FEATURES
+            ],
+            outputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.OUT_FEATURES
+            ],
+        )
         # make sure processor is called for all samples in the train dataset
         p.process.assert_has_calls(
-            [call({"a": i, "b": i}, i % 50, 0) for i in range(50)]
+            [call({"a": i, "b": 0}, i % 50, 0, io_ctx) for i in range(50)]
         )
         # make sure the aggregator is called for all batches in the train dataset
         mock_manager.aggregate.assert_has_calls(
             [
                 call(
                     a,
-                    {
-                        "a": list(range(i * 10, (i + 1) * 10)),
-                        "b": list(range(i * 10, (i + 1) * 10)),
-                    },
+                    {"a": list(range(i * 10, (i + 1) * 10)), "b": [0] * 10},
                     list(range((i % 5) * 10, ((i % 5) + 1) * 10)),
                     0,
                 )
@@ -334,7 +383,7 @@ class TestDataFlow:
 
         # make sure processor is called for all samples in the train dataset
         p.process.assert_has_calls(
-            [call({"a": 50 + i, "b": 50 + i}, i, 0) for i in range(50)]
+            [call({"a": 50 + i, "b": 0}, i, 0, io_ctx) for i in range(50)]
         )
         # make sure the aggregator is called for all batches in the train dataset
         mock_manager.aggregate.assert_has_calls(
@@ -343,7 +392,7 @@ class TestDataFlow:
                     a,
                     {
                         "a": list(range(50 + i * 10, 50 + (i + 1) * 10)),
-                        "b": list(range(50 + i * 10, 50 + (i + 1) * 10)),
+                        "b": [0] * 10,
                     },
                     list(range(i * 10, (i + 1) * 10)),
                     0,
@@ -362,7 +411,7 @@ class TestDataFlow:
         ],
     )
     def test_plot(self, setup_flow, with_edge_labels, edge_label_format):
-        flow, graph, proc_node, agg_node = setup_flow
+        flow, graph, const_node, proc_node, agg_node = setup_flow
         # Ensure the plot function runs without errors and returns an Axes object
         with patch(
             "matplotlib.pyplot.show"
@@ -378,8 +427,8 @@ class TestDataFlow:
         for node, data in flow._graph.nodes(data=True):
             node_label = (
                 "[ROOT]"
-                if node == SRC_NODE_ID
-                else type(data[DataFlowGraph.NodeProperty.PROCESSOR]).__name__
+                if node == graph.src_node_id
+                else type(data[DataFlowGraph.NodeProperty.NODE_OBJ]).__name__
             )
             assert any(
                 node_label in text.get_text() for text in ax.texts

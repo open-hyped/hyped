@@ -5,21 +5,22 @@ import pytest
 from datasets import Features, Value
 
 from hyped.data.flow.core.executor import DataFlowExecutor, ExecutionState
-from hyped.data.flow.core.graph import SRC_NODE_ID, DataFlowGraph
+from hyped.data.flow.core.graph import DataFlowGraph
+from hyped.data.flow.core.nodes.processor import IOContext
 
 from .mock import MockInputRefs, MockProcessor
 
 
 class TestExecutionState:
     def test_initial_state(self, setup_state):
-        state, graph, proc_node, agg_node = setup_state
+        state, graph, const_node, proc_node, agg_node = setup_state
         # check initial state
-        assert set(state.outputs.keys()) == {SRC_NODE_ID}
-        assert set(state.ready.keys()) == {proc_node}
+        assert set(state.outputs.keys()) == {graph.src_node_id}
+        assert set(state.ready.keys()) == {const_node, proc_node}
 
     @pytest.mark.asyncio
     async def test_wait_for(self, setup_state):
-        state, graph, proc_node, _ = setup_state
+        state, graph, const_node, proc_node, agg_node = setup_state
 
         # make sure the node is not ready yet
         assert not state.ready[proc_node].is_set()
@@ -56,18 +57,21 @@ class TestExecutionState:
         assert collected == {"x": ["a", "b", "c"]}
 
     def test_collect_inputs(self, setup_state):
-        state, graph, proc_node, _ = setup_state
+        state, graph, const_node, proc_node, agg_node = setup_state
+
+        # capture output of the const node
+        state.capture_output(const_node, {"value": [0, 0, 0]})
 
         # collect inputs for processor
         collected = state.collect_inputs(proc_node)
-        assert collected == {"a": [1, 2, 3], "b": [1, 2, 3]}
+        assert collected == {"a": [1, 2, 3], "b": [0, 0, 0]}
 
         # create processor
         p = MockProcessor()
         # create input refs from source features
         i = MockInputRefs(
-            a=graph.get_node_output_ref(SRC_NODE_ID),
-            b=graph.get_node_output_ref(SRC_NODE_ID).x,
+            a=graph.get_node_output_ref(graph.src_node_id),
+            b=graph.get_node_output_ref(graph.src_node_id).x,
         )
         o = p._out_refs_type.build_features(p.config, i)
         # add first level processor
@@ -81,7 +85,7 @@ class TestExecutionState:
         }
 
     def test_collect_inputs_parent_not_ready(self, setup_state):
-        state, graph, node_id_1, _ = setup_state
+        state, graph, const_node, node_id_1, agg_node = setup_state
 
         # create processor
         p = MockProcessor()
@@ -101,7 +105,7 @@ class TestExecutionState:
             state.collect_inputs(node_id_2)
 
     def test_capture_outputs(self, setup_state):
-        state, graph, node_id, _ = setup_state
+        state, graph, _, node_id, _ = setup_state
         # capture output
         output = {"y": [1, 2, 3]}
         state.capture_output(node_id, output)
@@ -111,22 +115,54 @@ class TestExecutionState:
 
 
 class TestDataFlowExecutor:
+    def test_error_on_invalid_init_args(self, setup_state):
+        state, graph, const_node, proc_node, agg_node = setup_state
+        out = graph.get_node_output_ref(proc_node)
+        # collect (out.y) is not a feature mapping
+        with pytest.raises(TypeError):
+            DataFlowExecutor(graph, out.y, None)
+
+    @pytest.mark.asyncio
+    async def test_execute_const(self, setup_state):
+        state, graph, const_node, proc_node, agg_node = setup_state
+        # build executor
+        out = graph.get_node_output_ref(proc_node)
+        executor = DataFlowExecutor(graph, out, None)
+        # run processor node in executor
+        await executor.execute_node(const_node, state)
+        # check state after execution
+        assert const_node in state.outputs
+        assert state.ready[const_node].is_set()
+
     @pytest.mark.asyncio
     async def test_execute_processor(self, setup_state):
-        state, graph, proc_node, _ = setup_state
+        state, graph, const_node, proc_node, agg_node = setup_state
+        # capture output of const node
+        state.capture_output(const_node, {"value": [0, 0, 0]})
         # build executor
         out = graph.get_node_output_ref(proc_node)
         executor = DataFlowExecutor(graph, out, None)
         # run processor node in executor
         await executor.execute_node(proc_node, state)
 
+        # build io context for the processor
+        io_ctx = IOContext(
+            _IOContext__node_id=proc_node,
+            inputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.IN_FEATURES
+            ],
+            outputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.OUT_FEATURES
+            ],
+        )
+
         # make sure the processor was called correctly
-        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.PROCESSOR]
+        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.NODE_OBJ]
         p.process.assert_has_calls(
             [
-                call({"a": 1, "b": 1}, 0, 0),
-                call({"a": 2, "b": 2}, 1, 0),
-                call({"a": 3, "b": 3}, 2, 0),
+                call({"a": 1, "b": 0}, 0, 0, io_ctx),
+                call({"a": 2, "b": 0}, 1, 0, io_ctx),
+                call({"a": 3, "b": 0}, 2, 0, io_ctx),
             ]
         )
         # check state after execution
@@ -135,7 +171,9 @@ class TestDataFlowExecutor:
 
     @pytest.mark.asyncio
     async def test_execute_aggregator(self, setup_state):
-        state, graph, proc_node, agg_node = setup_state
+        state, graph, const_node, proc_node, agg_node = setup_state
+        # capture output of const node
+        state.capture_output(const_node, {"value": [0, 0, 0]})
         # create aggregation manager
         manager = MagicMock()
         manager.aggregate = AsyncMock()
@@ -145,14 +183,14 @@ class TestDataFlowExecutor:
         # run processor node in executor
         await executor.execute_node(agg_node, state)
 
-        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.PROCESSOR]
+        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.NODE_OBJ]
         manager.aggregate.assert_called_with(
-            a, {"a": [1, 2, 3], "b": [1, 2, 3]}, [0, 1, 2], 0
+            a, {"a": [1, 2, 3], "b": [0, 0, 0]}, [0, 1, 2], 0
         )
 
     @pytest.mark.asyncio
     async def test_execute_graph(self, setup_graph):
-        graph, proc_node, agg_node = setup_graph
+        graph, const_node, proc_node, agg_node = setup_graph
         # create aggregation manager
         mock_manager = MagicMock()
         mock_manager.aggregate = AsyncMock()
@@ -162,17 +200,28 @@ class TestDataFlowExecutor:
         # execute graph
         batch, index, rank = {"x": [1, 2, 3]}, [0, 1, 2], 0
         await executor.execute(batch, index, rank)
+
+        # build io context for the processor
+        io_ctx = IOContext(
+            _IOContext__node_id=proc_node,
+            inputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.IN_FEATURES
+            ],
+            outputs=graph.nodes[proc_node][
+                DataFlowGraph.NodeProperty.OUT_FEATURES
+            ],
+        )
         # make sure the processor is called correctly
-        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.PROCESSOR]
+        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.NODE_OBJ]
         p.process.assert_has_calls(
             [
-                call({"a": 1, "b": 1}, 0, 0),
-                call({"a": 2, "b": 2}, 1, 0),
-                call({"a": 3, "b": 3}, 2, 0),
+                call({"a": 1, "b": 0}, 0, 0, io_ctx),
+                call({"a": 2, "b": 0}, 1, 0, io_ctx),
+                call({"a": 3, "b": 0}, 2, 0, io_ctx),
             ]
         )
         # make sure the aggregator is called correctly
-        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.PROCESSOR]
+        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.NODE_OBJ]
         mock_manager.aggregate.assert_called_with(
-            a, {"a": [1, 2, 3], "b": [1, 2, 3]}, [0, 1, 2], 0
+            a, {"a": [1, 2, 3], "b": [0, 0, 0]}, [0, 1, 2], 0
         )

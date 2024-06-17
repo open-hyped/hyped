@@ -3,7 +3,13 @@ import pytest
 from datasets import Features, Value
 
 from hyped.data.flow.core.graph import DataFlowGraph
+from hyped.data.flow.core.nodes.const import Const
 from hyped.data.flow.core.optim import DataFlowGraphOptimizer
+from hyped.data.flow.core.refs.ref import FeatureRef
+from hyped.data.flow.processors.ops.collect import (
+    CollectFeatures,
+    NestedContainer,
+)
 
 from .mock import MockInputRefs, MockProcessor
 
@@ -77,6 +83,38 @@ def cse_test_cases():
     node_id_1 = add_processor(target, src_node_id, src_node_id, i=0)
     node_id_2 = add_processor(target, src_node_id, node_id_1)
     node_id_3 = add_processor(target, src_node_id, src_node_id, i=1)
+    # add test case
+    test_cases.append((graph, target))
+
+    # test constant nodes
+    graph, _ = new_graph()
+    Const(value=0).to(graph)
+    Const(value=0).to(graph)
+    Const(value=1).to(graph)
+    # create target graph
+    target, _ = new_graph()
+    Const(value=0).to(target)
+    Const(value=1).to(target)
+    # add test case
+    test_cases.append((graph, target))
+
+    # test collect nodes
+    graph, _ = new_graph()
+    ref_1 = Const(value=0).to(graph)
+    ref_2 = Const(value=1).to(graph)
+    CollectFeatures().call(
+        collection=NestedContainer[FeatureRef](data={"a": ref_1, "b": ref_2})
+    )
+    CollectFeatures().call(
+        collection=NestedContainer[FeatureRef](data={"a": ref_1, "b": ref_2})
+    )
+    # create target graph
+    target, _ = new_graph()
+    ref_1 = Const(value=0).to(target)
+    ref_2 = Const(value=1).to(target)
+    CollectFeatures().call(
+        collection=NestedContainer[FeatureRef](data={"a": ref_1, "b": ref_2})
+    )
     # add test case
     test_cases.append((graph, target))
 

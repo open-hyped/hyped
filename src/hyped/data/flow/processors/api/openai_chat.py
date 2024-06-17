@@ -23,6 +23,7 @@ from hyped.common.lazy import LazyInstance
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
+    IOContext,
     Sample,
 )
 from hyped.data.flow.core.refs.inputs import CheckFeatureIsSequence, InputRefs
@@ -388,13 +389,16 @@ class OpenAIChatCompletion(
             )
         )
 
-    async def api_call(self, inputs: Sample, index: int, rank: int) -> Sample:
+    async def api_call(
+        self, inputs: Sample, index: int, rank: int, io: IOContext
+    ) -> Sample:
         """Make an API call to the OpenAI Chat Completion endpoint.
 
         Args:
             inputs (Sample): Input sample containing messages for chat completion.
             index (int): Index of the sample in the dataset.
             rank (int): Rank of the sample.
+            io (IOContext): Context information for the data processors execution.
 
         Returns:
             Sample: Output sample containing the completion results.
@@ -455,13 +459,16 @@ class OpenAIChatCompletion(
             },
         }
 
-    async def process(self, inputs: Sample, index: int, rank: int) -> Sample:
+    async def process(
+        self, inputs: Sample, index: int, rank: int, io: IOContext
+    ) -> Sample:
         """Process the input sample using the OpenAI Chat Completion API.
 
         Args:
             inputs (Sample): Input sample containing messages for chat completion.
             index (int): Index of the sample in the dataset.
             rank (int): Rank of the sample.
+            io (IOContext): Context information for the data processors execution.
 
         Returns:
             Sample: Output sample containing the completion results.
@@ -473,7 +480,7 @@ class OpenAIChatCompletion(
         async with self.sem:
             for i in range(0, 1 + self.config.rate_limit_max_retries):
                 try:
-                    return await self.api_call(inputs, index, rank)
+                    return await self.api_call(inputs, index, rank, io)
                 except RateLimitError:
                     # Increment the delay
                     delay = self.config.rate_limit_exp_backoff ** (

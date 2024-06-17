@@ -23,8 +23,13 @@ from dataclasses import dataclass, field
 from itertools import groupby
 
 from hyped.common.feature_key import FeatureKey
+from hyped.data.flow.core.nodes.const import Const
+from hyped.data.flow.core.refs.inputs import InputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
-from hyped.data.flow.processors.ops.collect import CollectFeatures
+from hyped.data.flow.processors.ops.collect import (
+    CollectFeatures,
+    NestedContainer,
+)
 
 from .graph import DataFlowGraph
 
@@ -83,7 +88,6 @@ class DataFlowGraphOptimizer(object):
 
             node_type: DataFlowGraph.NodeType
             node_config: str
-            node_consts: object
             in_edge_identifiers: list[tuple[int, str, FeatureKey]]
             node_id: int = field(default=-1, compare=False)
 
@@ -109,14 +113,11 @@ class DataFlowGraphOptimizer(object):
                 ]
 
                 node_data = graph.nodes[node_id]
-                proc = node_data[DataFlowGraph.NodeProperty.PROCESSOR]
+                obj = node_data[DataFlowGraph.NodeProperty.NODE_OBJ]
                 # create cse node identifier
                 identifier = _CSE_NodeIdentifier(
-                    node_type=node_data[
-                        DataFlowGraph.NodeProperty.PROCESSOR_TYPE
-                    ],
-                    node_config=getattr(proc, "config", None),
-                    node_consts=getattr(proc, "collection", None),
+                    node_type=node_data[DataFlowGraph.NodeProperty.NODE_TYPE],
+                    node_config=getattr(obj, "config", None),
                     in_edge_identifiers=in_edge_identifiers,
                 )
 
@@ -126,41 +127,54 @@ class DataFlowGraphOptimizer(object):
                     node_id_mapping[node_id] = cse_node.node_id
 
                 else:
-                    if proc is None:
-                        # add source node to optimized graph
-                        features = node_data[
-                            DataFlowGraph.NodeProperty.IN_FEATURES
-                        ]
-                        identifier.node_id = cse_graph.add_source_node(
-                            features
-                        )
+                    # read node feature properties
+                    in_features = node_data[
+                        DataFlowGraph.NodeProperty.IN_FEATURES
+                    ]
+                    out_features = node_data[
+                        DataFlowGraph.NodeProperty.OUT_FEATURES
+                    ]
 
-                    elif isinstance(proc, CollectFeatures):
-                        map_node_id = lambda r: (
-                            r.model_copy(
-                                update=dict(
-                                    node_id_=node_id_mapping[r.node_id_],
-                                    flow_=cse_graph,
-                                )
-                            )
-                            if isinstance(r, FeatureRef)
-                            else r
+                    if obj is None:
+                        # add source node to optimized graph
+                        identifier.node_id = cse_graph.add_source_node(
+                            out_features
                         )
-                        collection = proc.collection._map(map_node_id)
-                        identifier.node_id = proc.call(
-                            collection=collection, flow=cse_graph
-                        ).node_id_
 
                     else:
-                        # build call keyword arguments
-                        named_refs = {
-                            name: cse_graph.get_node_output_ref(src_node_id)[
-                                key
-                            ]
-                            for src_node_id, name, key in in_edge_identifiers
-                        }
-                        # call processor
-                        identifier.node_id = proc.call(**named_refs).node_id_
+                        # build input references object if expected
+                        if in_features is not None:
+                            named_refs = {
+                                name: cse_graph.get_node_output_ref(
+                                    src_node_id
+                                )[key]
+                                for src_node_id, name, key in in_edge_identifiers
+                            }
+
+                            if isinstance(obj, CollectFeatures):
+                                # collect features processor is a special case because
+                                # the input reference object doesn't directly take the
+                                # incoming edges as input arguments but requires them
+                                # to be wrapped by a container
+                                collection = NestedContainer[FeatureRef](
+                                    data=named_refs
+                                )
+                                inputs = obj._in_refs_type(
+                                    collection=collection
+                                )
+                            else:
+                                # other nodes expect the incoming edge data as arguments
+                                inputs = obj._in_refs_type(**named_refs)
+
+                        else:
+                            # the node doesn't expect any inputs, i.e. it is a source node
+                            assert obj._in_refs_type is type(None)
+                            inputs = None
+
+                        # add the node to the optimized graph
+                        identifier.node_id = cse_graph.add_processor_node(
+                            obj, inputs, out_features
+                        )
 
                     # update cse layer and node id mapping
                     cse_layer.append(identifier)

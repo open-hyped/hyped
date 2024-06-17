@@ -21,6 +21,7 @@ from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     Batch,
+    IOContext,
 )
 from hyped.data.flow.core.refs.inputs import CheckFeatureEquals, InputRefs
 from hyped.data.flow.core.refs.outputs import (
@@ -262,7 +263,7 @@ class TransformersTokenizer(
         )
 
     async def batch_process(
-        self, inputs: Batch, index: list[int], rank: 0
+        self, inputs: Batch, index: list[int], rank: 0, io: IOContext
     ) -> Batch:
         """Tokenize input batch.
 
@@ -270,6 +271,7 @@ class TransformersTokenizer(
             inputs (Batch): Batch of input data.
             index (list[int]): Batch index.
             rank (int): Rank of the processor.
+            io (IOContext): Context information for the data processors execution.
 
         Returns:
             Batch: The batch of tokenizer outputs.

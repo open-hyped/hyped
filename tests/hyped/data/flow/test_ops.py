@@ -14,6 +14,7 @@ from hyped.data.flow.processors.ops.collect import CollectFeatures
 
 
 def test_binary_op_constant_inputs_handler():
+    mock_flow = MagicMock()
     mock_binary_op = MagicMock()
     # wrap mock binary operator
     wrapped_binary_op = ops._handle_constant_inputs_for_binary_op(
@@ -21,7 +22,7 @@ def test_binary_op_constant_inputs_handler():
     )
     # create a feature reference instance
     ref = FeatureRef(
-        node_id_=-1, key_=tuple(), flow_=None, feature_=Value("int32")
+        node_id_=-1, key_=tuple(), flow_=mock_flow, feature_=Value("int32")
     )
 
     # expected error on only constant inputs
@@ -32,16 +33,21 @@ def test_binary_op_constant_inputs_handler():
     wrapped_binary_op(ref, ref)
     mock_binary_op.assert_called_with(ref, ref)
 
-    # called with mixture of reference and constants
-    with patch("hyped.data.flow.ops.collect") as mock_collect:
+    with patch("hyped.data.flow.ops.Const") as mock_const:
         # first constant then reference
         wrapped_binary_op(0, ref)
-        mock_collect.assert_called_with({"0": 0}, flow=ref.flow_)
-        mock_binary_op.assert_called_with(mock_collect()["0"], ref)
+        mock_const.assert_called_with(value=0)
+        mock_const(value=0).to.assert_called_with(mock_flow)
+        mock_binary_op.assert_called_with(
+            mock_const(value=0).to(mock_flow).value, ref
+        )
         # first reference then constant
-        wrapped_binary_op(ref, 0)
-        mock_collect.assert_called_with({"0": 0}, flow=ref.flow_)
-        mock_binary_op.assert_called_with(ref, mock_collect()["0"])
+        wrapped_binary_op(ref, 1)
+        mock_const.assert_called_with(value=1)
+        mock_const(value=1).to.assert_called_with(mock_flow)
+        mock_binary_op.assert_called_with(
+            ref, mock_const(value=1).to(mock_flow).value
+        )
 
 
 def test_collect():
@@ -60,7 +66,7 @@ def test_collect():
     # make sure the node has been added
     assert out.node_id_ in flow._graph
     assert isinstance(
-        flow._graph.nodes[out.node_id_][DataFlowGraph.NodeProperty.PROCESSOR],
+        flow._graph.nodes[out.node_id_][DataFlowGraph.NodeProperty.NODE_OBJ],
         CollectFeatures,
     )
     # check the connections
@@ -79,7 +85,7 @@ def test_simple_aggregators(op, agg_type):
     # make sure the node for the binary operation has been added
     assert out.node_id_ in flow._graph
     assert isinstance(
-        flow._graph.nodes[out.node_id_][DataFlowGraph.NodeProperty.PROCESSOR],
+        flow._graph.nodes[out.node_id_][DataFlowGraph.NodeProperty.NODE_OBJ],
         agg_type,
     )
     # check the connections
@@ -122,7 +128,7 @@ def test_simple_binary_op(op, proc_type, dtype):
     # make sure the node for the binary operation has been added
     assert out.node_id_ in flow._graph
     assert isinstance(
-        flow._graph.nodes[out.node_id_][DataFlowGraph.NodeProperty.PROCESSOR],
+        flow._graph.nodes[out.node_id_][DataFlowGraph.NodeProperty.NODE_OBJ],
         proc_type,
     )
     # check the connections

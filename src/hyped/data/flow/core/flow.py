@@ -20,6 +20,7 @@ import nest_asyncio
 import networkx as nx
 import numpy as np
 import pyarrow as pa
+from datasets.features.features import FeatureType
 from matplotlib import colormaps
 from torch.utils.data import get_worker_info
 from typing_extensions import TypeAlias
@@ -31,7 +32,9 @@ from hyped.common.lazy import LazyInstance
 from .executor import DataFlowExecutor
 from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
+from .nodes.const import Const
 from .optim import DataFlowGraphOptimizer
+from .refs.inputs import InputRefs
 from .refs.ref import AggregationRef, FeatureRef
 
 Batch: TypeAlias = dict[str, list[Any]]
@@ -162,6 +165,25 @@ class DataFlow(object):
             else self._executor.aggregation_manager.values_proxy
         )
 
+    def const(
+        self, value: Any, ftype: None | FeatureType = None
+    ) -> FeatureRef:
+        """Adds a constant node to the data flow graph.
+
+        This function creates and adds a constant node to the data flow graph
+        with the specified value and optionally specified feature type. It
+        returns a feature reference to the constant value.
+
+        Args:
+            value (Any): The constant value to be introduced into the data flow.
+            ftype (None | FeatureType, optional): The type of the feature. If not provided,
+                it is inferred from the value. Defaults to None.
+
+        Returns:
+            FeatureRef: A feature reference to the constant value in the data flow.
+        """
+        return Const(value=value, ftype=ftype).to(self._graph).value
+
     def build(
         self,
         collect: FeatureRef,
@@ -242,7 +264,7 @@ class DataFlow(object):
         if aggregators is not None:
             aggregators = {
                 name: optim_graph.nodes[node_mapping[ref.node_id_]][
-                    DataFlowGraph.NodeProperty.PROCESSOR
+                    DataFlowGraph.NodeProperty.NODE_OBJ
                 ]
                 for name, ref in aggregators.items()
             }
@@ -506,14 +528,15 @@ class DataFlow(object):
         cmap = colormaps.get_cmap("Pastel1")
         default_color_map = {
             DataFlowGraph.NodeType.SOURCE: cmap.colors[0],
-            DataFlowGraph.NodeType.DATA_PROCESSOR: cmap.colors[1],
-            DataFlowGraph.NodeType.DATA_AGGREGATOR: cmap.colors[2],
+            DataFlowGraph.NodeType.CONST: cmap.colors[1],
+            DataFlowGraph.NodeType.DATA_PROCESSOR: cmap.colors[2],
+            DataFlowGraph.NodeType.DATA_AGGREGATOR: cmap.colors[3],
         }
         color_map = default_color_map | color_map
 
         # apply color map
         node_colors = [
-            color_map[data[DataFlowGraph.NodeProperty.PROCESSOR_TYPE]]
+            color_map[data[DataFlowGraph.NodeProperty.NODE_TYPE]]
             for _, data in self._graph.nodes(data=True)
         ]
 
@@ -540,7 +563,7 @@ class DataFlow(object):
 
             else:
                 # get the processor type name of the current node
-                proc = data[DataFlowGraph.NodeProperty.PROCESSOR]
+                proc = data[DataFlowGraph.NodeProperty.NODE_OBJ]
                 node_label = type(proc).__name__
                 # split string into words
                 words = re.split(r"(?<=[a-z])(?=[A-Z])", node_label)
