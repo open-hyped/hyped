@@ -79,6 +79,7 @@ class NoOp(BaseDataProcessor[NoOpConfig, NoOpInputRefs, NoOpOutputRefs]):
             inputs (Batch): The batch of input samples.
             index (int): The index associated with the input samples.
             rank (int): The rank of the processor in a distributed setting.
+            io (IOContext): Context information for the data processors execution.
 
         Returns:
             Batch: The batch of output samples.

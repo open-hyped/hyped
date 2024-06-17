@@ -1,3 +1,22 @@
+"""Module for collecting features from nested structures in data processing.
+
+This module defines a data processor (:class:`CollectFeatures`) that collects features
+from a nested structure defined by a :class:`NestedCollection` object. The nested
+structure can be arbitrarily deep, consisting of dictionaries and lists, with
+the leaves of the structure being :class:`FeatureRef` objects.
+
+This is particularly useful for defining the output of a data flow.
+The desired output features, potentially from different nodes, can
+be referenced in a `NestedCollection`, which the processor can then
+collect. This simplifies the management and retrieval of the specified
+output features.
+
+The high-level function for utilizing the :class:`CollectFeatures` processor is
+the :class:`hyped.data.flow.ops.collect` function. This function serves as the entry point
+for collecting features within the data processing pipeline. By providing a convenient
+interface, it allows users to easily integrate feature collection into their data flow
+graph.
+"""
 from __future__ import annotations
 
 from functools import cache
@@ -23,21 +42,40 @@ U = TypeVar("U")
 
 
 class NestedContainer(BaseModel, Generic[T]):
-    data: T | dict[Hashable, NestedContainer] | list[NestedContainer]
+    """A container for nested data structures.
+
+    This class is used to represent nested data structures such as dictionaries and lists.
+    It provides methods to map over its elements and flatten them into a dictionary.
+    """
+
+    data: T | dict[Hashable, NestedContainer[T]] | list[NestedContainer[T]]
+    """The nested data structure of the container."""
 
     @field_validator("data", mode="before")
-    def _validate_data(cls, x: Any) -> NestedContainer[T]:
+    def _validate_data(
+        cls, data: Any
+    ) -> T | dict[Hashable, NestedContainer[T]] | list[NestedContainer[T]]:
+        """Pre-validation method for the data attribute.
+
+        Args:
+            data (Any): The raw data to parse.
+
+        Returns:
+            T | dict[Hashable, NestedContainer[T]] | list[NestedContainer[T]]:
+            The parsed nested data structure.
+        """
         return (
             {
                 k: v if isinstance(v, NestedContainer) else cls(data=v)
-                for k, v in x.items()
+                for k, v in data.items()
             }
-            if isinstance(x, Mapping)
+            if isinstance(data, Mapping)
             else [
-                v if isinstance(v, NestedContainer) else cls(data=v) for v in x
+                v if isinstance(v, NestedContainer) else cls(data=v)
+                for v in data
             ]
-            if isinstance(x, list)
-            else x
+            if isinstance(data, list)
+            else data
         )
 
     def map(
@@ -46,6 +84,17 @@ class NestedContainer(BaseModel, Generic[T]):
         target_type: type[U],
         _path: tuple[Hashable | int] = tuple(),
     ) -> NestedContainer[U]:
+        """Map a function over the container's elements.
+
+        Args:
+            f (Callable[[tuple[Hashable | int], T], U]): The function to apply.
+            target_type (type[U]): The type of the resulting elements.
+            _path (tuple[Hashable | int], optional): The prefix path of the
+                container container. Defaults to tuple().
+
+        Returns:
+            NestedContainer[U]: The container with the mapped elements.
+        """
         if isinstance(self.data, dict):
             return NestedContainer[target_type](
                 data={
@@ -64,7 +113,12 @@ class NestedContainer(BaseModel, Generic[T]):
 
         return NestedContainer[target_type](data=f(_path, self.data))
 
-    def flatten(self) -> dict[Hashable, T]:
+    def flatten(self) -> dict[tuple[Hashable | int], T]:
+        """Flatten the nested container into a dictionary.
+
+        Returns:
+            dict[tuple[Hashable | int], T]: The flattened dictionary.
+        """
         # collect all values in the flattened dictionary with
         # the key being the corresponding path
         flattened = {}
@@ -73,6 +127,11 @@ class NestedContainer(BaseModel, Generic[T]):
         return flattened
 
     def unpack(self) -> dict | list | T:
+        """Unpack the nested container into its raw form.
+
+        Returns:
+            dict | list | T: The unpacked data.
+        """
         if isinstance(self.data, dict):
             return {k: v.unpack() for k, v in self.data.items()}
 
@@ -83,15 +142,26 @@ class NestedContainer(BaseModel, Generic[T]):
 
 
 class CollectFeaturesConfig(BaseDataProcessorConfig):
-    ...
+    """Configuration class for the CollectFeatures data processor."""
 
 
 def _path_to_str(path: tuple[Hashable | int]) -> str:
+    """Convert a path tuple to a dot-separated string.
+
+    Args:
+        path (tuple[Hashable | int]): The path tuple.
+
+    Returns:
+        str: The dot-separated string representation of the path.
+    """
     return ".".join(map(str, path))
 
 
 class CollectFeaturesInputRefs(InputRefs):
+    """Input references class for the :class:`CollectFeatures` data processor."""
+
     collection: NestedContainer[FeatureRef]
+    """The nested collection of feature references to collect."""
 
     @classmethod
     def type_validator(cls) -> None:
@@ -100,6 +170,11 @@ class CollectFeaturesInputRefs(InputRefs):
 
     @property
     def named_refs(self) -> dict[str, FeatureRef]:
+        """Get named references from the input collection.
+
+        Returns:
+            dict[str, FeatureRef]: A dictionary of named feature references.
+        """
         return {
             _path_to_str(key): ref
             for key, ref in self.collection.flatten().items()
@@ -122,6 +197,14 @@ class CollectFeaturesInputRefs(InputRefs):
 def _infer_feature_type(
     container: NestedContainer[FeatureRef],
 ) -> Features:
+    """Infer the feature type from a nested container of feature references.
+
+    Args:
+        container (NestedContainer[FeatureRef]): The nested container of feature references.
+
+    Returns:
+        Features: The inferred feature type.
+    """
     if isinstance(container.data, dict):
         return Features(
             {k: _infer_feature_type(v) for k, v in container.data.items()}
@@ -148,12 +231,15 @@ def _infer_feature_type(
 
 
 class CollectFeaturesOutputRefs(OutputRefs):
+    """Output references class for the :class:`CollectFeatures` data processor."""
+
     collected: Annotated[
         FeatureRef,
         LambdaOutputFeature(
             lambda _, inputs: _infer_feature_type(inputs.collection)
         ),
     ]
+    """Reference to the collected feature."""
 
 
 class CollectFeatures(
@@ -163,8 +249,24 @@ class CollectFeatures(
         CollectFeaturesOutputRefs,
     ]
 ):
+    """Data processor for collecting features into a new (nested) feature.
+
+    This processor collects features from a nested structure defined by a
+    `NestedCollection` object. It traverses the nested structure and gathers
+    the features, maintaining the structure defined by the collection.
+    """
+
     @cache
     def _lookup(self, io: IOContext) -> NestedContainer[str]:
+        """Generate lookup mapping for the collected features.
+
+        Args:
+            io (IOContext): The IO context.
+
+        Returns:
+            NestedContainer[str]: The container of lookup strings.
+        """
+
         def build_none_sample(feature: FeatureType) -> NestedContainer[None]:
             """Build a sample of None values matching the expected structure of the feature."""
             # parse feature dictionary
@@ -192,6 +294,17 @@ class CollectFeatures(
     async def batch_process(
         self, inputs: Batch, index: list[int], rank: int, io: IOContext
     ) -> Batch:
+        """Process batches of inputs.
+
+        Args:
+            inputs (Batch): The input batch.
+            index (list[int]): The index of the batch.
+            rank (int): The rank of the batch.
+            io (IOContext): The execution context.
+
+        Returns:
+            Batch: The processed batch.
+        """
         # convert dict of lists to list of dicts
         keys = inputs.keys()
         samples = [dict(zip(keys, values)) for values in zip(*inputs.values())]

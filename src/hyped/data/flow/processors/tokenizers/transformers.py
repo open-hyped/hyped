@@ -271,6 +271,7 @@ class TransformersTokenizer(
             inputs (Batch): Batch of input data.
             index (list[int]): Batch index.
             rank (int): Rank of the processor.
+            io (IOContext): Context information for the data processors execution.
 
         Returns:
             Batch: The batch of tokenizer outputs.

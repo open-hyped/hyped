@@ -104,6 +104,28 @@ def _handle_constant_inputs_for_binary_op(
 def collect(
     collection: None | dict | list = None, flow: None | object = None, **kwargs
 ) -> FeatureRef:
+    """Collects features into a feature collection.
+
+    This function collects features into a feature collection, which can then be used as input
+    to other nodes in the data flow graph. It accepts either a collection (dict or list) or keyword
+    arguments representing feature values. If both collection and kwargs are provided, an error is raised.
+
+    If any non-reference values are present in the collection, they are added as constants to the data flow graph.
+
+    Args:
+        collection (None | dict | list, optional): A collection (dict or list) containing features or
+            feature values. Defaults to None.
+        flow (None | object, optional): The data flow object. If not provided, the flow is inferred from
+            the feature references in the collection. Defaults to None.
+        **kwargs: Keyword arguments representing feature values.
+
+    Returns:
+        FeatureRef: A feature reference to the collected features.
+
+    Raises:
+        ValueError: If both collection and keyword arguments are provided.
+        RuntimeError: If the flow cannot be inferred from the constant collection and no flow is provided explicitly.
+    """
     if (collection is not None) and len(kwargs) > 0:
         raise ValueError()  # TODO: only one allowed
 

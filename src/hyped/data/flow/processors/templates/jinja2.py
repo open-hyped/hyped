@@ -95,6 +95,7 @@ class Jinja2(
             inputs (Sample): Input sample containing features for template filling.
             index (int): Index of the sample in the dataset.
             rank (int): Rank of the sample.
+            io (IOContext): Context information for the data processors execution.
 
         Returns:
             Sample: Output sample containing the rendered template string.

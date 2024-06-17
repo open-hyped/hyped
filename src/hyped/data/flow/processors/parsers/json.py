@@ -160,6 +160,7 @@ class JsonParser(
             inputs (Sample): The input sample containing the JSON string to be processed.
             index (int): The index associated with the input sample.
             rank (int): The rank of the processor in a distributed setting.
+            io (IOContext): Context information for the data processors execution.
 
         Returns:
             Sample: The processed output sample. If :code:`config.catch_validation_errors` is True, the output

@@ -96,6 +96,7 @@ class BinaryOp(BaseDataProcessor[C, I, O], ABC):
             inputs (Batch): The input batch containing features 'a' and 'b'.
             index (list[int]): The indices of the batch.
             rank (int): The rank of the current process.
+            io (IOContext): Context information for the data processors execution.
 
         Returns:
             Batch: The batch containing the result of the binary operation.
