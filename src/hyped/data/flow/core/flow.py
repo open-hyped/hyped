@@ -264,7 +264,7 @@ class DataFlow(object):
         if aggregators is not None:
             aggregators = {
                 name: optim_graph.nodes[node_mapping[ref.node_id_]][
-                    DataFlowGraph.NodeProperty.NODE_OBJ
+                    DataFlowGraph.NodeAttribute.NODE_OBJ
                 ]
                 for name, ref in aggregators.items()
             }
@@ -521,7 +521,7 @@ class DataFlow(object):
 
         # compute the node positions
         pos = nx.multipartite_layout(
-            self._graph, subset_key=DataFlowGraph.NodeProperty.DEPTH
+            self._graph, subset_key=DataFlowGraph.NodeAttribute.DEPTH
         )
 
         # build color map
@@ -536,7 +536,7 @@ class DataFlow(object):
 
         # apply color map
         node_colors = [
-            color_map[data[DataFlowGraph.NodeProperty.NODE_TYPE]]
+            color_map[data[DataFlowGraph.NodeAttribute.NODE_TYPE]]
             for _, data in self._graph.nodes(data=True)
         ]
 
@@ -563,7 +563,7 @@ class DataFlow(object):
 
             else:
                 # get the processor type name of the current node
-                proc = data[DataFlowGraph.NodeProperty.NODE_OBJ]
+                proc = data[DataFlowGraph.NodeAttribute.NODE_OBJ]
                 node_label = type(proc).__name__
                 # split string into words
                 words = re.split(r"(?<=[a-z])(?=[A-Z])", node_label)
@@ -601,8 +601,8 @@ class DataFlow(object):
                 edge_labels[edge] = "\n".join(
                     [
                         edge_label_format.format(
-                            name=data[DataFlowGraph.EdgeProperty.NAME],
-                            key=str(data[DataFlowGraph.EdgeProperty.KEY]),
+                            name=data[DataFlowGraph.EdgeAttribute.NAME],
+                            key=str(data[DataFlowGraph.EdgeAttribute.KEY]),
                         )
                         for _, _, data in group
                     ]

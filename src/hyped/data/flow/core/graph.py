@@ -45,6 +45,25 @@ class DataFlowGraph(nx.MultiDiGraph):
         This property identifies the source node ID of an edge in the graph.
         """
 
+    class PredefinedPartition(str, Enum):
+        """Enum representing predefined partitions in the data flow graph."""
+
+        CONST = "CONSTANT"
+        """
+        Represents a partition containing all constant nodes.
+
+        This partition is predefined to include nodes that hold constant
+        values used in the data processing flow.
+        """
+
+        DEFAULT = "DEFAULT"
+        """
+        Represents the default partition for nodes.
+
+        This partition is assigned to the source node and is inherited by
+        its sub-graph.
+        """
+
     class NodeType(Enum):
         """Enum representing types of nodes in the data flow graph."""
 
@@ -83,7 +102,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         from different sources into a unified representation.
         """
 
-    class NodeProperty(str, Enum):
+    class NodeAttribute(str, Enum):
         """Enum representing properties of a node in the data flow graph."""
 
         NODE_OBJ = "node_object"
@@ -127,6 +146,16 @@ class DataFlowGraph(nx.MultiDiGraph):
         structure and types of data that are output by this node.
         """
 
+        PARTITION = "partition"
+        """
+        Represents the partition to which the node belongs.
+
+        Type: :code:`str`
+
+        This property indicates the specific partition of the data flow graph that
+        the node is part of, which can be used to group nodes by different semantics.
+        """
+
         DEPTH = "depth"
         """
         Represents the depth of the node within the data flow graph.
@@ -138,7 +167,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         of the node relative to other nodes in the data flow.
         """
 
-    class EdgeProperty(str, Enum):
+    class EdgeAttribute(str, Enum):
         """Enum representing properties of an edge in the data flow graph."""
 
         NAME = "name"
@@ -179,7 +208,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         return (
             max(
                 nx.get_node_attributes(
-                    self, DataFlowGraph.NodeProperty.DEPTH
+                    self, DataFlowGraph.NodeAttribute.DEPTH
                 ).values()
             )
             + 1
@@ -220,7 +249,9 @@ class DataFlowGraph(nx.MultiDiGraph):
             int: The maximum width of the graph.
         """
         # group nodes by their layer
-        depths = nx.get_node_attributes(self, DataFlowGraph.NodeProperty.DEPTH)
+        depths = nx.get_node_attributes(
+            self, DataFlowGraph.NodeAttribute.DEPTH
+        )
         layers = groupby(sorted(self, key=depths.get), key=depths.get)
         # find larges layer in graph
         return max(len(list(layer)) for _, layer in layers)
@@ -249,6 +280,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         # return the source node id
         return node_id
 
+    # TODO: rename to more generic 'add_node'
     def add_processor_node(
         self,
         obj: BaseNode,
@@ -271,6 +303,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         Raises:
             AssertionError: If the processor type is invalid.
             AssertionError: If the graph is cyclic after adding the new node.
+            AssertionError: If the partition cannot be inferred.
             RuntimeError: If any input reference does not belong to this data flow.
         """
         # get processor type
@@ -303,7 +336,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             if inputs is None
             else max(
                 (
-                    self.nodes[ref.node_id_][DataFlowGraph.NodeProperty.DEPTH]
+                    self.nodes[ref.node_id_][DataFlowGraph.NodeAttribute.DEPTH]
                     + 1
                     for ref in inputs.refs
                 ),
@@ -311,18 +344,56 @@ class DataFlowGraph(nx.MultiDiGraph):
             )
         )
 
+        partition = None
+        # infer partition of the node
+        if node_type == DataFlowGraph.NodeType.SOURCE:
+            # source node is added to the default partition
+            partition = DataFlowGraph.PredefinedPartition.DEFAULT.value
+
+        elif node_type == DataFlowGraph.NodeType.CONST:
+            # contants are added to the constant partition
+            partition = DataFlowGraph.PredefinedPartition.CONST.value
+
+        elif inputs is not None:
+            # for other node types the partition is inferred from the inputs
+            input_partitions = set(
+                [
+                    self.nodes[ref.node_id_][
+                        DataFlowGraph.NodeAttribute.PARTITION
+                    ]
+                    for ref in inputs.refs
+                ]
+            )
+
+            if input_partitions == {DataFlowGraph.PredefinedPartition.CONST}:
+                # if all inputs come from the constant partition then this node
+                # is also part of the constant partition
+                partition = DataFlowGraph.PredefinedPartition.CONST.value
+
+            else:
+                # if any of the inputs are not from the constant partition
+                # then the node is part of the default partition
+                partition = DataFlowGraph.PredefinedPartition.DEFAULT.value
+
+        # partition could not be inferred
+        assert partition is not None, (
+            "Partition cannot be inferred for source nodes, "
+            "i.e. nodes without any input references."
+        )
+
         # add the node to the graph
         node_id = self.number_of_nodes()
         self.add_node(
             node_id,
             **{
-                DataFlowGraph.NodeProperty.NODE_OBJ: obj,
-                DataFlowGraph.NodeProperty.NODE_TYPE: node_type,
-                DataFlowGraph.NodeProperty.IN_FEATURES: (
+                DataFlowGraph.NodeAttribute.NODE_OBJ: obj,
+                DataFlowGraph.NodeAttribute.NODE_TYPE: node_type,
+                DataFlowGraph.NodeAttribute.IN_FEATURES: (
                     None if inputs is None else inputs.features_
                 ),
-                DataFlowGraph.NodeProperty.OUT_FEATURES: output_features,
-                DataFlowGraph.NodeProperty.DEPTH: depth,
+                DataFlowGraph.NodeAttribute.OUT_FEATURES: output_features,
+                DataFlowGraph.NodeAttribute.PARTITION: partition,
+                DataFlowGraph.NodeAttribute.DEPTH: depth,
             },
         )
 
@@ -334,7 +405,7 @@ class DataFlowGraph(nx.MultiDiGraph):
                 assert (
                     ref.key_.index_features(
                         self.nodes[ref.node_id_][
-                            DataFlowGraph.NodeProperty.OUT_FEATURES
+                            DataFlowGraph.NodeAttribute.OUT_FEATURES
                         ]
                     )
                     is not None
@@ -345,8 +416,8 @@ class DataFlowGraph(nx.MultiDiGraph):
                     node_id,
                     key=name,
                     **{
-                        DataFlowGraph.EdgeProperty.NAME: name,
-                        DataFlowGraph.EdgeProperty.KEY: ref.key_,
+                        DataFlowGraph.EdgeAttribute.NAME: name,
+                        DataFlowGraph.EdgeAttribute.KEY: ref.key_,
                     },
                 )
 
@@ -382,13 +453,13 @@ class DataFlowGraph(nx.MultiDiGraph):
 
         # get node properties
         node = self.nodes[node_id]
-        node_obj = node[DataFlowGraph.NodeProperty.NODE_OBJ]
-        node_type = node[DataFlowGraph.NodeProperty.NODE_TYPE]
-        features = node[DataFlowGraph.NodeProperty.OUT_FEATURES]
+        node_obj = node[DataFlowGraph.NodeAttribute.NODE_OBJ]
+        node_type = node[DataFlowGraph.NodeAttribute.NODE_TYPE]
+        features = node[DataFlowGraph.NodeAttribute.OUT_FEATURES]
 
         if node_type == DataFlowGraph.NodeType.SOURCE:
             # build a feature reference to the source features of the graph
-            features = node[DataFlowGraph.NodeProperty.OUT_FEATURES]
+            features = node[DataFlowGraph.NodeAttribute.OUT_FEATURES]
             return FeatureRef(
                 key_=tuple(), node_id_=node_id, flow_=self, feature_=features
             )

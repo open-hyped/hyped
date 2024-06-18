@@ -2,6 +2,7 @@ import pytest
 from datasets import Features, Value
 
 from hyped.data.flow.core.graph import DataFlowGraph
+from hyped.data.flow.core.nodes.const import Const
 from hyped.data.flow.core.refs.ref import AggregationRef, FeatureRef
 
 from .mock import MockAggregator, MockInputRefs, MockOutputRefs, MockProcessor
@@ -19,14 +20,14 @@ class TestDataFlowGraph:
         assert src_node_id in graph
         # check node properties
         node = graph.nodes[src_node_id]
-        assert node[DataFlowGraph.NodeProperty.DEPTH] == 0
-        assert node[DataFlowGraph.NodeProperty.NODE_OBJ] is None
+        assert node[DataFlowGraph.NodeAttribute.DEPTH] == 0
+        assert node[DataFlowGraph.NodeAttribute.NODE_OBJ] is None
         assert (
-            node[DataFlowGraph.NodeProperty.NODE_TYPE]
+            node[DataFlowGraph.NodeAttribute.NODE_TYPE]
             == DataFlowGraph.NodeType.SOURCE
         )
-        assert node[DataFlowGraph.NodeProperty.IN_FEATURES] is None
-        assert node[DataFlowGraph.NodeProperty.OUT_FEATURES] == src_features
+        assert node[DataFlowGraph.NodeAttribute.IN_FEATURES] is None
+        assert node[DataFlowGraph.NodeAttribute.OUT_FEATURES] == src_features
 
         # try to add another source node
         with pytest.raises(RuntimeError):
@@ -53,20 +54,20 @@ class TestDataFlowGraph:
         assert node_id in graph
         # check node properties
         node = graph.nodes[node_id]
-        assert node[DataFlowGraph.NodeProperty.DEPTH] == 1
-        assert node[DataFlowGraph.NodeProperty.NODE_OBJ] == p
+        assert node[DataFlowGraph.NodeAttribute.DEPTH] == 1
+        assert node[DataFlowGraph.NodeAttribute.NODE_OBJ] == p
         assert (
-            node[DataFlowGraph.NodeProperty.NODE_TYPE]
+            node[DataFlowGraph.NodeAttribute.NODE_TYPE]
             == DataFlowGraph.NodeType.DATA_PROCESSOR
         )
-        assert node[DataFlowGraph.NodeProperty.IN_FEATURES] == i.features_
-        assert node[DataFlowGraph.NodeProperty.OUT_FEATURES] == o
+        assert node[DataFlowGraph.NodeAttribute.IN_FEATURES] == i.features_
+        assert node[DataFlowGraph.NodeAttribute.OUT_FEATURES] == o
         # check edges
         assert graph.has_edge(src_node_id, node_id)
         for n, r in i.named_refs.items():
             assert n in graph[src_node_id][node_id]
             assert (
-                graph[src_node_id][node_id][n][DataFlowGraph.EdgeProperty.KEY]
+                graph[src_node_id][node_id][n][DataFlowGraph.EdgeAttribute.KEY]
                 == r.key_
             )
 
@@ -89,22 +90,93 @@ class TestDataFlowGraph:
         assert node_id in graph
         # check node properties
         node = graph.nodes[node_id]
-        assert node[DataFlowGraph.NodeProperty.DEPTH] == 1
-        assert node[DataFlowGraph.NodeProperty.NODE_OBJ] == a
+        assert node[DataFlowGraph.NodeAttribute.DEPTH] == 1
+        assert node[DataFlowGraph.NodeAttribute.NODE_OBJ] == a
         assert (
-            node[DataFlowGraph.NodeProperty.NODE_TYPE]
+            node[DataFlowGraph.NodeAttribute.NODE_TYPE]
             == DataFlowGraph.NodeType.DATA_AGGREGATOR
         )
-        assert node[DataFlowGraph.NodeProperty.IN_FEATURES] == i.features_
-        assert node[DataFlowGraph.NodeProperty.OUT_FEATURES] is None
+        assert node[DataFlowGraph.NodeAttribute.IN_FEATURES] == i.features_
+        assert node[DataFlowGraph.NodeAttribute.OUT_FEATURES] is None
         # check edges
         assert graph.has_edge(src_node_id, node_id)
         for n, r in i.named_refs.items():
             assert n in graph[src_node_id][node_id]
             assert (
-                graph[src_node_id][node_id][n][DataFlowGraph.EdgeProperty.KEY]
+                graph[src_node_id][node_id][n][DataFlowGraph.EdgeAttribute.KEY]
                 == r.key_
             )
+
+    def test_partition(self):
+        # create graph
+        graph = DataFlowGraph()
+        # add source node
+        src_features = Features({"x": Value("int64")})
+        src_node_id = graph.add_source_node(src_features)
+
+        # source node is part of the default partition
+        # this is by definition of the default partition: all child nodes
+        # of the source node are part of the the default partition
+        assert (
+            graph.nodes[src_node_id][DataFlowGraph.NodeAttribute.PARTITION]
+            == DataFlowGraph.PredefinedPartition.DEFAULT
+        )
+
+        # create processor
+        p = MockProcessor()
+        i = MockInputRefs(
+            a=graph.get_node_output_ref(src_node_id).x,
+            b=graph.get_node_output_ref(src_node_id).x,
+        )
+        o = p._out_refs_type.build_features(p.config, i)
+        # add processor to graph
+        node_id = graph.add_processor_node(p, i, o)
+
+        # the processor is a child of the source node and thus
+        # should be part of the default partition
+        assert (
+            graph.nodes[node_id][DataFlowGraph.NodeAttribute.PARTITION]
+            == DataFlowGraph.PredefinedPartition.DEFAULT
+        )
+
+        # add constant node
+        c = Const(value=0)
+        co = c._out_refs_type.build_features(c.config, None)
+        const_node = graph.add_processor_node(c, None, co)
+
+        # create processor
+        p = MockProcessor()
+        i = MockInputRefs(
+            a=graph.get_node_output_ref(const_node).value,
+            b=graph.get_node_output_ref(src_node_id).x,
+        )
+        o = p._out_refs_type.build_features(p.config, i)
+        # add processor to graph
+        node_id = graph.add_processor_node(p, i, o)
+
+        # the processor inherits from a constant and the source node
+        # so it should still be part of the default partition
+        assert (
+            graph.nodes[node_id][DataFlowGraph.NodeAttribute.PARTITION]
+            == DataFlowGraph.PredefinedPartition.DEFAULT
+        )
+
+        # create processor
+        p = MockProcessor()
+        i = MockInputRefs(
+            a=graph.get_node_output_ref(const_node).value,
+            b=graph.get_node_output_ref(const_node).value,
+        )
+        o = p._out_refs_type.build_features(p.config, i)
+        # add processor to graph
+        node_id = graph.add_processor_node(p, i, o)
+
+        # the processor inherits only from constant nodes and
+        # thus it's output is also considered to be constant
+        assert (
+            graph.nodes[node_id][DataFlowGraph.NodeAttribute.PARTITION]
+            == DataFlowGraph.PredefinedPartition.CONST
+        )
 
     def test_depth_and_width(self):
         # create graph
@@ -113,7 +185,7 @@ class TestDataFlowGraph:
         src_features = Features({"x": Value("int64")})
         src_node_id = graph.add_source_node(src_features)
         # check depth of source node
-        assert graph.nodes[src_node_id][DataFlowGraph.NodeProperty.DEPTH] == 0
+        assert graph.nodes[src_node_id][DataFlowGraph.NodeAttribute.DEPTH] == 0
         # check graph properties
         assert graph.depth == 1
         assert graph.width == 1
@@ -129,7 +201,7 @@ class TestDataFlowGraph:
         o = p._out_refs_type.build_features(p.config, i1)
         # add first level processor
         node_id_1 = graph.add_processor_node(p, i1, o)
-        assert graph.nodes[node_id_1][DataFlowGraph.NodeProperty.DEPTH] == 1
+        assert graph.nodes[node_id_1][DataFlowGraph.NodeAttribute.DEPTH] == 1
         # check graph properties
         assert graph.depth == 2
         assert graph.width == 1
@@ -142,7 +214,7 @@ class TestDataFlowGraph:
         o = p._out_refs_type.build_features(p.config, i2)
         # add second level processor
         node_id_2 = graph.add_processor_node(p, i2, o)
-        assert graph.nodes[node_id_2][DataFlowGraph.NodeProperty.DEPTH] == 2
+        assert graph.nodes[node_id_2][DataFlowGraph.NodeAttribute.DEPTH] == 2
         # check graph properties
         assert graph.depth == 3
         assert graph.width == 1
@@ -155,7 +227,7 @@ class TestDataFlowGraph:
         o = p._out_refs_type.build_features(p.config, i3)
         # add third level processor
         node_id_3 = graph.add_processor_node(p, i3, o)
-        assert graph.nodes[node_id_3][DataFlowGraph.NodeProperty.DEPTH] == 2
+        assert graph.nodes[node_id_3][DataFlowGraph.NodeAttribute.DEPTH] == 2
         # check graph properties
         assert graph.depth == 3
         assert graph.width == 2
@@ -168,7 +240,7 @@ class TestDataFlowGraph:
         o = p._out_refs_type.build_features(p.config, i4)
         # add third level processor
         node_id_4 = graph.add_processor_node(p, i4, o)
-        assert graph.nodes[node_id_4][DataFlowGraph.NodeProperty.DEPTH] == 3
+        assert graph.nodes[node_id_4][DataFlowGraph.NodeAttribute.DEPTH] == 3
         # check graph properties
         assert graph.depth == 4
         assert graph.width == 2

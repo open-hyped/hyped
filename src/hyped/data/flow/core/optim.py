@@ -94,7 +94,7 @@ class DataFlowGraphOptimizer(object):
         cse_graph = DataFlowGraph()
         node_id_mapping: dict[int, int] = {}
 
-        key = lambda n: graph.nodes[n][DataFlowGraph.NodeProperty.DEPTH]
+        key = lambda n: graph.nodes[n][DataFlowGraph.NodeAttribute.DEPTH]
         for _, layer in groupby(sorted(graph, key=key), key=key):
             cse_layer = []
 
@@ -104,8 +104,8 @@ class DataFlowGraphOptimizer(object):
                 in_edge_identifiers = [
                     (
                         node_id_mapping[src_node_id],
-                        edge_data[DataFlowGraph.EdgeProperty.NAME],
-                        edge_data[DataFlowGraph.EdgeProperty.KEY],
+                        edge_data[DataFlowGraph.EdgeAttribute.NAME],
+                        edge_data[DataFlowGraph.EdgeAttribute.KEY],
                     )
                     for src_node_id, _, edge_data in graph.in_edges(
                         node_id, data=True
@@ -113,10 +113,10 @@ class DataFlowGraphOptimizer(object):
                 ]
 
                 node_data = graph.nodes[node_id]
-                obj = node_data[DataFlowGraph.NodeProperty.NODE_OBJ]
+                obj = node_data[DataFlowGraph.NodeAttribute.NODE_OBJ]
                 # create cse node identifier
                 identifier = _CSE_NodeIdentifier(
-                    node_type=node_data[DataFlowGraph.NodeProperty.NODE_TYPE],
+                    node_type=node_data[DataFlowGraph.NodeAttribute.NODE_TYPE],
                     node_config=getattr(obj, "config", None),
                     in_edge_identifiers=in_edge_identifiers,
                 )
@@ -129,10 +129,10 @@ class DataFlowGraphOptimizer(object):
                 else:
                     # read node feature properties
                     in_features = node_data[
-                        DataFlowGraph.NodeProperty.IN_FEATURES
+                        DataFlowGraph.NodeAttribute.IN_FEATURES
                     ]
                     out_features = node_data[
-                        DataFlowGraph.NodeProperty.OUT_FEATURES
+                        DataFlowGraph.NodeAttribute.OUT_FEATURES
                     ]
 
                     if obj is None:

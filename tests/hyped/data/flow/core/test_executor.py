@@ -149,15 +149,15 @@ class TestDataFlowExecutor:
         io_ctx = IOContext(
             _IOContext__node_id=proc_node,
             inputs=graph.nodes[proc_node][
-                DataFlowGraph.NodeProperty.IN_FEATURES
+                DataFlowGraph.NodeAttribute.IN_FEATURES
             ],
             outputs=graph.nodes[proc_node][
-                DataFlowGraph.NodeProperty.OUT_FEATURES
+                DataFlowGraph.NodeAttribute.OUT_FEATURES
             ],
         )
 
         # make sure the processor was called correctly
-        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.NODE_OBJ]
+        p = graph.nodes[proc_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
         p.process.assert_has_calls(
             [
                 call({"a": 1, "b": 0}, 0, 0, io_ctx),
@@ -183,7 +183,7 @@ class TestDataFlowExecutor:
         # run processor node in executor
         await executor.execute_node(agg_node, state)
 
-        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.NODE_OBJ]
+        a = graph.nodes[agg_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
         manager.aggregate.assert_called_with(
             a, {"a": [1, 2, 3], "b": [0, 0, 0]}, [0, 1, 2], 0
         )
@@ -205,14 +205,14 @@ class TestDataFlowExecutor:
         io_ctx = IOContext(
             _IOContext__node_id=proc_node,
             inputs=graph.nodes[proc_node][
-                DataFlowGraph.NodeProperty.IN_FEATURES
+                DataFlowGraph.NodeAttribute.IN_FEATURES
             ],
             outputs=graph.nodes[proc_node][
-                DataFlowGraph.NodeProperty.OUT_FEATURES
+                DataFlowGraph.NodeAttribute.OUT_FEATURES
             ],
         )
         # make sure the processor is called correctly
-        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.NODE_OBJ]
+        p = graph.nodes[proc_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
         p.process.assert_has_calls(
             [
                 call({"a": 1, "b": 0}, 0, 0, io_ctx),
@@ -221,7 +221,7 @@ class TestDataFlowExecutor:
             ]
         )
         # make sure the aggregator is called correctly
-        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.NODE_OBJ]
+        a = graph.nodes[agg_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
         mock_manager.aggregate.assert_called_with(
             a, {"a": [1, 2, 3], "b": [0, 0, 0]}, [0, 1, 2], 0
         )
