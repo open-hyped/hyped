@@ -8,7 +8,6 @@ and edges (data flow between processors).
 
 from __future__ import annotations
 
-import uuid
 from enum import Enum
 from functools import wraps
 from itertools import groupby
@@ -304,6 +303,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         Raises:
             AssertionError: If the processor type is invalid.
             AssertionError: If the graph is cyclic after adding the new node.
+            AssertionError: If the partition cannot be inferred.
             RuntimeError: If any input reference does not belong to this data flow.
         """
         # get processor type
@@ -376,11 +376,10 @@ class DataFlowGraph(nx.MultiDiGraph):
                 partition = DataFlowGraph.PredefinedPartition.DEFAULT.value
 
         # partition could not be inferred
-        if partition is None:
-            raise RuntimeError(
-                "Partition cannot be inferred for source nodes, "
-                "i.e. nodes without any input references."
-            )
+        assert partition is not None, (
+            "Partition cannot be inferred for source nodes, "
+            "i.e. nodes without any input references."
+        )
 
         # add the node to the graph
         node_id = self.number_of_nodes()

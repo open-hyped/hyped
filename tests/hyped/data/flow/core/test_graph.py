@@ -2,6 +2,7 @@ import pytest
 from datasets import Features, Value
 
 from hyped.data.flow.core.graph import DataFlowGraph
+from hyped.data.flow.core.nodes.const import Const
 from hyped.data.flow.core.refs.ref import AggregationRef, FeatureRef
 
 from .mock import MockAggregator, MockInputRefs, MockOutputRefs, MockProcessor
@@ -105,6 +106,77 @@ class TestDataFlowGraph:
                 graph[src_node_id][node_id][n][DataFlowGraph.EdgeAttribute.KEY]
                 == r.key_
             )
+
+    def test_partition(self):
+        # create graph
+        graph = DataFlowGraph()
+        # add source node
+        src_features = Features({"x": Value("int64")})
+        src_node_id = graph.add_source_node(src_features)
+
+        # source node is part of the default partition
+        # this is by definition of the default partition: all child nodes
+        # of the source node are part of the the default partition
+        assert (
+            graph.nodes[src_node_id][DataFlowGraph.NodeAttribute.PARTITION]
+            == DataFlowGraph.PredefinedPartition.DEFAULT
+        )
+
+        # create processor
+        p = MockProcessor()
+        i = MockInputRefs(
+            a=graph.get_node_output_ref(src_node_id).x,
+            b=graph.get_node_output_ref(src_node_id).x,
+        )
+        o = p._out_refs_type.build_features(p.config, i)
+        # add processor to graph
+        node_id = graph.add_processor_node(p, i, o)
+
+        # the processor is a child of the source node and thus
+        # should be part of the default partition
+        assert (
+            graph.nodes[node_id][DataFlowGraph.NodeAttribute.PARTITION]
+            == DataFlowGraph.PredefinedPartition.DEFAULT
+        )
+
+        # add constant node
+        c = Const(value=0)
+        co = c._out_refs_type.build_features(c.config, None)
+        const_node = graph.add_processor_node(c, None, co)
+
+        # create processor
+        p = MockProcessor()
+        i = MockInputRefs(
+            a=graph.get_node_output_ref(const_node).value,
+            b=graph.get_node_output_ref(src_node_id).x,
+        )
+        o = p._out_refs_type.build_features(p.config, i)
+        # add processor to graph
+        node_id = graph.add_processor_node(p, i, o)
+
+        # the processor inherits from a constant and the source node
+        # so it should still be part of the default partition
+        assert (
+            graph.nodes[node_id][DataFlowGraph.NodeAttribute.PARTITION]
+            == DataFlowGraph.PredefinedPartition.DEFAULT
+        )
+
+        # create processor
+        p = MockProcessor()
+        i = MockInputRefs(
+            a=graph.get_node_output_ref(const_node).value,
+            b=graph.get_node_output_ref(const_node).value,
+        )
+        o = p._out_refs_type.build_features(p.config, i)
+        # add processor to graph
+        node_id = graph.add_processor_node(p, i, o)
+
+        # the processor inherits only from constant nodes and
+        # thus it's output is also considered to be constant
+        assert (
+            graph.nodes[node_id][DataFlowGraph.NodeAttribute.PARTITION]
+            == DataFlowGraph.PredefinedPartition.CONST
+        )
 
     def test_depth_and_width(self):
         # create graph
