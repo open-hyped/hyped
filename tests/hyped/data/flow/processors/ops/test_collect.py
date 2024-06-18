@@ -71,10 +71,10 @@ class TestNestedContainer:
 
 
 int_ref = FeatureRef(
-    key_="int", feature_=Value("int32"), node_id_=0, flow_=None
+    key_="int", feature_=Value("int32"), node_id_="0", flow_=None
 )
 str_ref = FeatureRef(
-    key_="str", feature_=Value("string"), node_id_=1, flow_=None
+    key_="str", feature_=Value("string"), node_id_="1", flow_=None
 )
 
 

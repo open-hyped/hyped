@@ -56,13 +56,14 @@ class TestBaseDataProcessor:
         out_features = Features({"out": Value("int32")})
         # mock flow instance
         mock_flow = MagicMock()
+        mock_flow.add_processor_node = MagicMock(return_value="")
         # create processor instance
         proc = MockProcessor()
         # create mock inputs
         mock_inputs = MockInputRefs(
             x=FeatureRef(
                 key_=tuple(),
-                node_id_=-1,
+                node_id_="",
                 flow_=mock_flow,
                 feature_=Value("int32"),
             )

@@ -123,12 +123,11 @@ class TestDataAggregator:
         # mock input value, flow and node id
         mock_x = MagicMock()
         mock_flow = MagicMock()
-        mock_node_id = MagicMock()
 
         # create the mock input ref instance
         mock_in_ref = MagicMock()
         mock_in_ref.flow = mock_flow
-        mock_in_ref.flow.add_processor_node.return_value = mock_node_id
+        mock_in_ref.flow.add_processor_node = MagicMock(return_value="")
 
         # create the mock aggregator
         mock_aggregator = MockAggregator()
@@ -146,7 +145,7 @@ class TestDataAggregator:
 
         # make sure the aggregation reference is correct
         assert ref == AggregationRef(
-            node_id_=mock_node_id, flow_=mock_flow, type_=MagicMock
+            node_id_="", flow_=mock_flow, type_=MagicMock
         )
 
     def test_properties(self):

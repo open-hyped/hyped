@@ -22,7 +22,7 @@ def test_binary_op_constant_inputs_handler():
     )
     # create a feature reference instance
     ref = FeatureRef(
-        node_id_=-1, key_=tuple(), flow_=mock_flow, feature_=Value("int32")
+        node_id_="", key_=tuple(), flow_=mock_flow, feature_=Value("int32")
     )
 
     # expected error on only constant inputs

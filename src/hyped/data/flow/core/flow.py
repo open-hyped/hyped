@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from functools import partial
+from functools import cached_property, partial
 from itertools import groupby
 from types import MappingProxyType
 from typing import Any, Literal, TypeVar
@@ -78,17 +78,10 @@ class DataFlow(object):
         Args:
             features (datasets.Features): The features of the source node.
         """
-        # create graph
+        # create graph and add the source node
         self._graph = DataFlowGraph()
-
-        self._src_node_id = self._graph.add_source_node(features)
-        self._src_feature_ref = FeatureRef(
-            key_=tuple(),
-            feature_=features,
-            node_id_=self._src_node_id,
-            flow_=self._graph,
-        )
-        # lazy executor instance, created in build
+        self._graph.add_source_node(features)
+        # lazy executor instance, set in build
         self._executor: None | LazyInstance[DataFlowExecutor] = None
 
     @property
@@ -117,14 +110,21 @@ class DataFlow(object):
         """
         return self._graph.width
 
-    @property
+    @cached_property
     def src_features(self) -> FeatureRef:
         """Get the source features.
 
         Returns:
             FeatureRef: The reference to the source features.
         """
-        return self._src_feature_ref
+        return FeatureRef(
+            key_=tuple(),
+            feature_=self._graph.nodes[self._graph.src_node_id][
+                DataFlowGraph.NodeAttribute.OUT_FEATURES
+            ],
+            node_id_=self._graph.src_node_id,
+            flow_=self._graph,
+        )
 
     @property
     def out_features(self) -> FeatureRef:
@@ -250,24 +250,14 @@ class DataFlow(object):
 
         # optimize data flow graph
         optim = DataFlowGraphOptimizer()
-        optim_graph, node_mapping = optim.optimize(self._graph, leaf_nodes)
+        optim_graph = optim.optimize(self._graph, leaf_nodes)
 
         # update collect reference to optimized graph
-        collect = collect.model_copy(
-            update=dict(
-                node_id_=node_mapping[collect.node_id_], flow_=optim_graph
-            )
-        )
+        collect = collect.model_copy(update=dict(flow_=optim_graph))
 
         aggregation_manager = None
         # create the aggregation manager
         if aggregators is not None:
-            aggregators = {
-                name: optim_graph.nodes[node_mapping[ref.node_id_]][
-                    DataFlowGraph.NodeAttribute.NODE_OBJ
-                ]
-                for name, ref in aggregators.items()
-            }
             in_features = {name: None for name in aggregators.keys()}  # TODO
             aggregation_manager = DataAggregationManager(
                 aggregators, in_features
@@ -557,7 +547,7 @@ class DataFlow(object):
         node_labels = {}
         # build node labels
         for node, data in self._graph.nodes(data=True):
-            if node == self._src_node_id:
+            if node == self._graph.src_node_id:
                 # add root node label
                 node_labels[node] = src_node_label
 

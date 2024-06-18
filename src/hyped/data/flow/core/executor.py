@@ -64,11 +64,11 @@ class ExecutionState(object):
 
         self.graph = graph
 
-    async def wait_for(self, node_id: int) -> None:
+    async def wait_for(self, node_id: str) -> None:
         """Wait until the specified node is ready.
 
         Args:
-            node_id (int): The ID of the node to wait for.
+            node_id (str): The ID of the node to wait for.
         """
         if node_id in self.ready:
             await self.ready[node_id].wait()
@@ -104,11 +104,11 @@ class ExecutionState(object):
 
         return batch
 
-    def collect_inputs(self, node_id: int) -> tuple[Batch, list[int]]:
+    def collect_inputs(self, node_id: str) -> Batch:
         """Collect inputs for a given node.
 
         Args:
-            node_id (int): The ID of the node for which to collect inputs.
+            node_id (str): The ID of the node for which to collect inputs.
 
         Returns:
             Batch: The collected inputs to the processor
@@ -146,11 +146,11 @@ class ExecutionState(object):
 
         return inputs
 
-    def capture_output(self, node_id: int, output: Batch) -> None:
+    def capture_output(self, node_id: str, output: Batch) -> None:
         """Capture the output of a node.
 
         Args:
-            node_id (int): The ID of the node producing the output.
+            node_id (str): The ID of the node producing the output.
             output (Batch): The output batch of data.
 
         Raises:
@@ -200,11 +200,11 @@ class DataFlowExecutor(object):
         self.collect = collect
         self.aggregation_manager = aggregation_manager
 
-    async def execute_node(self, node_id: int, state: ExecutionState):
+    async def execute_node(self, node_id: str, state: ExecutionState):
         """Execute a single node in the data flow graph.
 
         Args:
-            node_id (int): The ID of the node to execute.
+            node_id (str): The ID of the node to execute.
             state (ExecutionState): The current execution state.
 
         Raises:

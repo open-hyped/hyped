@@ -130,7 +130,7 @@ def optimize_test_cases():
     node_id_2 = add_processor(graph, src_node_id, src_node_id)
     # create target to simple graph
     target, src_node_id = new_graph()
-    node_id_1 = add_processor(target, src_node_id, src_node_id)
+    node_id_3 = add_processor(target, src_node_id, src_node_id)
     # add test case
     test_cases.append((graph, target, node_id_1))
     test_cases.append((graph, target, node_id_2))
@@ -155,7 +155,7 @@ def optimize_test_cases():
 def test_optimizer_cse(graph, target):
     # apply cse
     optim = DataFlowGraphOptimizer()
-    cse_graph, _ = optim.cse(graph)
+    cse_graph = optim.cse(graph)
     # check topology of cse graph
     assert nx.is_isomorphic(cse_graph, target)
 
@@ -164,6 +164,6 @@ def test_optimizer_cse(graph, target):
 def test_optimizer(graph, target, leaf_node):
     # apply cse
     optim = DataFlowGraphOptimizer()
-    optim_graph, _ = optim.optimize(graph, {leaf_node})
+    optim_graph = optim.optimize(graph, {leaf_node})
     # check topology of cse graph
     assert nx.is_isomorphic(optim_graph, target)

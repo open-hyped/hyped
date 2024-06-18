@@ -58,7 +58,8 @@ class FeatureRef(BaseModel):
     The key is used to locate and access the feature within the outputs
     of a node in the data flow.
     """
-    node_id_: int
+
+    node_id_: str
     """
     The identifier of the node within the data flow graph.
 
@@ -398,7 +399,7 @@ class AggregationRef(BaseModel):
         type_ (type): The type of the aggregation value.
     """
 
-    node_id_: int
+    node_id_: str
     """The ID of the aggregation node."""
 
     flow_: object
@@ -409,7 +410,10 @@ class AggregationRef(BaseModel):
 
 
 NONE_REF = FeatureRef(
-    key_="__NONE__", node_id_=-1, flow_=None, feature_=Value("int32")
+    key_="__NONE__",
+    node_id_="__NONE_NODE_ID__",
+    flow_=None,
+    feature_=Value("int32"),
 )
 """A special instance of :class:`FeatureRef` used to mark :code:`None` features.
 

@@ -41,7 +41,7 @@ class BaseDataProcessorTest:
     def input_refs(self, processor) -> InputRefs:
         cls = type(self)
 
-        n, f = -1, MagicMock()
+        n, f = "in", MagicMock()
         input_refs = {
             k: FeatureRef(key_=k, feature_=v, node_id_=n, flow_=f)
             for k, v in cls.input_features.items()
@@ -52,7 +52,7 @@ class BaseDataProcessorTest:
     def output_refs(self, processor, input_refs) -> OutputRefs:
         return processor._out_refs_type(
             input_refs.flow,
-            -1,
+            "out",
             processor._out_refs_type.build_features(
                 processor.config, input_refs
             ),

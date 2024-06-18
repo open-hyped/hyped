@@ -53,6 +53,8 @@ class TestDataFlow:
 
     def test_batch_process(self, setup_flow, mock_manager):
         flow, graph, const_node, proc_node, agg_node = setup_flow
+        print("+FLOW", id(flow._graph))
+        print("+INIT", id(graph))
 
         out_ref = graph.get_node_output_ref(proc_node)
         agg_ref = graph.get_node_output_ref(agg_node)
@@ -76,6 +78,12 @@ class TestDataFlow:
                 DataFlowGraph.NodeAttribute.OUT_FEATURES
             ],
         )
+
+        print(proc_node)
+        print(out_ref.node_id_)
+
+        print("+FLOW", id(flow._graph))
+        print("+INIT", id(graph))
 
         # make sure the processor is called correctly
         p = graph.nodes[proc_node][DataFlowGraph.NodeAttribute.NODE_OBJ]

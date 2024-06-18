@@ -178,14 +178,14 @@ class OutputRefs(FeatureRef, BaseModelWithTypeValidation):
     def __init__(
         self,
         flow: object,
-        node_id: int,
+        node_id: str,
         features: Features,
     ) -> None:
         """Initialize the OutputRefs instance.
 
         Args:
             flow (DataFlowGraph): The data flow graph.
-            node_id (int): The node id of the node generating the ouput.
+            node_id (str): The node id of the node generating the ouput.
             features (Features): The output features, typically build by the :class:`build_features` method.
         """
         super(OutputRefs, self).__init__(

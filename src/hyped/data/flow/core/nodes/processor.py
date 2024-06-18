@@ -79,7 +79,7 @@ class IOContext:
     call, i.e., the specific node in the flow graph.
     """
 
-    __node_id: int
+    __node_id: str
     """The id of the processor node in the data flow graph.
 
     This attribute serves as a unique identifier for the context, ensuring each processor

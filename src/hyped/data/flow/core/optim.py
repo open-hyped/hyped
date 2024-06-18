@@ -19,19 +19,23 @@ which can be applied individually or in combination to optimize a given data flo
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from itertools import groupby
 
+from datasets import Features, Value
+
 from hyped.common.feature_key import FeatureKey
-from hyped.data.flow.core.nodes.const import Const
-from hyped.data.flow.core.refs.inputs import InputRefs
-from hyped.data.flow.core.refs.ref import FeatureRef
 from hyped.data.flow.processors.ops.collect import (
     CollectFeatures,
     NestedContainer,
 )
 
+from .executor import DataFlowExecutor
 from .graph import DataFlowGraph
+from .nodes.const import Const
+from .refs.inputs import InputRefs
+from .refs.ref import FeatureRef
 
 
 class DataFlowGraphOptimizer(object):
@@ -89,10 +93,13 @@ class DataFlowGraphOptimizer(object):
             node_type: DataFlowGraph.NodeType
             node_config: str
             in_edge_identifiers: list[tuple[int, str, FeatureKey]]
-            node_id: int = field(default=-1, compare=False)
+            node_id: str = field(default=None, compare=False)
 
         cse_graph = DataFlowGraph()
-        node_id_mapping: dict[int, int] = {}
+        # maps nodes of the original graph to the nodes in the cse-graph
+        # this is a non-injective function as multiple nodes in the original
+        # graph can be mapped to the same target node during optimization
+        node_mapping = dict()
 
         key = lambda n: graph.nodes[n][DataFlowGraph.NodeAttribute.DEPTH]
         for _, layer in groupby(sorted(graph, key=key), key=key):
@@ -103,7 +110,7 @@ class DataFlowGraphOptimizer(object):
                 # source nodes mapped to nodes in optimized graph
                 in_edge_identifiers = [
                     (
-                        node_id_mapping[src_node_id],
+                        node_mapping[src_node_id],
                         edge_data[DataFlowGraph.EdgeAttribute.NAME],
                         edge_data[DataFlowGraph.EdgeAttribute.KEY],
                     )
@@ -121,10 +128,10 @@ class DataFlowGraphOptimizer(object):
                     in_edge_identifiers=in_edge_identifiers,
                 )
 
+                # do not add a new node if the node is already present in the layer
                 if identifier in cse_layer:
-                    # add entry to mapping
-                    cse_node = cse_layer[cse_layer.index(identifier)]
-                    node_id_mapping[node_id] = cse_node.node_id
+                    identifier = cse_layer[cse_layer.index(identifier)]
+                    node_mapping[node_id] = identifier.node_id
 
                 else:
                     # read node feature properties
@@ -138,7 +145,7 @@ class DataFlowGraphOptimizer(object):
                     if obj is None:
                         # add source node to optimized graph
                         identifier.node_id = cse_graph.add_source_node(
-                            out_features
+                            out_features, node_id=node_id
                         )
 
                     else:
@@ -173,14 +180,15 @@ class DataFlowGraphOptimizer(object):
 
                         # add the node to the optimized graph
                         identifier.node_id = cse_graph.add_processor_node(
-                            obj, inputs, out_features
+                            obj, inputs, out_features, node_id=node_id
                         )
 
                     # update cse layer and node id mapping
                     cse_layer.append(identifier)
-                    node_id_mapping[node_id] = identifier.node_id
+                    # the node keeps the same id
+                    node_mapping[node_id] = node_id
 
-        return cse_graph, node_id_mapping
+        return cse_graph
 
     def constant_folding(self, graph: DataFlowGraph) -> DataFlowGraph:
         """Performs constant folding optimization on the data flow graph.
@@ -195,8 +203,6 @@ class DataFlowGraphOptimizer(object):
 
         .. code-block:: python
 
-            x = 10
-            y = 5
             z = x + (-y)
 
         After applying constant folding optimization, the expression :code:`x + (-y)` is
@@ -204,8 +210,6 @@ class DataFlowGraphOptimizer(object):
 
         .. code-block:: python
 
-            x = 10
-            y = 5
             z = x - y
 
         Args:
@@ -214,29 +218,34 @@ class DataFlowGraphOptimizer(object):
         Returns:
             DataFlowGraph: The optimized data flow graph after constant folding.
         """
-        # TODO
         return graph
 
     def optimize(
-        self, graph: DataFlowGraph, leaf_nodes: set[int]
+        self, graph: DataFlowGraph, leaf_nodes: set[str]
     ) -> tuple[DataFlowGraph, dict[int, int]]:
-        """Optimizes the data flow graph.
+        """Optimizes the data flow graph for a specified set of leaf nodes.
 
         Args:
             graph (DataFlowGraph): The data flow graph.
-            leaf_nodes (set[int]): Set of leaf node IDs.
+            leaf_nodes (set[str]): Set of leaf node IDs.
 
         Returns:
             tuple[DataFlowGraph, dict[int, int]]: The optimized data flow graph and a mapping
                 of node IDs before and after optimization.
+
+        Raises:
+            AssertionError: If not all leaf nodes are contained in the optimized graph.
         """
         # build dependency graph for the given set of nodes
         graph = graph.dependency_graph(leaf_nodes)
 
         # apply common sub-expresison elimination
-        graph, leaf_nodes_mapping = self.cse(graph)
+        graph = self.cse(graph)
 
         # apply constant folding/propagation
         graph = self.constant_folding(graph)
 
-        return graph, leaf_nodes_mapping
+        # make sure all leaf nodes are present in the optimized graph
+        assert all(node_id in graph for node_id in leaf_nodes)
+
+        return graph

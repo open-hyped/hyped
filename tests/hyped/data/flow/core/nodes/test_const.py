@@ -48,7 +48,7 @@ def test_const():
     assert const.get_const_batch(4) == {"value": [0, 0, 0, 0]}
     # create a mock flow
     mock_flow = MagicMock()
-    mock_flow.add_processor_node = MagicMock(return_value=-1)
+    mock_flow.add_processor_node = MagicMock(return_value="node_id")
     # add constant value to mock flow
     out = const.to(mock_flow)
     # make sure the node was added to the mock flow
@@ -56,5 +56,5 @@ def test_const():
         const, None, Features({"value": const.config.feature})
     )
     # check the output reference
-    assert out.node_id_ == -1
+    assert out.node_id_ == "node_id"
     assert out.flow_ == mock_flow

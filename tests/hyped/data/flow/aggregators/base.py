@@ -44,7 +44,7 @@ class BaseDataAggregatorTest:
     @pytest.fixture
     def input_refs(self, aggregator) -> InputRefs:
         cls = type(self)
-        n, f = -1, MagicMock()
+        n, f = "in", MagicMock()
         input_refs = {
             k: FeatureRef(key_=k, feature_=v, node_id_=n, flow_=f)
             for k, v in cls.input_features.items()
@@ -54,7 +54,7 @@ class BaseDataAggregatorTest:
     @pytest.fixture
     def aggregation_ref(self, aggregator, input_refs) -> AggregationRef:
         return AggregationRef(
-            node_id_=-1, flow_=input_refs.flow, type_=aggregator._value_type
+            node_id_="out", flow_=input_refs.flow, type_=aggregator._value_type
         )
 
     @pytest.fixture

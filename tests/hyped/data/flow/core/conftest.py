@@ -21,6 +21,7 @@ def reset_mocks():
 def setup_graph():
     # create graph
     graph = DataFlowGraph()
+    print("INIT", id(graph))
     # add source node
     src_features = Features({"x": Value("int64")})
     src_node = graph.add_source_node(src_features)
@@ -60,8 +61,10 @@ def setup_state(setup_graph):
 @pytest.fixture
 def setup_flow(setup_graph):
     graph, const_node, proc_node, agg_node = setup_graph
+    print("FLOW", id(graph))
     # create data flow
     flow = DataFlow(Features({"x": Value("int64")}))
     flow._graph = graph
+    print(id(flow._graph))
     # return setup
     return flow, graph, const_node, proc_node, agg_node
