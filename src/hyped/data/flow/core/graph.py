@@ -222,10 +222,15 @@ class DataFlowGraph(nx.MultiDiGraph):
             *args: Positional arguments forwarded to the init of the :class:`MultiDiGraph`.
             **kwargs: Keyword arguments forwarded to the init of the :class:`MultiDiGraph`.
         """
-        kwargs[DataFlowGraph.GraphProperty.SRC_NODE_ID] = kwargs.get(
-            DataFlowGraph.GraphProperty.SRC_NODE_ID, None
-        )
         super(DataFlowGraph, self).__init__(*args, **kwargs)
+
+        # set default source node id
+        if DataFlowGraph.GraphProperty.SRC_NODE_ID not in self.graph:
+            self.graph[DataFlowGraph.GraphProperty.SRC_NODE_ID] = None
+
+        # reset source node id for subgraphs
+        if (self.src_node_id is not None) and (self.src_node_id not in self):
+            self.graph[DataFlowGraph.GraphProperty.SRC_NODE_ID] = None
 
     @property
     def src_node_id(self) -> str:
@@ -505,3 +510,108 @@ class DataFlowGraph(nx.MultiDiGraph):
             nodes.update(self.predecessors(node))
 
         return self.subgraph(visited)
+
+    def get_partition(self, partition: str) -> DataFlowGraph:
+        """Extract a subgraph containing only nodes from a specific partition.
+
+        This method creates a subgraph from the current graph by selecting
+        nodes that belong to a specified partition.
+
+        Args:
+            partition (str): The partition identifier.
+
+        Returns:
+            DataFlowGraph: The subgraph containing nodes of the specified partition.
+        """
+        # get all nodes to the provided partition
+        partition = [
+            i
+            for i, data in self.nodes(data=True)
+            if data[DataFlowGraph.NodeAttribute.PARTITION] == partition
+        ]
+        # build the sub-graph of only the provided partition
+        return self.subgraph(partition)
+
+    def drop_partition(self, partition: str) -> DataFlowGraph:
+        """Drop a specified partition from the graph.
+
+        This method creates a subgraph from the current graph by excluding
+        nodes that belong to a specified partition.
+
+        Args:
+            partition (str): The partition identifier.
+
+        Returns:
+            DataFlowGraph: The subgraph excluding nodes of the specified partition.
+        """
+        # get all nodes to the provided partition
+        remainder = [
+            i
+            for i, data in self.nodes(data=True)
+            if data[DataFlowGraph.NodeAttribute.PARTITION] != partition
+        ]
+        # build the sub-graph of only the provided partition
+        return self.subgraph(remainder)
+
+    def subgraph_in_edges(
+        self, subgraph: DataFlowGraph, data: bool | EdgeAttribute = False
+    ) -> list[tuple[int, int] | tuple[int, int, Any]]:
+        """Get incoming edges to a subgraph from nodes outside the subgraph.
+
+        This method returns a list of edges that point to nodes within the
+        specified subgraph from nodes outside the subgraph.
+
+        Args:
+            subgraph (DataFlowGraph): The subgraph of interest.
+            data (bool | EdgeAttribute): Whether to include edge data. If set to
+                :code:`True` or an :class:`EdgeAttribute`, the method returns edges with data.
+
+        Returns:
+            list[tuple[int, int] | tuple[int, int, Any]]: The incoming edges
+            to the subgraph.
+        """
+        return [
+            e
+            for e in self.in_edges(subgraph, data=data)
+            if e[0] not in subgraph
+        ]
+
+    def subgraph_out_edges(
+        self, subgraph: DataFlowGraph, data: bool | EdgeAttribute = False
+    ) -> list[tuple[int, int] | tuple[int, int, Any]]:
+        """Get outgoing edges from a subgraph to nodes outside the subgraph.
+
+        This method returns a list of edges that point from nodes within the
+        specified subgraph to nodes outside the subgraph.
+
+        Args:
+            subgraph (DataFlowGraph): The subgraph of interest.
+            data (bool | EdgeAttribute): Whether to include edge data. If set to
+                :code:`True` or an :class:`EdgeAttribute`, the method returns edges with data.
+
+        Returns:
+            list[tuple[int, int] | tuple[int, int, Any]]: The outgoing edges
+            from the subgraph.
+        """
+        return [
+            e
+            for e in self.out_edges(subgraph, data=data)
+            if e[1] not in subgraph
+        ]
+
+    def recompute_depths(self) -> None:
+        """Recompute the depth of all nodes in the data flow graph.
+
+        This method recalculates the depth of each node based on the topological
+        order of the graph. The depth of a node is defined as the length of the
+        longest path from the source node to the node.
+        """
+        for node_id in nx.topological_sort(self):
+            self.nodes[node_id][DataFlowGraph.NodeAttribute.DEPTH] = max(
+                (
+                    self.nodes[in_node_id][DataFlowGraph.NodeAttribute.DEPTH]
+                    + 1
+                    for in_node_id, _ in self.in_edges(node_id)
+                ),
+                default=0,
+            )

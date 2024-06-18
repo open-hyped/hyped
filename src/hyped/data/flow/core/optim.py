@@ -5,13 +5,17 @@ techniques to improve program efficiency and reduce redundant computations.
 
 The optimizer module includes methods for optimizing data flow graphs, such as:
 
-1. Prune Redundant Nodes: The optimizer prunes the data flow graph, removing nodes that
+1. **Prune Redundant Nodes**: The optimizer prunes the data flow graph, removing nodes that
    do not contribute to producing the desired output.
 
-2. Common Subexpression Elimination (CSE): Identifies and eliminates redundant computations
+2. **Constant Expression Evaluation**: Pre-computes the constant partition of the graph, which consists
+   solely of constant values and has no dependencies on other parts of the graph, and replaces
+   these constants with their computed values.
+
+3. **Common Subexpression Elimination (CSE)**: Identifies and eliminates redundant computations
    by recognizing and reusing common subexpressions in the data flow graph.
 
-3. Constant Folding/Propagation: Evaluates constant expressions at compile time and replaces
+4. **Constant Folding/Propagation**: Evaluates constant expressions at compile time and replaces
    them with their computed values to simplify the data flow graph.
 
 The DataFlowGraphOptimizer class within this module provides these optimization methods,
@@ -46,8 +50,14 @@ class DataFlowGraphOptimizer(object):
     steps include:
 
     1. Prune Unnecessary Nodes
-    2. Common Subexpression Elimination (CSE)
-    3. Constant Folding/Propagation
+    2. Constant Expressions Evaluation
+    3. Common Subexpression Elimination (CSE)
+    4. Constant Folding/Propagation
+
+    Note the difference between constant expression evaluation and constant folding. Constant expression evaluation
+    focuses on evaluating the constant partition of the graph, which consists solely of constant values and has no
+    dependencies on other parts of the graph. In contrast, constant folding aims to simplify expressions that include
+    both constant and non-constant values by precomputing the constant parts of these expressions.
     """
 
     def cse(
@@ -190,6 +200,116 @@ class DataFlowGraphOptimizer(object):
 
         return cse_graph
 
+    def constant_evaluation(self, graph: DataFlowGraph) -> DataFlowGraph:
+        """Pre-computes the constant partition of the data flow graph.
+
+        This method evaluates the constant partition of the data flow graph,
+        which is self-contained and has no outside dependencies. It creates a
+        new graph from this partition, collects all outputs, and executes them
+        using a data flow executor. The evaluated constants are then re-inserted
+        into the main graph with their computed values.
+
+        Consider the following example:
+
+        .. code-block:: python
+
+            x, y = 1, 2
+            z = x + y
+
+        After applying constant evaluation, the above is expression is precomputed to
+
+        .. code-block:: python
+
+            z = 3
+
+        Args:
+            graph (DataFlowGraph): The data flow graph to be optimized.
+
+        Returns:
+            DataFlowGraph: The optimized data flow graph with evaluated constants.
+        """
+        # get the constant partition of the graph and make sure
+        # the sub-flow is self-contained, i.e. has no outside dependencies
+        const_graph = graph.get_partition(
+            DataFlowGraph.PredefinedPartition.CONST
+        )
+        assert len(graph.subgraph_in_edges(const_graph)) == 0
+
+        # check if there is anything to optimize in the constant partition
+        # there are operations to collapse only if there are any edges within
+        # the constant graph, otherwise the constant graph is either empty or
+        # all nodes in the constant partition are source nodes which cannot
+        # be optimized further
+        if len(const_graph.edges) > 0:
+            # create a new graph from the view
+            # and add a source node with no features
+            const_graph = DataFlowGraph(const_graph)
+            const_graph.add_source_node(Features({"x": Value("int32")}))
+
+            # collect the outputs of all nodes
+            collect = NestedContainer[FeatureRef](
+                data={
+                    i: const_graph.get_node_output_ref(i)
+                    for i in const_graph.nodes()
+                }
+            )
+            collect = CollectFeatures().call(collection=collect)
+
+            # create an executor for the constant partition
+            executor = DataFlowExecutor(
+                graph=const_graph, collect=collect, aggregation_manager=None
+            )
+
+            # execute the constant partition
+            loop = asyncio.new_event_loop()
+            future = executor.execute({"x": [0]}, index=[0], rank=0)
+            out = loop.run_until_complete(future)["collected"][0]
+
+            # get usage of constants in the graph
+            const_edges = graph.subgraph_out_edges(const_graph, data=True)
+
+            # drop the constant partition in the original graph
+            graph = graph.drop_partition(
+                DataFlowGraph.PredefinedPartition.CONST
+            )
+            graph = DataFlowGraph(graph)
+
+            const_lookup = dict()
+            # add all required constants
+            for const_node_id, tgt_node_id, data in const_edges:
+                key = data.pop(DataFlowGraph.EdgeAttribute.KEY)
+
+                if (const_node_id, key) not in const_lookup:
+                    # get the feature type of the constant referenced by the edge
+                    feature = const_graph.nodes[const_node_id][
+                        DataFlowGraph.NodeAttribute.OUT_FEATURES
+                    ]
+                    dtype = key.index_features(feature)
+                    # get the constant value referenced by the edge
+                    value = key.index_example(out[const_node_id])
+                    # create a new constant and add it to the data flow
+                    const = Const(value=value, dtype=dtype)
+                    ref = const.to(graph).value
+                    # add the reference to the constants lookup
+                    const_lookup[(const_node_id, key)] = ref
+
+                # get the reference object from the lookup
+                ref = const_lookup[(const_node_id, key)]
+                # add the edge to the graph
+                graph.add_edge(
+                    ref.node_id_,
+                    tgt_node_id,
+                    key=data[DataFlowGraph.EdgeAttribute.NAME],
+                    **{
+                        DataFlowGraph.EdgeAttribute.NAME: data[
+                            DataFlowGraph.EdgeAttribute.NAME
+                        ],
+                        DataFlowGraph.EdgeAttribute.KEY: ref.key_,
+                    },
+                )
+
+        return graph
+
     def constant_folding(self, graph: DataFlowGraph) -> DataFlowGraph:
         """Performs constant folding optimization on the data flow graph.
 
@@ -205,8 +325,7 @@ class DataFlowGraphOptimizer(object):
 
             z = x + (-y)
 
-        After applying constant folding optimization, the expression :code:`x + (-y)` is
-        evaluated to :code:`x - y`, resulting in the following optimized graph:
+        After applying constant folding optimization, the expression is simpified to
 
         .. code-block:: python
 
@@ -239,11 +358,17 @@ class DataFlowGraphOptimizer(object):
         # build dependency graph for the given set of nodes
         graph = graph.dependency_graph(leaf_nodes)
 
+        # evaluate all constants
+        graph = self.constant_evaluation(graph)
+
         # apply common sub-expresison elimination
         graph = self.cse(graph)
 
         # apply constant folding/propagation
         graph = self.constant_folding(graph)
+
+        # recompute all depths after optimiztion
+        graph.recompute_depths()
 
         # make sure all leaf nodes are present in the optimized graph
         assert all(node_id in graph for node_id in leaf_nodes)
