@@ -276,7 +276,7 @@ class DataFlowGraphOptimizer(object):
 
             const_lookup = dict()
             # add all required constants
-            for const_node_id, tgt_node_id, data in const_edges:
+            for const_node_id, tgt_node_id, key, data in const_edges:
                 key = data.pop(DataFlowGraph.EdgeAttribute.KEY)
 
                 if (const_node_id, key) not in const_lookup:
@@ -299,7 +299,7 @@ class DataFlowGraphOptimizer(object):
                 graph.add_edge(
                     ref.node_id_,
                     tgt_node_id,
-                    key=data[DataFlowGraph.EdgeAttribute.NAME],
+                    key=key,
                     **{
                         DataFlowGraph.EdgeAttribute.NAME: data[
                             DataFlowGraph.EdgeAttribute.NAME

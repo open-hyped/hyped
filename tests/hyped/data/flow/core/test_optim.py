@@ -39,6 +39,11 @@ def add_processor(graph, node_A, node_B, **kwargs):
 def cse_test_cases():
     test_cases = []
 
+    # create trivial case
+    graph, src_node_id = new_graph()
+    add_processor(graph, src_node_id, src_node_id)
+    test_cases.append((graph, graph))
+
     # create simple graph
     graph, src_node_id = new_graph()
     add_processor(graph, src_node_id, src_node_id)
@@ -121,8 +126,82 @@ def cse_test_cases():
     return test_cases
 
 
+def constant_evaluation_test_cases():
+    test_cases = []
+
+    graph, src_node_id = new_graph()
+    # add processors
+    node_id_1 = add_processor(graph, src_node_id, src_node_id)
+    node_id_2 = add_processor(graph, src_node_id, src_node_id)
+
+    # no constants to evaluate
+    test_cases.append((graph, graph))
+
+    graph, src_node_id = new_graph()
+    # add a constant
+    const_node_id_1 = Const(value=5).to(graph).node_id_
+    # add processors
+    node_id_1 = add_processor(graph, src_node_id, const_node_id_1)
+    node_id_2 = add_processor(graph, src_node_id, src_node_id)
+
+    # there is a constant but nothing to optimize
+    test_cases.append((graph, graph))
+
+    graph, src_node_id = new_graph()
+    # add a constant
+    const_node_id_1 = Const(value=5).to(graph).node_id_
+    const_node_id_2 = Const(value=5).to(graph).node_id_
+    # add processors
+    node_id_1 = add_processor(graph, const_node_id_1, const_node_id_2)
+    node_id_2 = add_processor(graph, const_node_id_1, const_node_id_2)
+    add_processor(graph, src_node_id, node_id_1)
+    add_processor(graph, src_node_id, node_id_2)
+
+    target, src_node_id = new_graph()
+    # both processor nodes should be evaluated to constant nodes
+    const_node_id_1 = Const(value={"y": 0}).to(target).node_id_
+    const_node_id_2 = Const(value={"y": 0}).to(target).node_id_
+    add_processor(target, src_node_id, const_node_id_1)
+    add_processor(target, src_node_id, const_node_id_2)
+
+    test_cases.append((graph, target))
+
+    graph, src_node_id = new_graph()
+    # add a constant
+    const_node_id_1 = Const(value=5).to(graph).node_id_
+    const_node_id_2 = Const(value=5).to(graph).node_id_
+    # add processors
+    node_id_1 = add_processor(graph, const_node_id_1, const_node_id_2)
+    node_id_2 = add_processor(graph, const_node_id_1, const_node_id_2)
+    node_id_3 = add_processor(graph, node_id_2, node_id_1)
+    node_id_4 = add_processor(graph, src_node_id, src_node_id)
+    add_processor(graph, src_node_id, node_id_3)
+    add_processor(graph, node_id_4, const_node_id_1)
+
+    target, src_node_id = new_graph()
+    # both processor nodes should be evaluated to constant nodes
+    const_node_id_1 = (
+        Const(value={"y": 0}).to(target).node_id_
+    )  # original node_id_3
+    const_node_id_2 = (
+        Const(value={"value": 5}).to(target).node_id_
+    )  # original const_node_id_1
+    node_id_4 = add_processor(target, src_node_id, src_node_id)
+    add_processor(target, src_node_id, const_node_id_1)
+    add_processor(target, node_id_4, const_node_id_2)
+
+    test_cases.append((graph, target))
+
+    return test_cases
+
+
 def optimize_test_cases():
     test_cases = []
+
+    # create trivial case
+    graph, src_node_id = new_graph()
+    node_id_1 = add_processor(graph, src_node_id, src_node_id)
+    test_cases.append((graph, graph, node_id_1))
 
     # create simple graph
     graph, src_node_id = new_graph()
@@ -151,19 +230,48 @@ def optimize_test_cases():
     return test_cases
 
 
-@pytest.mark.parametrize("graph, target", cse_test_cases())
-def test_optimizer_cse(graph, target):
-    # apply cse
-    optim = DataFlowGraphOptimizer()
-    cse_graph = optim.cse(graph)
-    # check topology of cse graph
-    assert nx.is_isomorphic(cse_graph, target)
+def node_match(n1, n2):
+    node_type_1 = n1[DataFlowGraph.NodeAttribute.NODE_TYPE]
+    node_type_2 = n2[DataFlowGraph.NodeAttribute.NODE_TYPE]
+
+    if node_type_1 != node_type_2:
+        return False
+
+    if node_type_1 == DataFlowGraph.NodeType.CONST:
+        node_obj_1 = n1[DataFlowGraph.NodeAttribute.NODE_OBJ]
+        node_obj_2 = n2[DataFlowGraph.NodeAttribute.NODE_OBJ]
+
+        if node_obj_1.config.value != node_obj_2.config.value:
+            print("-" * 30)
+            print(node_obj_1.config.value)
+            print(node_obj_2.config.value)
+
+        return node_obj_1.config.value == node_obj_2.config.value
+
+    return True
 
 
-@pytest.mark.parametrize("graph, target, leaf_node", optimize_test_cases())
-def test_optimizer(graph, target, leaf_node):
-    # apply cse
-    optim = DataFlowGraphOptimizer()
-    optim_graph = optim.optimize(graph, {leaf_node})
-    # check topology of cse graph
-    assert nx.is_isomorphic(optim_graph, target)
+class TestOptimizer:
+    @pytest.mark.parametrize("graph, target", cse_test_cases())
+    def test_cse(self, graph, target):
+        # apply cse
+        optim = DataFlowGraphOptimizer()
+        cse_graph = optim.cse(graph)
+        # check topology of cse graph
+        assert nx.is_isomorphic(cse_graph, target, node_match=node_match)
+
+    @pytest.mark.parametrize("graph, target", constant_evaluation_test_cases())
+    def test_optimizer_constant_evaluation(self, graph, target):
+        # apply constant evaluation
+        optim = DataFlowGraphOptimizer()
+        optim_graph = optim.constant_evaluation(graph)
+        # check topology of the optimized graph
+        assert nx.is_isomorphic(optim_graph, target, node_match=node_match)
+
+    @pytest.mark.parametrize("graph, target, leaf_node", optimize_test_cases())
+    def test_optimize(self, graph, target, leaf_node):
+        # apply cse
+        optim = DataFlowGraphOptimizer()
+        optim_graph = optim.optimize(graph, {leaf_node})
+        # check topology of cse graph
+        assert nx.is_isomorphic(optim_graph, target, node_match=node_match)

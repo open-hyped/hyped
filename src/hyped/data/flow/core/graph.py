@@ -555,7 +555,7 @@ class DataFlowGraph(nx.MultiDiGraph):
 
     def subgraph_in_edges(
         self, subgraph: DataFlowGraph, data: bool | EdgeAttribute = False
-    ) -> list[tuple[int, int] | tuple[int, int, Any]]:
+    ) -> list[tuple[int, int, str] | tuple[int, int, str, Any]]:
         """Get incoming edges to a subgraph from nodes outside the subgraph.
 
         This method returns a list of edges that point to nodes within the
@@ -567,18 +567,18 @@ class DataFlowGraph(nx.MultiDiGraph):
                 :code:`True` or an :class:`EdgeAttribute`, the method returns edges with data.
 
         Returns:
-            list[tuple[int, int] | tuple[int, int, Any]]: The incoming edges
+            list[tuple[int, int, str] | tuple[int, int, str, Any]]: The incoming edges
             to the subgraph.
         """
         return [
             e
-            for e in self.in_edges(subgraph, data=data)
+            for e in self.in_edges(subgraph, keys=True, data=data)
             if e[0] not in subgraph
         ]
 
     def subgraph_out_edges(
         self, subgraph: DataFlowGraph, data: bool | EdgeAttribute = False
-    ) -> list[tuple[int, int] | tuple[int, int, Any]]:
+    ) -> list[tuple[int, int, str] | tuple[int, int, str, Any]]:
         """Get outgoing edges from a subgraph to nodes outside the subgraph.
 
         This method returns a list of edges that point from nodes within the
@@ -590,12 +590,12 @@ class DataFlowGraph(nx.MultiDiGraph):
                 :code:`True` or an :class:`EdgeAttribute`, the method returns edges with data.
 
         Returns:
-            list[tuple[int, int] | tuple[int, int, Any]]: The outgoing edges
+            list[tuple[int, int, str] | tuple[int, int, str, Any]]: The outgoing edges
             from the subgraph.
         """
         return [
             e
-            for e in self.out_edges(subgraph, data=data)
+            for e in self.out_edges(subgraph, keys=True, data=data)
             if e[1] not in subgraph
         ]
 

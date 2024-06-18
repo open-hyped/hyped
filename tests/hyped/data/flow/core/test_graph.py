@@ -1,3 +1,4 @@
+import networkx as nx
 import pytest
 from datasets import Features, Value
 
@@ -245,6 +246,25 @@ class TestDataFlowGraph:
         assert graph.depth == 4
         assert graph.width == 2
 
+        # get all depths
+        depths = nx.get_node_attributes(
+            graph, DataFlowGraph.NodeAttribute.DEPTH
+        )
+        # manually set all depths to -1
+        nx.set_node_attributes(graph, -1, DataFlowGraph.NodeAttribute.DEPTH)
+        assert (
+            nx.get_node_attributes(graph, DataFlowGraph.NodeAttribute.DEPTH)
+            != depths
+        )
+        # recompute the depth values
+        graph.recompute_depths()
+
+        # check if depths are recomputed correctly
+        assert (
+            nx.get_node_attributes(graph, DataFlowGraph.NodeAttribute.DEPTH)
+            == depths
+        )
+
     def test_add_processor_invalid_input(self):
         g1 = DataFlowGraph()
         g2 = DataFlowGraph()
@@ -376,3 +396,189 @@ class TestDataFlowGraph:
             node_id_2,
             node_id_3,
         }
+
+    def test_get_partition(self):
+        # create graph
+        graph = DataFlowGraph()
+        # add source node
+        src_features = Features({"x": Value("int64")})
+        src_node_id = graph.add_source_node(src_features)
+
+        # create processor
+        p = MockProcessor()
+        # create input refs from source features
+        i = MockInputRefs(
+            a=graph.get_node_output_ref(src_node_id).x,
+            b=graph.get_node_output_ref(src_node_id).x,
+        )
+        o = p._out_refs_type.build_features(p.config, i)
+        # add first level processor
+        proc_node_id = graph.add_processor_node(p, i, o)
+
+        # add constant to graph
+        c = Const(value=0)
+        co = c._out_refs_type.build_features(c.config, None)
+        const_node_id = graph.add_processor_node(c, None, co)
+
+        # get constant partition
+        const_graph = graph.get_partition(
+            DataFlowGraph.PredefinedPartition.CONST
+        )
+        # check nodes in constant partition
+        assert const_node_id in const_graph
+        assert proc_node_id not in const_graph
+        assert src_node_id not in const_graph
+
+        # get default partition
+        default_graph = graph.get_partition(
+            DataFlowGraph.PredefinedPartition.DEFAULT
+        )
+        # check nodes in default partition
+        assert const_node_id not in default_graph
+        assert proc_node_id in default_graph
+        assert src_node_id in default_graph
+
+    def test_drop_partition(self):
+        # create graph
+        graph = DataFlowGraph()
+        # add source node
+        src_features = Features({"x": Value("int64")})
+        src_node_id = graph.add_source_node(src_features)
+
+        # create processor
+        p = MockProcessor()
+        # create input refs from source features
+        i = MockInputRefs(
+            a=graph.get_node_output_ref(src_node_id).x,
+            b=graph.get_node_output_ref(src_node_id).x,
+        )
+        o = p._out_refs_type.build_features(p.config, i)
+        # add first level processor
+        proc_node_id = graph.add_processor_node(p, i, o)
+
+        # add constant to graph
+        c = Const(value=0)
+        co = c._out_refs_type.build_features(c.config, None)
+        const_node_id = graph.add_processor_node(c, None, co)
+
+        # drop constant partition
+        non_const_graph = graph.drop_partition(
+            DataFlowGraph.PredefinedPartition.CONST
+        )
+        # check nodes in default partition
+        assert const_node_id not in non_const_graph
+        assert proc_node_id in non_const_graph
+        assert src_node_id in non_const_graph
+
+        # drop default partition
+        non_default_graph = graph.drop_partition(
+            DataFlowGraph.PredefinedPartition.DEFAULT
+        )
+        # check nodes in constant partition
+        assert const_node_id in non_default_graph
+        assert proc_node_id not in non_default_graph
+        assert src_node_id not in non_default_graph
+
+    def test_subgraph_in_edges(self):
+        # create graph
+        graph = DataFlowGraph()
+        # add source node
+        src_features = Features({"x": Value("int64")})
+        src_node_id = graph.add_source_node(src_features)
+
+        # create processor
+        p = MockProcessor()
+        # create input refs from source features
+        i = MockInputRefs(
+            a=graph.get_node_output_ref(src_node_id).x,
+            b=graph.get_node_output_ref(src_node_id).x,
+        )
+        o = p._out_refs_type.build_features(p.config, i)
+        # add first level processor
+        node_id_1 = graph.add_processor_node(p, i, o)
+
+        # create input refs from first-level outputs
+        i = MockInputRefs(
+            a=graph.get_node_output_ref(node_id_1).y,
+            b=graph.get_node_output_ref(node_id_1).y,
+        )
+        o = p._out_refs_type.build_features(p.config, i)
+        # add second level processor
+        node_id_2 = graph.add_processor_node(p, i, o)
+
+        # check trivial cases
+        edges = graph.subgraph_in_edges(graph.subgraph([src_node_id]))
+        assert edges == []
+        edges = graph.subgraph_in_edges(
+            graph.subgraph([src_node_id, node_id_1])
+        )
+        assert edges == []
+        edges = graph.subgraph_in_edges(
+            graph.subgraph([src_node_id, node_id_1, node_id_2])
+        )
+        assert edges == []
+
+        # check non-trivial cases
+        edges = graph.subgraph_in_edges(graph.subgraph([node_id_1, node_id_2]))
+        assert edges == [
+            (src_node_id, node_id_1, "a"),
+            (src_node_id, node_id_1, "b"),
+        ]
+        edges = graph.subgraph_in_edges(graph.subgraph([node_id_2]))
+        assert edges == [
+            (node_id_1, node_id_2, "a"),
+            (node_id_1, node_id_2, "b"),
+        ]
+
+    def test_subgraph_out_edges(self):
+        # create graph
+        graph = DataFlowGraph()
+        # add source node
+        src_features = Features({"x": Value("int64")})
+        src_node_id = graph.add_source_node(src_features)
+
+        # create processor
+        p = MockProcessor()
+        # create input refs from source features
+        i = MockInputRefs(
+            a=graph.get_node_output_ref(src_node_id).x,
+            b=graph.get_node_output_ref(src_node_id).x,
+        )
+        o = p._out_refs_type.build_features(p.config, i)
+        # add first level processor
+        node_id_1 = graph.add_processor_node(p, i, o)
+
+        # create input refs from first-level outputs
+        i = MockInputRefs(
+            a=graph.get_node_output_ref(node_id_1).y,
+            b=graph.get_node_output_ref(node_id_1).y,
+        )
+        o = p._out_refs_type.build_features(p.config, i)
+        # add second level processor
+        node_id_2 = graph.add_processor_node(p, i, o)
+
+        # check trivial cases
+        edges = graph.subgraph_out_edges(
+            graph.subgraph([src_node_id, node_id_1, node_id_2])
+        )
+        assert edges == []
+        edges = graph.subgraph_out_edges(
+            graph.subgraph([node_id_1, node_id_2])
+        )
+        assert edges == []
+        edges = graph.subgraph_out_edges(graph.subgraph([node_id_2]))
+        assert edges == []
+
+        # check non-trivial cases
+        edges = graph.subgraph_out_edges(graph.subgraph([src_node_id]))
+        assert edges == [
+            (src_node_id, node_id_1, "a"),
+            (src_node_id, node_id_1, "b"),
+        ]
+        edges = graph.subgraph_out_edges(
+            graph.subgraph([src_node_id, node_id_1])
+        )
+        assert edges == [
+            (node_id_1, node_id_2, "a"),
+            (node_id_1, node_id_2, "b"),
+        ]
