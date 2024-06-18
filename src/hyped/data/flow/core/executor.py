@@ -56,7 +56,7 @@ class ExecutionState(object):
             if (
                 (node_id != graph.src_node_id)
                 and not isinstance(
-                    graph.nodes[node_id][DataFlowGraph.NodeProperty.NODE_OBJ],
+                    graph.nodes[node_id][DataFlowGraph.NodeAttribute.NODE_OBJ],
                     BaseDataAggregator,
                 )
             )
@@ -220,10 +220,10 @@ class DataFlowExecutor(object):
         # collect inputs for processor execution
         inputs = state.collect_inputs(node_id)
         node_obj = self.graph.nodes[node_id][
-            DataFlowGraph.NodeProperty.NODE_OBJ
+            DataFlowGraph.NodeAttribute.NODE_OBJ
         ]
         node_type = self.graph.nodes[node_id][
-            DataFlowGraph.NodeProperty.NODE_TYPE
+            DataFlowGraph.NodeAttribute.NODE_TYPE
         ]
 
         if node_type == DataFlowGraph.NodeType.CONST:
@@ -236,10 +236,10 @@ class DataFlowExecutor(object):
             io = IOContext(
                 _IOContext__node_id=node_id,
                 inputs=self.graph.nodes[node_id][
-                    DataFlowGraph.NodeProperty.IN_FEATURES
+                    DataFlowGraph.NodeAttribute.IN_FEATURES
                 ],
                 outputs=self.graph.nodes[node_id][
-                    DataFlowGraph.NodeProperty.OUT_FEATURES
+                    DataFlowGraph.NodeAttribute.OUT_FEATURES
                 ],
             )
             # run processor and check the output batch size

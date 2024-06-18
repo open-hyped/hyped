@@ -70,15 +70,15 @@ class TestDataFlow:
         io_ctx = IOContext(
             _IOContext__node_id=proc_node,
             inputs=graph.nodes[proc_node][
-                DataFlowGraph.NodeProperty.IN_FEATURES
+                DataFlowGraph.NodeAttribute.IN_FEATURES
             ],
             outputs=graph.nodes[proc_node][
-                DataFlowGraph.NodeProperty.OUT_FEATURES
+                DataFlowGraph.NodeAttribute.OUT_FEATURES
             ],
         )
 
         # make sure the processor is called correctly
-        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.NODE_OBJ]
+        p = graph.nodes[proc_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
         p.process.assert_has_calls(
             [
                 call({"a": 1, "b": 0}, 0, 0, io_ctx),
@@ -87,7 +87,7 @@ class TestDataFlow:
             ]
         )
         # make sure the aggregator is called correctly
-        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.NODE_OBJ]
+        a = graph.nodes[agg_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
         mock_manager.aggregate.assert_called_with(
             a, {"a": [1, 2, 3], "b": [0, 0, 0]}, [0, 1, 2], 0
         )
@@ -145,8 +145,8 @@ class TestDataFlow:
         out_ref = graph.get_node_output_ref(proc_node)
         agg_ref = graph.get_node_output_ref(agg_node)
         # get the processor and aggregator instance
-        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.NODE_OBJ]
-        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.NODE_OBJ]
+        p = graph.nodes[proc_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
+        a = graph.nodes[agg_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
 
         # create dummy dataset
         ds = datasets.Dataset.from_dict(
@@ -165,10 +165,10 @@ class TestDataFlow:
         io_ctx = IOContext(
             _IOContext__node_id=proc_node,
             inputs=graph.nodes[proc_node][
-                DataFlowGraph.NodeProperty.IN_FEATURES
+                DataFlowGraph.NodeAttribute.IN_FEATURES
             ],
             outputs=graph.nodes[proc_node][
-                DataFlowGraph.NodeProperty.OUT_FEATURES
+                DataFlowGraph.NodeAttribute.OUT_FEATURES
             ],
         )
         # make sure processor is called for all samples in the dataset
@@ -197,8 +197,8 @@ class TestDataFlow:
         out_ref = graph.get_node_output_ref(proc_node)
         agg_ref = graph.get_node_output_ref(agg_node)
         # get the processor and aggregator instance
-        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.NODE_OBJ]
-        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.NODE_OBJ]
+        p = graph.nodes[proc_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
+        a = graph.nodes[agg_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
 
         # create dummy dataset
         ds = datasets.DatasetDict(
@@ -226,10 +226,10 @@ class TestDataFlow:
         io_ctx = IOContext(
             _IOContext__node_id=proc_node,
             inputs=graph.nodes[proc_node][
-                DataFlowGraph.NodeProperty.IN_FEATURES
+                DataFlowGraph.NodeAttribute.IN_FEATURES
             ],
             outputs=graph.nodes[proc_node][
-                DataFlowGraph.NodeProperty.OUT_FEATURES
+                DataFlowGraph.NodeAttribute.OUT_FEATURES
             ],
         )
         # make sure processor is called for all samples in the dataset
@@ -258,8 +258,8 @@ class TestDataFlow:
         out_ref = graph.get_node_output_ref(proc_node)
         agg_ref = graph.get_node_output_ref(agg_node)
         # get the processor and aggregator instance
-        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.NODE_OBJ]
-        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.NODE_OBJ]
+        p = graph.nodes[proc_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
+        a = graph.nodes[agg_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
 
         # create dummy dataset
         ds = datasets.Dataset.from_dict(
@@ -286,10 +286,10 @@ class TestDataFlow:
         io_ctx = IOContext(
             _IOContext__node_id=proc_node,
             inputs=graph.nodes[proc_node][
-                DataFlowGraph.NodeProperty.IN_FEATURES
+                DataFlowGraph.NodeAttribute.IN_FEATURES
             ],
             outputs=graph.nodes[proc_node][
-                DataFlowGraph.NodeProperty.OUT_FEATURES
+                DataFlowGraph.NodeAttribute.OUT_FEATURES
             ],
         )
         # make sure processor is called for all samples in the dataset
@@ -318,8 +318,8 @@ class TestDataFlow:
         out_ref = graph.get_node_output_ref(proc_node)
         agg_ref = graph.get_node_output_ref(agg_node)
         # get the processor and aggregator instance
-        p = graph.nodes[proc_node][DataFlowGraph.NodeProperty.NODE_OBJ]
-        a = graph.nodes[agg_node][DataFlowGraph.NodeProperty.NODE_OBJ]
+        p = graph.nodes[proc_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
+        a = graph.nodes[agg_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
 
         # create dummy dataset
         ds = datasets.IterableDatasetDict(
@@ -354,10 +354,10 @@ class TestDataFlow:
         io_ctx = IOContext(
             _IOContext__node_id=proc_node,
             inputs=graph.nodes[proc_node][
-                DataFlowGraph.NodeProperty.IN_FEATURES
+                DataFlowGraph.NodeAttribute.IN_FEATURES
             ],
             outputs=graph.nodes[proc_node][
-                DataFlowGraph.NodeProperty.OUT_FEATURES
+                DataFlowGraph.NodeAttribute.OUT_FEATURES
             ],
         )
         # make sure processor is called for all samples in the train dataset
@@ -428,7 +428,7 @@ class TestDataFlow:
             node_label = (
                 "[ROOT]"
                 if node == graph.src_node_id
-                else type(data[DataFlowGraph.NodeProperty.NODE_OBJ]).__name__
+                else type(data[DataFlowGraph.NodeAttribute.NODE_OBJ]).__name__
             )
             assert any(
                 node_label in text.get_text() for text in ax.texts
@@ -438,8 +438,8 @@ class TestDataFlow:
         for edge in flow._graph.edges(data=True):
             _, _, data = edge
             edge_label = edge_label_format.format(
-                name=data[DataFlowGraph.EdgeProperty.NAME],
-                key=data[DataFlowGraph.EdgeProperty.KEY],
+                name=data[DataFlowGraph.EdgeAttribute.NAME],
+                key=data[DataFlowGraph.EdgeAttribute.KEY],
             )
 
             if with_edge_labels:
