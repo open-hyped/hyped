@@ -8,6 +8,7 @@ and edges (data flow between processors).
 
 from __future__ import annotations
 
+import uuid
 from enum import Enum
 from functools import wraps
 from itertools import groupby
@@ -43,6 +44,25 @@ class DataFlowGraph(nx.MultiDiGraph):
         Property representing the source node ID.
 
         This property identifies the source node ID of an edge in the graph.
+        """
+
+    class PredefinedPartition(str, Enum):
+        """Enum representing predefined partitions in the data flow graph."""
+
+        CONST = "CONSTANT"
+        """
+        Represents a partition containing all constant nodes.
+
+        This partition is predefined to include nodes that hold constant
+        values used in the data processing flow.
+        """
+
+        DEFAULT = "DEFAULT"
+        """
+        Represents the default partition for nodes.
+
+        This partition is assigned to the source node and is inherited by
+        its sub-graph.
         """
 
     class NodeType(Enum):
@@ -125,6 +145,16 @@ class DataFlowGraph(nx.MultiDiGraph):
         This property contains the output features produced by the data processor,
         encapsulated in a HuggingFace `datasets.Features` instance. It defines the
         structure and types of data that are output by this node.
+        """
+
+        PARTITION = "partition"
+        """
+        Represents the partition to which the node belongs.
+
+        Type: :code:`str`
+
+        This property indicates the specific partition of the data flow graph that
+        the node is part of, which can be used to group nodes by different semantics.
         """
 
         DEPTH = "depth"
@@ -249,6 +279,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         # return the source node id
         return node_id
 
+    # TODO: rename to more generic 'add_node'
     def add_processor_node(
         self,
         obj: BaseNode,
@@ -311,6 +342,44 @@ class DataFlowGraph(nx.MultiDiGraph):
             )
         )
 
+        partition = None
+        # infer partition of the node
+        if node_type == DataFlowGraph.NodeType.SOURCE:
+            # source node is added to the default partition
+            partition = DataFlowGraph.PredefinedPartition.DEFAULT.value
+
+        elif node_type == DataFlowGraph.NodeType.CONST:
+            # contants are added to the constant partition
+            partition = DataFlowGraph.PredefinedPartition.CONST.value
+
+        elif inputs is not None:
+            # for other node types the partition is inferred from the inputs
+            input_partitions = set(
+                [
+                    self.nodes[ref.node_id_][
+                        DataFlowGraph.NodeProperty.PARTITION
+                    ]
+                    for ref in inputs.refs
+                ]
+            )
+
+            if input_partitions == {DataFlowGraph.PredefinedPartition.CONST}:
+                # if all inputs come from the constant partition then this node
+                # is also part of the constant partition
+                partition = DataFlowGraph.PredefinedPartition.CONST.value
+
+            else:
+                # if any of the inputs are not from the constant partition
+                # then the node is part of the default partition
+                partition = DataFlowGraph.PredefinedPartition.DEFAULT.value
+
+        # partition could not be inferred
+        if partition is None:
+            raise RuntimeError(
+                "Partition cannot be inferred for source nodes, "
+                "i.e. nodes without any input references."
+            )
+
         # add the node to the graph
         node_id = self.number_of_nodes()
         self.add_node(
@@ -322,6 +391,7 @@ class DataFlowGraph(nx.MultiDiGraph):
                     None if inputs is None else inputs.features_
                 ),
                 DataFlowGraph.NodeProperty.OUT_FEATURES: output_features,
+                DataFlowGraph.NodeProperty.PARTITION: partition,
                 DataFlowGraph.NodeProperty.DEPTH: depth,
             },
         )
