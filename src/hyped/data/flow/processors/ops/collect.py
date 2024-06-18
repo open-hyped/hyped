@@ -267,27 +267,39 @@ class CollectFeatures(
             NestedContainer[str]: The container of lookup strings.
         """
 
-        def build_none_sample(feature: FeatureType) -> NestedContainer[None]:
-            """Build a sample of None values matching the expected structure of the feature."""
+        def build_nested_lookup(
+            feature: FeatureType, path: tuple = tuple()
+        ) -> NestedContainer[tuple[Hashable | int, ...]]:
+            if _path_to_str(path) in io.inputs:
+                # trivial case of the recursion
+                return NestedContainer[tuple[Hashable | int, ...]](data=path)
+
             # parse feature dictionary
             if isinstance(feature, (Features, dict)):
-                return NestedContainer[None](
-                    data={k: build_none_sample(v) for k, v in feature.items()}
+                return NestedContainer[tuple[Hashable | int, ...]](
+                    data={
+                        k: build_nested_lookup(v, path + (k,))
+                        for k, v in feature.items()
+                    }
                 )
             # parse sequence feature
             if isinstance(feature, Sequence):
                 assert feature.length >= 0
-                return NestedContainer[None](
-                    data=[build_none_sample(feature.feature)] * feature.length
+                return NestedContainer[tuple[Hashable | int, ...]](
+                    data=[
+                        build_nested_lookup(feature.feature, path + (i,))
+                        for i in range(feature.length)
+                    ]
                 )
-            # not a nested feature
-            return NestedContainer[None](data=None)
 
-        # build the lookup container by first generating a sample
-        # and then replacing the none values with the lookup strings
-        # generated from the paths
-        container = build_none_sample(io.outputs["collected"])
+            # not a nested feature
+            return NestedContainer[tuple[Hashable | int, ...]](data=path)
+
+        # build the lookup container
+        container = build_nested_lookup(io.outputs["collected"])
         container = container.map(lambda path, _: _path_to_str(path), str)
+        # make sure the lookup contains all inputs
+        assert set(container.flatten().values()) == set(io.inputs.keys())
 
         return container
 
@@ -305,6 +317,8 @@ class CollectFeatures(
         Returns:
             Batch: The processed batch.
         """
+        print(self._lookup(io))
+
         # convert dict of lists to list of dicts
         keys = inputs.keys()
         samples = [dict(zip(keys, values)) for values in zip(*inputs.values())]

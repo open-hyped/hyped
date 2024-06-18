@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, call
 
 import pytest
-from datasets import Sequence, Value
+from datasets import Features, Sequence, Value
 from pydantic import ValidationError
 
 from hyped.data.flow.core.refs.inputs import InputRefs
@@ -75,6 +75,15 @@ int_ref = FeatureRef(
 )
 str_ref = FeatureRef(
     key_="str", feature_=Value("string"), node_id_="1", flow_=None
+)
+dct_ref = FeatureRef(
+    key_="dct",
+    feature_=Features({"val": Value("int32")}),
+    node_id_="2",
+    flow_=None,
+)
+lst_ref = FeatureRef(
+    key_="lst", feature_=Sequence(Value("int32")), node_id_="3", flow_=None
 )
 
 
@@ -183,4 +192,40 @@ class TestCollectFeatures_nested(BaseCollectFeaturesTest):
             }
             for i in range(100)
         ]
+    }
+
+
+class TestCollectFeatures_nested_dict(BaseCollectFeaturesTest):
+    collection = {"a": dct_ref, "b": str_ref}
+    # inputs
+    input_features = {"a": dct_ref.feature_, "b": str_ref.feature_}
+    input_data = {
+        "a": [{"val": i} for i in range(100)],
+        "b": [str(i) for i in range(100, 200)],
+    }
+    input_index = list(range(100))
+    # expected outputs
+    expected_output_features = {
+        "collected": {"a": dct_ref.feature_, "b": str_ref.feature_}
+    }
+    expected_output_data = {
+        "collected": [{"a": {"val": i}, "b": str(100 + i)} for i in range(100)]
+    }
+
+
+class TestCollectFeatures_nested_list(BaseCollectFeaturesTest):
+    collection = {"a": lst_ref, "b": str_ref}
+    # inputs
+    input_features = {"a": lst_ref.feature_, "b": str_ref.feature_}
+    input_data = {
+        "a": [[i] for i in range(100)],
+        "b": [str(i) for i in range(100, 200)],
+    }
+    input_index = list(range(100))
+    # expected outputs
+    expected_output_features = {
+        "collected": {"a": lst_ref.feature_, "b": str_ref.feature_}
+    }
+    expected_output_data = {
+        "collected": [{"a": [i], "b": str(100 + i)} for i in range(100)]
     }
