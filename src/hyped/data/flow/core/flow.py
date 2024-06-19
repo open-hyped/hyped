@@ -202,7 +202,7 @@ class DataFlow(object):
 
         Args:
             collect (FeatureRef): The feature reference to collect.
-            aggregate (None | FeatureRef): TODO
+            aggregate (None | FeatureRef): The feature reference to aggregated values to collect.
 
         Returns:
             tuple[DataFlow, None | MappingProxyType[str, Any]]: The sub-data flow and a proxy
@@ -213,7 +213,7 @@ class DataFlow(object):
             TypeError: If the collect feature is not of type `datasets.Features` or `dict`.
             TypeError: If aggregators are provided but are not of the expected type.
             RuntimeError: If the collect feature does not belong to this flow.
-            RuntimeError: If any of the aggregators does not belong to this flow.
+            RuntimeError: If the aggregate feature does not belong to this flow.
         """
         if not isinstance(collect.feature_, (datasets.Features, dict)):
             raise TypeError(
@@ -498,9 +498,10 @@ class DataFlow(object):
         Args:
             ds (D): The dataset to process.
             collect (None | FeatureRef): The feature reference to collect. If None, uses current output features.
-            aggregate (None | FeatureRef): TODO
+            aggregate (None | FeatureRef): The feature reference to aggregated values to collect. If None,
+                uses the current aggregate features.
             **kwargs: Additional arguments for dataset mapping. Refer to the HuggingFace documentation for the
-                Datasets.map function for the respective dataset type.
+                :code:`Datasets.map` function for the respective dataset type.
 
         Returns:
             tuple[D, None | dict[str, Any] | MappingProxyType[str, Any]]: The processed dataset and a snapshot
@@ -529,8 +530,8 @@ class DataFlow(object):
         if (features is not None) and not check_feature_equals(
             features, self.src_features.feature_
         ):
-            # TODO: should only check whether the features are present
-            #       i.e. they should be a subset and don't need to match exactly
+            # TODO: should only check whether the required features are present
+            #       i.e. they can be a subset and don't need to match exactly
             raise TypeError("Dataset features do not match source features.")
 
         # build the sub data flow required to compute the requested output features

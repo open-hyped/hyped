@@ -319,6 +319,8 @@ class DataFlowGraph(nx.MultiDiGraph):
             AssertionError: If the graph is cyclic after adding the new node.
             AssertionError: If the partition cannot be inferred.
             RuntimeError: If any input reference do not belong to this data flow.
+            RuntimeError: If the input references are a mix of aggregated and non-aggregated features.
+            NotImplementedError: If the input to a non-data-processor node is an aggregated feature.
         """
         # get processor type
         node_type = (
@@ -398,8 +400,9 @@ class DataFlowGraph(nx.MultiDiGraph):
                 DataFlowGraph.PredefinedPartition.DEFAULT
                 in candidate_partitions
             ):
-                # cannot mix aggregation values with non-aggregation features
-                raise RuntimeError()
+                raise RuntimeError(
+                    "Cannot mix aggregated and non-aggregated features."
+                )
 
             elif (
                 DataFlowGraph.PredefinedPartition.AGGREGATED
