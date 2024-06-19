@@ -40,6 +40,7 @@ class LazyFlowOutput(Mapping):
         # output snapshot
         self._snapshot = None
         self._snapshot_hash = None
+        self._snapshot_keys = list(self._proxy.keys())
 
     def keys(self) -> Iterable[Hashable]:
         """Get the keys of the output features.
@@ -56,7 +57,9 @@ class LazyFlowOutput(Mapping):
             MappingProxyType[Hashable, Any]: A read-only proxy to the computed output values.
         """
         # compute hash of current values in proxy
-        proxy_hash = hash(self._proxy)
+        proxy_hash = hash(
+            tuple(self._proxy[key] for key in self._snapshot_keys)
+        )
 
         # check
         if self._snapshot_hash != proxy_hash:
@@ -113,7 +116,10 @@ class LazyFlowOutput(Mapping):
         Returns:
             str: The string representation of the LazyFlowOutput.
         """
-        return repr(dict(self))
+        return "LazyFlowOutput(input_proxy=%s, executor=%s)" % (
+            self._proxy,
+            self._executor,
+        )
 
     def __str__(self):
         """Get the string representation of the LazyFlowOutput.
