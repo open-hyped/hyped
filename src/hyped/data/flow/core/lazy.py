@@ -67,6 +67,8 @@ class LazyFlowOutput(Mapping):
             loop = asyncio.new_event_loop()
             future = self._executor.execute(inputs, index=[0], rank=0)
             output = loop.run_until_complete(future)
+            # close the event loop
+            loop.close()
             # parse the outputs and store them as the snapshot
             self._snapshot = {k: v[0] for k, v in output.items()}
 

@@ -264,6 +264,8 @@ class DataFlowGraphOptimizer(object):
             loop = asyncio.new_event_loop()
             future = executor.execute({"x": [0]}, index=[0], rank=0)
             out = loop.run_until_complete(future)["collected"][0]
+            # close the event loop
+            loop.close()
 
             # get usage of constants in the graph
             const_edges = graph.subgraph_out_edges(const_graph, data=True)
