@@ -324,47 +324,80 @@ class DataFlow(object):
                 aggregator_nodes, io_ctxs
             )
 
-            # build the aggregated partition sub-flow which is executed
-            # on top of the aggregation outputs to compute the final aggregates
+            # get the aggregator type
+            aggregate_type = self._graph.nodes[aggregate.node_id_][
+                DataFlowGraph.NodeAttribute.NODE_TYPE
+            ]
 
-            # get the aggregated and constant partition of the data flow graph
-            # the lazy partition is constructed from both partitions
-            value_graph = optim_graph.get_partition(
-                DataFlowGraph.PredefinedPartition.AGGREGATED
-            )
-            const_graph = optim_graph.get_partition(
-                DataFlowGraph.PredefinedPartition.CONST
-            )
-            # not all constants are used in the aggregated partition
-            # filter out the unused constants by building the dependency graph
-            lazy_graph = optim_graph.subgraph(chain(value_graph, const_graph))
-            lazy_graph = lazy_graph.dependency_graph({aggregate.node_id_})
-            # now introduce the source node to the lazy graph
-            # the source features to the lazy graph are the aggregator outputs
-            # managed by the aggregation manager
-            lazy_graph = DataFlowGraph(lazy_graph)
-            lazy_graph.add_source_node(
-                datasets.Features({io.node_id: io.outputs for io in io_ctxs})
-            )
-            # finally the edges from the newly introduced source node
-            # to the nodes that make use of the aggregates need to be
-            # added to the graph
-            for u, v, key, data in optim_graph.subgraph_in_edges(
-                lazy_graph, data=True
-            ):
-                lazy_graph.add_edge(
-                    lazy_graph.src_node_id,
-                    v,
-                    key=key,
-                    **{
-                        DataFlowGraph.EdgeAttribute.NAME: data[
-                            DataFlowGraph.EdgeAttribute.NAME
-                        ],
-                        DataFlowGraph.EdgeAttribute.KEY: FeatureKey(
-                            (u,) + data[DataFlowGraph.EdgeAttribute.KEY]
-                        ),
-                    },
+            if aggregate_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
+                # build a subflow that of only a single source node
+                # matching the structure of the manager's proxy values dict
+                lazy_graph = DataFlowGraph()
+                lazy_graph.add_source_node(
+                    datasets.Features(
+                        {io.node_id: io.outputs for io in io_ctxs}
+                    )
                 )
+                # update the aggregate to point to the output of the
+                # aggregator in the lazy graph
+                aggregate = FeatureRef(
+                    node_id_=lazy_graph.src_node_id,
+                    key_=(aggregate.node_id_,) + aggregate.key_,
+                    flow_=lazy_graph,
+                    feature_=aggregate.feature_,
+                )
+
+            else:
+                # extract the aggregated partition sub-flow which is executed
+                # on top of the aggregation outputs to compute the final aggregates
+
+                # get the aggregated and constant partition of the data flow graph
+                # the lazy partition is constructed from both partitions
+                value_graph = optim_graph.get_partition(
+                    DataFlowGraph.PredefinedPartition.AGGREGATED
+                )
+                const_graph = optim_graph.get_partition(
+                    DataFlowGraph.PredefinedPartition.CONST
+                )
+                # not all constants are used in the aggregated partition
+                # filter out the unused constants by building the dependency graph
+                lazy_graph = optim_graph.subgraph(
+                    chain(value_graph, const_graph)
+                )
+                lazy_graph = lazy_graph.dependency_graph({aggregate.node_id_})
+                # now introduce the source node to the lazy graph
+                # the source features to the lazy graph are the aggregator outputs
+                # managed by the aggregation manager, note how the features match
+                # the structure of the proxy values dict of the manager
+                lazy_graph = DataFlowGraph(lazy_graph)
+                lazy_graph.add_source_node(
+                    datasets.Features(
+                        {io.node_id: io.outputs for io in io_ctxs}
+                    )
+                )
+                # finally the edges from the newly introduced source node
+                # to the nodes that make use of the aggregates need to be
+                # added to the graph
+                for u, v, key, data in optim_graph.subgraph_in_edges(
+                    lazy_graph, data=True
+                ):
+                    lazy_graph.add_edge(
+                        lazy_graph.src_node_id,
+                        v,
+                        key=key,
+                        **{
+                            DataFlowGraph.EdgeAttribute.NAME: data[
+                                DataFlowGraph.EdgeAttribute.NAME
+                            ],
+                            DataFlowGraph.EdgeAttribute.KEY: FeatureKey(
+                                (u,) + data[DataFlowGraph.EdgeAttribute.KEY]
+                            ),
+                        },
+                    )
+                # update the aggregate reference to point to the corresponding
+                # node in the lazy graph, note that the node ids in the lazy graph
+                # match the ids in the original graph
+                aggregate = aggregate.model_copy(update=dict(flow_=lazy_graph))
 
             # build the lazy flow output object managing the final aggregates view
             flow._aggregates = LazyFlowOutput(
