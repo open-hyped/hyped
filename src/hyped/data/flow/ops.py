@@ -54,7 +54,7 @@ from .processors.ops.collect import CollectFeatures, NestedContainer
 
 def _handle_constant_inputs_for_binary_op(
     binary_op: Callable[[FeatureRef, FeatureRef], FeatureRef]
-) -> Callable[[FeatureRef, FeatureRef], FeatureRef]:
+) -> Callable[[FeatureRef | Any, FeatureRef | Any], FeatureRef]:
     """Decorator to handle constant inputs for binary operations on feature references.
 
     This decorator allows binary operations to be applied to a mix of feature references
@@ -67,7 +67,7 @@ def _handle_constant_inputs_for_binary_op(
             function to be decorated.
 
     Returns:
-        Callable[[FeatureRef, FeatureRef], FeatureRef]: The wrapped binary operation
+        Callable[[FeatureRef | Any, FeatureRef | Any], FeatureRef]: The wrapped binary operation
         function that can handle constant inputs.
 
     Raises:
