@@ -341,7 +341,7 @@ class DataFlowGraphOptimizer(object):
 
     def optimize(
         self, graph: DataFlowGraph, leaf_nodes: set[str]
-    ) -> tuple[DataFlowGraph, dict[int, int]]:
+    ) -> DataFlowGraph:
         """Optimizes the data flow graph for a specified set of leaf nodes.
 
         Args:
@@ -349,8 +349,7 @@ class DataFlowGraphOptimizer(object):
             leaf_nodes (set[str]): Set of leaf node IDs.
 
         Returns:
-            tuple[DataFlowGraph, dict[int, int]]: The optimized data flow graph and a mapping
-                of node IDs before and after optimization.
+            DataFlowGraph: The optimized data flow graph.
 
         Raises:
             AssertionError: If not all leaf nodes are contained in the optimized graph.

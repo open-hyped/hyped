@@ -24,7 +24,7 @@ from hyped.data.flow.core.nodes.const import Const
 from hyped.data.flow.core.nodes.processor import BaseDataProcessor
 from hyped.data.flow.core.refs.inputs import InputRefs
 from hyped.data.flow.core.refs.outputs import OutputRefs
-from hyped.data.flow.core.refs.ref import AggregationRef, FeatureRef
+from hyped.data.flow.core.refs.ref import FeatureRef
 
 
 class DataFlowGraph(nx.MultiDiGraph):
@@ -63,6 +63,8 @@ class DataFlowGraph(nx.MultiDiGraph):
         This partition is assigned to the source node and is inherited by
         its sub-graph.
         """
+
+        AGGREGATED = "AGGREGATED"
 
     class NodeType(Enum):
         """Enum representing types of nodes in the data flow graph."""
@@ -368,22 +370,47 @@ class DataFlowGraph(nx.MultiDiGraph):
 
         elif inputs is not None:
             # for other node types the partition is inferred from the inputs
-            input_partitions = set(
+            candidate_partitions = set(
                 [
                     self.nodes[ref.node_id_][
                         DataFlowGraph.NodeAttribute.PARTITION
                     ]
+                    if self.nodes[ref.node_id_][
+                        DataFlowGraph.NodeAttribute.NODE_TYPE
+                    ]
+                    != DataFlowGraph.NodeType.DATA_AGGREGATOR
+                    else DataFlowGraph.PredefinedPartition.AGGREGATED
                     for ref in inputs.refs
                 ]
             )
 
-            if input_partitions == {DataFlowGraph.PredefinedPartition.CONST}:
-                # if all inputs come from the constant partition then this node
+            if candidate_partitions == {
+                DataFlowGraph.PredefinedPartition.CONST
+            }:
+                # if all inputs come from the constant partition, then this node
                 # is also part of the constant partition
                 partition = DataFlowGraph.PredefinedPartition.CONST.value
 
+            elif (
+                DataFlowGraph.PredefinedPartition.AGGREGATED
+                in candidate_partitions
+            ) and (
+                DataFlowGraph.PredefinedPartition.DEFAULT
+                in candidate_partitions
+            ):
+                # cannot mix aggregation values with non-aggregation features
+                raise RuntimeError()
+
+            elif (
+                DataFlowGraph.PredefinedPartition.AGGREGATED
+                in candidate_partitions
+            ):
+                # if the inputs come directly from an aggregator or from the
+                # aggregated partition, then stay in the aggregated partition
+                partition = DataFlowGraph.PredefinedPartition.AGGREGATED.value
+
             else:
-                # if any of the inputs are not from the constant partition
+                # if any of the inputs are not from the constant partition,
                 # then the node is part of the default partition
                 partition = DataFlowGraph.PredefinedPartition.DEFAULT.value
 
@@ -455,7 +482,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             node_id (str): The ID of the node for which to retrieve the output reference.
 
         Returns:
-            FeatureRef | OutputRefs | AggregationRef: The output reference associated with the specified node.
+            FeatureRef | OutputRefs: The output reference associated with the specified node.
 
         Raises:
             KeyError: If the node ID does not exist in the data flow graph.
@@ -477,12 +504,6 @@ class DataFlowGraph(nx.MultiDiGraph):
             features = node[DataFlowGraph.NodeAttribute.OUT_FEATURES]
             return FeatureRef(
                 key_=tuple(), node_id_=node_id, flow_=self, feature_=features
-            )
-
-        # get aggregator and build reference
-        if node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
-            return AggregationRef(
-                node_id_=node_id, flow_=self, type_=node_obj._value_type
             )
 
         # build the output references object
