@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import re
 from functools import cached_property, partial
-from itertools import groupby
+from itertools import chain, groupby
 from types import MappingProxyType
 from typing import Any, Literal, TypeVar
 
@@ -27,10 +27,12 @@ from typing_extensions import TypeAlias
 
 from hyped.common.arrow import convert_features_to_arrow_schema
 from hyped.common.feature_checks import check_feature_equals
+from hyped.common.feature_key import FeatureKey
 from hyped.common.lazy import LazyInstance
 
 from .executor import DataFlowExecutor
 from .graph import DataFlowGraph
+from .lazy import LazyFlowOutput
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import IOContext
 from .nodes.const import Const
@@ -83,6 +85,7 @@ class DataFlow(object):
         self._graph.add_source_node(features)
         # lazy executor instance, set in build
         self._executor: None | LazyInstance[DataFlowExecutor] = None
+        self._aggregates: None | LazyFlowOutput = None
 
     @property
     def depth(self) -> int:
@@ -151,7 +154,7 @@ class DataFlow(object):
 
         Returns:
             None | MappingProxyType[str, Any]: A read-only view of the aggregated
-            values as a mapping from aggregation names to their respective values.
+            values.
 
         Raises:
             RuntimeError: If the flow has not been built yet.
@@ -161,8 +164,8 @@ class DataFlow(object):
 
         return (
             None
-            if (self._executor.aggregation_manager is None)
-            else self._executor.aggregation_manager.values_proxy
+            if self._aggregates is None
+            else MappingProxyType(self._aggregates)
         )
 
     def const(
@@ -261,6 +264,12 @@ class DataFlow(object):
         optim = DataFlowGraphOptimizer()
         optim_graph = optim.optimize(self._graph, leaf_nodes)
 
+        # build the sub-flow from the optimized graph
+        # TODO: restrict input features to only the
+        #       ones required by the sub-graph
+        flow = DataFlow(self.src_features.feature_)
+        flow._graph = optim_graph
+
         # update references to optimized graph
         collect = collect.model_copy(update=dict(flow_=optim_graph))
         aggregate = (
@@ -315,11 +324,59 @@ class DataFlow(object):
                 aggregator_nodes, io_ctxs
             )
 
-        # build the sub-flow
-        # TODO: restrict input features to only the
-        #       ones required by the sub-graph
-        flow = DataFlow(self.src_features.feature_)
-        flow._graph = optim_graph
+            # build the aggregated partition sub-flow which is executed
+            # on top of the aggregation outputs to compute the final aggregates
+
+            # get the aggregated and constant partition of the data flow graph
+            # the lazy partition is constructed from both partitions
+            value_graph = optim_graph.get_partition(
+                DataFlowGraph.PredefinedPartition.AGGREGATED
+            )
+            const_graph = optim_graph.get_partition(
+                DataFlowGraph.PredefinedPartition.CONST
+            )
+            # not all constants are used in the aggregated partition
+            # filter out the unused constants by building the dependency graph
+            lazy_graph = optim_graph.subgraph(chain(value_graph, const_graph))
+            lazy_graph = lazy_graph.dependency_graph({aggregate.node_id_})
+            # now introduce the source node to the lazy graph
+            # the source features to the lazy graph are the aggregator outputs
+            # managed by the aggregation manager
+            lazy_graph = DataFlowGraph(lazy_graph)
+            lazy_graph.add_source_node(
+                datasets.Features({io.node_id: io.outputs for io in io_ctxs})
+            )
+            # finally the edges from the newly introduced source node
+            # to the nodes that make use of the aggregates need to be
+            # added to the graph
+            for u, v, key, data in optim_graph.subgraph_in_edges(
+                lazy_graph, data=True
+            ):
+                lazy_graph.add_edge(
+                    lazy_graph.src_node_id,
+                    v,
+                    key=key,
+                    **{
+                        DataFlowGraph.EdgeAttribute.NAME: data[
+                            DataFlowGraph.EdgeAttribute.NAME
+                        ],
+                        DataFlowGraph.EdgeAttribute.KEY: FeatureKey(
+                            (u,) + data[DataFlowGraph.EdgeAttribute.KEY]
+                        ),
+                    },
+                )
+
+            # build the lazy flow output object managing the final aggregates view
+            flow._aggregates = LazyFlowOutput(
+                input_proxy=aggregation_manager.values_proxy,
+                executor=DataFlowExecutor(
+                    graph=lazy_graph,
+                    collect=aggregate,
+                    aggregation_manager=None,
+                ),
+            )
+
+        # set the executor for the optimized flow
         flow._executor = LazyInstance(
             partial(
                 DataFlowExecutor,
@@ -477,7 +534,7 @@ class DataFlow(object):
         return ds, (
             None
             if flow.aggregates is None
-            else flow.aggregates.copy()
+            else dict(flow.aggregates)
             if isinstance(ds, (datasets.Dataset, datasets.DatasetDict))
             else flow.aggregates
         )
