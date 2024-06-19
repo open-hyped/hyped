@@ -318,7 +318,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             AssertionError: If the processor type is invalid.
             AssertionError: If the graph is cyclic after adding the new node.
             AssertionError: If the partition cannot be inferred.
-            RuntimeError: If any input reference does not belong to this data flow.
+            RuntimeError: If any input reference do not belong to this data flow.
         """
         # get processor type
         node_type = (
@@ -419,6 +419,14 @@ class DataFlowGraph(nx.MultiDiGraph):
             "Partition cannot be inferred for source nodes, "
             "i.e. nodes without any input references."
         )
+
+        # aggregated partition currently only supports processor type nodes
+        if (node_type != DataFlowGraph.NodeType.DATA_PROCESSOR) and (
+            partition == DataFlowGraph.PredefinedPartition.AGGREGATED
+        ):
+            raise NotImplementedError(
+                f"Aggregator may only be processed by data processors, got {node_type}."
+            )
 
         # create the node id if it was not provided
         if node_id is None:
