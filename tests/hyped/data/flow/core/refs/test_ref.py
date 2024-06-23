@@ -1,5 +1,5 @@
 import operator
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from datasets import Features, Sequence, Value
@@ -241,6 +241,67 @@ def test_binary_ops(op, op_fn, dtype):
     with patch(op_fn) as mock:
         # apply operator
         op(refA, refB)
+        # make sure the operator function was called correctly
+        mock.assert_called_with(refA, refB)
+
+
+@pytest.mark.parametrize(
+    "op, op_fn, dtype",
+    [
+        (operator.add, "hyped.data.flow.ops.add", "int32"),
+        (operator.sub, "hyped.data.flow.ops.sub", "int32"),
+        (operator.mul, "hyped.data.flow.ops.mul", "int32"),
+        (operator.truediv, "hyped.data.flow.ops.truediv", "int32"),
+        (operator.pow, "hyped.data.flow.ops.pow", "int32"),
+        (operator.mod, "hyped.data.flow.ops.mod", "int32"),
+        (operator.floordiv, "hyped.data.flow.ops.floordiv", "int32"),
+        (operator.and_, "hyped.data.flow.ops.and_", "bool"),
+        (operator.or_, "hyped.data.flow.ops.or_", "bool"),
+        (operator.xor, "hyped.data.flow.ops.xor_", "bool"),
+    ],
+)
+def test_reflected_binary_ops(op, op_fn, dtype):
+    # create feature ref
+    ref = FeatureRef(
+        key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype)
+    )
+    # create mock value for binary operation
+    val = object()
+    # patch operator function
+    with patch(op_fn) as mock:
+        # apply reflected operator
+        op(val, ref)
+        # make sure the reflected operator function was called correctly
+        mock.assert_called_with(val, ref)
+
+
+@pytest.mark.parametrize(
+    "iop, op_fn, dtype",
+    [
+        (operator.iadd, "hyped.data.flow.ops.add", "int32"),
+        (operator.isub, "hyped.data.flow.ops.sub", "int32"),
+        (operator.imul, "hyped.data.flow.ops.mul", "int32"),
+        (operator.itruediv, "hyped.data.flow.ops.truediv", "int32"),
+        (operator.ipow, "hyped.data.flow.ops.pow", "int32"),
+        (operator.imod, "hyped.data.flow.ops.mod", "int32"),
+        (operator.ifloordiv, "hyped.data.flow.ops.floordiv", "int32"),
+        (operator.iand, "hyped.data.flow.ops.and_", "bool"),
+        (operator.ior, "hyped.data.flow.ops.or_", "bool"),
+        (operator.ixor, "hyped.data.flow.ops.xor_", "bool"),
+    ],
+)
+def test_inplace_binary_ops(iop, op_fn, dtype):
+    # create feature refs
+    refA = FeatureRef(
+        key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype)
+    )
+    refB = FeatureRef(
+        key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype)
+    )
+    # patch operator function
+    with patch(op_fn) as mock:
+        # apply in-place operator
+        iop(refA, refB)
         # make sure the operator function was called correctly
         mock.assert_called_with(refA, refB)
 

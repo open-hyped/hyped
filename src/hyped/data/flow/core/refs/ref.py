@@ -8,7 +8,7 @@ retrieve nested features within the data flow graph.
 from __future__ import annotations
 
 import json
-from typing import TypeAlias
+from typing import Any, TypeAlias
 
 from datasets.features.features import Features, FeatureType, Sequence, Value
 from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
@@ -161,11 +161,11 @@ class FeatureRef(BaseModel):
             flow_=self.flow_,
         )
 
-    def __add__(self, other: FeatureRef) -> FeatureRef:
+    def __add__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform addition with another feature.
 
         Args:
-            other (FeatureRef): Reference to the other feature reference to add.
+            other (FeatureRef | Any): Reference to the other feature reference to add.
 
         Returns:
             FeatureRef: Reference to the result of the addition.
@@ -174,11 +174,11 @@ class FeatureRef(BaseModel):
 
         return add(self, other)
 
-    def __sub__(self, other: FeatureRef) -> FeatureRef:
+    def __sub__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform subtraction with another feature.
 
         Args:
-            other (FeatureRef): Reference to the other feature reference to subtract.
+            other (FeatureRef | Any): Reference to the other feature reference to subtract.
 
         Returns:
             FeatureRef: Reference to the result of the subtraction.
@@ -187,11 +187,11 @@ class FeatureRef(BaseModel):
 
         return sub(self, other)
 
-    def __mul__(self, other: FeatureRef) -> FeatureRef:
+    def __mul__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform multiplication with another feature.
 
         Args:
-            other (FeatureRef): Reference to the other feature to multiply.
+            other (FeatureRef | Any): Reference to the other feature to multiply.
 
         Returns:
             FeatureRef: Reference to the result of the multiplication.
@@ -200,11 +200,11 @@ class FeatureRef(BaseModel):
 
         return mul(self, other)
 
-    def __truediv__(self, other: FeatureRef) -> FeatureRef:
+    def __truediv__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform division with another feature.
 
         Args:
-            other (FeatureRef): Reference to the other feature to divide.
+            other (FeatureRef | Any): Reference to the other feature to divide.
 
         Returns:
             FeatureRef: Reference to the result of the division.
@@ -213,11 +213,11 @@ class FeatureRef(BaseModel):
 
         return truediv(self, other)
 
-    def __floordiv__(self, other: FeatureRef) -> FeatureRef:
+    def __floordiv__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform floor division with another feature.
 
         Args:
-            other (FeatureRef): Reference to the other feature to floor divide.
+            other (FeatureRef | Any): Reference to the other feature to floor divide.
 
         Returns:
             FeatureRef: Reference to the result of the floor division.
@@ -226,11 +226,11 @@ class FeatureRef(BaseModel):
 
         return floordiv(self, other)
 
-    def __pow__(self, other: FeatureRef) -> FeatureRef:
+    def __pow__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform exponentiation with another feature.
 
         Args:
-            other (FeatureRef): Reference to the other feature to use as the exponent.
+            other (FeatureRef | Any): Reference to the other feature to use as the exponent.
 
         Returns:
             FeatureRef: Reference to the result of the exponentiation.
@@ -239,11 +239,11 @@ class FeatureRef(BaseModel):
 
         return pow(self, other)
 
-    def __mod__(self, other: FeatureRef) -> FeatureRef:
+    def __mod__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform modulo operation with another feature.
 
         Args:
-            other (FeatureRef): Reference to the other feature to use as the divisor.
+            other (FeatureRef | Any): Reference to the other feature to use as the divisor.
 
         Returns:
             FeatureRef: Reference to the result of the modulo operation.
@@ -252,89 +252,11 @@ class FeatureRef(BaseModel):
 
         return mod(self, other)
 
-    def __eq__(self, other: FeatureRef) -> FeatureRef:
-        """Check equality with another feature.
-
-        Args:
-            other (FeatureRef): Reference to the other feature to compare with.
-
-        Returns:
-            FeatureRef: Reference to the result of the equality comparison.
-        """
-        from hyped.data.flow.ops import eq
-
-        return eq(self, other)
-
-    def __ne__(self, other: FeatureRef) -> FeatureRef:
-        """Check inequality with another feature.
-
-        Args:
-            other (FeatureRef): Reference to the other feature to compare with.
-
-        Returns:
-            FeatureRef: Reference to the result of the inequality comparison.
-        """
-        from hyped.data.flow.ops import ne
-
-        return ne(self, other)
-
-    def __lt__(self, other: FeatureRef) -> FeatureRef:
-        """Check if less than another feature.
-
-        Args:
-            other (FeatureRef): Reference to the other feature to compare with.
-
-        Returns:
-            FeatureRef: Reference to the result of the less-than comparison.
-        """
-        from hyped.data.flow.ops import lt
-
-        return lt(self, other)
-
-    def __le__(self, other: FeatureRef) -> FeatureRef:
-        """Check if less than or equal to another feature.
-
-        Args:
-            other (FeatureRef): Reference to the other feature to compare with.
-
-        Returns:
-            FeatureRef: Reference to the result of the less-than-or-equal-to comparison.
-        """
-        from hyped.data.flow.ops import le
-
-        return le(self, other)
-
-    def __gt__(self, other: FeatureRef) -> FeatureRef:
-        """Check if greater than another feature.
-
-        Args:
-            other (FeatureRef): Reference to the other feature to compare with.
-
-        Returns:
-            FeatureRef: Reference to the result of the greater-than comparison.
-        """
-        from hyped.data.flow.ops import gt
-
-        return gt(self, other)
-
-    def __ge__(self, other: FeatureRef) -> FeatureRef:
-        """Check if greater than or equal to another feature.
-
-        Args:
-            other (FeatureRef): Reference to the other feature to compare with.
-
-        Returns:
-            FeatureRef: Reference to the result of the greater-than-or-equal-to comparison.
-        """
-        from hyped.data.flow.ops import ge
-
-        return ge(self, other)
-
-    def __and__(self, other: FeatureRef) -> FeatureRef:
+    def __and__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform logical AND with another feature.
 
         Args:
-            other (FeatureRef): Reference to the other feature to use in the AND operation.
+            other (FeatureRef | Any): Reference to the other feature to use in the AND operation.
 
         Returns:
             FeatureRef: Reference to the result of the AND operation.
@@ -343,11 +265,11 @@ class FeatureRef(BaseModel):
 
         return and_(self, other)
 
-    def __or__(self, other: FeatureRef) -> FeatureRef:
+    def __or__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform logical OR with another feature.
 
         Args:
-            other (FeatureRef): Reference to the other feature to use in the OR operation.
+            other (FeatureRef | Any): Reference to the other feature to use in the OR operation.
 
         Returns:
             FeatureRef: Reference to the result of the OR operation.
@@ -356,11 +278,11 @@ class FeatureRef(BaseModel):
 
         return or_(self, other)
 
-    def __xor__(self, other: FeatureRef) -> FeatureRef:
+    def __xor__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform logical XOR with another feature.
 
         Args:
-            other (FeatureRef): Reference to the other feature to use in the XOR operation.
+            other (FeatureRef | Any): Reference to the other feature to use in the XOR operation.
 
         Returns:
             FeatureRef: Reference to the result of the XOR operation.
@@ -368,6 +290,404 @@ class FeatureRef(BaseModel):
         from hyped.data.flow.ops import xor_
 
         return xor_(self, other)
+
+    def __radd__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform reflected addition with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature reference to add.
+
+        Returns:
+            FeatureRef: Reference to the result of the addition.
+        """
+        from hyped.data.flow.ops import add
+
+        return add(other, self)
+
+    def __rsub__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform reflected subtraction with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature reference to subtract.
+
+        Returns:
+            FeatureRef: Reference to the result of the subtraction.
+        """
+        from hyped.data.flow.ops import sub
+
+        return sub(other, self)
+
+    def __rmul__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform reflected multiplication with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to multiply.
+
+        Returns:
+            FeatureRef: Reference to the result of the multiplication.
+        """
+        from hyped.data.flow.ops import mul
+
+        return mul(other, self)
+
+    def __rtruediv__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform reflected division with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to divide.
+
+        Returns:
+            FeatureRef: Reference to the result of the division.
+        """
+        from hyped.data.flow.ops import truediv
+
+        return truediv(other, self)
+
+    def __rfloordiv__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform reflected floor division with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to floor divide.
+
+        Returns:
+            FeatureRef: Reference to the result of the floor division.
+        """
+        from hyped.data.flow.ops import floordiv
+
+        return floordiv(other, self)
+
+    def __rpow__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform reflected exponentiation with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to use as the exponent.
+
+        Returns:
+            FeatureRef: Reference to the result of the exponentiation.
+        """
+        from hyped.data.flow.ops import pow
+
+        return pow(other, self)
+
+    def __rmod__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform reflected modulo operation with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to use as the divisor.
+
+        Returns:
+            FeatureRef: Reference to the result of the modulo operation.
+        """
+        from hyped.data.flow.ops import mod
+
+        return mod(other, self)
+
+    def __rand__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform reflected logical AND with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to use in the AND operation.
+
+        Returns:
+            FeatureRef: Reference to the result of the AND operation.
+        """
+        from hyped.data.flow.ops import and_
+
+        return and_(other, self)
+
+    def __ror__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform reflected logical OR with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to use in the OR operation.
+
+        Returns:
+            FeatureRef: Reference to the result of the OR operation.
+        """
+        from hyped.data.flow.ops import or_
+
+        return or_(other, self)
+
+    def __rxor__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform reflected logical XOR with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to use in the XOR operation.
+
+        Returns:
+            FeatureRef: Reference to the result of the XOR operation.
+        """
+        from hyped.data.flow.ops import xor_
+
+        return xor_(other, self)
+
+    def __iadd__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform inplace addition with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature reference to add.
+
+        Returns:
+            FeatureRef: Reference to the result of the addition.
+        """
+        from hyped.data.flow.ops import add
+
+        out = add(self, other)
+        # update reference
+        self.node_id_ = out.node_id_
+        self.key_ = out.key_
+        self.feature_ = out.feature_
+        # return self object
+        return self
+
+    def __isub__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform inplace subtraction with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature reference to subtract.
+
+        Returns:
+            FeatureRef: Reference to the result of the subtraction.
+        """
+        from hyped.data.flow.ops import sub
+
+        out = sub(self, other)
+        # update reference
+        self.node_id_ = out.node_id_
+        self.key_ = out.key_
+        self.feature_ = out.feature_
+        # return self object
+        return self
+
+    def __imul__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform inplace multiplication with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to multiply.
+
+        Returns:
+            FeatureRef: Reference to the result of the multiplication.
+        """
+        from hyped.data.flow.ops import mul
+
+        out = mul(self, other)
+        # update reference
+        self.node_id_ = out.node_id_
+        self.key_ = out.key_
+        self.feature_ = out.feature_
+        # return self object
+        return self
+
+    def __itruediv__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform inplace division with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to divide.
+
+        Returns:
+            FeatureRef: Reference to the result of the division.
+        """
+        from hyped.data.flow.ops import truediv
+
+        out = truediv(self, other)
+        # update reference
+        self.node_id_ = out.node_id_
+        self.key_ = out.key_
+        self.feature_ = out.feature_
+        # return self object
+        return self
+
+    def __ifloordiv__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform inplace floor division with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to floor divide.
+
+        Returns:
+            FeatureRef: Reference to the result of the floor division.
+        """
+        from hyped.data.flow.ops import floordiv
+
+        out = floordiv(self, other)
+        # update reference
+        self.node_id_ = out.node_id_
+        self.key_ = out.key_
+        self.feature_ = out.feature_
+        # return self object
+        return self
+
+    def __ipow__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform inplace exponentiation with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to use as the exponent.
+
+        Returns:
+            FeatureRef: Reference to the result of the exponentiation.
+        """
+        from hyped.data.flow.ops import pow
+
+        out = pow(self, other)
+        # update reference
+        self.node_id_ = out.node_id_
+        self.key_ = out.key_
+        self.feature_ = out.feature_
+        # return self object
+        return self
+
+    def __imod__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform inplace modulo operation with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to use as the divisor.
+
+        Returns:
+            FeatureRef: Reference to the result of the modulo operation.
+        """
+        from hyped.data.flow.ops import mod
+
+        out = mod(self, other)
+        # update reference
+        self.node_id_ = out.node_id_
+        self.key_ = out.key_
+        self.feature_ = out.feature_
+        # return self object
+        return self
+
+    def __iand__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform inplace logical AND with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to use in the AND operation.
+
+        Returns:
+            FeatureRef: Reference to the result of the AND operation.
+        """
+        from hyped.data.flow.ops import and_
+
+        out = and_(self, other)
+        # update reference
+        self.node_id_ = out.node_id_
+        self.key_ = out.key_
+        self.feature_ = out.feature_
+        # return self object
+        return self
+
+    def __ior__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform inplace logical OR with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to use in the OR operation.
+
+        Returns:
+            FeatureRef: Reference to the result of the OR operation.
+        """
+        from hyped.data.flow.ops import or_
+
+        out = or_(self, other)
+        # update reference
+        self.node_id_ = out.node_id_
+        self.key_ = out.key_
+        self.feature_ = out.feature_
+        # return self object
+        return self
+
+    def __ixor__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Perform inplace logical XOR with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to use in the XOR operation.
+
+        Returns:
+            FeatureRef: Reference to the result of the XOR operation.
+        """
+        from hyped.data.flow.ops import xor_
+
+        out = xor_(self, other)
+        # update reference
+        self.node_id_ = out.node_id_
+        self.key_ = out.key_
+        self.feature_ = out.feature_
+        # return self object
+        return self
+
+    def __eq__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Check equality with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to compare with.
+
+        Returns:
+            FeatureRef: Reference to the result of the equality comparison.
+        """
+        from hyped.data.flow.ops import eq
+
+        return eq(self, other)
+
+    def __ne__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Check inequality with another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to compare with.
+
+        Returns:
+            FeatureRef: Reference to the result of the inequality comparison.
+        """
+        from hyped.data.flow.ops import ne
+
+        return ne(self, other)
+
+    def __lt__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Check if less than another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to compare with.
+
+        Returns:
+            FeatureRef: Reference to the result of the less-than comparison.
+        """
+        from hyped.data.flow.ops import lt
+
+        return lt(self, other)
+
+    def __le__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Check if less than or equal to another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to compare with.
+
+        Returns:
+            FeatureRef: Reference to the result of the less-than-or-equal-to comparison.
+        """
+        from hyped.data.flow.ops import le
+
+        return le(self, other)
+
+    def __gt__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Check if greater than another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to compare with.
+
+        Returns:
+            FeatureRef: Reference to the result of the greater-than comparison.
+        """
+        from hyped.data.flow.ops import gt
+
+        return gt(self, other)
+
+    def __ge__(self, other: FeatureRef | Any) -> FeatureRef:
+        """Check if greater than or equal to another feature.
+
+        Args:
+            other (FeatureRef | Any): Reference to the other feature to compare with.
+
+        Returns:
+            FeatureRef: Reference to the result of the greater-than-or-equal-to comparison.
+        """
+        from hyped.data.flow.ops import ge
+
+        return ge(self, other)
 
     def sum_(self) -> FeatureRef:
         """Calculate the sum of the referenced feature.
