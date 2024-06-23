@@ -48,7 +48,7 @@ from .aggregators.ops.mean import MeanAggregator
 from .aggregators.ops.sum import SumAggregator
 from .core.nodes.const import Const
 from .core.refs.ref import FeatureRef
-from .processors.ops import binary
+from .processors.ops import binary, unary
 from .processors.ops.collect import CollectFeatures, NestedContainer
 
 
@@ -408,3 +408,51 @@ def xor_(a: FeatureRef, b: FeatureRef) -> FeatureRef:
         FeatureRef: A FeatureRef instance representing the result of the xor operation.
     """
     return binary.LogicalXOr().call(a=a, b=b).result
+
+
+def neg(a: FeatureRef) -> FeatureRef:
+    """Perform a negation operation on a feature.
+
+    Args:
+        a (FeatureRef): The feature to negate.
+
+    Returns:
+        FeatureRef: A FeatureRef instance representing the negated value of the input feature.
+    """
+    return unary.Neg().call(a=a).result
+
+
+def abs_(a: FeatureRef) -> FeatureRef:
+    """Compute the absolute value of a feature.
+
+    Args:
+        a (FeatureRef): The feature to compute the absolute value.
+
+    Returns:
+        FeatureRef: A FeatureRef instance representing the absolute value of the input feature.
+    """
+    return unary.Abs().call(a=a).result
+
+
+def invert(a: FeatureRef) -> FeatureRef:
+    """Perform a bitwise inversion operation on a feature.
+
+    Args:
+        a (FeatureRef): The feature to invert bitwise.
+
+    Returns:
+        FeatureRef: A FeatureRef instance representing the bitwise inverted value of the input feature.
+    """
+    return unary.Invert().call(a=a).result
+
+
+def not_(a: FeatureRef) -> FeatureRef:
+    """Perform a logical NOT operation on a feature.
+
+    Args:
+        a (FeatureRef): The feature to apply the logical NOT operation.
+
+    Returns:
+        FeatureRef: A FeatureRef instance representing the logical NOT value of the input feature.
+    """
+    return unary.Not().call(a=a).result

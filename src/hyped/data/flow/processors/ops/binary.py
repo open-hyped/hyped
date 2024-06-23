@@ -34,7 +34,6 @@ import operator
 from abc import ABC
 from typing import Annotated, Any, Callable, TypeVar
 
-import numpy as np
 from datasets import Value
 
 from hyped.data.flow.core.nodes.processor import (

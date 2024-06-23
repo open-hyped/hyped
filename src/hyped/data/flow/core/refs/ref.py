@@ -689,6 +689,36 @@ class FeatureRef(BaseModel):
 
         return ge(self, other)
 
+    def __neg__(self) -> FeatureRef:
+        """Perform unary negation on the feature.
+
+        Returns:
+            FeatureRef: Reference to the result of the unary negation operation.
+        """
+        from hyped.data.flow.ops import neg
+
+        return neg(self)
+
+    def __abs__(self) -> FeatureRef:
+        """Compute the absolute value of the feature.
+
+        Returns:
+            FeatureRef: Reference to the result of the absolute value computation.
+        """
+        from hyped.data.flow.ops import abs_
+
+        return abs_(self)
+
+    def __invert__(self) -> FeatureRef:
+        """Perform bitwise inversion on the feature.
+
+        Returns:
+            FeatureRef: Reference to the result of the bitwise inversion operation.
+        """
+        from hyped.data.flow.ops import invert
+
+        return invert(self)
+
     def sum_(self) -> FeatureRef:
         """Calculate the sum of the referenced feature.
 

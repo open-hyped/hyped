@@ -211,6 +211,27 @@ class TestFeatureRef(object):
 @pytest.mark.parametrize(
     "op, op_fn, dtype",
     [
+        (operator.neg, "hyped.data.flow.ops.neg", "int32"),
+        (operator.abs, "hyped.data.flow.ops.abs_", "int32"),
+        (operator.invert, "hyped.data.flow.ops.invert", "int32"),
+    ],
+)
+def test_unary_ops(op, op_fn, dtype):
+    # Create feature ref
+    ref = FeatureRef(
+        key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype)
+    )
+    # Patch operator function
+    with patch(op_fn) as mock:
+        # Apply operator
+        op(ref)
+        # Make sure the operator function was called correctly
+        mock.assert_called_with(ref)
+
+
+@pytest.mark.parametrize(
+    "op, op_fn, dtype",
+    [
         (operator.add, "hyped.data.flow.ops.add", "int32"),
         (operator.sub, "hyped.data.flow.ops.sub", "int32"),
         (operator.mul, "hyped.data.flow.ops.mul", "int32"),
