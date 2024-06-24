@@ -45,7 +45,7 @@ class TestSequenceLength(BaseDataProcessorTest):
     input_data = {"a": [[1, 2, 3], [1, 2], [1]]}
     input_index = [0, 1, 2]
 
-    expected_output_features = Features({"length": Value("int64")})
+    expected_output_features = Features({"result": Value("int64")})
     expected_output_data = {"result": [3, 2, 1]}
 
 
@@ -172,3 +172,54 @@ class TestSequenceSetItem_MultiIndex_FixedLength(BaseDataProcessorTest):
 
     expected_output_features = Features({"result": Sequence(Value("int32"))})
     expected_output_data = {"result": [[-1, -2, 3], [4, -1, -2], [-1, 8, -2]]}
+
+
+class TestSequenceContains(BaseDataProcessorTest):
+    processor_type = sequence.SequenceContains
+    processor_config = sequence.SequenceContainsConfig()
+
+    input_features = Features(
+        {"sequence": Sequence(Value("int32")), "value": Value("int32")}
+    )
+    input_data = {
+        "sequence": [[0, 1, 2], [0, 0, 1], [0, 0, 0]],
+        "value": [0, 1, 2],
+    }
+    input_index = [0, 1, 2]
+
+    expected_output_features = Features({"contains": Value("bool")})
+    expected_output_data = {"contains": [True, True, False]}
+
+
+class TestSequenceCountOf(BaseDataProcessorTest):
+    processor_type = sequence.SequenceCountOf
+    processor_config = sequence.SequenceCountOfConfig()
+
+    input_features = Features(
+        {"sequence": Sequence(Value("int32")), "value": Value("int32")}
+    )
+    input_data = {
+        "sequence": [[0, 1, 2], [0, 0, 1], [0, 0, 0]],
+        "value": [0, 0, 0],
+    }
+    input_index = [0, 1, 2]
+
+    expected_output_features = Features({"count": Value("int64")})
+    expected_output_data = {"count": [1, 2, 3]}
+
+
+class TestSequenceIndexOf(BaseDataProcessorTest):
+    processor_type = sequence.SequenceIndexOf
+    processor_config = sequence.SequenceIndexOfConfig()
+
+    input_features = Features(
+        {"sequence": Sequence(Value("int32")), "value": Value("int32")}
+    )
+    input_data = {
+        "sequence": [[0, 1, 2], [0, 0, 1], [1, 0, 0]],
+        "value": [0, 0, 0],
+    }
+    input_index = [0, 1, 2]
+
+    expected_output_features = Features({"index": Value("int64")})
+    expected_output_data = {"index": [0, 0, 1]}
