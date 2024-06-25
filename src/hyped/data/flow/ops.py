@@ -572,20 +572,26 @@ def get_item(seq: FeatureRef | Any, index: FeatureRef | Any) -> FeatureRef:
 
 
 def set_item(
-    seq: FeatureRef, index: FeatureRef, value: FeatureRef
+    seq: FeatureRef | list[Any],
+    index: FeatureRef | int | list[int] | slice,
+    value: FeatureRef | Any | list[Any],
 ) -> FeatureRef:
     """Set an item in a sequence feature at a specified index.
 
     Args:
         seq (FeatureRef): The sequence feature to modify.
-        index (FeatureRef): The index at which to set the item. Can also be a
-            sequence of indices.
-        value (FeatureRef): The value to set at the specified index. Can be a
-            sequence of values in case the index is a sequence as well.
+        index (FeatureRef | int | list[int] | slice): The index at which
+            to set the item. Can also be a sequence of indices or slice.
+        value (FeatureRef | Any | list[Any]): The value to set at the
+            specified index. Can be a sequence of values in case the
+            index is a sequence as well.
 
     Returns:
         FeatureRef: The feature representing the modified sequence.
     """
+    if isinstance(index, slice):
+        # TODO: support slices as index
+        raise NotImplemented()
     # check arguments
     seq, index, value = _check_args(seq, index, value)
     # add the setitem processor

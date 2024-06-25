@@ -14,6 +14,11 @@ from datasets.features.features import Features, FeatureType, Sequence, Value
 from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
 from typing_extensions import Annotated
 
+from hyped.common.feature_checks import (
+    STRING_LIKE_TYPES,
+    check_feature_equals,
+    check_feature_is_sequence,
+)
 from hyped.common.feature_key import FeatureKey
 
 FeaturePointer: TypeAlias = tuple[int, FeatureKey, object]
@@ -129,6 +134,14 @@ class FeatureRef(BaseModel):
         """
         return hash(self.ptr)
 
+    def _update(self, other: FeatureRef) -> FeatureRef:
+        # update reference
+        self.node_id_ = other.node_id_
+        self.key_ = other.key_
+        self.feature_ = other.feature_
+
+        return self
+
     def __getattr__(self, key: str) -> FeatureRef:
         """Access a sub-feature within the FeatureRef instance via attribute-style access.
 
@@ -139,19 +152,40 @@ class FeatureRef(BaseModel):
             FeatureRef: A new FeatureRef instance representing the accessed sub-feature.
         """
         if key.startswith("_"):
-            return object.__getitem__(self, key)
+            return object.__getattribute__(self, key)
 
         return self.__getitem__(key)
 
-    def __getitem__(self, key: str | int | slice | FeatureKey) -> FeatureRef:
+    def __getitem__(
+        self, key: str | int | slice | FeatureKey | FeatureRef
+    ) -> FeatureRef:
         """Access a sub-feature within the FeatureRef instance via index-style access.
 
         Args:
-            key (str | int | slice | FeatureKey): The index or key of the sub-feature to access.
+            key (str | int | slice | FeatureKey | FeatureRef): The index or key of
+                the sub-feature to access.
 
         Returns:
             FeatureRef: A new FeatureRef instance representing the accessed sub-feature.
+
+        Raises:
+            TypeError: If the feature type is not a sequence but the index is a feature reference.
         """
+        if isinstance(key, FeatureRef):
+            # make sure the feature is a sequence
+            if not check_feature_is_sequence(self.feature_):
+                raise TypeError(
+                    f"'{self.feature_}' object is not subscriptable."
+                )
+
+            from hyped.data.flow.ops import get_item
+
+            # index sequence with the given key
+            return get_item(self, key)
+
+        # if the key is constant, i.e. not a feature reference,
+        # we do the indexing explicitly by changing the pointer
+        # of the feature reference
         key = key if isinstance(key, tuple) else (key,)
         key = tuple.__new__(FeatureKey, key)
         return FeatureRef(
@@ -161,8 +195,57 @@ class FeatureRef(BaseModel):
             flow_=self.flow_,
         )
 
+    def __setitem__(
+        self,
+        key: str | FeatureRef | int | list[int] | slice,
+        value: FeatureRef | Any,
+    ) -> FeatureRef:
+        """Set an item in the feature collection or sequence.
+
+        This method sets a specified key or index in the feature collection or sequence to the given value.
+        If the feature is a collection (like a dictionary), it updates the collection with the new key-value pair.
+        Otherwise, it uses the set_item operation to set the value at the specified index.
+
+        Args:
+            key (str | FeatureRef | int | list[int] | slice): The key or index where the value should be set.
+            value (FeatureRef | Any): The value to set at the specified key or index.
+
+        Returns:
+            FeatureRef: A reference to the updated feature.
+
+        Raises:
+            TypeError: If the feature type is neither a collection nor a sequence.
+        """
+        out: FeatureRef
+        if isinstance(self.feature_, (Features, dict)):
+            from hyped.data.flow.ops import collect
+
+            # collect all the features in the current collection and
+            # additionally the requested feature
+            out = collect(
+                {k: self[k] for k in self.feature_.keys()} | {key: value}
+            )
+            # update reference to the output reference
+            return self._update(out)
+
+        elif check_feature_is_sequence(self.feature_):
+            from hyped.data.flow.ops import set_item
+
+            # set the item in the sequence
+            out = set_item(self, key, value)
+            # update reference to the output reference
+            return self._update(out)
+
+        else:
+            # setitem not supported
+            raise TypeError(
+                f"'{self.feature_}' object does not support item assignment."
+            )
+
     def __add__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform addition with another feature.
+
+        Performs a concatenation of the inputs in case of sequences or strings.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature reference to add.
@@ -170,6 +253,13 @@ class FeatureRef(BaseModel):
         Returns:
             FeatureRef: Reference to the result of the addition.
         """
+        if check_feature_equals(
+            self.feature_, STRING_LIKE_TYPES
+        ) or check_feature_is_sequence(self.feature_):
+            from hyped.data.flow.ops import concat
+
+            return concat(self, other)
+
         from hyped.data.flow.ops import add
 
         return add(self, other)
@@ -294,12 +384,21 @@ class FeatureRef(BaseModel):
     def __radd__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform reflected addition with another feature.
 
+        Performs a concatenation of the inputs in case of sequences or strings.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature reference to add.
 
         Returns:
             FeatureRef: Reference to the result of the addition.
         """
+        if check_feature_equals(
+            self.feature_, STRING_LIKE_TYPES
+        ) or check_feature_is_sequence(self.feature_):
+            from hyped.data.flow.ops import concat
+
+            return concat(other, self)
+
         from hyped.data.flow.ops import add
 
         return add(other, self)
@@ -424,21 +523,27 @@ class FeatureRef(BaseModel):
     def __iadd__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace addition with another feature.
 
+        Performs a concatenation of the inputs in case of sequences or strings.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature reference to add.
 
         Returns:
             FeatureRef: Reference to the result of the addition.
         """
-        from hyped.data.flow.ops import add
+        out: FeatureRef
+        if check_feature_equals(
+            self.feature_, STRING_LIKE_TYPES
+        ) or check_feature_is_sequence(self.feature_):
+            from hyped.data.flow.ops import concat
 
-        out = add(self, other)
-        # update reference
-        self.node_id_ = out.node_id_
-        self.key_ = out.key_
-        self.feature_ = out.feature_
-        # return self object
-        return self
+            return concat(self, other)
+        else:
+            from hyped.data.flow.ops import add
+
+            out = add(self, other)
+
+        return self._update(out)
 
     def __isub__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace subtraction with another feature.
@@ -451,13 +556,7 @@ class FeatureRef(BaseModel):
         """
         from hyped.data.flow.ops import sub
 
-        out = sub(self, other)
-        # update reference
-        self.node_id_ = out.node_id_
-        self.key_ = out.key_
-        self.feature_ = out.feature_
-        # return self object
-        return self
+        return self._update(sub(self, other))
 
     def __imul__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace multiplication with another feature.
@@ -470,13 +569,7 @@ class FeatureRef(BaseModel):
         """
         from hyped.data.flow.ops import mul
 
-        out = mul(self, other)
-        # update reference
-        self.node_id_ = out.node_id_
-        self.key_ = out.key_
-        self.feature_ = out.feature_
-        # return self object
-        return self
+        return self._update(mul(self, other))
 
     def __itruediv__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace division with another feature.
@@ -489,13 +582,7 @@ class FeatureRef(BaseModel):
         """
         from hyped.data.flow.ops import truediv
 
-        out = truediv(self, other)
-        # update reference
-        self.node_id_ = out.node_id_
-        self.key_ = out.key_
-        self.feature_ = out.feature_
-        # return self object
-        return self
+        return self._update(truediv(self, other))
 
     def __ifloordiv__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace floor division with another feature.
@@ -508,13 +595,7 @@ class FeatureRef(BaseModel):
         """
         from hyped.data.flow.ops import floordiv
 
-        out = floordiv(self, other)
-        # update reference
-        self.node_id_ = out.node_id_
-        self.key_ = out.key_
-        self.feature_ = out.feature_
-        # return self object
-        return self
+        return self._update(floordiv(self, other))
 
     def __ipow__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace exponentiation with another feature.
@@ -527,13 +608,7 @@ class FeatureRef(BaseModel):
         """
         from hyped.data.flow.ops import pow
 
-        out = pow(self, other)
-        # update reference
-        self.node_id_ = out.node_id_
-        self.key_ = out.key_
-        self.feature_ = out.feature_
-        # return self object
-        return self
+        return self._update(pow(self, other))
 
     def __imod__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace modulo operation with another feature.
@@ -546,13 +621,7 @@ class FeatureRef(BaseModel):
         """
         from hyped.data.flow.ops import mod
 
-        out = mod(self, other)
-        # update reference
-        self.node_id_ = out.node_id_
-        self.key_ = out.key_
-        self.feature_ = out.feature_
-        # return self object
-        return self
+        return self._update(mod(self, other))
 
     def __iand__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace logical AND with another feature.
@@ -565,13 +634,7 @@ class FeatureRef(BaseModel):
         """
         from hyped.data.flow.ops import and_
 
-        out = and_(self, other)
-        # update reference
-        self.node_id_ = out.node_id_
-        self.key_ = out.key_
-        self.feature_ = out.feature_
-        # return self object
-        return self
+        return self._update(and_(self, other))
 
     def __ior__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace logical OR with another feature.
@@ -584,13 +647,7 @@ class FeatureRef(BaseModel):
         """
         from hyped.data.flow.ops import or_
 
-        out = or_(self, other)
-        # update reference
-        self.node_id_ = out.node_id_
-        self.key_ = out.key_
-        self.feature_ = out.feature_
-        # return self object
-        return self
+        return self._update(or_(self, other))
 
     def __ixor__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace logical XOR with another feature.
@@ -603,13 +660,7 @@ class FeatureRef(BaseModel):
         """
         from hyped.data.flow.ops import xor_
 
-        out = xor_(self, other)
-        # update reference
-        self.node_id_ = out.node_id_
-        self.key_ = out.key_
-        self.feature_ = out.feature_
-        # return self object
-        return self
+        return self._update(xor_(self, other))
 
     def __eq__(self, other: FeatureRef | Any) -> FeatureRef:
         """Check equality with another feature.
@@ -718,6 +769,36 @@ class FeatureRef(BaseModel):
         from hyped.data.flow.ops import invert
 
         return invert(self)
+
+    def __len__(self) -> FeatureRef | int:
+        """Compute the length of the feature.
+
+        Returns an integer in case the length value of the feature ref is constant.
+
+        Returns:
+            FeatureRef | int: The length of the sequence as an integer if fixed,
+                or as a FeatureRef if dynamic.
+
+        Raises:
+            NotImplementedError: If the feature is a string-like type.
+            TypeError: If the feature is of an unexpected type.
+        """
+        from hyped.data.flow.ops import len_
+
+        return len_(self)
+
+    def __contains__(self, value: FeatureRef | Any) -> FeatureRef:
+        """Check if the feature contains a given value.
+
+        Args:
+            value (FeatureRef | Any): The value to check for containment in the feature.
+
+        Returns:
+            FeatureRef: Reference to the result of the contains operation.
+        """
+        from hyped.data.flow.ops import contains
+
+        return contains(self, value)
 
     def sum_(self) -> FeatureRef:
         """Calculate the sum of the referenced feature.
