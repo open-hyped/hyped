@@ -48,7 +48,7 @@ from .unary import UnaryOp, UnaryOpConfig, UnaryOpInputRefs, UnaryOpOutputRefs
 class SequenceLengthInputRefs(UnaryOpInputRefs):
     """Input references for the Sequence Length operation."""
 
-    a: Annotated[FeatureRef, CheckFeatureEquals(Sequence)]
+    a: Annotated[FeatureRef, CheckFeatureIsSequence()]
     """The sequence feature reference to get the length of."""
 
 
@@ -89,10 +89,10 @@ class SequenceConcatConfig(BinaryOpConfig):
 class SequenceConcatInputRefs(BinaryOpInputRefs):
     """Input references for the Concat operation."""
 
-    a: Annotated[FeatureRef, CheckFeatureEquals(Sequence)]
+    a: Annotated[FeatureRef, CheckFeatureIsSequence()]
     """The first sequence feature reference."""
 
-    b: Annotated[FeatureRef, CheckFeatureEquals(Sequence)]
+    b: Annotated[FeatureRef, CheckFeatureIsSequence()]
     """The second sequence feature reference."""
 
     def model_post_init(self, __context: Any) -> None:
@@ -164,7 +164,7 @@ class SequenceConcat(
 class SequenceGetItemInputRefs(InputRefs):
     """Input references for the GetItem operation."""
 
-    sequence: Annotated[FeatureRef, CheckFeatureEquals(Sequence)]
+    sequence: Annotated[FeatureRef, CheckFeatureIsSequence()]
     """The sequence feature reference."""
 
     # either an index or a sequence of indices
@@ -196,8 +196,6 @@ class SequenceGetItemOutputRefs(OutputRefs):
 
 class SequenceGetItemConfig(BaseDataProcessorConfig):
     """Configuration class for the GetItem operation."""
-
-    ...
 
 
 class SequenceGetItem(
@@ -243,7 +241,7 @@ class SequenceGetItem(
 class SequenceSetItemInputRefs(InputRefs):
     """Input references for the SetItem operation."""
 
-    sequence: Annotated[FeatureRef, CheckFeatureEquals(Sequence)]
+    sequence: Annotated[FeatureRef, CheckFeatureIsSequence()]
     """The sequence feature reference."""
 
     # either an index or a sequence of indices
@@ -270,6 +268,9 @@ class SequenceSetItemInputRefs(InputRefs):
             #  - values must be a sequence
             #  - values sequence must have the same length as the index
             #  - values must be of the same type as the values in the sequence
+            # TODO: support broadcasting of values, i.e. values can be a single value
+            #       even if the index is a sequence of indices, np.put implements the
+            #       broadcasting logic anyways
             if (
                 (not check_feature_is_sequence(self.value.feature_))
                 or (
@@ -381,7 +382,7 @@ class SequenceSetItem(
 class SequenceValueOpInputRefs(InputRefs):
     """Input references for sequence value operations."""
 
-    sequence: Annotated[FeatureRef, CheckFeatureEquals(Sequence)]
+    sequence: Annotated[FeatureRef, CheckFeatureIsSequence()]
     """The reference to the sequence feature."""
 
     value: Annotated[FeatureRef, AnyFeatureType()]

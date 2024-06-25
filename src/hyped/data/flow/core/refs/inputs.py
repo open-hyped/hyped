@@ -217,7 +217,7 @@ class CheckFeatureIsSequence(FeatureValidator):
 
     def __init__(
         self,
-        value_type: None | FeatureType | list[FeatureType],
+        value_type: None | FeatureType | list[FeatureType] = None,
         length: int = -1,
     ) -> None:
         """Initialize the CheckFeatureIsSequence validator.
