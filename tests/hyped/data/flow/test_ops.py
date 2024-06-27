@@ -340,3 +340,40 @@ def test_value_lookup_op(op, seq_proc_type):
     with pytest.raises(TypeError):
         # test with invalid feature
         op(flow.src_features.inv, flow.src_features.val)
+
+
+@pytest.mark.parametrize(
+    "op, proc_type",
+    [(ops.zip_, "hyped.data.flow.processors.ops.sequence.SequenceZip")],
+)
+def test_multi_sequence_op(op, proc_type):
+    flow = DataFlow(
+        Features(
+            {
+                "a": Sequence(Value("string")),
+                "b": Sequence(Value("string")),
+                "c": Sequence(Value("string")),
+            }
+        )
+    )
+
+    with (
+        patch(proc_type) as proc_mock,
+        patch("hyped.data.flow.ops.collect") as collect_mock,
+    ):
+        # call the operator
+        op(
+            flow.src_features.a,
+            flow.src_features.b,
+            flow.src_features.c,
+        )
+        # make sure the features are collected before
+        collect_mock.assert_called_once_with(
+            [
+                flow.src_features.a,
+                flow.src_features.b,
+                flow.src_features.c,
+            ]
+        )
+        # and the processor is called on the collected features
+        proc_mock().call.assert_called_once_with(sequences=collect_mock())
