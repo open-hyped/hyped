@@ -7,7 +7,6 @@ unique span annotations, such as named entity recognition or chunking.
 """
 
 from itertools import compress
-from typing import Any
 
 from datasets import Sequence, Value
 from typing_extensions import Annotated

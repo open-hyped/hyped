@@ -1,4 +1,4 @@
-from datasets import ClassLabel, Features, Sequence, Value
+from datasets import Features, Sequence, Value
 
 from hyped.data.flow.processors.spans.overlaps import (
     ResolveOverlaps,
