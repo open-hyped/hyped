@@ -4,10 +4,18 @@ from abc import ABC
 from collections import deque
 from functools import partial
 from itertools import starmap
-from typing import Any, Callable, ClassVar, TypeVar
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Protocol,
+    TypeVar,
+    runtime_checkable,
+)
 
 import numpy as np
 from datasets import Sequence, Value
+from pydantic import ConfigDict
 from typing_extensions import Annotated
 
 from hyped.common.feature_checks import (
@@ -27,6 +35,7 @@ from hyped.data.flow.core.refs.inputs import (
     AnyFeatureType,
     CheckFeatureEquals,
     CheckFeatureIsSequence,
+    FeatureValidator,
     InputRefs,
 )
 from hyped.data.flow.core.refs.outputs import (
@@ -529,3 +538,104 @@ class SequenceIndexOf(
     """
 
     _OUTPUT_KEY: ClassVar[str] = "index"
+
+
+class MultiSequenceOpInputRefs(InputRefs):
+    """Input references for MultiSequenceOp."""
+
+    sequences: Annotated[FeatureRef, CheckFeatureIsSequence(Sequence)]
+    """The sequence of input sequences to process. This is validated to be a nested sequence."""
+
+
+class MultiSequenceOpOutputRefs(OutputRefs):
+    """Output references for MultiSequenceOp."""
+
+    result: Annotated[FeatureRef, OutputFeature(None)]
+    """A reference to the result output feature."""
+
+
+@runtime_checkable
+class MultiSequenceOpProtocol(Protocol):
+    """Protocol for multi-sequence operations.
+
+    A callable that takes any number of lists as arguments.
+    """
+
+    def __call__(self, *args: list[Any]) -> list[Any]:
+        """The call function defining the signature of the protocol."""
+
+
+class MultiSequenceOpConfig(BaseDataProcessorConfig):
+    """Configuration for MultiSequenceOp."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    op: MultiSequenceOpProtocol
+    """The operation to be performed on the sequences."""
+
+
+C = TypeVar("C", bound=MultiSequenceOpConfig)
+I = TypeVar("I", bound=MultiSequenceOpInputRefs)
+O = TypeVar("O", bound=MultiSequenceOpOutputRefs)
+
+
+class MultiSequenceOp(BaseDataProcessor[C, I, O]):
+    """Base class for multi-sequence operations.
+
+    Inherits from BaseDataProcessor to process batches of sequences using a specified operation.
+    """
+
+    async def batch_process(
+        self, inputs: Batch, index: list[int], rank: int, io: IOContext
+    ) -> Batch:
+        """Process a batch of input sequences using the configured operation.
+
+        Args:
+            inputs (Batch): The input batch containing sequences.
+            index (list[int]): List of indices for the current batch.
+            rank (int): Rank of the process.
+            io (IOContext): IO context for processing.
+
+        Returns:
+            Batch: The processed batch with the result of the operation.
+        """
+        return {
+            "result": [
+                list(self.config.op(*seqs)) for seqs in inputs["sequences"]
+            ]
+        }
+
+
+class SequenceZipOutputRefs(MultiSequenceOpOutputRefs):
+    """Output references for SequenceZip operation."""
+
+    result: Annotated[
+        FeatureRef,
+        LambdaOutputFeature(
+            lambda _, i: Sequence(
+                Sequence(
+                    get_sequence_feature(i.sequences.feature_).feature,
+                    length=get_sequence_length(i.sequences.feature_),
+                ),
+                length=get_sequence_length(
+                    get_sequence_feature(i.sequences.feature_)
+                ),
+            )
+        ),
+    ]
+    """A reference to the zipped sequence."""
+
+
+class SequenceZipConfig(MultiSequenceOpConfig):
+    """Configuration for SequenceZip operation."""
+
+    op: MultiSequenceOpProtocol = zip
+    """The operation to zip sequences."""
+
+
+class SequenceZip(
+    MultiSequenceOp[
+        SequenceZipConfig, MultiSequenceOpInputRefs, SequenceZipOutputRefs
+    ]
+):
+    """Data Processor for zipping sequences."""
