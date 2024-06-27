@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 from unittest.mock import MagicMock
 
 import pytest
@@ -29,8 +30,29 @@ class BaseDataProcessorTest:
     # expected output
     expected_output_features: None | Features = None
     expected_output_data: None | Batch = None
+    # expected errors
+    expected_execution_error: None | type[Exception] = None
+    expected_input_verification_error: None | type[Exception] = None
     # others
     rank: int = 0
+
+    @pytest.fixture
+    def exec_error_handler(self):
+        cls = type(self)
+        return (
+            pytest.raises(cls.expected_execution_error)
+            if cls.expected_execution_error is not None
+            else nullcontext()
+        )
+
+    @pytest.fixture
+    def input_verification_error_handler(self):
+        cls = type(self)
+        return (
+            pytest.raises(cls.expected_input_verification_error)
+            if cls.expected_input_verification_error is not None
+            else nullcontext()
+        )
 
     @pytest.fixture
     def processor(self):
@@ -38,7 +60,9 @@ class BaseDataProcessorTest:
         return cls.processor_type.from_config(cls.processor_config)
 
     @pytest.fixture
-    def input_refs(self, processor) -> InputRefs:
+    def input_refs(
+        self, processor, input_verification_error_handler
+    ) -> None | InputRefs:
         cls = type(self)
 
         n, f = "in", MagicMock()
@@ -46,10 +70,16 @@ class BaseDataProcessorTest:
             k: FeatureRef(key_=k, feature_=v, node_id_=n, flow_=f)
             for k, v in cls.input_features.items()
         }
-        return processor._in_refs_type(**input_refs)
+
+        with input_verification_error_handler:
+            return processor._in_refs_type(**input_refs)
 
     @pytest.fixture
-    def output_refs(self, processor, input_refs) -> OutputRefs:
+    def output_refs(self, processor, input_refs) -> None | OutputRefs:
+        # error catched in input verification
+        if input_refs is None:
+            return None
+        # build output feature references
         return processor._out_refs_type(
             input_refs.flow,
             "out",
@@ -59,8 +89,19 @@ class BaseDataProcessorTest:
         )
 
     @pytest.mark.asyncio
-    async def test_case(self, processor, input_refs, output_refs):
+    async def test_case(
+        self, processor, input_refs, output_refs, exec_error_handler
+    ):
         cls = type(self)
+
+        if input_refs is None:
+            # catched input verification error
+            return
+        else:
+            # make sure no input verification error was specified and
+            assert cls.expected_input_verification_error is None
+
+        assert output_refs is not None
         # check input data
         input_keys = set(cls.input_data.keys())
         assert processor.required_input_keys.issubset(input_keys)
@@ -87,10 +128,15 @@ class BaseDataProcessorTest:
             ),
         )
 
-        # apply processor
-        output = await processor.batch_process(
-            cls.input_data, input_index, cls.rank, io
-        )
+        with exec_error_handler:
+            # apply processor
+            output = await processor.batch_process(
+                cls.input_data, input_index, cls.rank, io
+            )
+
+        # expected error was catched, cutoff test here
+        if cls.expected_execution_error is not None:
+            return
 
         # check output format
         assert isinstance(output, dict)
@@ -107,7 +153,7 @@ class BaseDataProcessorTest:
         # check output matches features
         assert check_object_matches_feature(
             output, {k: Sequence(v) for k, v in output_refs.feature_.items()}
-        )
+        ), (output, {k: Sequence(v) for k, v in output_refs.feature_.items()})
 
         # check output matches expectation
         if cls.expected_output_data is not None:
