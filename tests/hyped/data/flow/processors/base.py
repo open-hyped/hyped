@@ -25,7 +25,7 @@ class BaseDataProcessorTest:
     processor_config: BaseDataProcessorConfig
     # input values
     input_features: Features
-    input_data: Batch
+    input_data: None | Batch = None
     input_index: None | list[int] = None
     # expected output
     expected_output_features: None | Features = None
@@ -102,6 +102,17 @@ class BaseDataProcessorTest:
             assert cls.expected_input_verification_error is None
 
         assert output_refs is not None
+
+        # check output features
+        if cls.expected_output_features is not None:
+            assert check_feature_equals(
+                output_refs.feature_, cls.expected_output_features
+            )
+
+        # only test the feature management, don't run the processor
+        if cls.input_data is None:
+            return
+
         # check input data
         input_keys = set(cls.input_data.keys())
         assert processor.required_input_keys.issubset(input_keys)
@@ -143,12 +154,6 @@ class BaseDataProcessorTest:
         for key, val in output.items():
             assert isinstance(val, list)
             assert len(val) == len(input_index)
-
-        # check output features
-        if cls.expected_output_features is not None:
-            assert check_feature_equals(
-                output_refs.feature_, cls.expected_output_features
-            )
 
         # check output matches features
         assert check_object_matches_feature(
