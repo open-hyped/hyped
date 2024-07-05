@@ -46,7 +46,7 @@ def compute_spans_overlap_matrix(
     if special_tokens is None:
         special_tokens = np.zeros(shape=target_spans.shape[0], dtype=bool)
     else:
-        special_tokens = np.asarry(special_tokens, dtype==bool)
+        special_tokens = np.asarray(special_tokens, dtype==bool)
     # compute overlap mask
     return (
         (
