@@ -58,6 +58,7 @@ from hyped.common.lazy import LazyStaticInstance
 
 from ..refs.inputs import InputRefs
 from ..refs.outputs import OutputRefs
+from ..refs.ref import FeatureRef
 from .base import BaseNode, BaseNodeConfig, IOContext
 
 Batch: TypeAlias = dict[str, list[Any]]
@@ -210,24 +211,25 @@ class BaseDataAggregator(BaseNode[C, I, O], ABC):
         """
         return self._in_refs_validator.required_keys
 
-    def call(self, **kwargs) -> O:
+    def call(self, **kwargs: FeatureRef) -> O:
         """Call the data aggregator with the provided inputs.
 
         This method builds inputs from keyword arguments, adds the aggregator
         to the data flow, and returns a reference to the aggregation outputs.
 
         Args:
-            **kwargs: Keyword arguments specifying feature references to be
+            **kwargs (FeatureRef): Keyword arguments specifying feature references to be
                 passed as inputs to the aggregator.
 
         Returns:
             O: The output references produced by the aggregator.
         """
-        # build inputs from keyword arguments
-        inputs = self._in_refs_type(**kwargs)
-        inputs = self._in_refs_validator.validate(inputs)
+        # validate inputs
+        inputs = self._in_refs_validator.validate(**kwargs)
         # compute output features and add the processor to the data flow
-        out_features = self._out_refs_type.build_features(self.config, inputs)
+        out_features = self._out_refs_type.build_features(
+            self.config, inputs.named_refs
+        )
         node_id = inputs.flow.add_processor_node(self, inputs, out_features)
         # return the output feature refs
         return self._out_refs_type(inputs.flow, node_id, out_features)

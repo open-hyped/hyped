@@ -69,13 +69,6 @@ from hyped.common.feature_checks import (
 from .ref import FeatureRef
 
 
-# TODO:
-class InputRefsModel:
-    """Temporary."""
-
-    pass
-
-
 class FeatureValidationError(Exception):
     """Feature Validation Error.
 
@@ -152,12 +145,12 @@ class FeatureValidator(object):
         def check_either(config: BaseConfig, ref: FeatureRef) -> None:
             try:
                 # check if feature conforms to first validator
-                return self.f(ref, ref.feature_)
+                return self.f(config, ref)
 
             except FeatureValidationError as e1:
                 try:
                     # fallback to second validator
-                    return other.f(ref, ref.feature_)
+                    return other.f(config, ref)
 
                 except FeatureValidationError as e2:
                     # TODO: e1 should also be included in traceback
@@ -389,6 +382,8 @@ class InputRefsValidator(object):
         self.no_refs_type = refs_type is type(None)
         # abort processing of the input reference type
         if self.no_refs_type:
+            self.required_keys: set[str] = set()
+            self.optional_keys: set[str] = set()
             return
 
         self.global_validators: list[GlobalValidator] = []
@@ -459,6 +454,14 @@ class InputRefsValidator(object):
                 f"keyword arguments: {' '.join(map(repr, unexpected))}."
             )
 
+        # make sure all entries are feature references
+        for key, val in refs.items():
+            if not isinstance(val, FeatureRef):
+                raise ValueError(
+                    f"Expected all input references to be instances of `FeatureRef`, "
+                    f"got {key}={val}."
+                )
+
         # run all validators
         for key, validators in self.validators.items():
             # if the key is not present in the input then
@@ -478,7 +481,6 @@ class InputRefsValidator(object):
         try:
             # run global validators
             for validator in self.global_validators:
-                print(validator)
                 validator.f(self.config, refs)
         except FeatureValidationError as e:
             raise RuntimeError(

@@ -46,7 +46,7 @@ class ResolveOverlapsOutputRefs(OutputRefs):
         FeatureRef,
         LambdaOutputFeature(
             lambda _, i: Sequence(
-                get_sequence_feature(i.spans.feature_),
+                get_sequence_feature(i["spans"].feature_),
             )
         ),
     ]
@@ -58,7 +58,7 @@ class ResolveOverlapsOutputRefs(OutputRefs):
         FeatureRef,
         LambdaOutputFeature(
             lambda _, i: Sequence(
-                Value("bool"), length=get_sequence_length(i.spans.feature_)
+                Value("bool"), length=get_sequence_length(i["spans"].feature_)
             )
         ),
     ]

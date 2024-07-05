@@ -32,7 +32,7 @@ from hyped.data.flow.core.nodes.processor import (
     Batch,
     IOContext,
 )
-from hyped.data.flow.core.refs.inputs import InputRefs, InputRefsModel
+from hyped.data.flow.core.refs.inputs import InputRefsContainer
 from hyped.data.flow.core.refs.outputs import LambdaOutputFeature, OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
 
@@ -51,38 +51,6 @@ def _path_to_str(path: tuple[Hashable | int]) -> str:
         str: The dot-separated string representation of the path.
     """
     return ".".join(map(str, path))
-
-
-class CollectFeaturesInputRefsModel(InputRefsModel):
-    """Input references class for the :class:`CollectFeatures` data processor."""
-
-    collection: NestedContainer[FeatureRef]
-    """The nested collection of feature references to collect."""
-
-    @property
-    def named_refs(self) -> dict[str, FeatureRef]:
-        """Get named references from the input collection.
-
-        Returns:
-            dict[str, FeatureRef]: A dictionary of named feature references.
-        """
-        return {
-            _path_to_str(key): ref
-            for key, ref in self.collection.flatten().items()
-        }
-
-    @classmethod
-    @property
-    def required_keys(cls) -> set[str]:
-        """Get the required keys.
-
-        Since the input references are dynamic and based on the collection,
-        this method returns an empty set.
-
-        Returns:
-            set[str]: An empty set.
-        """
-        return set()
 
 
 def _infer_feature_type(
@@ -127,7 +95,7 @@ class CollectFeaturesOutputRefs(OutputRefs):
     collected: Annotated[
         FeatureRef,
         LambdaOutputFeature(
-            lambda _, inputs: _infer_feature_type(inputs.collection)
+            lambda _, inputs: _infer_feature_type(inputs["collection"])
         ),
     ]
     """Reference to the collected feature."""
@@ -136,7 +104,7 @@ class CollectFeaturesOutputRefs(OutputRefs):
 class CollectFeatures(
     BaseDataProcessor[
         CollectFeaturesConfig,
-        None,  # unused
+        None,
         CollectFeaturesOutputRefs,
     ]
 ):
@@ -164,9 +132,16 @@ class CollectFeatures(
             collected features, preserving the structure defined by the input
             collection.
         """
-        inputs = CollectFeaturesInputRefsModel(collection=collection)
+        # parse collection and get the flow
+        named_refs = {
+            _path_to_str(key): ref for key, ref in collection.flatten().items()
+        }
+        flow = next(iter(named_refs.values())).flow_
+        # create input reference container
+        kwargs = dict(collection=collection)
+        inputs = InputRefsContainer(named_refs=named_refs, flow=flow)
         # compute output features and add the processor to the data flow
-        out_features = self._out_refs_type.build_features(self.config, inputs)
+        out_features = self._out_refs_type.build_features(self.config, kwargs)
         node_id = inputs.flow.add_processor_node(self, inputs, out_features)
         # return the output feature refs
         return self._out_refs_type(inputs.flow, node_id, out_features)

@@ -51,14 +51,13 @@ from __future__ import annotations
 import asyncio
 import inspect
 from abc import ABC
-from dataclasses import dataclass
 from typing import Any, TypeVar, overload
 
-from datasets import Features
 from typing_extensions import TypeAlias
 
 from ..refs.inputs import InputRefs
 from ..refs.outputs import OutputRefs
+from ..refs.ref import FeatureRef
 from .base import BaseNode, BaseNodeConfig, IOContext
 
 Batch: TypeAlias = dict[str, list[Any]]
@@ -117,24 +116,25 @@ class BaseDataProcessor(BaseNode[C, I, O], ABC):
         """
         return self._in_refs_validator.required_keys
 
-    def call(self, **kwargs) -> O:
+    def call(self, **kwargs: FeatureRef) -> O:
         """Calls the data processor with the provided inputs and returns the output reference.
 
         This method first prepares the inputs, then adds the processor to the data
         flow and returns a feature reference to the output features of the processor.
 
         Args:
-            **kwargs: Keyword arguments specifying feature references to be passed
+            **kwargs (FeatureRef): Keyword arguments specifying feature references to be passed
                 as inputs to the processor.
 
         Returns:
             O: The output references produced by the processor.
         """
-        # build inputs from keyword arguments
-        inputs = self._in_refs_type(**kwargs)
-        inputs = self._in_refs_validator.validate(inputs)
+        # validate inputs
+        inputs = self._in_refs_validator.validate(**kwargs)
         # compute output features and add the processor to the data flow
-        out_features = self._out_refs_type.build_features(self.config, inputs)
+        out_features = self._out_refs_type.build_features(
+            self.config, inputs.named_refs
+        )
         node_id = inputs.flow.add_processor_node(self, inputs, out_features)
         # return the output feature refs
         return self._out_refs_type(inputs.flow, node_id, out_features)

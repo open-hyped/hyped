@@ -128,25 +128,6 @@ class JsonParser(
             features={"parsed": self.config.scheme}
         )
 
-    def __getstate__(self):
-        """Prepare the state for serialization.
-
-        Returns:
-            dict: State dictionary without the _feature_model.
-        """
-        d = self.__dict__.copy()
-        d.pop("_feature_model")
-        return d
-
-    def __setstate__(self, d):
-        """Restore the state after deserialization.
-
-        Args:
-            d (dict): State dictionary.
-        """
-        self.__dict__ = d
-        self._feature_model = self._build_feature_model()
-
     def process(
         self, inputs: Sample, index: int, rank: int, io: IOContext
     ) -> Sample:

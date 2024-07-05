@@ -4,14 +4,15 @@ import pytest
 from datasets import Features, Sequence, Value
 from pydantic import ValidationError
 
-from hyped.data.flow.core.refs.inputs import InputRefs
+from hyped.data.flow.core.refs.inputs import InputRefs, InputRefsContainer
+from hyped.data.flow.core.refs.outputs import OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
 from hyped.data.flow.processors.ops.collect import (
     CollectFeatures,
     CollectFeaturesConfig,
-    CollectFeaturesInputRefsModel,
     CollectFeaturesOutputRefs,
     NestedContainer,
+    _path_to_str,
 )
 from tests.hyped.data.flow.processors.base import BaseDataProcessorTest
 
@@ -88,12 +89,9 @@ lst_ref = FeatureRef(
 
 
 def test_invalid_sequence():
-    inputs = CollectFeaturesInputRefsModel(
-        collection=NestedContainer[FeatureRef](data=[int_ref, str_ref])
-    )
     with pytest.raises(TypeError):
-        CollectFeaturesOutputRefs.build_features(
-            CollectFeaturesConfig(), inputs
+        CollectFeatures().call(
+            collection=NestedContainer[FeatureRef](data=[int_ref, str_ref])
         )
 
 
@@ -105,10 +103,30 @@ class BaseCollectFeaturesTest(BaseDataProcessorTest):
     collection: dict | list
 
     @pytest.fixture
-    def input_refs(self) -> InputRefs:
+    def nested_collection(self) -> NestedContainer[FeatureRef]:
         cls = type(self)
-        return CollectFeaturesInputRefsModel(
-            collection=NestedContainer[FeatureRef](data=cls.collection)
+        return NestedContainer[FeatureRef](data=cls.collection)
+
+    @pytest.fixture
+    def input_refs(self, nested_collection) -> InputRefs:
+        named_refs = {
+            _path_to_str(key): ref
+            for key, ref in nested_collection.flatten().items()
+        }
+        flow = next(iter(named_refs.values())).flow_
+        return InputRefsContainer(named_refs=named_refs, flow=flow)
+
+    @pytest.fixture
+    def output_refs(
+        self, processor, input_refs, nested_collection
+    ) -> OutputRefs:
+        # build output feature references
+        return processor._out_refs_type(
+            input_refs.flow,
+            "out",
+            processor._out_refs_type.build_features(
+                processor.config, {"collection": nested_collection}
+            ),
         )
 
 

@@ -97,7 +97,7 @@ class MathUnaryOpOutputRefs(BaseUnaryOpOutputRefs):
 
     result: Annotated[
         FeatureRef,
-        LambdaOutputFeature(lambda config, inputs: inputs.a.feature_),
+        LambdaOutputFeature(lambda config, inputs: inputs["a"].feature_),
     ]
     """The result of the mathematical unary operation."""
 

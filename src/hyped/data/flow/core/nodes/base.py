@@ -94,4 +94,22 @@ class BaseNode(BaseConfigurable[C], Generic[C, I, O]):
         self._in_refs_type = solve_typevar(type(self), I)
         self._out_refs_type = solve_typevar(type(self), O)
         # create input ref validator instance
-        self._in_refs_validator = InputRefsValidator(self._in_refs_type)
+        self._in_refs_validator = InputRefsValidator(
+            config, self._in_refs_type
+        )
+
+    def __getstate__(self):
+        """Prepare the state for serialization.
+
+        Returns:
+            dict: State dictionary containing only the config.
+        """
+        return {"config": self.config}
+
+    def __setstate__(self, d):
+        """Restore the state after deserialization.
+
+        Args:
+            d (dict): State dictionary.
+        """
+        self.__init__(config=d["config"])

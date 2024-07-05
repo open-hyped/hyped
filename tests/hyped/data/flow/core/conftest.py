@@ -39,8 +39,8 @@ def setup_graph():
         a=graph.get_node_output_ref(src_node).x,
         b=graph.get_node_output_ref(const_node).value,
     )
-    pi = p._in_refs_validator.validate(i)
-    ai = p._in_refs_validator.validate(i)
+    pi = p._in_refs_validator.validate(**i)
+    ai = p._in_refs_validator.validate(**i)
     # build output features
     po = p._out_refs_type.build_features(p.config, pi)
     ao = a._out_refs_type.build_features(a.config, ai)

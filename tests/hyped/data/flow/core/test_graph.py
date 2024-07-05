@@ -43,11 +43,10 @@ class TestDataFlowGraph:
 
         # create processor
         p = MockProcessor()
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(src_node_id).x,
             b=graph.get_node_output_ref(src_node_id).x,
         )
-        i = p._in_refs_validator.validate(i)
         o = p._out_refs_type.build_features(p.config, i)
         # add processor to graph
         node_id = graph.add_processor_node(p, i, o)
@@ -81,11 +80,10 @@ class TestDataFlowGraph:
         src_node_id = graph.add_source_node(src_features)
 
         a = MockAggregator()
-        i = MockInputRefs(
+        i = a._in_refs_validator.validate(
             a=graph.get_node_output_ref(src_node_id).x,
             b=graph.get_node_output_ref(src_node_id).x,
         )
-        i = a._in_refs_validator.validate(i)
         # add aggregator node
         node_id = graph.add_processor_node(a, i, None)
 
@@ -127,11 +125,10 @@ class TestDataFlowGraph:
 
         # create processor
         p = MockProcessor()
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(src_node_id).x,
             b=graph.get_node_output_ref(src_node_id).x,
         )
-        i = p._in_refs_validator.validate(i)
         o = p._out_refs_type.build_features(p.config, i)
         # add processor to graph
         node_id = graph.add_processor_node(p, i, o)
@@ -150,11 +147,10 @@ class TestDataFlowGraph:
 
         # create processor
         p = MockProcessor()
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(const_node).value,
             b=graph.get_node_output_ref(src_node_id).x,
         )
-        i = p._in_refs_validator.validate(i)
         o = p._out_refs_type.build_features(p.config, i)
         # add processor to graph
         node_id = graph.add_processor_node(p, i, o)
@@ -168,11 +164,10 @@ class TestDataFlowGraph:
 
         # create processor
         p = MockProcessor()
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(const_node).value,
             b=graph.get_node_output_ref(const_node).value,
         )
-        i = p._in_refs_validator.validate(i)
         o = p._out_refs_type.build_features(p.config, i)
         # add processor to graph
         node_id = graph.add_processor_node(p, i, o)
@@ -200,11 +195,10 @@ class TestDataFlowGraph:
         p = MockProcessor()
 
         # create input refs from source features
-        i1 = MockInputRefs(
+        i1 = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(src_node_id).x,
             b=graph.get_node_output_ref(src_node_id).x,
         )
-        i1 = p._in_refs_validator.validate(i1)
         o = p._out_refs_type.build_features(p.config, i1)
         # add first level processor
         node_id_1 = graph.add_processor_node(p, i1, o)
@@ -214,11 +208,10 @@ class TestDataFlowGraph:
         assert graph.width == 1
 
         # create input refs from first-level outputs
-        i2 = MockInputRefs(
+        i2 = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(node_id_1).y,
             b=graph.get_node_output_ref(node_id_1).y,
         )
-        i2 = p._in_refs_validator.validate(i2)
         o = p._out_refs_type.build_features(p.config, i2)
         # add second level processor
         node_id_2 = graph.add_processor_node(p, i2, o)
@@ -228,11 +221,10 @@ class TestDataFlowGraph:
         assert graph.width == 1
 
         # create in put refs from source and first level nodes
-        i3 = MockInputRefs(
+        i3 = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(src_node_id).x,
             b=graph.get_node_output_ref(node_id_1).y,
         )
-        i3 = p._in_refs_validator.validate(i3)
         o = p._out_refs_type.build_features(p.config, i3)
         # add third level processor
         node_id_3 = graph.add_processor_node(p, i3, o)
@@ -242,11 +234,10 @@ class TestDataFlowGraph:
         assert graph.width == 2
 
         # create in put refs from source and second level nodes
-        i4 = MockInputRefs(
+        i4 = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(src_node_id).x,
             b=graph.get_node_output_ref(node_id_2).y,
         )
-        i4 = p._in_refs_validator.validate(i4)
         o = p._out_refs_type.build_features(p.config, i4)
         # add third level processor
         node_id_4 = graph.add_processor_node(p, i4, o)
@@ -289,20 +280,16 @@ class TestDataFlowGraph:
         g1.add_processor_node(
             p,
             p._in_refs_validator.validate(
-                MockInputRefs(
-                    a=g1.get_node_output_ref(g1_src_node_id).x,
-                    b=g1.get_node_output_ref(g1_src_node_id).x,
-                )
+                a=g1.get_node_output_ref(g1_src_node_id).x,
+                b=g1.get_node_output_ref(g1_src_node_id).x,
             ),
             out_features,
         )
         g2.add_processor_node(
             p,
             p._in_refs_validator.validate(
-                MockInputRefs(
-                    a=g2.get_node_output_ref(g2_src_node_id).x,
-                    b=g2.get_node_output_ref(g2_src_node_id).x,
-                )
+                a=g2.get_node_output_ref(g2_src_node_id).x,
+                b=g2.get_node_output_ref(g2_src_node_id).x,
             ),
             out_features,
         )
@@ -311,10 +298,8 @@ class TestDataFlowGraph:
             g1.add_processor_node(
                 p,
                 p._in_refs_validator.validate(
-                    MockInputRefs(
-                        a=g2.get_node_output_ref(g2_src_node_id).x,
-                        b=g1.get_node_output_ref(g1_src_node_id).x,
-                    )
+                    a=g2.get_node_output_ref(g2_src_node_id).x,
+                    b=g1.get_node_output_ref(g1_src_node_id).x,
                 ),
                 out_features,
             )
@@ -329,11 +314,10 @@ class TestDataFlowGraph:
         # create mock processor
         p = MockProcessor()
         # create input refs from source features
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(src_node_id).x,
             b=graph.get_node_output_ref(src_node_id).x,
         )
-        i = p._in_refs_validator.validate(i)
         o = p._out_refs_type.build_features(p.config, i)
         # add processor to the graph
         node_id = graph.add_processor_node(p, i, o)
@@ -370,31 +354,28 @@ class TestDataFlowGraph:
         # create processor
         p = MockProcessor()
         # create input refs from source features
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(src_node_id).x,
             b=graph.get_node_output_ref(src_node_id).x,
         )
-        i = p._in_refs_validator.validate(i)
         o = p._out_refs_type.build_features(p.config, i)
         # add first level processor
         node_id_1 = graph.add_processor_node(p, i, o)
 
         # create input refs from first-level outputs
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(node_id_1).y,
             b=graph.get_node_output_ref(node_id_1).y,
         )
-        i = p._in_refs_validator.validate(i)
         o = p._out_refs_type.build_features(p.config, i)
         # add second level processor
         node_id_2 = graph.add_processor_node(p, i, o)
 
         # create input refs from first-level outputs
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(node_id_1).y,
             b=graph.get_node_output_ref(node_id_2).y,
         )
-        i = p._in_refs_validator.validate(i)
         o = p._out_refs_type.build_features(p.config, i)
         # add third level processor
         node_id_3 = graph.add_processor_node(p, i, o)
@@ -426,11 +407,10 @@ class TestDataFlowGraph:
         # create processor
         p = MockProcessor()
         # create input refs from source features
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(src_node_id).x,
             b=graph.get_node_output_ref(src_node_id).x,
         )
-        i = p._in_refs_validator.validate(i)
         o = p._out_refs_type.build_features(p.config, i)
         # add first level processor
         proc_node_id = graph.add_processor_node(p, i, o)
@@ -468,11 +448,10 @@ class TestDataFlowGraph:
         # create processor
         p = MockProcessor()
         # create input refs from source features
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(src_node_id).x,
             b=graph.get_node_output_ref(src_node_id).x,
         )
-        i = p._in_refs_validator.validate(i)
         o = p._out_refs_type.build_features(p.config, i)
         # add first level processor
         proc_node_id = graph.add_processor_node(p, i, o)
@@ -510,21 +489,19 @@ class TestDataFlowGraph:
         # create processor
         p = MockProcessor()
         # create input refs from source features
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(src_node_id).x,
             b=graph.get_node_output_ref(src_node_id).x,
         )
-        i = p._in_refs_validator.validate(i)
         o = p._out_refs_type.build_features(p.config, i)
         # add first level processor
         node_id_1 = graph.add_processor_node(p, i, o)
 
         # create input refs from first-level outputs
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(node_id_1).y,
             b=graph.get_node_output_ref(node_id_1).y,
         )
-        i = p._in_refs_validator.validate(i)
         o = p._out_refs_type.build_features(p.config, i)
         # add second level processor
         node_id_2 = graph.add_processor_node(p, i, o)
@@ -563,21 +540,19 @@ class TestDataFlowGraph:
         # create processor
         p = MockProcessor()
         # create input refs from source features
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(src_node_id).x,
             b=graph.get_node_output_ref(src_node_id).x,
         )
-        i = p._in_refs_validator.validate(i)
         o = p._out_refs_type.build_features(p.config, i)
         # add first level processor
         node_id_1 = graph.add_processor_node(p, i, o)
 
         # create input refs from first-level outputs
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(node_id_1).y,
             b=graph.get_node_output_ref(node_id_1).y,
         )
-        i = p._in_refs_validator.validate(i)
         o = p._out_refs_type.build_features(p.config, i)
         # add second level processor
         node_id_2 = graph.add_processor_node(p, i, o)

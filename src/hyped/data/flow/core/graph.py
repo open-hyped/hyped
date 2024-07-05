@@ -22,7 +22,7 @@ from hyped.data.flow.core.nodes.aggregator import BaseDataAggregator
 from hyped.data.flow.core.nodes.base import BaseNode
 from hyped.data.flow.core.nodes.const import Const
 from hyped.data.flow.core.nodes.processor import BaseDataProcessor
-from hyped.data.flow.core.refs.inputs import InputRefsModel
+from hyped.data.flow.core.refs.inputs import InputRefsContainer
 from hyped.data.flow.core.refs.outputs import OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
 
@@ -50,10 +50,12 @@ class DataFlowGraph(nx.MultiDiGraph):
 
         CONST = "CONSTANT"
         """
-        Represents a partition containing all constant nodes.
+        Represents the partition containing all constant nodes.
 
-        This partition is predefined to include nodes that hold constant
-        values used in the data processing flow.
+        This partition includes nodes that hold constant values used in the
+        data processing flow. This convers the actual constant nodes introducing
+        constant values to the flow, as well as computations on only constant
+        values.
         """
 
         DEFAULT = "DEFAULT"
@@ -65,6 +67,12 @@ class DataFlowGraph(nx.MultiDiGraph):
         """
 
         AGGREGATED = "AGGREGATED"
+        """
+        Represents the partition containing aggregated values.
+
+        This partition includes all aggregated values in a data flow, i.e.
+        nodes that process the output of aggregator nodes.
+        """
 
     class NodeType(Enum):
         """Enum representing types of nodes in the data flow graph."""
@@ -296,7 +304,7 @@ class DataFlowGraph(nx.MultiDiGraph):
     def add_processor_node(
         self,
         obj: BaseNode,
-        inputs: None | InputRefsModel,
+        inputs: None | InputRefsContainer,
         output_features: datasets.Features,
         node_id: None | str = None,
     ) -> str:

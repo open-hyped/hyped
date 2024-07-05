@@ -1,15 +1,18 @@
-from typing import Any, Hashable, Iterable
-from unittest.mock import MagicMock
+from typing import Any, Hashable, Iterable, NotRequired
+from unittest.mock import MagicMock, patch
 
 import pytest
 from datasets import Features, Sequence, Value
+from pydantic import BaseModel
 from typing_extensions import Annotated
 
+from hyped.base.config import BaseConfig
 from hyped.data.flow.core.refs.inputs import (
     CheckFeatureEquals,
     CheckFeatureIsSequence,
     FeatureValidator,
     InputRefs,
+    InputRefsValidator,
 )
 
 # import hyped.data.processors.base
@@ -30,26 +33,36 @@ def test_error_on_invalid_annotation():
         class CustomInputRefs(InputRefs):
             x: FeatureRef
 
+        InputRefsValidator(BaseConfig(), CustomInputRefs)
+
     with pytest.raises(TypeError):
 
         class CustomInputRefs(InputRefs):
             x: Annotated[FeatureRef, object]
+
+        InputRefsValidator(BaseConfig(), CustomInputRefs)
 
     with pytest.raises(TypeError):
 
         class CustomInputRefs(InputRefs):
             x: Annotated[object, FeatureValidator(MagicMock())]
 
+        InputRefsValidator(BaseConfig(), CustomInputRefs)
+
     class CustomInputRefs(InputRefs):
         x: Annotated[FeatureRef, FeatureValidator(MagicMock())]
+
+    InputRefsValidator(BaseConfig(), CustomInputRefs)
 
 
 def test_error_on_invalid_value():
     class CustomInputRefs(InputRefs):
         x: Annotated[FeatureRef, FeatureValidator(MagicMock)]
 
+    validator = InputRefsValidator(BaseConfig(), CustomInputRefs)
+
     with pytest.raises(ValueError):
-        CustomInputRefs(x=int)
+        validator.validate(**CustomInputRefs(x=int))
 
 
 def test_feature_validator():
@@ -62,15 +75,20 @@ def test_feature_validator():
         x: Annotated[FeatureRef, FeatureValidator(x_validator)]
         y: Annotated[FeatureRef, FeatureValidator(y_validator)]
 
+    # create validator instance from custom input refs type
+    validator = InputRefsValidator(BaseConfig(), CustomInputRefs)
+
     k, n, f = tuple(), "", None
     # create dummy input refs
     x_ref = FeatureRef(key_=k, node_id_=n, flow_=f, feature_=Value("int32"))
     y_ref = FeatureRef(key_=k, node_id_=n, flow_=f, feature_=Value("string"))
     # instantiate the input refs and make sure the
     # validators were called with the correct arguments
-    CustomInputRefs(x=x_ref, y=y_ref)
-    x_validator.assert_called_with(x_ref, Value("int32"))
-    y_validator.assert_called_with(y_ref, Value("string"))
+    refs = CustomInputRefs(x=x_ref, y=y_ref)
+    validator.validate(**refs)
+
+    x_validator.assert_called_with(validator.config, x_ref)
+    y_validator.assert_called_with(validator.config, y_ref)
 
 
 def test_check_feature_equals():
@@ -78,22 +96,30 @@ def test_check_feature_equals():
         x: Annotated[FeatureRef, CheckFeatureEquals(Value("int32"))]
         y: Annotated[FeatureRef, CheckFeatureEquals(Value("string"))]
 
+    # create validator instance from custom input refs type
+    validator = InputRefsValidator(BaseConfig(), CustomInputRefs)
+
     k, n, f = tuple(), "", None
     # create dummy input refs
     x_ref = FeatureRef(key_=k, node_id_=n, flow_=f, feature_=Value("int32"))
     y_ref = FeatureRef(key_=k, node_id_=n, flow_=f, feature_=Value("string"))
     # create input refs, all types match
-    CustomInputRefs(x=x_ref, y=y_ref)
+    refs = CustomInputRefs(x=x_ref, y=y_ref)
+    validator.validate(**refs)
 
     # create input refs but one type doesn't match the expectation
-    with pytest.raises(TypeError):
-        CustomInputRefs(x=x_ref, y=x_ref)
+    with pytest.raises(RuntimeError):
+        refs = CustomInputRefs(x=x_ref, y=x_ref)
+        validator.validate(**refs)
 
 
 def test_check_feature_is_sequence():
     class CustomInputRefs(InputRefs):
         x: Annotated[FeatureRef, CheckFeatureIsSequence(Value("int32"))]
         y: Annotated[FeatureRef, CheckFeatureIsSequence(Value("string"))]
+
+    # create validator instance from custom input refs type
+    validator = InputRefsValidator(BaseConfig(), CustomInputRefs)
 
     k, n, f = tuple(), "", None
     # create dummy input refs
@@ -113,11 +139,13 @@ def test_check_feature_is_sequence():
         feature_=Sequence(Value("string"), length=4),
     )
     # create input refs, all types match
-    CustomInputRefs(x=x_ref, y=y_ref)
+    refs = CustomInputRefs(x=x_ref, y=y_ref)
+    validator.validate(**refs)
 
     # create input refs but one type doesn't match the expectation
-    with pytest.raises(TypeError):
-        CustomInputRefs(x=x_ref, y=x_ref)
+    with pytest.raises(RuntimeError):
+        refs = CustomInputRefs(x=x_ref, y=x_ref)
+        validator.validate(**refs)
 
     # test with specified length
     class CustomInputRefs(InputRefs):
@@ -126,14 +154,19 @@ def test_check_feature_is_sequence():
             FeatureRef, CheckFeatureIsSequence(Value("string"), length=2)
         ]
 
+    # create validator instance from custom input refs type
+    validator = InputRefsValidator(BaseConfig(), CustomInputRefs)
+
     # create input refs, all types match
     CustomInputRefs(x=x_ref, y=y_ref)
     # create input refs but one type doesn't match the expectation
-    with pytest.raises(TypeError):
-        CustomInputRefs(x=x_ref, y=x_ref)
+    with pytest.raises(RuntimeError):
+        refs = CustomInputRefs(x=x_ref, y=x_ref)
+        validator.validate(**refs)
     # create input refs but sequence length doesn't match the expectation
-    with pytest.raises(TypeError):
-        CustomInputRefs(x=x_ref, y=z_ref)
+    with pytest.raises(RuntimeError):
+        refs = CustomInputRefs(x=x_ref, y=z_ref)
+        validator.validate(**refs)
 
 
 def test_required_input_refs():
@@ -141,15 +174,21 @@ def test_required_input_refs():
         x: Annotated[FeatureRef, FeatureValidator(lambda r, f: None)]
         y: Annotated[FeatureRef, FeatureValidator(lambda r, f: None)]
 
+    # create validator instance from custom input refs type
+    validator = InputRefsValidator(BaseConfig(), CustomInputRefs)
+
+    assert validator.required_keys == {"x", "y"}
+    assert validator.optional_keys == set()
+
     k, n, f = tuple(), "", MagicMock
     # create dummy input refs
     x_ref = FeatureRef(key_=k, node_id_=n, flow_=f, feature_=Value("int32"))
     y_ref = FeatureRef(key_=k, node_id_=n, flow_=f, feature_=Value("string"))
     # create input refs instance
     input_refs = CustomInputRefs(x=x_ref, y=y_ref)
+    input_refs = validator.validate(**input_refs)
 
     # check properties
-    assert input_refs.required_keys == {"x", "y"}
     assert ptr_set(input_refs.refs) == ptr_set([x_ref, y_ref])
     assert ptr_dict(input_refs.named_refs) == ptr_dict(
         {"x": x_ref, "y": y_ref}
@@ -167,17 +206,23 @@ def test_optional_input_refs():
     y_ref = FeatureRef(key_=k, node_id_=n, flow_=f, feature_=Value("string"))
 
     class CustomInputRefs(InputRefs):
-        x: Annotated[
-            FeatureRef, FeatureValidator(lambda r, f: None)
-        ] = NONE_REF
-        y: Annotated[
-            FeatureRef, FeatureValidator(lambda r, f: None)
-        ] = NONE_REF
+        x: NotRequired[
+            Annotated[FeatureRef, FeatureValidator(lambda r, f: None)]
+        ]
+        y: NotRequired[
+            Annotated[FeatureRef, FeatureValidator(lambda r, f: None)]
+        ]
+
+    # create validator instance from custom input refs type
+    validator = InputRefsValidator(BaseConfig(), CustomInputRefs)
+
+    assert validator.required_keys == set()
+    assert validator.optional_keys == {"x", "y"}
 
     # create input refs instance
     input_refs = CustomInputRefs(x=x_ref, y=y_ref)
+    input_refs = validator.validate(**input_refs)
     # check properties
-    assert input_refs.required_keys == set()
     assert ptr_set(input_refs.refs) == ptr_set([x_ref, y_ref])
     assert ptr_dict(input_refs.named_refs) == ptr_dict(
         {"x": x_ref, "y": y_ref}
@@ -186,30 +231,36 @@ def test_optional_input_refs():
 
     # create input refs instance
     input_refs = CustomInputRefs(x=x_ref)
+    input_refs = validator.validate(**input_refs)
     # check properties
-    assert input_refs.required_keys == set()
     assert ptr_set(input_refs.refs) == ptr_set([x_ref])
     assert ptr_dict(input_refs.named_refs) == ptr_dict({"x": x_ref})
     assert input_refs.flow == f
 
     # create input refs instance
     input_refs = CustomInputRefs(y=y_ref)
+    input_refs = validator.validate(**input_refs)
     # check properties
-    assert input_refs.required_keys == set()
     assert ptr_set(input_refs.refs) == ptr_set([y_ref])
     assert ptr_dict(input_refs.named_refs) == ptr_dict({"y": y_ref})
     assert input_refs.flow == f
 
     class CustomInputRefs(InputRefs):
         x: Annotated[FeatureRef, FeatureValidator(lambda r, f: None)]
-        y: Annotated[
-            FeatureRef, FeatureValidator(lambda r, f: None)
-        ] = NONE_REF
+        y: NotRequired[
+            Annotated[FeatureRef, FeatureValidator(lambda r, f: None)]
+        ]
+
+    # create validator instance from custom input refs type
+    validator = InputRefsValidator(BaseConfig(), CustomInputRefs)
+
+    assert validator.required_keys == {"x"}
+    assert validator.optional_keys == {"y"}
 
     # create input refs instance
     input_refs = CustomInputRefs(x=x_ref, y=y_ref)
+    input_refs = validator.validate(**input_refs)
     # check properties
-    assert input_refs.required_keys == {"x"}
     assert ptr_set(input_refs.refs) == ptr_set([x_ref, y_ref])
     assert ptr_dict(input_refs.named_refs) == ptr_dict(
         {"x": x_ref, "y": y_ref}
@@ -218,8 +269,8 @@ def test_optional_input_refs():
 
     # create input refs instance
     input_refs = CustomInputRefs(x=x_ref)
+    input_refs = validator.validate(**input_refs)
     # check properties
-    assert input_refs.required_keys == {"x"}
     assert ptr_set(input_refs.refs) == ptr_set([x_ref])
     assert ptr_dict(input_refs.named_refs) == ptr_dict({"x": x_ref})
     assert input_refs.flow == f

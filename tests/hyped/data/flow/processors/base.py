@@ -1,3 +1,4 @@
+import pickle
 from contextlib import nullcontext
 from unittest.mock import MagicMock
 
@@ -14,7 +15,7 @@ from hyped.data.flow.core.nodes.processor import (
     Batch,
     IOContext,
 )
-from hyped.data.flow.core.refs.inputs import InputRefsModel
+from hyped.data.flow.core.refs.inputs import InputRefsContainer
 from hyped.data.flow.core.refs.outputs import OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
 
@@ -62,7 +63,7 @@ class BaseDataProcessorTest:
     @pytest.fixture
     def input_refs(
         self, processor, input_verification_error_handler
-    ) -> None | InputRefsModel:
+    ) -> None | InputRefsContainer:
         cls = type(self)
 
         n, f = "in", MagicMock()
@@ -72,8 +73,7 @@ class BaseDataProcessorTest:
         }
 
         with input_verification_error_handler:
-            input_refs = processor._in_refs_type(**input_refs)
-            return processor._in_refs_validator.validate(input_refs)
+            return processor._in_refs_validator.validate(**input_refs)
 
     @pytest.fixture
     def output_refs(self, processor, input_refs) -> None | OutputRefs:
@@ -85,8 +85,21 @@ class BaseDataProcessorTest:
             input_refs.flow,
             "out",
             processor._out_refs_type.build_features(
-                processor.config, input_refs
+                processor.config, input_refs.named_refs
             ),
+        )
+
+    @pytest.mark.asyncio
+    async def test_pickle(
+        self, processor, input_refs, output_refs, exec_error_handler
+    ):
+        # pickle and unpickle processor
+        serialized = pickle.dumps(processor)
+        reconstructed = pickle.loads(serialized)
+        # run the test case on the reconstructed processor
+        # make sure the underlying feature model is the same
+        await self.test_case(
+            reconstructed, input_refs, output_refs, exec_error_handler
         )
 
     @pytest.mark.asyncio
@@ -133,11 +146,7 @@ class BaseDataProcessorTest:
 
         # build the io context
         io = IOContext(
-            node_id=-1,
-            inputs=cls.input_features,
-            outputs=processor._out_refs_type.build_features(
-                processor.config, input_refs
-            ),
+            node_id=-1, inputs=cls.input_features, outputs=output_refs.feature_
         )
 
         with exec_error_handler:

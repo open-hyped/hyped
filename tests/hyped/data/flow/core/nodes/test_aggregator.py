@@ -4,14 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 import pytest
 from datasets import Features, Value
 
-from hyped.data.flow.core.nodes.aggregator import (
-    BaseDataAggregator,
-    BaseDataAggregatorConfig,
-    DataAggregationManager,
-)
+from hyped.data.flow.core.nodes.aggregator import DataAggregationManager
 from hyped.data.flow.core.nodes.base import IOContext
-from hyped.data.flow.core.refs.inputs import InputRefs
-from hyped.data.flow.core.refs.outputs import OutputFeature, OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
 from tests.hyped.data.flow.core.mock import MockAggregator
 
@@ -153,7 +147,9 @@ class TestDataAggregator:
         ref = mock_aggregator.call(x=mock_x)
 
         # check the input reference is build correctly
-        mock_aggregator._in_refs_type.assert_called_with(x=mock_x)
+        mock_aggregator._in_refs_validator.validate.assert_called_with(
+            x=mock_x
+        )
         # make sure the aggregator node is added to the data flow
         mock_in_ref.flow.add_processor_node.assert_called_with(
             mock_aggregator, mock_in_ref, Features({"y": Value("int64")})

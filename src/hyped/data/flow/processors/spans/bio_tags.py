@@ -30,6 +30,7 @@ from hyped.data.flow.core.refs.inputs import (
     CheckFeatureEquals,
     CheckFeatureIsSequence,
     FeatureValidator,
+    GlobalValidator,
     InputRefs,
 )
 from hyped.data.flow.core.refs.outputs import LambdaOutputFeature, OutputRefs
@@ -38,7 +39,62 @@ from hyped.data.flow.core.refs.ref import FeatureRef
 from .utils import validate_spans_feature
 
 
-class BioTagsInputRefs(InputRefs):
+def validate_bio_tag_input_refs(refs: BioTagsInputRefs) -> None:
+    """Global validator for bio tag input refs.
+
+    Ensures that the lengths of spans and labels match if
+    they are both specified and not dynamic.
+
+    Args:
+        refs (BioTagsInputRefs): input references to validate
+
+    Raises:
+        RuntimeError: If the lengths of spans and labels do not match.
+    """
+    if (
+        (get_sequence_length(refs.spans.feature_) != -1)
+        and (get_sequence_length(refs.labels.feature_) != -1)
+    ) and (
+        get_sequence_length(refs.spans.feature_)
+        != get_sequence_length(refs.labels.feature_)
+    ):
+        raise RuntimeError(
+            f"Mismatch in sequence lengths: 'spans' and 'labels' "
+            f"must have the same length, got {get_sequence_length(refs.spans.feature_)} "
+            f"!= {get_sequence_length(refs.labels.feature_)}."
+        )
+
+
+def check_input_lengths(config: BioTagsConfig, refs: BioTagsInputRefs) -> None:
+    """Validate that the sequence lengths of spans and labels match.
+
+    This function checks the sequence lengths of the :code:`spans` and :code:`labels` features
+    in the provided :code:`BioTagsInputRefs`. If both sequence lengths are known and they do not
+    match, it raises a :code:`RuntimeError`.
+
+    Args:
+        config (BioTagsConfig): The configuration for the BioTags processor.
+        refs (BioTagsInputRefs): The input references containing the features to be validated.
+
+    Raises:
+        RuntimeError: If the sequence lengths of 'spans' and 'labels' do not match.
+    """
+    spans_length = get_sequence_length(refs["spans"].feature_)
+    labels_length = get_sequence_length(refs["labels"].feature_)
+
+    if (
+        (spans_length != -1)
+        and (labels_length != -1)
+        and (spans_length != labels_length)
+    ):
+        raise RuntimeError(
+            f"Span and label sequence length don't match, got {spans_length} != {labels_length}."
+        )
+
+
+class BioTagsInputRefs(
+    Annotated[InputRefs, GlobalValidator(check_input_lengths)]
+):
     """Input references for the BioTags processor."""
 
     spans: Annotated[FeatureRef, FeatureValidator(validate_spans_feature)]
@@ -55,28 +111,6 @@ class BioTagsInputRefs(InputRefs):
     """The feature reference to the length, which should be of integer type
     indicating the target length of the tags sequence.
     """
-
-    def model_post_init(self, __context: Any) -> None:
-        """Post-initialization checks.
-
-        Ensures that the lengths of spans and labels match if
-        they are both specified and not dynamic.
-
-        Raises:
-            RuntimeError: If the lengths of spans and labels do not match.
-        """
-        if (
-            (get_sequence_length(self.spans.feature_) != -1)
-            and (get_sequence_length(self.labels.feature_) != -1)
-        ) and (
-            get_sequence_length(self.spans.feature_)
-            != get_sequence_length(self.labels.feature_)
-        ):
-            raise RuntimeError(
-                f"Mismatch in sequence lengths: 'spans' and 'labels' "
-                f"must have the same length, got {get_sequence_length(self.spans.feature_)} "
-                f"!= {get_sequence_length(self.labels.feature_)}."
-            )
 
 
 def build_bio_tags_feature(
@@ -96,7 +130,7 @@ def build_bio_tags_feature(
     #       feature comes from a constant
 
     # read labels feature
-    labels_feature = get_sequence_feature(inputs.labels.feature_)
+    labels_feature = get_sequence_feature(inputs["labels"].feature_)
 
     # keep string feature if input labels are also strings
     if check_feature_equals(labels_feature, Value("string")):

@@ -32,7 +32,7 @@ class NoOpInputRefs(InputRefs):
 class NoOpOutputRefs(OutputRefs):
     """A collection of output feature references for the NoOp data processor."""
 
-    y: Annotated[FeatureRef, LambdaOutputFeature(lambda _, i: i.x.feature_)]
+    y: Annotated[FeatureRef, LambdaOutputFeature(lambda _, i: i["x"].feature_)]
     """
     The output reference representing the output feature. The output feature
     type is copied from the feature type of the input.
@@ -49,22 +49,6 @@ class NoOp(BaseDataProcessor[NoOpConfig, NoOpInputRefs, NoOpOutputRefs]):
     This class defines the NoOp data processor, which simply passes the input
     feature through to the output feature without any processing.
     """
-
-    def __init__(self) -> None:
-        """Initialize the NoOp data processor."""
-        super(NoOp, self).__init__(config=NoOpConfig())
-
-    @classmethod
-    def from_config(cls, config: NoOpConfig) -> NoOp:
-        """Creates a NoOp data processor instance from the provided configuration.
-
-        Args:
-            config (NoOpConfig): The configuration object for the NoOp processor.
-
-        Returns:
-            NoOp: An instance of the NoOp data processor.
-        """
-        return cls()
 
     async def batch_process(
         self, inputs: Batch, index: list[int], rank: int, io: IOContext

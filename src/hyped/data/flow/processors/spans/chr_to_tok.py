@@ -40,7 +40,7 @@ class ChrToTokSpansOutputRefs(OutputRefs):
         LambdaOutputFeature(
             lambda _, i: Sequence(
                 Sequence(Value("int32"), length=2),
-                length=i.query_spans.feature_.length,
+                length=i["query_spans"].feature_.length,
             )
         ),
     ]

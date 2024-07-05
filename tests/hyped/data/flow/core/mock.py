@@ -25,15 +25,17 @@ class MockInputRefs(InputRefs):
     b: Annotated[FeatureRef, FeatureValidator(lambda *args: None)]
 
 
-mock_input_refs_validator = InputRefsValidator(MockInputRefs)
-
-
 class MockOutputRefs(OutputRefs):
     y: Annotated[FeatureRef, OutputFeature(Value("int64"))]
 
 
 class MockProcessorConfig(BaseDataProcessorConfig):
     i: int = 0
+
+
+mock_input_refs_validator = InputRefsValidator(
+    MockProcessorConfig(), MockInputRefs
+)
 
 
 class MockProcessor(

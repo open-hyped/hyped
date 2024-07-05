@@ -69,11 +69,10 @@ class TestExecutionState:
         # create processor
         p = MockProcessor()
         # create input refs from source features
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(graph.src_node_id),
             b=graph.get_node_output_ref(graph.src_node_id).x,
         )
-        i = p._in_refs_validator.validate(i)
         o = p._out_refs_type.build_features(p.config, i)
         # add first level processor
         node_id = graph.add_processor_node(p, i, o)
@@ -91,11 +90,10 @@ class TestExecutionState:
         # create processor
         p = MockProcessor()
         # create input refs from source features
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(node_id_1).y,
             b=graph.get_node_output_ref(node_id_1).y,
         )
-        i = p._in_refs_validator.validate(i)
         o = p._out_refs_type.build_features(p.config, i)
         # add processor
         node_id_2 = graph.add_processor_node(p, i, o)

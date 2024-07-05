@@ -291,8 +291,8 @@ def closed_op_infer_dtype(
     Returns:
         Value: The inferred data type for the output.
     """
-    a_dtype = inputs.a.feature_
-    b_dtype = inputs.b.feature_
+    a_dtype = inputs["a"].feature_
+    b_dtype = inputs["b"].feature_
 
     if (a_dtype in INT_TYPES) and (b_dtype in INT_TYPES):
         return Value(max(a_dtype.dtype, b_dtype.dtype))
@@ -301,7 +301,11 @@ def closed_op_infer_dtype(
         return Value(max(a_dtype.dtype, b_dtype.dtype))
 
     # type mismatch, one is int and one is float, keep the float
-    return inputs.a.feature_ if a_dtype in FLOAT_TYPES else inputs.b.feature_
+    return (
+        inputs["a"].feature_
+        if a_dtype in FLOAT_TYPES
+        else inputs["b"].feature_
+    )
 
 
 class ClosedOpOutputRefs(BaseBinaryOpOutputRefs):

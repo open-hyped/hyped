@@ -9,7 +9,11 @@ from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessorConfig,
     IOContext,
 )
-from hyped.data.flow.core.refs.inputs import CheckFeatureEquals, InputRefs
+from hyped.data.flow.core.refs.inputs import (
+    CheckFeatureEquals,
+    InputRefs,
+    InputRefsContainer,
+)
 from hyped.data.flow.core.refs.outputs import OutputFeature, OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
 
@@ -60,7 +64,7 @@ class TestBaseDataProcessor:
         # create processor instance
         proc = MockProcessor()
         # create mock inputs
-        mock_inputs = MockInputRefs(
+        mock_inputs = proc._in_refs_type(
             x=FeatureRef(
                 key_=tuple(),
                 node_id_="",
@@ -68,10 +72,9 @@ class TestBaseDataProcessor:
                 feature_=Value("int32"),
             )
         )
-        mock_inputs = proc._in_refs_validator.validate(mock_inputs)
 
         # this should add the processor to the mock flow
-        out = proc.call(x=mock_inputs.x)
+        out = proc.call(**mock_inputs)
         # check the output features
         assert out.feature_ == out_features
 
@@ -83,7 +86,9 @@ class TestBaseDataProcessor:
             call_out_features,
         ) = mock_flow.add_processor_node.call_args.args
         assert call_proc == proc
-        assert call_input_refs == mock_inputs
+        assert call_input_refs == InputRefsContainer(
+            named_refs=mock_inputs, flow=mock_flow
+        )
         assert call_out_features == out_features
 
     @pytest.mark.asyncio
