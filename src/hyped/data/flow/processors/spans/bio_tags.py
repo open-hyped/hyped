@@ -6,11 +6,9 @@ Recognition.
 """
 from __future__ import annotations
 
-from typing import Unpack
-
 import numpy as np
 from datasets import ClassLabel, Sequence, Value
-from typing_extensions import Annotated
+from typing_extensions import Annotated, Unpack
 
 from hyped.common.feature_checks import (
     INT_TYPES,
