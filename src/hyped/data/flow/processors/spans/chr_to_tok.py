@@ -13,9 +13,13 @@ from hyped.data.flow.core.nodes.processor import (
     IOContext,
     Sample,
 )
-from hyped.data.flow.core.refs.inputs import FeatureValidator, InputRefs
+from hyped.data.flow.core.refs.inputs import (
+    CheckFeatureEquals,
+    FeatureValidator,
+    InputRefs,
+)
 from hyped.data.flow.core.refs.outputs import LambdaOutputFeature, OutputRefs
-from hyped.data.flow.core.refs.ref import FeatureRef
+from hyped.data.flow.core.refs.ref import NONE_REF, FeatureRef
 
 from .utils import compute_spans_overlap_matrix, validate_spans_feature
 
@@ -30,6 +34,11 @@ class ChrToTokSpansInputRefs(InputRefs):
         FeatureRef, FeatureValidator(validate_spans_feature)
     ]
     """Query spans feature reference."""
+
+    special_tokens_mask: Annotated[
+        FeatureRef, CheckFeatureEquals(Sequence(Value("int32")))
+    ] = NONE_REF
+    """Mask indicating tokens not to be mapped to queries."""
 
 
 class ChrToTokSpansOutputRefs(OutputRefs):
@@ -81,6 +90,7 @@ class ChrToTokSpans(
         overlap = compute_spans_overlap_matrix(
             source_spans=inputs["query_spans"],
             target_spans=inputs["chr_spans"],
+            special_tokens=inputs.get("special_tokens_mask", None),
         )
         # get begins and ends from mask
         tok_spans_begin = overlap.argmax(axis=1)

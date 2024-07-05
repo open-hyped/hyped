@@ -3,6 +3,7 @@
 This module provides utility functions for handling and validating.
 """
 from enum import Enum
+from typing import Optional
 
 import numpy as np
 from datasets.features.features import FeatureType
@@ -18,19 +19,22 @@ from hyped.data.flow.core.refs.ref import FeatureRef
 def compute_spans_overlap_matrix(
     source_spans: list[tuple[int]],
     target_spans: list[tuple[int]],
+    special_tokens: Optional[list[int]] = None,
 ) -> np.ndarray:
     """Compute the span overlap matrix.
 
     The span overlap matrix :math:`O` is a binary matrix of shape :math:`(n, m)` where
     :math:`n` is the number of source spans and :math:`m` is the number of target spans.
     The boolean value :math:`O_{ij}` indicates whether the :math:`i`-th source span
-    overlaps with the :math:`j`-th target span.
+    overlaps with the :math:`j`-th target span if that target span is not a special token.
 
     Arguments:
         source_spans (Sequence[tuple[int]]): either a sequence of source spans or a
             single source span
         target_spans (Sequence[tuple[int]]): either a sequence of target spans or a
             single target span
+        special_tokens (Sequence[int]): a sequence of the same length as target_spans
+            indicating which tokens are not to be mapped to queries
 
     Returns:
         O (np.ndarray): binary overlap matrix of shape
@@ -39,6 +43,10 @@ def compute_spans_overlap_matrix(
     # convert spans to numpy arrays
     source_spans = np.asarray(source_spans).reshape(-1, 2)
     target_spans = np.asarray(target_spans).reshape(-1, 2)
+    if special_tokens is None:
+        special_tokens = np.zeros(shape=target_spans.shape[0], dtype=bool)
+    else:
+        special_tokens = np.asarray(special_tokens, dtype=bool)
     # compute overlap mask
     return (
         (
@@ -61,7 +69,7 @@ def compute_spans_overlap_matrix(
             (target_spans[None, :, 0] <= source_spans[:, 0, None])
             & (source_spans[:, 1, None] <= target_spans[None, :, 1])
         )
-    )
+    ) & ~special_tokens
 
 
 def validate_spans_feature(ref: FeatureRef, feature: FeatureType) -> None:
