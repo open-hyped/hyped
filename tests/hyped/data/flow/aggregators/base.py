@@ -1,10 +1,14 @@
+import pickle
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 from datasets import Features, Sequence
 
-from hyped.common.feature_checks import check_object_matches_feature
+from hyped.common.feature_checks import (
+    check_feature_equals,
+    check_object_matches_feature,
+)
 from hyped.data.flow.core.nodes.aggregator import (
     BaseDataAggregator,
     BaseDataAggregatorConfig,
@@ -29,6 +33,8 @@ class BaseDataAggregatorTest:
     input_features: Features
     input_data: Batch
     input_index: None | list[int] = None
+
+    expected_value_feature: None | Features = None
     # expected initial state
     expected_initial_value: None | Any = UNSET
     expected_initial_state: None | Any = UNSET
@@ -47,7 +53,10 @@ class BaseDataAggregatorTest:
 
     @pytest.fixture
     def flow(self):
-        return MagicMock()
+        cls = type(self)
+        mock_flow = MagicMock()
+        mock_flow.add_processor_node = MagicMock(return_value=cls.node_id)
+        return mock_flow
 
     @pytest.fixture
     def input_refs(self, aggregator, flow) -> InputRefs:
@@ -94,6 +103,29 @@ class BaseDataAggregatorTest:
             aggregators=[aggregator], io_contexts=[io_context]
         )
 
+    def test_call(self, aggregator, input_refs):
+        cls = type(self)
+
+        if input_refs is not None:
+            # call the processor
+            out = aggregator.call(**input_refs.named_refs)
+            # check the output features
+            if cls.expected_value_feature is not None:
+                assert out.feature_ == cls.expected_value_feature
+
+    @pytest.mark.asyncio
+    async def test_pickle(
+        self, manager, aggregator, input_refs, output_refs, io_context
+    ):
+        # pickle and unpickle processor
+        serialized = pickle.dumps(aggregator)
+        reconstructed = pickle.loads(serialized)
+        # run the test case on the reconstructed processor
+        # make sure the underlying feature model is the same
+        await self.test_case(
+            manager, reconstructed, input_refs, output_refs, io_context
+        )
+
     @pytest.mark.asyncio
     async def test_case(
         self, manager, aggregator, input_refs, output_refs, io_context
@@ -132,6 +164,15 @@ class BaseDataAggregatorTest:
                 f"Expected {manager._state_buffer[cls.node_id]}, "
                 f"got {cls.expected_initial_state}"
             )
+
+            if cls.expected_value_feature is not None:
+                assert check_feature_equals(
+                    output_refs.feature_, cls.expected_value_feature
+                )
+                assert check_object_matches_feature(
+                    manager._value_buffer[cls.node_id],
+                    cls.expected_value_feature,
+                )
 
         # run aggregation
         await manager.aggregate(

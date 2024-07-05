@@ -101,8 +101,9 @@ class BaseDataProcessorTest:
         cls = type(self)
 
         if input_refs is not None:
+            # call the processor
             out = processor.call(**input_refs.named_refs)
-
+            # check the output features
             if cls.expected_output_features is not None:
                 assert out.feature_ == cls.expected_output_features
 

@@ -15,6 +15,8 @@ class TestSum(BaseDataAggregatorTest):
     input_features = Features({"x": Value("int32")})
     input_data = {"x": list(range(100))}
     input_index = list(range(100))
+
+    expected_value_feature = Features({"value": Value("float64")})
     # expected initial value
     expected_initial_value = {"value": 0}
     expected_initial_state = None
@@ -31,6 +33,8 @@ class TestSumWithOffset(BaseDataAggregatorTest):
     input_features = Features({"x": Value("int32")})
     input_data = {"x": list(range(100))}
     input_index = list(range(100))
+
+    expected_value_feature = Features({"value": Value("float64")})
     # expected initial value
     expected_initial_value = {"value": -10}
     expected_initial_state = None
