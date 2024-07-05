@@ -82,6 +82,12 @@ class BaseNode(BaseConfigurable[C], Generic[C, I, O]):
         _out_refs_type (Type[O]): The type of output references produced by the node.
     """
 
+    @classmethod
+    @property
+    def Config(self) -> type[C]:
+        """Get the configuration type of the node."""
+        return self.config_type
+
     def __init__(self, config: None | C = None, **kwargs) -> None:
         """Initialize the node with the given configuration.
 

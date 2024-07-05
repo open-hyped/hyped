@@ -22,6 +22,8 @@ def test_basics():
     class MockNode(BaseNode[MockConfig, MockInputRefs, MockOutputRefs]):
         ...
 
+    assert MockNode.Config == MockConfig
+
     with patch(
         "hyped.data.flow.core.nodes.base.InputRefsValidator"
     ) as mock_validator:
