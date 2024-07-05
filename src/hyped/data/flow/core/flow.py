@@ -185,7 +185,7 @@ class DataFlow(object):
         Returns:
             FeatureRef: A feature reference to the constant value in the data flow.
         """
-        return Const(value=value, ftype=ftype).to(self._graph).value
+        return Const(value=value, ftype=ftype).call(self._graph).value
 
     def build(
         self,

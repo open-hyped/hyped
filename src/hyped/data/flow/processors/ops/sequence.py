@@ -1,10 +1,12 @@
 """Module containing processor implementations for sequence operators."""
+from __future__ import annotations
+
 import operator
 from abc import ABC, abstractmethod
 from collections import deque
 from functools import partial
 from itertools import starmap
-from typing import Any, ClassVar, TypeVar
+from typing import Any, ClassVar, TypeVar, Unpack
 
 import numpy as np
 from datasets import Sequence, Value
@@ -27,6 +29,7 @@ from hyped.data.flow.core.refs.inputs import (
     AnyFeatureType,
     CheckFeatureEquals,
     CheckFeatureIsSequence,
+    GlobalValidator,
     InputRefs,
 )
 from hyped.data.flow.core.refs.outputs import (
@@ -36,12 +39,7 @@ from hyped.data.flow.core.refs.outputs import (
 )
 from hyped.data.flow.core.refs.ref import FeatureRef
 
-from .binary import (
-    BaseBinaryOp,
-    BaseBinaryOpConfig,
-    BaseBinaryOpOutputRefs,
-    BinaryOpInputRefs,
-)
+from .binary import BaseBinaryOp, BaseBinaryOpConfig, BaseBinaryOpOutputRefs
 from .unary import (
     BaseUnaryOp,
     BaseUnaryOpConfig,
@@ -85,7 +83,34 @@ class SequenceConcatConfig(BaseBinaryOpConfig):
     """Configuration class for the Concat operation."""
 
 
-class SequenceConcatInputRefs(BinaryOpInputRefs):
+def validate_concat_input_refs(
+    config: SequenceConcatConfig, refs: SequenceConcatInputRefs
+) -> None:
+    """Ensure sequence features align for concatenation.
+
+    Args:
+        config (SequenceConcatConfig): Config instance.
+        refs (SequenceConcatInputRefs): Input references to validate.
+
+    Raises:
+        RuntimeError: If the sequence features do not match.
+    """
+    # sequence features must align in
+    # order to concatenate sequences
+    if not check_feature_equals(
+        get_sequence_feature(refs["a"].feature_),
+        get_sequence_feature(refs["b"].feature_),
+    ):
+        raise RuntimeError(
+            f"The sequence features of 'a' and 'b' must match to perform concatenation, "
+            f"got `{get_sequence_feature(refs['a'].feature_)}` "
+            f"!= `{get_sequence_feature(refs['b'].feature_)}`"
+        )
+
+
+class SequenceConcatInputRefs(
+    Annotated[InputRefs, GlobalValidator(validate_concat_input_refs)]
+):
     """Input references for the Concat operation."""
 
     a: Annotated[FeatureRef, CheckFeatureIsSequence()]
@@ -93,27 +118,6 @@ class SequenceConcatInputRefs(BinaryOpInputRefs):
 
     b: Annotated[FeatureRef, CheckFeatureIsSequence()]
     """The second sequence feature reference."""
-
-    def model_post_init(self, __context: Any) -> None:
-        """Post-initialization check to ensure sequence features align for concatenation.
-
-        Args:
-            __context: The context for the model initialization.
-
-        Raises:
-            RuntimeError: If the sequence features do not match.
-        """
-        # sequence features must align in
-        # order to concatenate sequences
-        if not check_feature_equals(
-            get_sequence_feature(self.a.feature_),
-            get_sequence_feature(self.b.feature_),
-        ):
-            raise RuntimeError(
-                f"The sequence features of 'a' and 'b' must match to perform concatenation, "
-                f"got `{get_sequence_feature(self.a.feature_)}` "
-                f"!= `{get_sequence_feature(self.b.feature_)}`"
-            )
 
 
 def infer_concat_output_dtype(
@@ -129,14 +133,14 @@ def infer_concat_output_dtype(
         Sequence: The output sequence feature with inferred length.
     """
     # get the lengths of the input sequences
-    a_length = get_sequence_length(inputs.a.feature_)
-    b_length = get_sequence_length(inputs.b.feature_)
+    a_length = get_sequence_length(inputs["a"].feature_)
+    b_length = get_sequence_length(inputs["b"].feature_)
     # compute the length of the output sequence
     length = -1 if -1 in (a_length, b_length) else a_length + b_length
     # build the output sequence feature assuming that
     # the input sequence features match
     return Sequence(
-        feature=get_sequence_feature(inputs.a.feature_), length=length
+        feature=get_sequence_feature(inputs["a"].feature_), length=length
     )
 
 
@@ -184,11 +188,11 @@ class SequenceGetItemOutputRefs(OutputRefs):
         LambdaOutputFeature(
             lambda _, i: (
                 Sequence(
-                    feature=get_sequence_feature(i.sequence.feature_),
-                    length=get_sequence_length(i.index.feature_),
+                    feature=get_sequence_feature(i["sequence"].feature_),
+                    length=get_sequence_length(i["index"].feature_),
                 )
-                if check_feature_is_sequence(i.index.feature_)
-                else get_sequence_feature(i.sequence.feature_)
+                if check_feature_is_sequence(i["index"].feature_)
+                else get_sequence_feature(i["sequence"].feature_)
             )
         ),
     ]
@@ -238,8 +242,77 @@ class SequenceGetItem(
             )
         }
 
+    def call(
+        self, **kwargs: Unpack[SequenceGetItemInputRefs]
+    ) -> SequenceGetItemOutputRefs:
+        """Add the GetItem node to the data flow.
 
-class SequenceSetItemInputRefs(InputRefs):
+        This method processes the input references for the GetItem operation, adds
+        the corresponding node to the data flow, and returns the references to the
+        output features generated by the processor.
+
+        Args:
+            sequence (FeatureRef): The input sequence from which to extract an item.
+            index (FeatureRef): The index at which to extract the item from the sequence.
+            **kwargs (FeatureRef): Keyword arguments passed to call method.
+
+        Returns:
+            SequenceGetItemOutputRefs: The output references produced by the GetItem data processor.
+        """
+        return super(SequenceGetItem, self).call(**kwargs)
+
+
+def validate_setitem_input_refs(
+    config: SequenceSetItemConfig, refs: SequenceSetItemInputRefs
+) -> None:
+    """Ensure values align for setting in the sequence.
+
+    Args:
+        config (SequenceSetItemConfig): The configuration for the Concat operation.
+        refs (SequenceSetItemInputRefs): The input references for the Concat operation.
+
+    Raises:
+        TypeError: If the values do not match the required type or length.
+    """
+    if check_feature_is_sequence(refs["index"].feature_):
+        # make sure the values match the other inputs, i.e.
+        #  - values must be a sequence
+        #  - values sequence must have the same length as the index
+        #  - values must be of the same type as the values in the sequence
+        # TODO: support broadcasting of values, i.e. values can be a single value
+        #       even if the index is a sequence of indices, np.put implements the
+        #       broadcasting logic anyways
+        if (
+            (not check_feature_is_sequence(refs["value"].feature_))
+            or (
+                (get_sequence_length(refs["value"].feature_) != -1)
+                and (get_sequence_length(refs["index"].feature_) != -1)
+                and (
+                    get_sequence_length(refs["value"].feature_)
+                    != get_sequence_length(refs["index"].feature_)
+                )
+            )
+            or (
+                not check_feature_equals(
+                    get_sequence_feature(refs["value"].feature_),
+                    get_sequence_feature(refs["sequence"].feature_),
+                )
+            )
+        ):
+            raise TypeError("Values must match the sequence type and length.")
+
+    else:
+        # values must be a single value of the correct type
+        if not check_feature_equals(
+            refs["value"].feature_,
+            get_sequence_feature(refs["sequence"].feature_),
+        ):
+            raise TypeError("Value must match the sequence type.")
+
+
+class SequenceSetItemInputRefs(
+    Annotated[InputRefs, GlobalValidator(validate_setitem_input_refs)]
+):
     """Input references for the SetItem operation."""
 
     sequence: Annotated[FeatureRef, CheckFeatureIsSequence()]
@@ -255,58 +328,12 @@ class SequenceSetItemInputRefs(InputRefs):
     value: Annotated[FeatureRef, AnyFeatureType()]
     """The value or sequence of values to set at the specified indices in the sequence."""
 
-    def model_post_init(self, __context: Any) -> None:
-        """Post-initialization check to ensure values align for setting in the sequence.
-
-        Args:
-            __context: The context for the model initialization.
-
-        Raises:
-            TypeError: If the values do not match the required type or length.
-        """
-        if check_feature_is_sequence(self.index.feature_):
-            # make sure the values match the other inputs, i.e.
-            #  - values must be a sequence
-            #  - values sequence must have the same length as the index
-            #  - values must be of the same type as the values in the sequence
-            # TODO: support broadcasting of values, i.e. values can be a single value
-            #       even if the index is a sequence of indices, np.put implements the
-            #       broadcasting logic anyways
-            if (
-                (not check_feature_is_sequence(self.value.feature_))
-                or (
-                    (get_sequence_length(self.value.feature_) != -1)
-                    and (get_sequence_length(self.index.feature_) != -1)
-                    and (
-                        get_sequence_length(self.value.feature_)
-                        != get_sequence_length(self.index.feature_)
-                    )
-                )
-                or (
-                    not check_feature_equals(
-                        get_sequence_feature(self.value.feature_),
-                        get_sequence_feature(self.sequence.feature_),
-                    )
-                )
-            ):
-                raise TypeError(
-                    "Values must match the sequence type and length."
-                )
-
-        else:
-            # values must be a single value of the correct type
-            if not check_feature_equals(
-                self.value.feature_,
-                get_sequence_feature(self.sequence.feature_),
-            ):
-                raise TypeError("Value must match the sequence type.")
-
 
 class SequenceSetItemOutputRefs(OutputRefs):
     """Output references for the SetItem operation."""
 
     result: Annotated[
-        FeatureRef, LambdaOutputFeature(lambda _, i: i.sequence.feature_)
+        FeatureRef, LambdaOutputFeature(lambda _, i: i["sequence"].feature_)
     ]
     """The feature reference to the result of the SetItem operation."""
 
@@ -379,8 +406,51 @@ class SequenceSetItem(
         # convert arrays with new values back to python lists
         return {"result": list(map(np.ndarray.tolist, sequences))}
 
+    def call(
+        self, **kwargs: Unpack[SequenceSetItemInputRefs]
+    ) -> SequenceSetItemOutputRefs:
+        """Add the SetItem node to the data flow.
 
-class SequenceValueOpInputRefs(InputRefs):
+        This method processes the input references for the SetItem operation, adds
+        the corresponding node to the data flow, and returns the references to the
+        output features generated by the processor.
+
+        Args:
+            sequence (FeatureRef): The input sequence in which items will be set.
+            index (FeatureRef): The index or indices at which to set the items in the sequence.
+            value (FeatureRef): The value or values to set at the specified indices in the sequence.
+            **kwargs (FeatureRef): Keyword arguments passed to call method.
+
+        Returns:
+            SequenceSetItemOutputRefs: The output references produced by the SetItem data processor.
+        """
+        return super(SequenceSetItem, self).call(**kwargs)
+
+
+def validate_seqvalop_input_refs(
+    config: BaseSequenceValueOpConfig, refs: SequenceValueOpInputRefs
+) -> None:
+    """Post-initialization check to ensure value matches the feature type of the sequence values.
+
+    Args:
+        config (BaseSequenceValueOpConfig): The configuration for the Concat operation.
+        refs (SequenceValueOpInputRefs): The input references for the Concat operation.
+
+    Raises:
+        TypeError: If the value feature does not match the feature type of the sequence values.
+    """
+    # make sure the value matches the feature type of the sequence values
+    if not check_feature_is_sequence(
+        refs["sequence"].feature_, refs["value"].feature_
+    ):
+        raise TypeError(
+            "Value feature type does not match the sequence feature type."
+        )
+
+
+class SequenceValueOpInputRefs(
+    Annotated[InputRefs, GlobalValidator(validate_seqvalop_input_refs)]
+):
     """Input references for sequence value operations."""
 
     sequence: Annotated[FeatureRef, CheckFeatureIsSequence()]
@@ -389,23 +459,6 @@ class SequenceValueOpInputRefs(InputRefs):
     value: Annotated[FeatureRef, AnyFeatureType()]
     """The reference to the value feature to be checked against the sequence values."""
 
-    def model_post_init(self, __context: Any) -> None:
-        """Post-initialization check to ensure value matches the feature type of the sequence values.
-
-        Args:
-            __context: The context for the model initialization.
-
-        Raises:
-            TypeError: If the value feature does not match the feature type of the sequence values.
-        """
-        # make sure the value matches the feature type of the sequence values
-        if not check_feature_is_sequence(
-            self.sequence.feature_, self.value.feature_
-        ):
-            raise TypeError(
-                "Value feature type does not match the sequence feature type."
-            )
-
 
 class BaseSequenceValueOpConfig(BaseDataProcessorConfig):
     """Base Configuration class for sequence-value operations."""
@@ -413,10 +466,10 @@ class BaseSequenceValueOpConfig(BaseDataProcessorConfig):
 
 C = TypeVar("C", bound=BaseSequenceValueOpConfig)
 I = TypeVar("I", bound=SequenceValueOpInputRefs)
-O = TypeVar("O", bound=OutputRefs)
+O_ = TypeVar("O_", bound=OutputRefs)
 
 
-class BaseSequenceValueOp(BaseDataProcessor[C, I, O], ABC):
+class BaseSequenceValueOp(BaseDataProcessor[C, I, O_], ABC):
     """Base class for sequence value operations.
 
     This class provides a template for processing operations that involve a sequence and a value.
@@ -451,6 +504,23 @@ class BaseSequenceValueOp(BaseDataProcessor[C, I, O], ABC):
                 for a, b in zip(inputs["sequence"], inputs["value"])
             ]
         }
+
+    def call(self, **kwargs: Unpack[SequenceValueOpInputRefs]) -> O_:
+        """Add the sequence-value operation node to the data flow.
+
+        This method processes the input references for the sequence-value operation, adds
+        the corresponding node to the data flow, and returns the references to the
+        output features generated by the processor.
+
+        Args:
+            sequence (FeatureRef): The reference to the sequence feature.
+            value (FeatureRef): The reference to the value feature to be checked against the sequence values.
+            **kwargs (FeatureRef): Keyword arguments passed to call method.
+
+        Returns:
+            O: The output references produced by the sequence-value data processor.
+        """
+        return super(BaseSequenceValueOp, self).call(**kwargs)
 
 
 class SequenceContainsOutputRefs(OutputRefs):
@@ -587,6 +657,24 @@ class BaseMultiSequenceOp(BaseDataProcessor[C, I, O], ABC):
             "result": [list(self.op(*seqs)) for seqs in inputs["sequences"]]
         }
 
+    def call(
+        self, **kwargs: Unpack[MultiSequenceOpInputRefs]
+    ) -> BaseMultiSequenceOpOutputRefs:
+        """Add the multi-sequence operation node to the data flow.
+
+        This method processes the input references for the multi-sequence operation, adds
+        the corresponding node to the data flow, and returns the references to the
+        output features generated by the processor.
+
+        Args:
+            sequences (FeatureRef): The input sequences to process. This is validated to be a nested sequence.
+            **kwargs (FeatureRef): Keyword arguments passed to call method.
+
+        Returns:
+            BaseMultiSequenceOpOutputRefs: The output references produced by the multi-sequence data processor.
+        """
+        return super(BaseMultiSequenceOp, self).call(**kwargs)
+
 
 class SequenceZipOutputRefs(BaseMultiSequenceOpOutputRefs):
     """Output references for SequenceZip operation."""
@@ -596,11 +684,11 @@ class SequenceZipOutputRefs(BaseMultiSequenceOpOutputRefs):
         LambdaOutputFeature(
             lambda _, i: Sequence(
                 Sequence(
-                    get_sequence_feature(i.sequences.feature_).feature,
-                    length=get_sequence_length(i.sequences.feature_),
+                    get_sequence_feature(i["sequences"].feature_).feature,
+                    length=get_sequence_length(i["sequences"].feature_),
                 ),
                 length=get_sequence_length(
-                    get_sequence_feature(i.sequences.feature_)
+                    get_sequence_feature(i["sequences"].feature_)
                 ),
             )
         ),

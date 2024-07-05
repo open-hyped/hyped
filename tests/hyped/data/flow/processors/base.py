@@ -1,5 +1,6 @@
+import pickle
 from contextlib import nullcontext
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from datasets import Features, Sequence
@@ -14,7 +15,7 @@ from hyped.data.flow.core.nodes.processor import (
     Batch,
     IOContext,
 )
-from hyped.data.flow.core.refs.inputs import InputRefs
+from hyped.data.flow.core.refs.inputs import InputRefsContainer
 from hyped.data.flow.core.refs.outputs import OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
 
@@ -36,6 +37,8 @@ class BaseDataProcessorTest:
     # others
     rank: int = 0
 
+    node_id: str = "node_id"
+
     @pytest.fixture
     def exec_error_handler(self):
         cls = type(self)
@@ -55,37 +58,66 @@ class BaseDataProcessorTest:
         )
 
     @pytest.fixture
+    def flow(self):
+        cls = type(self)
+        mock_flow = MagicMock()
+        mock_flow.add_processor_node = MagicMock(return_value=cls.node_id)
+        return mock_flow
+
+    @pytest.fixture
     def processor(self):
         cls = type(self)
         return cls.processor_type.from_config(cls.processor_config)
 
     @pytest.fixture
     def input_refs(
-        self, processor, input_verification_error_handler
-    ) -> None | InputRefs:
+        self, processor, input_verification_error_handler, flow
+    ) -> None | InputRefsContainer:
         cls = type(self)
 
-        n, f = "in", MagicMock()
         input_refs = {
-            k: FeatureRef(key_=k, feature_=v, node_id_=n, flow_=f)
+            k: FeatureRef(key_=k, feature_=v, node_id_="in", flow_=flow)
             for k, v in cls.input_features.items()
         }
 
         with input_verification_error_handler:
-            return processor._in_refs_type(**input_refs)
+            return processor._in_refs_validator.validate(**input_refs)
 
     @pytest.fixture
-    def output_refs(self, processor, input_refs) -> None | OutputRefs:
+    def output_refs(self, processor, input_refs, flow) -> None | OutputRefs:
         # error catched in input verification
         if input_refs is None:
             return None
         # build output feature references
         return processor._out_refs_type(
-            input_refs.flow,
+            flow,
             "out",
             processor._out_refs_type.build_features(
-                processor.config, input_refs
+                processor.config, input_refs.named_refs
             ),
+        )
+
+    def test_call(self, processor, input_refs):
+        cls = type(self)
+
+        if input_refs is not None:
+            # call the processor
+            out = processor.call(**input_refs.named_refs)
+            # check the output features
+            if cls.expected_output_features is not None:
+                assert out.feature_ == cls.expected_output_features
+
+    @pytest.mark.asyncio
+    async def test_pickle(
+        self, processor, input_refs, output_refs, exec_error_handler
+    ):
+        # pickle and unpickle processor
+        serialized = pickle.dumps(processor)
+        reconstructed = pickle.loads(serialized)
+        # run the test case on the reconstructed processor
+        # make sure the underlying feature model is the same
+        await self.test_case(
+            reconstructed, input_refs, output_refs, exec_error_handler
         )
 
     @pytest.mark.asyncio
@@ -132,11 +164,7 @@ class BaseDataProcessorTest:
 
         # build the io context
         io = IOContext(
-            node_id=-1,
-            inputs=cls.input_features,
-            outputs=processor._out_refs_type.build_features(
-                processor.config, input_refs
-            ),
+            node_id=-1, inputs=cls.input_features, outputs=output_refs.feature_
         )
 
         with exec_error_handler:

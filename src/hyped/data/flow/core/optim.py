@@ -38,7 +38,7 @@ from hyped.data.flow.processors.ops.collect import (
 from .executor import DataFlowExecutor
 from .graph import DataFlowGraph
 from .nodes.const import Const
-from .refs.inputs import InputRefs
+from .refs.inputs import InputRefs, InputRefsContainer
 from .refs.ref import FeatureRef
 
 
@@ -159,6 +159,7 @@ class DataFlowGraphOptimizer(object):
                         )
 
                     else:
+                        inputs: None | InputRefsContainer = None
                         # build input references object if expected
                         if in_features is not None:
                             named_refs = {
@@ -167,26 +168,14 @@ class DataFlowGraphOptimizer(object):
                                 )[key]
                                 for src_node_id, name, key in in_edge_identifiers
                             }
-
-                            if isinstance(obj, CollectFeatures):
-                                # collect features processor is a special case because
-                                # the input reference object doesn't directly take the
-                                # incoming edges as input arguments but requires them
-                                # to be wrapped by a container
-                                collection = NestedContainer[FeatureRef](
-                                    data=named_refs
-                                )
-                                inputs = obj._in_refs_type(
-                                    collection=collection
-                                )
-                            else:
-                                # other nodes expect the incoming edge data as arguments
-                                inputs = obj._in_refs_type(**named_refs)
+                            # create input reference container from edge data
+                            inputs = InputRefsContainer(
+                                named_refs=named_refs, flow=cse_graph
+                            )
 
                         else:
                             # the node doesn't expect any inputs, i.e. it is a source node
                             assert obj._in_refs_type is type(None)
-                            inputs = None
 
                         # add the node to the optimized graph
                         identifier.node_id = cse_graph.add_processor_node(
@@ -291,7 +280,7 @@ class DataFlowGraphOptimizer(object):
                     value = key.index_example(out[const_node_id])
                     # create a new constant and add it to the data flow
                     const = Const(value=value, dtype=dtype)
-                    ref = const.to(graph).value
+                    ref = const.call(graph).value
                     # add the reference to the constants lookup
                     const_lookup[(const_node_id, key)] = ref
 

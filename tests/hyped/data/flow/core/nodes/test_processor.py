@@ -9,7 +9,11 @@ from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessorConfig,
     IOContext,
 )
-from hyped.data.flow.core.refs.inputs import CheckFeatureEquals, InputRefs
+from hyped.data.flow.core.refs.inputs import (
+    CheckFeatureEquals,
+    InputRefs,
+    InputRefsContainer,
+)
 from hyped.data.flow.core.refs.outputs import OutputFeature, OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
 
@@ -50,40 +54,6 @@ class TestBaseDataProcessor:
         # check config and input keys property
         assert isinstance(proc.config, MockProcessorConfig)
         assert proc.required_input_keys == {"x"}
-
-    def test_call(self):
-        # build expected output features
-        out_features = Features({"out": Value("int32")})
-        # mock flow instance
-        mock_flow = MagicMock()
-        mock_flow.add_processor_node = MagicMock(return_value="")
-        # create processor instance
-        proc = MockProcessor()
-        # create mock inputs
-        mock_inputs = MockInputRefs(
-            x=FeatureRef(
-                key_=tuple(),
-                node_id_="",
-                flow_=mock_flow,
-                feature_=Value("int32"),
-            )
-        )
-
-        # this should add the processor to the mock flow
-        out = proc.call(x=mock_inputs.x)
-        # check the output features
-        assert out.feature_ == out_features
-
-        # make sure the call for adding the processor was made with the correct values
-        assert mock_flow.add_processor_node.call_count == 1
-        (
-            call_proc,
-            call_input_refs,
-            call_out_features,
-        ) = mock_flow.add_processor_node.call_args.args
-        assert call_proc == proc
-        assert call_input_refs == mock_inputs
-        assert call_out_features == out_features
 
     @pytest.mark.asyncio
     async def test_batch_process(self):

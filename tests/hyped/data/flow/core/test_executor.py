@@ -69,7 +69,7 @@ class TestExecutionState:
         # create processor
         p = MockProcessor()
         # create input refs from source features
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(graph.src_node_id),
             b=graph.get_node_output_ref(graph.src_node_id).x,
         )
@@ -90,7 +90,7 @@ class TestExecutionState:
         # create processor
         p = MockProcessor()
         # create input refs from source features
-        i = MockInputRefs(
+        i = p._in_refs_validator.validate(
             a=graph.get_node_output_ref(node_id_1).y,
             b=graph.get_node_output_ref(node_id_1).y,
         )

@@ -8,6 +8,7 @@ from typing import Optional
 import numpy as np
 from datasets.features.features import FeatureType
 
+from hyped.base.config import BaseConfig
 from hyped.common.feature_checks import (
     INDEX_TYPES,
     get_sequence_feature,
@@ -72,18 +73,20 @@ def compute_spans_overlap_matrix(
     ) & ~special_tokens
 
 
-def validate_spans_feature(ref: FeatureRef, feature: FeatureType) -> None:
+def validate_spans_feature(config: BaseConfig, ref: FeatureRef) -> None:
     """Validate that the feature is a sequence of spans.
 
     Args:
+        config (BaseConfig): The configuration of the processor.
         ref (FeatureRef): Reference to the feature.
-        feature (FeatureType): The feature type to validate.
 
     Raises:
         TypeError: If the feature is not a valid sequence of spans.
     """
-    raise_feature_is_sequence(ref, feature)
-    raise_feature_is_sequence(ref, get_sequence_feature(feature), INDEX_TYPES)
+    raise_feature_is_sequence(ref, ref.feature_)
+    raise_feature_is_sequence(
+        ref, get_sequence_feature(ref.feature_), INDEX_TYPES
+    )
 
 
 class ResolveOverlapsStrategy(str, Enum):

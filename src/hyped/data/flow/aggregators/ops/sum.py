@@ -5,7 +5,7 @@ over batches of data. It supports a variety of numeric and boolean input types a
 configured with an initial starting value for the summation. This aggregator is useful for
 tasks where a cumulative sum of certain features is required.
 """
-from typing import Annotated
+from typing import Annotated, Unpack
 
 from datasets import Value
 
@@ -136,3 +136,17 @@ class SumAggregator(
             tuple[float, None]: The updated running total and None for the state.
         """
         return {"value": val["value"] + ctx}, None
+
+    def call(
+        self, **kwargs: Unpack[SumAggregatorInputRefs]
+    ) -> SumAggregatorOutputRefs:
+        """Execute the SumAggregator to compute the mean value.
+
+        Args:
+            x (FeatureRef): The reference to the feature to aggregate.
+            **kwargs (FeatureRef): Keyword arguments passed to call method.
+
+        Returns:
+            MeanAggregatorOutputRefs: The output references containing the computed mean value.
+        """
+        return super(SumAggregator, self).call(**kwargs)

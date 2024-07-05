@@ -230,7 +230,9 @@ class TestJsonParser_CatchWithError(BaseJsonParserTest):
     }
 
     @pytest.mark.asyncio
-    async def test_case(self, processor, input_refs, output_refs):
+    async def test_case(
+        self, processor, input_refs, output_refs, exec_error_handler
+    ):
         cls = type(self)
         # check input data
         input_keys = set(cls.input_data.keys())
@@ -252,10 +254,11 @@ class TestJsonParser_CatchWithError(BaseJsonParserTest):
             ),
         )
 
-        # apply processor
-        output = await processor.batch_process(
-            cls.input_data, cls.input_index, cls.rank, io
-        )
+        with exec_error_handler:
+            # apply processor
+            output = await processor.batch_process(
+                cls.input_data, cls.input_index, cls.rank, io
+            )
 
         # check output format
         assert isinstance(output, dict)

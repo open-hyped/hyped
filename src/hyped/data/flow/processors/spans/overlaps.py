@@ -7,6 +7,7 @@ unique span annotations, such as named entity recognition or chunking.
 """
 
 from itertools import compress
+from typing import Unpack
 
 from datasets import Sequence, Value
 from typing_extensions import Annotated
@@ -46,7 +47,7 @@ class ResolveOverlapsOutputRefs(OutputRefs):
         FeatureRef,
         LambdaOutputFeature(
             lambda _, i: Sequence(
-                get_sequence_feature(i.spans.feature_),
+                get_sequence_feature(i["spans"].feature_),
             )
         ),
     ]
@@ -58,7 +59,7 @@ class ResolveOverlapsOutputRefs(OutputRefs):
         FeatureRef,
         LambdaOutputFeature(
             lambda _, i: Sequence(
-                Value("bool"), length=get_sequence_length(i.spans.feature_)
+                Value("bool"), length=get_sequence_length(i["spans"].feature_)
             )
         ),
     ]
@@ -111,3 +112,21 @@ class ResolveOverlaps(
 
         # return output features
         return Sample(spans=spans, mask=mask)
+
+    def call(
+        self, **kwargs: Unpack[ResolveOverlapsInputRefs]
+    ) -> ResolveOverlapsOutputRefs:
+        """Execute the ResolveOverlaps processor.
+
+        Processes the input references to resolve overlapping spans ('spans') using the specified strategy
+        defined in the configuration. Outputs include resolved spans and a mask indicating which spans were retained.
+
+        Args:
+            spans (FeatureRef): Reference to the sequence of spans to check for overlaps.
+            **kwargs (FeatureRef): Keyword arguments passed to call method.
+
+        Returns:
+            ResolveOverlapsOutputRefs: The output references containing the resolved spans and mask.
+
+        """
+        return super(ResolveOverlaps, self).call(**kwargs)

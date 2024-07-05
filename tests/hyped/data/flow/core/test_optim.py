@@ -11,7 +11,7 @@ from hyped.data.flow.processors.ops.collect import (
     NestedContainer,
 )
 
-from .mock import MockInputRefs, MockProcessor
+from .mock import MockInputRefs, MockProcessor, mock_input_refs_validator
 
 
 def new_graph():
@@ -27,7 +27,7 @@ def new_graph():
 def add_processor(graph, node_A, node_B, **kwargs):
     # create processor
     p = MockProcessor(**kwargs)
-    i = MockInputRefs(
+    i = mock_input_refs_validator.validate(
         a=graph.get_node_output_ref(node_A),
         b=graph.get_node_output_ref(node_B),
     )
@@ -93,20 +93,20 @@ def cse_test_cases():
 
     # test constant nodes
     graph, _ = new_graph()
-    Const(value=0).to(graph)
-    Const(value=0).to(graph)
-    Const(value=1).to(graph)
+    Const(value=0).call(graph)
+    Const(value=0).call(graph)
+    Const(value=1).call(graph)
     # create target graph
     target, _ = new_graph()
-    Const(value=0).to(target)
-    Const(value=1).to(target)
+    Const(value=0).call(target)
+    Const(value=1).call(target)
     # add test case
     test_cases.append((graph, target))
 
     # test collect nodes
     graph, _ = new_graph()
-    ref_1 = Const(value=0).to(graph)
-    ref_2 = Const(value=1).to(graph)
+    ref_1 = Const(value=0).call(graph)
+    ref_2 = Const(value=1).call(graph)
     CollectFeatures().call(
         collection=NestedContainer[FeatureRef](data={"a": ref_1, "b": ref_2})
     )
@@ -115,8 +115,8 @@ def cse_test_cases():
     )
     # create target graph
     target, _ = new_graph()
-    ref_1 = Const(value=0).to(target)
-    ref_2 = Const(value=1).to(target)
+    ref_1 = Const(value=0).call(target)
+    ref_2 = Const(value=1).call(target)
     CollectFeatures().call(
         collection=NestedContainer[FeatureRef](data={"a": ref_1, "b": ref_2})
     )
@@ -139,7 +139,7 @@ def constant_evaluation_test_cases():
 
     graph, src_node_id = new_graph()
     # add a constant
-    const_node_id_1 = Const(value=5).to(graph).node_id_
+    const_node_id_1 = Const(value=5).call(graph).node_id_
     # add processors
     node_id_1 = add_processor(graph, src_node_id, const_node_id_1)
     node_id_2 = add_processor(graph, src_node_id, src_node_id)
@@ -149,8 +149,8 @@ def constant_evaluation_test_cases():
 
     graph, src_node_id = new_graph()
     # add a constant
-    const_node_id_1 = Const(value=5).to(graph).node_id_
-    const_node_id_2 = Const(value=5).to(graph).node_id_
+    const_node_id_1 = Const(value=5).call(graph).node_id_
+    const_node_id_2 = Const(value=5).call(graph).node_id_
     # add processors
     node_id_1 = add_processor(graph, const_node_id_1, const_node_id_2)
     node_id_2 = add_processor(graph, const_node_id_1, const_node_id_2)
@@ -159,8 +159,8 @@ def constant_evaluation_test_cases():
 
     target, src_node_id = new_graph()
     # both processor nodes should be evaluated to constant nodes
-    const_node_id_1 = Const(value={"y": 0}).to(target).node_id_
-    const_node_id_2 = Const(value={"y": 0}).to(target).node_id_
+    const_node_id_1 = Const(value={"y": 0}).call(target).node_id_
+    const_node_id_2 = Const(value={"y": 0}).call(target).node_id_
     add_processor(target, src_node_id, const_node_id_1)
     add_processor(target, src_node_id, const_node_id_2)
 
@@ -168,8 +168,8 @@ def constant_evaluation_test_cases():
 
     graph, src_node_id = new_graph()
     # add a constant
-    const_node_id_1 = Const(value=5).to(graph).node_id_
-    const_node_id_2 = Const(value=5).to(graph).node_id_
+    const_node_id_1 = Const(value=5).call(graph).node_id_
+    const_node_id_2 = Const(value=5).call(graph).node_id_
     # add processors
     node_id_1 = add_processor(graph, const_node_id_1, const_node_id_2)
     node_id_2 = add_processor(graph, const_node_id_1, const_node_id_2)
@@ -181,10 +181,10 @@ def constant_evaluation_test_cases():
     target, src_node_id = new_graph()
     # both processor nodes should be evaluated to constant nodes
     const_node_id_1 = (
-        Const(value={"y": 0}).to(target).node_id_
+        Const(value={"y": 0}).call(target).node_id_
     )  # original node_id_3
     const_node_id_2 = (
-        Const(value={"value": 5}).to(target).node_id_
+        Const(value={"value": 5}).call(target).node_id_
     )  # original const_node_id_1
     node_id_4 = add_processor(target, src_node_id, src_node_id)
     add_processor(target, src_node_id, const_node_id_1)

@@ -94,7 +94,7 @@ def _check_args(*args: FeatureRef | Any) -> tuple[FeatureRef]:
         (
             arg
             if isinstance(arg, FeatureRef)
-            else Const(value=arg).to(flow).value
+            else Const(value=arg).call(flow).value
         )
         for arg in args
     )
@@ -189,7 +189,7 @@ def collect(
 
     def _add_const(p: tuple[str, int], v: FeatureRef | Any) -> FeatureRef:
         return (
-            v if isinstance(v, FeatureRef) else Const(value=v).to(flow).value
+            v if isinstance(v, FeatureRef) else Const(value=v).call(flow).value
         )
 
     # add all constants in the collection to the flow

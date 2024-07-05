@@ -6,7 +6,7 @@ configured with an initial starting value for the mean calculation. This aggrega
 useful for tasks where an average of certain features is required.
 """
 
-from typing import Annotated
+from typing import Annotated, Unpack
 
 from datasets import Value
 from pydantic import Field
@@ -144,3 +144,17 @@ class MeanAggregator(
         return {
             "value": (val["value"] * state + ext_val) / (state + ext_count)
         }, (state + ext_count)
+
+    def call(
+        self, **kwargs: Unpack[MeanAggregatorInputRefs]
+    ) -> MeanAggregatorOutputRefs:
+        """Execute the MeanAggregator to compute the mean value.
+
+        Args:
+            x (FeatureRef): The reference to the feature to aggregate.
+            **kwargs (FeatureRef): Keyword arguments passed to call method.
+
+        Returns:
+            MeanAggregatorOutputRefs: The output references containing the computed mean value.
+        """
+        return super(MeanAggregator, self).call(**kwargs)

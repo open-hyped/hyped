@@ -61,12 +61,10 @@ Let's consider the example of configuring a Sum Aggregator. This aggregator is r
 
 .. code-block:: python
 
-    from hyped.data.flow.aggregators.ops import (
-        SumAggregator, SumAggregatorConfig
-    )
+    from hyped.data.flow.aggregators.ops import SumAggregator
 
     # Define the configuration for the Sum Aggregator
-    sum_config = SumAggregatorConfig(
+    sum_config = SumAggregator.Config(
         start=0.0  # Initial value for the sum calculation
     )
 
@@ -95,7 +93,7 @@ Let's illustrate the usage of the :code:`call` method with a practical example. 
     flow = DataFlow(ds.features)
 
     # Call the sum aggregator with input features
-    sum_feature = sum_aggregator.call(x=len(flow.src_features["text"]))
+    sum_feature = sum_aggregator.call(x=flow.src_features["text"].length_())
 
 
 Executing Data Aggregators

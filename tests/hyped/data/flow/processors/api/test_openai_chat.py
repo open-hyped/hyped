@@ -85,10 +85,10 @@ class TestOpenAIChatCompletion(BaseDataProcessorTest):
         params=[
             dummy_chat_completion,
             dummy_chat_completion_with_rate_limit().call,
-        ]
+        ],
+        autouse=True,
     )
-    def processor(self, request):
-        cls = type(self)
+    def patch_openai_client(self, request):
         # create a mock chat client to be used in the processor
         mock_chat_client = MagicMock()
         mock_chat_client.chat = MagicMock()
@@ -99,4 +99,4 @@ class TestOpenAIChatCompletion(BaseDataProcessorTest):
             "hyped.data.flow.processors.api.openai_chat.AsyncOpenAI",
             return_value=mock_chat_client,
         ):
-            return cls.processor_type.from_config(cls.processor_config)
+            yield
