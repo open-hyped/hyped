@@ -1,9 +1,10 @@
 """Jinja2 Template Data Processor."""
 from functools import partial
-from typing import Annotated, Unpack
+from typing import Annotated
 
 from datasets import Features, Value
 from jinja2 import Environment, Template
+from typing_extensions import Unpack
 
 from hyped.common.lazy import LazyInstance
 from hyped.data.flow.core.nodes.processor import (

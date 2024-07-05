@@ -5,9 +5,10 @@ over batches of data. It supports a variety of numeric and boolean input types a
 configured with an initial starting value for the summation. This aggregator is useful for
 tasks where a cumulative sum of certain features is required.
 """
-from typing import Annotated, Unpack
+from typing import Annotated
 
 from datasets import Value
+from typing_extensions import Unpack
 
 from hyped.data.flow.core.nodes.aggregator import (
     BaseDataAggregator,

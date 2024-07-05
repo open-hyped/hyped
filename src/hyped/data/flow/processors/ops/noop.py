@@ -6,7 +6,9 @@ in data processing pipelines.
 """
 from __future__ import annotations
 
-from typing import Annotated, Unpack
+from typing import Annotated
+
+from typing_extensions import Unpack
 
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,

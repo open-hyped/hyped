@@ -4,11 +4,12 @@ The processor is designed to parse JSON strings into structured feature types
 using Pydantic for deserialization and validation.
 """
 import json
-from typing import Annotated, Unpack
+from typing import Annotated
 
 from datasets.features.features import Features, FeatureType, Sequence, Value
 from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
 from pydantic_core import ValidationError
+from typing_extensions import Unpack
 
 from hyped.common.pydantic import pydantic_model_from_features
 from hyped.data.flow.core.nodes.processor import (

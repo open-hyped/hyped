@@ -7,10 +7,9 @@ unique span annotations, such as named entity recognition or chunking.
 """
 
 from itertools import compress
-from typing import Unpack
 
 from datasets import Sequence, Value
-from typing_extensions import Annotated
+from typing_extensions import Annotated, Unpack
 
 from hyped.common.feature_checks import (
     get_sequence_feature,

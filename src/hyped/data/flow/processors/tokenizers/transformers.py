@@ -9,13 +9,13 @@ the output features generated during tokenization.
 """
 from __future__ import annotations
 
-from typing import Literal, NotRequired, Unpack
+from typing import Literal
 
 from datasets import Sequence, Value
 from transformers import AutoTokenizer
 from transformers.tokenization_utils_base import TruncationStrategy
 from transformers.utils import PaddingStrategy
-from typing_extensions import Annotated
+from typing_extensions import Annotated, NotRequired, Unpack
 
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,

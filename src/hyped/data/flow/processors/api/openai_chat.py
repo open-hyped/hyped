@@ -11,13 +11,13 @@ import random
 import warnings
 from contextlib import nullcontext
 from functools import partial
-from typing import Annotated, Literal, Unpack
+from typing import Annotated, Literal
 
 from datasets import Features, Sequence, Value
 from openai import AsyncOpenAI, RateLimitError
 from openai._constants import DEFAULT_MAX_RETRIES
 from pydantic import Field
-from typing_extensions import TypedDict
+from typing_extensions import TypedDict, Unpack
 
 from hyped.common.lazy import LazyInstance
 from hyped.data.flow.core.nodes.processor import (

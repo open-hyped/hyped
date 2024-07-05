@@ -32,9 +32,10 @@ with a corresponding configuration class that sets the operation to be applied.
 """
 import operator
 from abc import ABC, abstractmethod
-from typing import Annotated, Any, TypeVar, Unpack
+from typing import Annotated, Any, TypeVar
 
 from datasets import Value
+from typing_extensions import Unpack
 
 from hyped.common.feature_checks import FLOAT_TYPES, INT_TYPES
 from hyped.data.flow.core.nodes.processor import (

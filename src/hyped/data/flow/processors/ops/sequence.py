@@ -6,11 +6,11 @@ from abc import ABC, abstractmethod
 from collections import deque
 from functools import partial
 from itertools import starmap
-from typing import Any, ClassVar, TypeVar, Unpack
+from typing import Any, ClassVar, TypeVar
 
 import numpy as np
 from datasets import Sequence, Value
-from typing_extensions import Annotated
+from typing_extensions import Annotated, Unpack
 
 from hyped.common.feature_checks import (
     INDEX_TYPES,

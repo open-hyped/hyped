@@ -4,10 +4,8 @@ This module defines the functionality required to process character spans and co
 token spans, which are useful for various Natural Language Processing (NLP) tasks such as Named
 Entity Recognition (NER).
 """
-from typing import NotRequired, Unpack
-
 from datasets.features.features import Sequence, Value
-from typing_extensions import Annotated
+from typing_extensions import Annotated, NotRequired, Unpack
 
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,

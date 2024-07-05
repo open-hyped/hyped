@@ -1,10 +1,9 @@
-from typing import Any, Hashable, Iterable, NotRequired
-from unittest.mock import MagicMock, patch
+from typing import Any, Hashable, Iterable
+from unittest.mock import MagicMock
 
 import pytest
 from datasets import Features, Sequence, Value
-from pydantic import BaseModel
-from typing_extensions import Annotated
+from typing_extensions import Annotated, NotRequired
 
 from hyped.base.config import BaseConfig
 from hyped.data.flow.core.refs.inputs import (

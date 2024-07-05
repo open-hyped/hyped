@@ -48,7 +48,6 @@ from itertools import chain
 from typing import (
     Annotated,
     Callable,
-    NotRequired,
     TypedDict,
     get_args,
     get_origin,
@@ -57,6 +56,7 @@ from typing import (
 
 import pydantic
 from datasets.features.features import Features, FeatureType
+from typing_extensions import NotRequired
 
 from hyped.base.config import BaseConfig
 from hyped.common.feature_checks import (

@@ -6,10 +6,11 @@ configured with an initial starting value for the mean calculation. This aggrega
 useful for tasks where an average of certain features is required.
 """
 
-from typing import Annotated, Unpack
+from typing import Annotated
 
 from datasets import Value
 from pydantic import Field
+from typing_extensions import Unpack
 
 from hyped.data.flow.core.nodes.aggregator import (
     BaseDataAggregator,

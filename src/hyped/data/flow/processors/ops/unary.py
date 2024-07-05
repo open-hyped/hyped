@@ -25,9 +25,10 @@ Specific subclasses of :class:`UnaryOp` implement various types of operations:
 """
 import operator
 from abc import ABC, abstractmethod
-from typing import Annotated, Any, TypeVar, Unpack
+from typing import Annotated, Any, TypeVar
 
 from datasets import Value
+from typing_extensions import Unpack
 
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
