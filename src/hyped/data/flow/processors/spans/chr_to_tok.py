@@ -4,9 +4,9 @@ This module defines the functionality required to process character spans and co
 token spans, which are useful for various Natural Language Processing (NLP) tasks such as Named
 Entity Recognition (NER).
 """
-from typing import Unpack
+from typing import NotRequired, Unpack
 
-from datasets.features.features import FeatureType, Sequence, Value
+from datasets.features.features import Sequence, Value
 from typing_extensions import Annotated
 
 from hyped.data.flow.core.nodes.processor import (
@@ -21,7 +21,7 @@ from hyped.data.flow.core.refs.inputs import (
     InputRefs,
 )
 from hyped.data.flow.core.refs.outputs import LambdaOutputFeature, OutputRefs
-from hyped.data.flow.core.refs.ref import NONE_REF, FeatureRef
+from hyped.data.flow.core.refs.ref import FeatureRef
 
 from .utils import compute_spans_overlap_matrix, validate_spans_feature
 
@@ -37,9 +37,9 @@ class ChrToTokSpansInputRefs(InputRefs):
     ]
     """Query spans feature reference."""
 
-    special_tokens_mask: Annotated[
-        FeatureRef, CheckFeatureEquals(Sequence(Value("int32")))
-    ] = NONE_REF
+    special_tokens_mask: NotRequired[
+        Annotated[FeatureRef, CheckFeatureEquals(Sequence(Value("int32")))]
+    ]
     """Mask indicating tokens not to be mapped to queries."""
 
 

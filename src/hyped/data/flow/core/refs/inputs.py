@@ -47,7 +47,6 @@ from __future__ import annotations
 from itertools import chain
 from typing import (
     Annotated,
-    Any,
     Callable,
     NotRequired,
     TypedDict,
@@ -368,9 +367,10 @@ class InputRefsValidator(object):
 
         self.global_validators: list[GlobalValidator] = []
         # get the global validators from the base type
-        for base in refs_type.__orig_bases__:
-            if self._validate_type_hint(base, InputRefs, GlobalValidator):
-                self.global_validators = base.__metadata__
+        if hasattr(refs_type, "__orig_bases__"):
+            for base in refs_type.__orig_bases__:
+                if self._validate_type_hint(base, InputRefs, GlobalValidator):
+                    self.global_validators = base.__metadata__
 
         hints = get_type_hints(refs_type, include_extras=True)
         # separate type hints into required and optionals

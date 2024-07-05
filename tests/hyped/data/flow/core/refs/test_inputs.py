@@ -11,6 +11,7 @@ from hyped.data.flow.core.refs.inputs import (
     CheckFeatureEquals,
     CheckFeatureIsSequence,
     FeatureValidator,
+    GlobalValidator,
     InputRefs,
     InputRefsValidator,
 )
@@ -312,3 +313,22 @@ def test_missing_and_unexpected_input_arguments():
     # unexpected inputs provided
     with pytest.raises(TypeError):
         validator.validate(x=x_ref, y=x_ref, z=x_ref)
+
+
+def test_collect_validators():
+    global_validator = GlobalValidator(MagicMock())
+    x_validator_1 = FeatureValidator(MagicMock())
+    x_validator_2 = FeatureValidator(MagicMock())
+    y_validator = FeatureValidator(MagicMock())
+
+    class CustomInputRefs(Annotated[InputRefs, global_validator]):
+        x: Annotated[FeatureRef, x_validator_1, x_validator_2]
+        y: Annotated[FeatureRef, y_validator]
+
+    validator = InputRefsValidator(BaseConfig(), CustomInputRefs)
+
+    assert validator.validators == {
+        "x": tuple((x_validator_1, x_validator_2)),
+        "y": tuple((y_validator,)),
+    }
+    assert validator.global_validators == tuple((global_validator,))
