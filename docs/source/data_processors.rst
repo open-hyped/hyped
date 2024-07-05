@@ -34,12 +34,10 @@ Let's consider the example of configuring a Transformers Tokenizer data processo
 
 .. code-block:: python
 
-    from hyped.data.flow.processors.tokenizers.transformers import (
-        TransformersTokenizer, TransformersTokenizerConfig
-    )
+    from hyped.data.flow.processors.tokenizers.transformers import TransformersTokenizer
 
     # Define the configuration for the Transformers Tokenizer
-    tokenizer_config = TransformersTokenizerConfig(
+    tokenizer_config = TransformersTokenizer.Config(
         tokenizer="bert-base-uncased",  # Specify the pre-trained model to use
         max_length=128,                 # Maximum sequence length for tokenization
         padding="max_length",           # Padding strategy for sequences
