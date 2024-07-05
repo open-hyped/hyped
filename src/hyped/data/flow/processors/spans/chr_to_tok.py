@@ -90,7 +90,7 @@ class ChrToTokSpans(
         overlap = compute_spans_overlap_matrix(
             source_spans=inputs["query_spans"],
             target_spans=inputs["chr_spans"],
-            special_tokens=inputs["special_tokens_mask"],
+            special_tokens=inputs.get("special_tokens_mask", None),
         )
         # get begins and ends from mask
         tok_spans_begin = overlap.argmax(axis=1)
