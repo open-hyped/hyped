@@ -37,6 +37,8 @@ class BaseDataProcessorTest:
     # others
     rank: int = 0
 
+    node_id: str = "node_id"
+
     @pytest.fixture
     def exec_error_handler(self):
         cls = type(self)
@@ -56,19 +58,22 @@ class BaseDataProcessorTest:
         )
 
     @pytest.fixture
+    def flow(self):
+        return MagicMock()
+
+    @pytest.fixture
     def processor(self):
         cls = type(self)
         return cls.processor_type.from_config(cls.processor_config)
 
     @pytest.fixture
     def input_refs(
-        self, processor, input_verification_error_handler
+        self, processor, input_verification_error_handler, flow
     ) -> None | InputRefsContainer:
         cls = type(self)
 
-        n, f = "in", MagicMock()
         input_refs = {
-            k: FeatureRef(key_=k, feature_=v, node_id_=n, flow_=f)
+            k: FeatureRef(key_=k, feature_=v, node_id_=cls.node_id, flow_=flow)
             for k, v in cls.input_features.items()
         }
 
@@ -76,13 +81,13 @@ class BaseDataProcessorTest:
             return processor._in_refs_validator.validate(**input_refs)
 
     @pytest.fixture
-    def output_refs(self, processor, input_refs) -> None | OutputRefs:
+    def output_refs(self, processor, input_refs, flow) -> None | OutputRefs:
         # error catched in input verification
         if input_refs is None:
             return None
         # build output feature references
         return processor._out_refs_type(
-            input_refs.flow,
+            flow,
             "out",
             processor._out_refs_type.build_features(
                 processor.config, input_refs.named_refs

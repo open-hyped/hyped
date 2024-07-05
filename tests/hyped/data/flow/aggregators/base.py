@@ -19,6 +19,8 @@ from hyped.data.flow.core.refs.ref import FeatureRef
 UNSET = object()
 
 
+# TODO: This base class has a high overlap with the base test for processors,
+#       we should refactor that to share the same class to some extend
 class BaseDataAggregatorTest:
     # aggregator to test
     aggregator_type: type[BaseDataAggregator]
@@ -44,19 +46,22 @@ class BaseDataAggregatorTest:
         return cls.aggregator_type.from_config(cls.aggregator_config)
 
     @pytest.fixture
-    def input_refs(self, aggregator) -> InputRefs:
+    def flow(self):
+        return MagicMock()
+
+    @pytest.fixture
+    def input_refs(self, aggregator, flow) -> InputRefs:
         cls = type(self)
-        n, f = "in", MagicMock()
         input_refs = {
-            k: FeatureRef(key_=k, feature_=v, node_id_=n, flow_=f)
+            k: FeatureRef(key_=k, feature_=v, node_id_=cls.node_id, flow_=flow)
             for k, v in cls.input_features.items()
         }
         return aggregator._in_refs_validator.validate(**input_refs)
 
     @pytest.fixture
-    def output_refs(self, aggregator, input_refs) -> OutputRefs:
+    def output_refs(self, aggregator, input_refs, flow) -> OutputRefs:
         return aggregator._out_refs_type(
-            input_refs.flow,
+            flow,
             "out",
             aggregator._out_refs_type.build_features(
                 aggregator.config, input_refs

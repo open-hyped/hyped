@@ -18,8 +18,9 @@ from datasets import Features
 from hyped.base.config import BaseConfig, BaseConfigurable
 from hyped.base.generic import solve_typevar
 
-from ..refs.inputs import InputRefs, InputRefsValidator
+from ..refs.inputs import InputRefs, InputRefsContainer, InputRefsValidator
 from ..refs.outputs import OutputRefs
+from ..refs.ref import FeatureRef
 
 
 @dataclass(frozen=True)
@@ -93,10 +94,13 @@ class BaseNode(BaseConfigurable[C], Generic[C, I, O]):
         # get input and output reference types from typevars
         self._in_refs_type = solve_typevar(type(self), I)
         self._out_refs_type = solve_typevar(type(self), O)
-        # create input ref validator instance
-        self._in_refs_validator = InputRefsValidator(
-            config, self._in_refs_type
-        )
+
+        self._in_refs_validator: None | InputRefsValidator = None
+        if self._in_refs_type is not type(None):
+            # create input ref validator instance
+            self._in_refs_validator = InputRefsValidator(
+                self.config, self._in_refs_type
+            )
 
     def __getstate__(self):
         """Prepare the state for serialization.
@@ -113,3 +117,54 @@ class BaseNode(BaseConfigurable[C], Generic[C, I, O]):
             d (dict): State dictionary.
         """
         self.__init__(config=d["config"])
+
+    @property
+    def required_input_keys(self) -> set[str]:
+        """Retrieves the set of input keys required by the processor.
+
+        Returns:
+            set[str]: The set of input keys.
+        """
+        return (
+            self._in_refs_validator.required_keys
+            if self._in_refs_validator is not None
+            else set()
+        )
+
+    def call(self, flow: None | object = None, **kwargs: FeatureRef) -> O:
+        """Adds the node to the data flow.
+
+        This method first prepares the inputs, then adds the processor to the data
+        flow and returns a feature reference to the output features of the processor.
+
+        Args:
+            flow (None | DataFlowGraph): The data flow graph to which to add the node. By default,
+                the flow is inferred from the input references.
+            **kwargs (FeatureRef): Keyword arguments specifying feature references to be passed
+                as inputs to the processor.
+
+        Returns:
+            O: The output references produced by the processor.
+
+        Raises:
+            RuntimeError: If the flow cannot be inferred from the inputs and is not explicitly provided.
+        """
+        if (flow is None) and (len(kwargs) == 0):
+            raise RuntimeError(
+                "Flow cannot be inferred from the inputs and was not provided explicitly."
+            )
+        elif flow is None:
+            # infer flow from first valid feature reference in inputs
+            flow = next(iter(kwargs.values())).flow_
+
+        inputs: None | InputRefsContainer = None
+        # validate inputs in case validator is defined
+        if self._in_refs_validator is not None:
+            inputs = self._in_refs_validator.validate(**kwargs)
+        # compute output features and add the processor to the data flow
+        out_features = self._out_refs_type.build_features(
+            self.config, None if inputs is None else inputs.named_refs
+        )
+        node_id = flow.add_processor_node(self, inputs, out_features)
+        # return the output feature refs
+        return self._out_refs_type(flow, node_id, out_features)

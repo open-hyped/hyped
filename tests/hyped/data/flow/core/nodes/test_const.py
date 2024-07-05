@@ -43,14 +43,13 @@ def test_const_config():
 def test_const():
     # create a mock config
     const = Const(value=0)
-    #
     assert const.get_const_batch(3) == {"value": [0, 0, 0]}
     assert const.get_const_batch(4) == {"value": [0, 0, 0, 0]}
     # create a mock flow
     mock_flow = MagicMock()
     mock_flow.add_processor_node = MagicMock(return_value="node_id")
     # add constant value to mock flow
-    out = const.to(mock_flow)
+    out = const.call(mock_flow)
     # make sure the node was added to the mock flow
     mock_flow.add_processor_node.assert_called_with(
         const, None, Features({"value": const.config.feature})

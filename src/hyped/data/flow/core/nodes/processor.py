@@ -107,38 +107,6 @@ class BaseDataProcessor(BaseNode[C, I, O], ABC):
         # check whether the process function is a coroutine
         self._is_process_async = inspect.iscoroutinefunction(self.process)
 
-    @property
-    def required_input_keys(self) -> set[str]:
-        """Retrieves the set of input keys required by the processor.
-
-        Returns:
-            set[str]: The set of input keys.
-        """
-        return self._in_refs_validator.required_keys
-
-    def call(self, **kwargs: FeatureRef) -> O:
-        """Calls the data processor with the provided inputs and returns the output reference.
-
-        This method first prepares the inputs, then adds the processor to the data
-        flow and returns a feature reference to the output features of the processor.
-
-        Args:
-            **kwargs (FeatureRef): Keyword arguments specifying feature references to be passed
-                as inputs to the processor.
-
-        Returns:
-            O: The output references produced by the processor.
-        """
-        # validate inputs
-        inputs = self._in_refs_validator.validate(**kwargs)
-        # compute output features and add the processor to the data flow
-        out_features = self._out_refs_type.build_features(
-            self.config, inputs.named_refs
-        )
-        node_id = inputs.flow.add_processor_node(self, inputs, out_features)
-        # return the output feature refs
-        return self._out_refs_type(inputs.flow, node_id, out_features)
-
     async def batch_process(
         self, inputs: Batch, index: list[int], rank: int, io: IOContext
     ) -> Batch:

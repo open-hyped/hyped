@@ -99,7 +99,7 @@ class Const(BaseNode[ConstConfig, None, ConstOutputRefs]):
         """
         return {"value": [self.config.value] * batch_size}
 
-    def to(self, flow: object) -> ConstOutputRefs:
+    def call(self, flow: object) -> ConstOutputRefs:
         """Adds the constant node to the data flow graph.
 
         This method adds the constant node to the data flow graph
@@ -111,8 +111,4 @@ class Const(BaseNode[ConstConfig, None, ConstOutputRefs]):
         Returns:
             ConstOutputRefs: The output feature reference for the constant node.
         """
-        # add node to flow
-        out_features = self._out_refs_type.build_features(self.config, None)
-        node_id = flow.add_processor_node(self, None, out_features)
-        # return output feature reference
-        return self._out_refs_type(flow, node_id, out_features)
+        return super(Const, self).call(flow)

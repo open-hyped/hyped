@@ -280,7 +280,7 @@ class DataFlowGraphOptimizer(object):
                     value = key.index_example(out[const_node_id])
                     # create a new constant and add it to the data flow
                     const = Const(value=value, dtype=dtype)
-                    ref = const.to(graph).value
+                    ref = const.call(graph).value
                     # add the reference to the constants lookup
                     const_lookup[(const_node_id, key)] = ref
 

@@ -142,9 +142,9 @@ class CollectFeatures(
         inputs = InputRefsContainer(named_refs=named_refs, flow=flow)
         # compute output features and add the processor to the data flow
         out_features = self._out_refs_type.build_features(self.config, kwargs)
-        node_id = inputs.flow.add_processor_node(self, inputs, out_features)
+        node_id = flow.add_processor_node(self, inputs, out_features)
         # return the output feature refs
-        return self._out_refs_type(inputs.flow, node_id, out_features)
+        return self._out_refs_type(flow, node_id, out_features)
 
     @cache
     def _lookup(self, io: IOContext) -> NestedContainer[str]:

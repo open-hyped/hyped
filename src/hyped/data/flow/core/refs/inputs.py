@@ -69,13 +69,6 @@ from hyped.common.feature_checks import (
 from .ref import FeatureRef
 
 
-class FeatureValidationError(Exception):
-    """Feature Validation Error.
-
-    Raised by feature validators and catched by the InputRefsValidator.
-    """
-
-
 class GlobalValidator(object):
     """Validator for checking the validity of the input references as a whole.
 
@@ -147,14 +140,13 @@ class FeatureValidator(object):
                 # check if feature conforms to first validator
                 return self.f(config, ref)
 
-            except FeatureValidationError as e1:
+            except Exception as e1:
                 try:
                     # fallback to second validator
                     return other.f(config, ref)
 
-                except FeatureValidationError as e2:
-                    # TODO: e1 should also be included in traceback
-                    raise FeatureValidationError(
+                except Exception as e2:
+                    raise RuntimeError(
                         f"Feature does not conform to any of the expected types: `{str(e1)}` and `{str(e2)}` "
                     ) from e2
 
@@ -192,7 +184,7 @@ class CheckFeatureEquals(FeatureValidator):
             try:
                 raise_feature_equals(ref.key_, ref.feature_, feature_type)
             except TypeError as e:
-                raise FeatureValidationError(*e.args) from e
+                raise RuntimeError(*e.args) from e
 
         super(CheckFeatureEquals, self).__init__(check)
 
@@ -237,10 +229,10 @@ class CheckFeatureIsSequence(FeatureValidator):
             try:
                 raise_feature_is_sequence(ref.key_, ref.feature_, value_type)
             except TypeError as e:
-                raise FeatureValidationError(*e.args) from e
+                raise RuntimeError(*e.args) from e
 
             if -1 != length != get_sequence_length(ref.feature_):
-                raise FeatureValidationError(
+                raise RuntimeError(
                     "Expected `%s` to be a sequence of length %i, got %i"
                     % (
                         str(ref.key_),
@@ -290,9 +282,6 @@ class InputRefsContainer(pydantic.BaseModel):
     named_refs: dict[str, FeatureRef]
     """A dictionary mapping input reference field names to their
     corresponding instances."""
-
-    flow: object
-    """The data flow graph associated with the input references."""
 
     @property
     def refs(self) -> list[FeatureRef]:
@@ -366,9 +355,7 @@ class InputRefsValidator(object):
             isinstance(meta, meta_type) for meta in type_hint.__metadata__
         )
 
-    def __init__(
-        self, config: BaseConfig, refs_type: type[InputRefs | None]
-    ) -> None:
+    def __init__(self, config: BaseConfig, refs_type: type[InputRefs]) -> None:
         """Initialize the InputRefsValidator with a given reference type.
 
         Args:
@@ -377,14 +364,7 @@ class InputRefsValidator(object):
                 references. Will be passed to all validators as context information.
         """
         self.config = config
-        # check if the provided reference type is valid
         self.refs_type = refs_type
-        self.no_refs_type = refs_type is type(None)
-        # abort processing of the input reference type
-        if self.no_refs_type:
-            self.required_keys: set[str] = set()
-            self.optional_keys: set[str] = set()
-            return
 
         self.global_validators: list[GlobalValidator] = []
         # get the global validators from the base type
@@ -433,12 +413,6 @@ class InputRefsValidator(object):
             container (InputRefsContainer): A container wrapping the validates
             feature references.
         """
-        if self.no_refs_type:
-            raise TypeError("No reference type to validate for was provided.")
-
-        if len(refs) == 0:
-            raise RuntimeError("No references provided")
-
         # check all required keys are present in the reference dict
         missing = self.required_keys - set(refs.keys())
         if len(missing) > 0:
@@ -473,7 +447,7 @@ class InputRefsValidator(object):
                 # run all validators
                 for validator in validators:
                     validator.f(self.config, refs[key])
-            except FeatureValidationError as e:
+            except Exception as e:
                 raise RuntimeError(
                     f"Error in feature validation of `{self.refs_type.__name__}`: {repr(key)}."
                 ) from e
@@ -482,13 +456,10 @@ class InputRefsValidator(object):
             # run global validators
             for validator in self.global_validators:
                 validator.f(self.config, refs)
-        except FeatureValidationError as e:
+        except Exception as e:
             raise RuntimeError(
                 f"Error in global feature validation of `{self.refs_type.__name__}`."
             )
 
-        # get the flow from the given references
-        flow = next(iter(refs.values())).flow_
-
         # build the container
-        return InputRefsContainer(named_refs=refs, flow=flow)
+        return InputRefsContainer(named_refs=refs)

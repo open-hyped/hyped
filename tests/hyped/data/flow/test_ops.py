@@ -56,16 +56,16 @@ def test_binary_op_constant_inputs_handler():
         # first constant then reference
         wrapped_binary_op(0, ref)
         mock_const.assert_called_with(value=0)
-        mock_const(value=0).to.assert_called_with(mock_flow)
+        mock_const(value=0).call.assert_called_with(mock_flow)
         mock_binary_op.assert_called_with(
-            mock_const(value=0).to(mock_flow).value, ref
+            mock_const(value=0).call(mock_flow).value, ref
         )
         # first reference then constant
         wrapped_binary_op(ref, 1)
         mock_const.assert_called_with(value=1)
-        mock_const(value=1).to.assert_called_with(mock_flow)
+        mock_const(value=1).call.assert_called_with(mock_flow)
         mock_binary_op.assert_called_with(
-            ref, mock_const(value=1).to(mock_flow).value
+            ref, mock_const(value=1).call(mock_flow).value
         )
 
 

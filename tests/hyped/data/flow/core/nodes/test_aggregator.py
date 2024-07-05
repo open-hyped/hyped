@@ -126,46 +126,6 @@ class TestDataAggregationManager:
 
 
 class TestDataAggregator:
-    def test_call(self):
-        # mock input value, flow and node id
-        mock_x = MagicMock()
-        mock_flow = MagicMock()
-
-        # create the mock input ref instance
-        mock_in_ref = MagicMock()
-        mock_in_ref.flow = mock_flow
-        mock_in_ref.flow.add_processor_node = MagicMock(return_value="")
-
-        # create the mock aggregator
-        mock_aggregator = MockAggregator()
-        mock_aggregator._in_refs_type = MagicMock()
-        mock_aggregator._in_refs_validator.validate = MagicMock(
-            return_value=mock_in_ref
-        )
-
-        # call aggregator with mock input
-        ref = mock_aggregator.call(x=mock_x)
-
-        # check the input reference is build correctly
-        mock_aggregator._in_refs_validator.validate.assert_called_with(
-            x=mock_x
-        )
-        # make sure the aggregator node is added to the data flow
-        mock_in_ref.flow.add_processor_node.assert_called_with(
-            mock_aggregator, mock_in_ref, Features({"y": Value("int64")})
-        )
-
-        # make sure the aggregation reference is correct
-        assert (
-            ref.ptr
-            == FeatureRef(
-                node_id_="",
-                key_=tuple(),
-                flow_=mock_flow,
-                feature_=Features({"y": Value("int64")}),
-            ).ptr
-        )
-
     def test_properties(self):
         # create the mock aggregator
         mock_aggregator = MockAggregator()

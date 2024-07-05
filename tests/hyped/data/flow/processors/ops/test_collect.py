@@ -108,21 +108,18 @@ class BaseCollectFeaturesTest(BaseDataProcessorTest):
         return NestedContainer[FeatureRef](data=cls.collection)
 
     @pytest.fixture
-    def input_refs(self, nested_collection) -> InputRefs:
+    def input_refs(self, nested_collection, flow) -> InputRefs:
         named_refs = {
             _path_to_str(key): ref
             for key, ref in nested_collection.flatten().items()
         }
-        flow = next(iter(named_refs.values())).flow_
         return InputRefsContainer(named_refs=named_refs, flow=flow)
 
     @pytest.fixture
-    def output_refs(
-        self, processor, input_refs, nested_collection
-    ) -> OutputRefs:
+    def output_refs(self, processor, nested_collection, flow) -> OutputRefs:
         # build output feature references
         return processor._out_refs_type(
-            input_refs.flow,
+            flow,
             "out",
             processor._out_refs_type.build_features(
                 processor.config, {"collection": nested_collection}
