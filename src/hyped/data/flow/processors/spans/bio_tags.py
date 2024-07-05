@@ -6,7 +6,7 @@ Recognition.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Unpack
 
 import numpy as np
 from datasets import ClassLabel, Sequence, Value
@@ -235,3 +235,26 @@ class BioTags(
             tags = io.outputs["tags"].feature.str2int(tags)
 
         return Sample(tags=tags)
+
+    def call(self, **kwargs: Unpack[BioTagsInputRefs]) -> BioTagsOutputRefs:
+        """Execute the BioTags processor.
+
+        Processes the input references to generate BIO tags based on the spans and labels provided.
+        This method validates the input lengths and builds the BIO tags sequence accordingly,
+        ensuring that the sequence conforms to the specified configuration.
+
+        Args:
+            spans (FeatureRef): The feature reference to the span annotations. Must be a sequence of spans.
+            labels (FeatureRef): The feature reference for the label annotations, which should be a sequence
+                of :code:`strings` or :class:`ClassLabels`.
+            length (FeatureRef): The feature reference to the length, which should be of integer type
+                indicating the target length of the tags sequence.
+            **kwargs (FeatureRef): Keyword arguments passed to call method.
+
+        Returns:
+            BioTagsOutputRefs: The output references containing the generated BIO tags sequence.
+
+        Raises:
+            RuntimeError: If there is a mismatch in sequence lengths between 'spans' and 'labels'.
+        """
+        return super(BioTags, self).call(**kwargs)

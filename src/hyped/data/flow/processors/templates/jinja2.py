@@ -1,6 +1,6 @@
 """Jinja2 Template Data Processor."""
 from functools import partial
-from typing import Annotated
+from typing import Annotated, Unpack
 
 from datasets import Features, Value
 from jinja2 import Environment, Template
@@ -105,3 +105,20 @@ class Jinja2(
                 inputs=inputs["features"]
             )
         )
+
+    def call(self, **kwargs: Unpack[Jinja2InputRefs]) -> Jinja2OutputRefs:
+        """Execute the Jinja2 processor.
+
+        Processes the input references to render a Jinja2 template based on the provided configuration
+        and input features. Outputs the rendered template as a string.
+
+        Args:
+            features (FeatureRef): The features that are accessable in the template.
+                This must reference a mapping feature where the keys in the mapping
+                are valid keys in the jinja template.
+            **kwargs (FeatureRef): Keyword arguments passed to call method.
+
+        Returns:
+            Jinja2OutputRefs: The output references containing the rendered template string.
+        """
+        return super(Jinja2, self).call(**kwargs)

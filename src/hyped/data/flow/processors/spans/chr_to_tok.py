@@ -4,6 +4,8 @@ This module defines the functionality required to process character spans and co
 token spans, which are useful for various Natural Language Processing (NLP) tasks such as Named
 Entity Recognition (NER).
 """
+from typing import Unpack
+
 from datasets.features.features import FeatureType, Sequence, Value
 from typing_extensions import Annotated
 
@@ -88,3 +90,22 @@ class ChrToTokSpans(
         # build output
         tok_spans = list(zip(tok_spans_begin, tok_spans_end))
         return Sample(tok_spans=tok_spans)
+
+    def call(
+        self, **kwargs: Unpack[ChrToTokSpansInputRefs]
+    ) -> ChrToTokSpansOutputRefs:
+        """Execute the ChrToTokSpans processor.
+
+        Processes the input references to convert character spans ('chr_spans')
+        to token spans ('tok_spans') based on the overlap between query spans ('query_spans')
+        and character spans.
+
+        Args:
+            chr_spans (FeatureRef): The feature reference to the sequence of character spans.
+            query_spans (FeatureRef): The sequence of query spans to convert.
+            **kwargs (FeatureRef): Keyword arguments passed to call method.
+
+        Returns:
+            ChrToTokSpansOutputRefs: The output references containing the computed token spans.
+        """
+        return super(ChrToTokSpans, self).call(**kwargs)

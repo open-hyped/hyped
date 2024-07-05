@@ -11,7 +11,7 @@ Classes:
     - :class:`IOContext`: Class providing context information for the I/O operations of data processors.
 """
 from dataclasses import dataclass
-from typing import Generic, TypeVar
+from typing import Generic, TypeVar, overload
 
 from datasets import Features
 
@@ -130,6 +130,14 @@ class BaseNode(BaseConfigurable[C], Generic[C, I, O]):
             if self._in_refs_validator is not None
             else set()
         )
+
+    @overload
+    def call(self, **kwargs: FeatureRef) -> O:
+        ...
+
+    @overload
+    def call(self, flow: object, **kwargs: FeatureRef) -> O:
+        ...
 
     def call(self, flow: None | object = None, **kwargs: FeatureRef) -> O:
         """Adds the node to the data flow.

@@ -9,7 +9,7 @@ the output features generated during tokenization.
 """
 from __future__ import annotations
 
-from typing import Literal, NotRequired
+from typing import Literal, NotRequired, Unpack
 
 from datasets import Sequence, Value
 from transformers import AutoTokenizer
@@ -330,3 +330,25 @@ class TransformersTokenizer(
 
         # return output and index
         return out
+
+    def call(
+        self, **kwargs: Unpack[TransformersTokenizerInputRefs]
+    ) -> TransformersTokenizerOutputRefs:
+        """Execute the Transformers Tokenizer processor.
+
+        Processes the input references to tokenize text using the specified Transformer-based tokenizer.
+        Outputs various tokenization results based on the configuration settings.
+
+        Args:
+            text (FeatureRef): Input feature representing the input text.
+            text_pair (Optional[FeatureRef]): Optional input feature representing the paired text.
+            text_target (Optional[FeatureRef]): Optional input feature representing the target text.
+            text_pair_target (Optional[FeatureRef]): Optional input feature representing the paired
+                target text.
+            **kwargs (FeatureRef): Keyword arguments passed to call method.
+
+        Returns:
+            TransformersTokenizerOutputRefs: The output references containing tokenization results
+            based on the configuration settings.
+        """
+        return super(TransformersTokenizer, self).call(**kwargs)

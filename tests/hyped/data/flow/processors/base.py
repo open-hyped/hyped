@@ -1,6 +1,6 @@
 import pickle
 from contextlib import nullcontext
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from datasets import Features, Sequence
@@ -59,7 +59,10 @@ class BaseDataProcessorTest:
 
     @pytest.fixture
     def flow(self):
-        return MagicMock()
+        cls = type(self)
+        mock_flow = MagicMock()
+        mock_flow.add_processor_node = MagicMock(return_value=cls.node_id)
+        return mock_flow
 
     @pytest.fixture
     def processor(self):
@@ -73,7 +76,7 @@ class BaseDataProcessorTest:
         cls = type(self)
 
         input_refs = {
-            k: FeatureRef(key_=k, feature_=v, node_id_=cls.node_id, flow_=flow)
+            k: FeatureRef(key_=k, feature_=v, node_id_="in", flow_=flow)
             for k, v in cls.input_features.items()
         }
 
@@ -93,6 +96,15 @@ class BaseDataProcessorTest:
                 processor.config, input_refs.named_refs
             ),
         )
+
+    def test_call(self, processor, input_refs):
+        cls = type(self)
+
+        if input_refs is not None:
+            out = processor.call(**input_refs.named_refs)
+
+            if cls.expected_output_features is not None:
+                assert out.feature_ == cls.expected_output_features
 
     @pytest.mark.asyncio
     async def test_pickle(
