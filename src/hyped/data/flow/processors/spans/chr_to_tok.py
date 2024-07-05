@@ -19,7 +19,7 @@ from hyped.data.flow.core.refs.inputs import (
     InputRefs,
 )
 from hyped.data.flow.core.refs.outputs import LambdaOutputFeature, OutputRefs
-from hyped.data.flow.core.refs.ref import FeatureRef, NONE_REF
+from hyped.data.flow.core.refs.ref import NONE_REF, FeatureRef
 
 from .utils import compute_spans_overlap_matrix, validate_spans_feature
 
