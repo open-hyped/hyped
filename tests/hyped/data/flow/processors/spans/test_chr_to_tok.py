@@ -103,7 +103,7 @@ class TestChrToTokSpans_Masked(BaseDataProcessorTest):
             [0, 0, 0, 0, 0],
         ],
     }
-    input_index = list(range(13))
+    input_index = list(range(12))
     # expected output specification
     expected_output_feature = Features(
         {"tok_spans": Sequence(Sequence(Value("int32"), length=2))}
