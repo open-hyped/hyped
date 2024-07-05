@@ -46,6 +46,7 @@ class TestChrToTokSpans(BaseDataProcessorTest):
         ]
     }
 
+
 class TestChrToTokSpans_Masked(BaseDataProcessorTest):
     # processor
     processor_type = ChrToTokSpans
@@ -55,7 +56,7 @@ class TestChrToTokSpans_Masked(BaseDataProcessorTest):
         {
             "chr_spans": Sequence(Sequence(Value("int32"), length=2)),
             "query_spans": Sequence(Sequence(Value("int32"), length=2)),
-            "special_tokens_mask": Sequence(Value("int32"))
+            "special_tokens_mask": Sequence(Value("int32")),
         }
     )
     input_data = {
@@ -100,7 +101,7 @@ class TestChrToTokSpans_Masked(BaseDataProcessorTest):
             [0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0],
-        ]
+        ],
     }
     input_index = list(range(13))
     # expected output specification

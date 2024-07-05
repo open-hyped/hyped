@@ -19,7 +19,7 @@ from hyped.data.flow.core.refs.ref import FeatureRef
 def compute_spans_overlap_matrix(
     source_spans: list[tuple[int]],
     target_spans: list[tuple[int]],
-    special_tokens: Optional[list[int]] = None
+    special_tokens: Optional[list[int]] = None,
 ) -> np.ndarray:
     """Compute the span overlap matrix.
 
@@ -50,7 +50,6 @@ def compute_spans_overlap_matrix(
     # compute overlap mask
     return (
         (
-        (
             # source overlaps with target begin
             (source_spans[:, 0, None] <= target_spans[None, :, 0])
             & (target_spans[None, :, 0] < source_spans[:, 1, None])
@@ -70,8 +69,7 @@ def compute_spans_overlap_matrix(
             (target_spans[None, :, 0] <= source_spans[:, 0, None])
             & (source_spans[:, 1, None] <= target_spans[None, :, 1])
         )
-        ) & ~special_tokens
-    )
+    ) & ~special_tokens
 
 
 def validate_spans_feature(ref: FeatureRef, feature: FeatureType) -> None:
