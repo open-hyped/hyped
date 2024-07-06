@@ -169,7 +169,7 @@ class DataFlow(object):
         )
 
     def const(
-        self, value: Any, ftype: None | FeatureType = None
+        self, value: Any, feature: None | FeatureType = None
     ) -> FeatureRef:
         """Adds a constant node to the data flow graph.
 
@@ -179,13 +179,13 @@ class DataFlow(object):
 
         Args:
             value (Any): The constant value to be introduced into the data flow.
-            ftype (None | FeatureType, optional): The type of the feature. If not provided,
+            feature (None | FeatureType, optional): The type of the feature. If not provided,
                 it is inferred from the value. Defaults to None.
 
         Returns:
             FeatureRef: A feature reference to the constant value in the data flow.
         """
-        return Const(value=value, ftype=ftype).call(self._graph).value
+        return Const(value=value, feature=feature).call(self._graph).value
 
     def build(
         self,
