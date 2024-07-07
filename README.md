@@ -54,10 +54,7 @@ Start by importing the necessary modules and classes:
 ```python
 import datasets
 from hyped.data.flow import DataFlow
-from hyped.data.flow.processors.tokenizers.transformers import (
-    TransformersTokenizer,
-    TransformersTokenizerConfig
-)
+from hyped.data.flow.processors.tokenizers.transformers import TransformersTokenizer
 ```
 
 Next, load your dataset using the datasets library. In this example, we load the IMDb dataset:
@@ -98,7 +95,7 @@ Hyped provides various configuration options that allow users to customize the b
 Each data processor in Hyped can be configured with specific parameters to tailor its behavior. For example, when using the `TransformersTokenizer`, you can specify the tokenizer model to use, the maximum sequence length, and other tokenizer-specific settings.
 
 ```python
-config = TransformersTokenizerConfig(
+config = TransformersTokenizer.Config(
     tokenizer="bert-base-uncased",
     max_length=128,
     padding=True,
