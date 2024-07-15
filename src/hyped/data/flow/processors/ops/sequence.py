@@ -5,11 +5,12 @@ import operator
 from abc import ABC, abstractmethod
 from collections import deque
 from functools import partial
-from itertools import starmap
+from itertools import chain, starmap
 from typing import Any, ClassVar, TypeVar
 
 import numpy as np
 from datasets import Sequence, Value
+from datasets.features.features import FeatureType
 from typing_extensions import Annotated, Unpack
 
 from hyped.common.feature_checks import (
@@ -29,6 +30,7 @@ from hyped.data.flow.core.refs.inputs import (
     AnyFeatureType,
     CheckFeatureEquals,
     CheckFeatureIsSequence,
+    FeatureValidator,
     GlobalValidator,
     InputRefs,
 )
@@ -77,93 +79,6 @@ class SequenceLength(
     """
 
     op = len
-
-
-class SequenceConcatConfig(BaseBinaryOpConfig):
-    """Configuration class for the Concat operation."""
-
-
-def validate_concat_input_refs(
-    config: SequenceConcatConfig, refs: SequenceConcatInputRefs
-) -> None:
-    """Ensure sequence features align for concatenation.
-
-    Args:
-        config (SequenceConcatConfig): Config instance.
-        refs (SequenceConcatInputRefs): Input references to validate.
-
-    Raises:
-        RuntimeError: If the sequence features do not match.
-    """
-    # sequence features must align in
-    # order to concatenate sequences
-    if not check_feature_equals(
-        get_sequence_feature(refs["a"].feature_),
-        get_sequence_feature(refs["b"].feature_),
-    ):
-        raise RuntimeError(
-            f"The sequence features of 'a' and 'b' must match to perform concatenation, "
-            f"got `{get_sequence_feature(refs['a'].feature_)}` "
-            f"!= `{get_sequence_feature(refs['b'].feature_)}`"
-        )
-
-
-class SequenceConcatInputRefs(
-    Annotated[InputRefs, GlobalValidator(validate_concat_input_refs)]
-):
-    """Input references for the Concat operation."""
-
-    a: Annotated[FeatureRef, CheckFeatureIsSequence()]
-    """The first sequence feature reference."""
-
-    b: Annotated[FeatureRef, CheckFeatureIsSequence()]
-    """The second sequence feature reference."""
-
-
-def infer_concat_output_dtype(
-    config: SequenceConcatConfig, inputs: SequenceConcatInputRefs
-) -> Sequence:
-    """Infer the output data type for the Concat operation.
-
-    Args:
-        config (ConcatConfig): The configuration for the Concat operation.
-        inputs (ConcatInputRefs): The input references for the Concat operation.
-
-    Returns:
-        Sequence: The output sequence feature with inferred length.
-    """
-    # get the lengths of the input sequences
-    a_length = get_sequence_length(inputs["a"].feature_)
-    b_length = get_sequence_length(inputs["b"].feature_)
-    # compute the length of the output sequence
-    length = -1 if -1 in (a_length, b_length) else a_length + b_length
-    # build the output sequence feature assuming that
-    # the input sequence features match
-    return Sequence(
-        feature=get_sequence_feature(inputs["a"].feature_), length=length
-    )
-
-
-class SequenceConcatOutputRefs(BaseBinaryOpOutputRefs):
-    """Output references for the Concat operation."""
-
-    result: Annotated[
-        FeatureRef, LambdaOutputFeature(infer_concat_output_dtype)
-    ]
-    """The feature reference to the result of the concatenation operation."""
-
-
-class SequenceConcat(
-    BaseBinaryOp[
-        SequenceConcatConfig, SequenceConcatInputRefs, SequenceConcatOutputRefs
-    ]
-):
-    """Sequence Concatente Data Processor.
-
-    This class defines the concatenation operation for sequence features.
-    """
-
-    op = operator.concat
 
 
 class SequenceGetItemInputRefs(InputRefs):
@@ -606,11 +521,70 @@ class SequenceIndexOf(
     op = operator.indexOf
 
 
+def validate_multisequence_feat(
+    feat_ref: FeatureRef, feat_type: FeatureType
+) -> None:
+    """Validates that the provided feature is a multisequence feature.
+
+    This function ensures that the feature is a dictionary indexed by consecutive integers,
+    starting from 0, and that the values are sequences of the same type.
+
+    Args:
+        feat_ref (FeatureRef): The reference to the feature being validated.
+        feat_type (FeatureType): The type of the feature being validated.
+
+    Raises:
+        TypeError: If the feature is not a dictionary.
+        TypeError: If the keys of the dictionary are not integers.
+        TypeError: If the dictionary is not indexed by consecutive integers starting from 0.
+        TypeError: If the values of the dictionary are not sequences of the same type.
+    """
+    if not isinstance(feat_type, dict):
+        raise TypeError(
+            "Expected multisequence feature `%s` to be of dict type, got %s "
+            % (feat_ref.key_, type(feat_type))
+        )
+
+    # check that multisequence is indexed with integers
+    if not all((isinstance(k, int) for k in feat_type.keys())):
+        raise TypeError(
+            "Expected multisequence feature `%s` to have integer keys, got %s "
+            % (feat_ref.key_, feat_type)
+        )
+    # check that multisequence is indexed by consecutive integers
+    sorted_indices = list(sorted(feat_type.keys()))
+    if not all(k == i for i, k in enumerate(sorted_indices)):
+        raise TypeError(
+            "Expected multisequence feature `%s` to be indexed by consecutive integers, got %s "
+            % (feat_ref.key_, sorted_indices)
+        )
+
+    value_type = next(iter(feat_type.values())).feature
+    for k in feat_type.keys():
+        if not check_feature_is_sequence(feat_type[k], value_type):
+            raise TypeError(
+                "Expected `%s.%s` to be a sequence of type %s"
+                ", got %s " % (feat_ref.key_, k, value_type, feat_type[k])
+            )
+
+
 class MultiSequenceOpInputRefs(InputRefs):
     """Input references for MultiSequenceOp."""
 
-    sequences: Annotated[FeatureRef, CheckFeatureIsSequence(Sequence)]
-    """The sequence of input sequences to process. This is validated to be a nested sequence."""
+    sequences: Annotated[
+        FeatureRef, FeatureValidator(validate_multisequence_feat)
+    ]
+    """The sequence of input sequences to process. This is validated to be a 
+    dict of sequences indexed by consecutive integers.
+    
+    Example:
+        .. code-block:: python
+        sequences = {
+            0: feature_ref_1,
+            1: feature_ref_2,
+            2: feature_ref_3,
+        }
+    """
 
 
 class BaseMultiSequenceOpOutputRefs(OutputRefs):
@@ -654,26 +628,63 @@ class BaseMultiSequenceOp(BaseDataProcessor[C, I, O], ABC):
             Batch: The processed batch with the result of the operation.
         """
         return {
-            "result": [list(self.op(*seqs)) for seqs in inputs["sequences"]]
+            "result": [
+                list(self.op(*(seq_dict[i] for i in range(len(seq_dict)))))
+                for seq_dict in inputs["sequences"]
+            ]
         }
 
-    def call(
-        self, **kwargs: Unpack[MultiSequenceOpInputRefs]
-    ) -> BaseMultiSequenceOpOutputRefs:
-        """Add the multi-sequence operation node to the data flow.
 
-        This method processes the input references for the multi-sequence operation, adds
-        the corresponding node to the data flow, and returns the references to the
-        output features generated by the processor.
+class SequenceChainConfig(BaseBinaryOpConfig):
+    """Configuration class for the Concat operation."""
 
-        Args:
-            sequences (FeatureRef): The input sequences to process. This is validated to be a nested sequence.
-            **kwargs (FeatureRef): Keyword arguments passed to call method.
 
-        Returns:
-            BaseMultiSequenceOpOutputRefs: The output references produced by the multi-sequence data processor.
-        """
-        return super(BaseMultiSequenceOp, self).call(**kwargs)
+def infer_concat_output_dtype(
+    config: SequenceChainConfig, inputs: MultiSequenceOpInputRefs
+) -> Sequence:
+    """Infer the output data type for the Concat operation.
+
+    Args:
+        config (ConcatConfig): The configuration for the Concat operation.
+        inputs (ConcatInputRefs): The input references for the Concat operation.
+
+    Returns:
+        Sequence: The output sequence feature with inferred length.
+    """
+    sequence_feature = get_sequence_feature(
+        next(iter(inputs.sequences.feature_.values()))
+    )
+    sequence_lengths = map(
+        lambda feat: feat.length, inputs.sequences.feature_.values()
+    )
+    return Sequence(
+        feature=sequence_feature,
+        length=-1 if -1 in sequence_lengths else sum(sequence_lengths),
+    )
+
+
+class SequenceChainOutputRefs(BaseBinaryOpOutputRefs):
+    """Output references for the Concat operation."""
+
+    result: Annotated[
+        FeatureRef, LambdaOutputFeature(infer_concat_output_dtype)
+    ]
+    """The feature reference to the result of the concatenation operation."""
+
+
+class SequenceChain(
+    BaseMultiSequenceOp[
+        SequenceChainConfig, MultiSequenceOpInputRefs, SequenceChainOutputRefs
+    ]
+):
+    """Sequence Concatente Data Processor.
+
+    This class defines the concatenation operation for sequence features.
+    """
+
+    def op(self, *args: list[Any]) -> list[Any]:
+        """Concatenate all sequences."""
+        return list(chain(*args))
 
 
 class SequenceZipOutputRefs(BaseMultiSequenceOpOutputRefs):
@@ -684,11 +695,13 @@ class SequenceZipOutputRefs(BaseMultiSequenceOpOutputRefs):
         LambdaOutputFeature(
             lambda _, i: Sequence(
                 Sequence(
-                    get_sequence_feature(i["sequences"].feature_).feature,
-                    length=get_sequence_length(i["sequences"].feature_),
+                    get_sequence_feature(
+                        next(iter(i.sequences.feature_.values()))
+                    ),
+                    length=len(i.sequences.feature_),
                 ),
-                length=get_sequence_length(
-                    get_sequence_feature(i["sequences"].feature_)
+                length=min(
+                    map(get_sequence_length, i.sequences.feature_.values())
                 ),
             )
         ),

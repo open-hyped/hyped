@@ -10,6 +10,7 @@ from typing import Annotated
 from datasets import Value
 from typing_extensions import Unpack
 
+from hyped.common.feature_checks import NUMERICAL_TYPES
 from hyped.data.flow.core.nodes.aggregator import (
     BaseDataAggregator,
     BaseDataAggregatorConfig,
@@ -30,22 +31,7 @@ class SumAggregatorInputRefs(InputRefs):
 
     x: Annotated[
         FeatureRef,
-        CheckFeatureEquals(
-            [
-                Value("bool"),
-                Value("float16"),
-                Value("float32"),
-                Value("float64"),
-                Value("int8"),
-                Value("int16"),
-                Value("int32"),
-                Value("int64"),
-                Value("uint8"),
-                Value("uint16"),
-                Value("uint32"),
-                Value("uint64"),
-            ]
-        ),
+        CheckFeatureEquals(NUMERICAL_TYPES + [Value("bool")]),
     ]
     """
     The input feature reference for the aggregation. It must be of one of the specified types:

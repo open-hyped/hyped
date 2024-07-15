@@ -5,8 +5,8 @@ from tests.hyped.data.flow.processors.base import BaseDataProcessorTest
 
 
 class TestSequenceConcat(BaseDataProcessorTest):
-    processor_type = sequence.SequenceConcat
-    processor_config = sequence.SequenceConcatConfig()
+    processor_type = sequence.SequenceChain
+    processor_config = sequence.SequenceChainConfig()
 
     input_features = Features(
         {"a": Sequence(Value("int32")), "b": Sequence(Value("int32"))}
@@ -19,8 +19,8 @@ class TestSequenceConcat(BaseDataProcessorTest):
 
 
 class TestSequenceConcat_FixedLength(BaseDataProcessorTest):
-    processor_type = sequence.SequenceConcat
-    processor_config = sequence.SequenceConcatConfig()
+    processor_type = sequence.SequenceChain
+    processor_config = sequence.SequenceChainConfig()
 
     input_features = Features(
         {

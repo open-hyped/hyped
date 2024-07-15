@@ -14,11 +14,7 @@ from datasets.features.features import Features, FeatureType, Sequence, Value
 from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
 from typing_extensions import Annotated
 
-from hyped.common.feature_checks import (
-    STRING_LIKE_TYPES,
-    check_feature_equals,
-    check_feature_is_sequence,
-)
+from hyped.common.feature_checks import check_feature_is_sequence
 from hyped.common.feature_key import FeatureKey
 
 FeaturePointer: TypeAlias = tuple[int, FeatureKey, object]
@@ -273,13 +269,6 @@ class FeatureRef(BaseModel):
         Returns:
             FeatureRef: Reference to the result of the addition.
         """
-        if check_feature_equals(
-            self.feature_, STRING_LIKE_TYPES
-        ) or check_feature_is_sequence(self.feature_):
-            from hyped.data.flow.ops import concat
-
-            return concat(self, other)
-
         from hyped.data.flow.ops import add
 
         return add(self, other)
@@ -412,13 +401,6 @@ class FeatureRef(BaseModel):
         Returns:
             FeatureRef: Reference to the result of the addition.
         """
-        if check_feature_equals(
-            self.feature_, STRING_LIKE_TYPES
-        ) or check_feature_is_sequence(self.feature_):
-            from hyped.data.flow.ops import concat
-
-            return concat(other, self)
-
         from hyped.data.flow.ops import add
 
         return add(other, self)
@@ -551,19 +533,9 @@ class FeatureRef(BaseModel):
         Returns:
             FeatureRef: Reference to the result of the addition.
         """
-        out: FeatureRef
-        if check_feature_equals(
-            self.feature_, STRING_LIKE_TYPES
-        ) or check_feature_is_sequence(self.feature_):
-            from hyped.data.flow.ops import concat
+        from hyped.data.flow.ops import add
 
-            return concat(self, other)
-        else:
-            from hyped.data.flow.ops import add
-
-            out = add(self, other)
-
-        return self._update(out)
+        return self._update(add(self, other))
 
     def __isub__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace subtraction with another feature.

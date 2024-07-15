@@ -94,7 +94,7 @@ def _check_args(*args: FeatureRef | Any) -> tuple[FeatureRef]:
         (
             arg
             if isinstance(arg, FeatureRef)
-            else Const(value=arg).call(flow).value
+            else Const(value=arg).to(flow).value
         )
         for arg in args
     )
@@ -189,7 +189,7 @@ def collect(
 
     def _add_const(p: tuple[str, int], v: FeatureRef | Any) -> FeatureRef:
         return (
-            v if isinstance(v, FeatureRef) else Const(value=v).call(flow).value
+            v if isinstance(v, FeatureRef) else Const(value=v).to(flow).value
         )
 
     # add all constants in the collection to the flow
@@ -233,7 +233,14 @@ def add(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the addition.
     """
-    return binary.Add().call(a=a, b=b).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise addition of sequence types not implemented."
+        )
+    else:
+        return binary.Add().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -247,7 +254,14 @@ def sub(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the subtraction.
     """
-    return binary.Sub().call(a=a, b=b).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise subtraction of sequence types not implemented."
+        )
+    else:
+        return binary.Sub().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -261,7 +275,14 @@ def mul(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the multiplication.
     """
-    return binary.Mul().call(a=a, b=b).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise multiplication of sequence types not implemented."
+        )
+    else:
+        return binary.Mul().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -275,7 +296,14 @@ def truediv(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the division.
     """
-    return binary.TrueDiv().call(a=a, b=b).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise division of sequence types not implemented."
+        )
+    else:
+        return binary.TrueDiv().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -289,7 +317,14 @@ def floordiv(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the integer division.
     """
-    return binary.FloorDiv().call(a=a, b=b).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise integer division of sequence types not implemented."
+        )
+    else:
+        return binary.FloorDiv().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -303,7 +338,14 @@ def pow(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the exponentiation.
     """
-    return binary.Pow().call(a=a, b=b).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise power of sequence types not implemented."
+        )
+    else:
+        return binary.Pow().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -317,7 +359,14 @@ def mod(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the modulo operation.
     """
-    return binary.Mod().call(a=a, b=b).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise modulo of sequence types not implemented."
+        )
+    else:
+        return binary.Mod().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -331,7 +380,14 @@ def eq(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the equality comparison.
     """
-    return binary.Equals().call(a=a, b=b).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise comparison of sequence types not implemented."
+        )
+    else:
+        return binary.Equals().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -345,7 +401,14 @@ def ne(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the inequality comparison.
     """
-    return binary.NotEquals().call(a=a, b=b).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise comparison of sequence types not implemented."
+        )
+    else:
+        return binary.NotEquals().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -359,7 +422,14 @@ def lt(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the less-than comparison.
     """
-    return binary.LessThan().call(a=a, b=b).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise comparison of sequence types not implemented."
+        )
+    else:
+        return binary.LessThan().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -373,7 +443,14 @@ def le(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the less-than-or-equal-to comparison.
     """
-    return binary.LessThanOrEqual().call(a=a, b=b).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise comparison of sequence types not implemented."
+        )
+    else:
+        return binary.LessThanOrEqual().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -387,7 +464,14 @@ def gt(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the greater-than comparison.
     """
-    return binary.GreaterThan().call(a=a, b=b).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise comparison of sequence types not implemented."
+        )
+    else:
+        return binary.GreaterThan().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -401,7 +485,14 @@ def ge(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the greater-than-or-equal-to comparison.
     """
-    return binary.GreaterThanOrEqual().call(a=a, b=b).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise comparison of sequence types not implemented."
+        )
+    else:
+        return binary.GreaterThanOrEqual().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -415,7 +506,14 @@ def and_(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the and operation.
     """
-    return binary.LogicalAnd().call(a=a, b=b).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise Conjugation of sequence types not implemented."
+        )
+    else:
+        return binary.LogicalAnd().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -429,7 +527,14 @@ def or_(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the or operation.
     """
-    return binary.LogicalOr().call(a=a, b=b).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise Disjunction of sequence types not implemented."
+        )
+    else:
+        return binary.LogicalOr().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -443,7 +548,14 @@ def xor_(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the xor operation.
     """
-    return binary.LogicalXOr().call(a=a, b=b).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise Disjunction of sequence types not implemented."
+        )
+    else:
+        return binary.LogicalXOr().call(a=a, b=b).result
 
 
 def neg(a: FeatureRef) -> FeatureRef:
@@ -455,7 +567,14 @@ def neg(a: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the negated value of the input feature.
     """
-    return unary.Neg().call(a=a).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise Negation of sequence types not implemented."
+        )
+    else:
+        return unary.Neg().call(a=a).result
 
 
 def abs_(a: FeatureRef) -> FeatureRef:
@@ -479,7 +598,14 @@ def invert(a: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the bitwise inverted value of the input feature.
     """
-    return unary.Invert().call(a=a).result
+    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
+        b.feature_
+    ):
+        raise NotImplementedError(
+            "Element-wise Inversion of sequence types not implemented."
+        )
+    else:
+        return unary.Invert().call(a=a).result
 
 
 def len_(a: FeatureRef) -> FeatureRef | int:
@@ -522,36 +648,6 @@ def len_(a: FeatureRef) -> FeatureRef | int:
         raise TypeError(
             f"Unexpected feature type for length operation, "
             "got `{a.feature_}`."
-        )
-
-
-@_handle_constant_inputs_for_binary_op
-def concat(a: FeatureRef, b: FeatureRef) -> FeatureRef:
-    """Concatenate two features.
-
-    Args:
-        a (FeatureRef): The first feature to concatenate.
-        b (FeatureRef): The second feature to concatenate.
-
-    Returns:
-        FeatureRef: The concatenated feature if the features are sequences.
-
-    Raises:
-        TypeError: If the features are of unexpected types.
-    """
-    if check_feature_is_sequence(a.feature_):
-        # return concatenated sequence feature
-        return sequence.SequenceConcat().call(a=a, b=b).result
-
-    elif check_feature_equals(a.feature_, STRING_LIKE_TYPES):
-        # implement string concat operation
-        raise NotImplementedError()
-
-    else:
-        # unexpected feature type for concat operation
-        raise TypeError(
-            f"Unexpected feature type for concat operation, "
-            "got `{a.feature_}` and `{b.feature_}`."
         )
 
 
@@ -624,10 +720,6 @@ def contains(obj: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
             .contains
         )
 
-    elif check_feature_equals(obj.feature_, STRING_LIKE_TYPES):
-        # implement contains operation for string-like features
-        raise NotImplementedError()
-
     else:
         raise TypeError(
             f"Unexpected feature type for contains operation, "
@@ -693,16 +785,37 @@ def index_of(obj: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
         )
 
 
+def chain(*sequences: FeatureRef) -> FeatureRef:
+    """Concatenate sequence features.
+
+    Args:
+        *sequences (FeatureRef): Sequence features to concatenate. Must all have the same Value type.
+
+    Returns:
+        FeatureRef: A FeatureRef instance representing the concatenated sequences.
+
+    Raises:
+        TypeError: If the features are of unexpected types.
+    """
+    sequences = _check_args(*sequences)
+    seq_container = collect({i: seq for i, seq in enumerate(sequences)})
+    # return concatenated sequence feature
+    return sequence.SequenceChain().call(sequences=seq_container).result
+
+
 def zip_(*sequences: FeatureRef) -> FeatureRef:
     """Zip multiple sequences together.
 
     Args:
-        *sequences (FeatureRef): Sequences to zip together.
+        *sequences (FeatureRef): Sequences to zip together. Must all have the same Value type.
 
     Returns:
         FeatureRef: A FeatureRef instance representing the zipped sequences.
+
+    Raises:
+        TypeError: If the features are of unexpected types.
     """
+    sequences = _check_args(*sequences)
+    seq_container = collect({i: seq for i, seq in enumerate(sequences)})
     # zip collected sequences
-    return (
-        sequence.SequenceZip().call(sequences=collect(list(sequences))).result
-    )
+    return sequence.SequenceZip().call(sequences=seq_container).result
