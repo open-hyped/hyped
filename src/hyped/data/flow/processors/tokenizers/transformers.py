@@ -17,19 +17,39 @@ from transformers.tokenization_utils_base import TruncationStrategy
 from transformers.utils import PaddingStrategy
 from typing_extensions import Annotated, NotRequired, Unpack
 
+from hyped.common.feature_checks import raise_feature_equals
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     Batch,
     IOContext,
 )
-from hyped.data.flow.core.refs.inputs import CheckFeatureEquals, InputRefs
+from hyped.data.flow.core.refs.inputs import (
+    CheckFeatureEquals,
+    FeatureValidator,
+    InputRefs,
+)
 from hyped.data.flow.core.refs.outputs import (
     ConditionalOutputFeature,
     LambdaOutputFeature,
     OutputRefs,
 )
 from hyped.data.flow.core.refs.ref import NONE_REF, FeatureRef
+
+
+def _validate_text_type(config: TransformersTokenizerConfig, ref: FeatureRef):
+    if config.is_split_into_words:
+        try:
+            raise_feature_equals(
+                ref.key_, ref.feature_, Sequence(Value("string"))
+            )
+        except TypeError as e:
+            raise RuntimeError(*e.args) from e
+    else:
+        try:
+            raise_feature_equals(ref.key_, ref.feature_, Value("string"))
+        except TypeError as e:
+            raise RuntimeError(*e.args) from e
 
 
 def _get_output_sequence_length(config: TransformersTokenizerConfig) -> int:
@@ -51,22 +71,22 @@ class TransformersTokenizerInputRefs(InputRefs):
     """Inputs to the Transformers Tokenizer processor."""
 
     # required input features
-    text: Annotated[FeatureRef, CheckFeatureEquals(Value("string"))]
+    text: Annotated[FeatureRef, FeatureValidator(_validate_text_type)]
     """Input feature representing the input text."""
 
     # optional input features
     text_pair: NotRequired[
-        Annotated[FeatureRef, CheckFeatureEquals(Value("string"))]
+        Annotated[FeatureRef, FeatureValidator(_validate_text_type)]
     ] = NONE_REF
     """Optional input feature representing the paired text."""
 
     text_target: NotRequired[
-        Annotated[FeatureRef, CheckFeatureEquals(Value("string"))]
+        Annotated[FeatureRef, FeatureValidator(_validate_text_type)]
     ] = NONE_REF
     """Optional input feature representing the target text."""
 
     text_pair_target: NotRequired[
-        Annotated[FeatureRef, CheckFeatureEquals(Value("string"))]
+        Annotated[FeatureRef, FeatureValidator(_validate_text_type)]
     ] = NONE_REF
     """Optional input feature representing the paired target text."""
 
@@ -206,7 +226,7 @@ class TransformersTokenizerConfig(BaseDataProcessorConfig):
     stride: int = 0
     """Stride for tokenization."""
 
-    is_split_into_words: Literal[False] = False  # TODO
+    is_split_into_words: bool = False
     """Flag indicating whether inputs are already split into words."""
 
     pad_to_multiple_of: None | int = None

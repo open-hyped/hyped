@@ -609,3 +609,123 @@ class TestTransformersTokenizerReturnAll(BaseDataProcessorTest):
             [-1, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5, 5, 5, -1],
         ],
     }
+
+
+class TestTransformersTokenizerPretokenized(BaseDataProcessorTest):
+    # processor
+    processor_type = TransformersTokenizer
+    processor_config = TransformersTokenizerConfig(
+        tokenizer="./tests/artifacts/tokenizers/bert-base-uncased",
+        is_split_into_words=True,
+    )
+    # inputs
+    input_features = Features({"text": Sequence(Value("string"))})
+    input_data = {
+        "text": [
+            [
+                "Lorem",
+                "ipsum",
+                "dolor",
+                "sit",
+                "amet,",
+                "consectetur",
+                "adipiscing",
+                "elit.",
+            ],
+            [
+                "Vivamus",
+                "lacinia",
+                "odio",
+                "vitae",
+                "vestibulum",
+                "vestibulum",
+            ],
+        ]
+    }
+    input_index = [0, 1]
+    # expected outputs
+    expected_output_features = Features(
+        {"input_ids": Sequence(Value("int32"))}
+    )
+    expected_output_data = {
+        "input_ids": [
+            [
+                101,
+                19544,
+                2213,
+                12997,
+                17421,
+                2079,
+                10626,
+                4133,
+                2572,
+                3388,
+                1010,
+                9530,
+                3366,
+                6593,
+                3388,
+                3126,
+                27133,
+                18136,
+                6129,
+                12005,
+                2102,
+                1012,
+                102,
+            ],
+            [
+                101,
+                20022,
+                7606,
+                18749,
+                23309,
+                21045,
+                2080,
+                19300,
+                2063,
+                17447,
+                12322,
+                25100,
+                17447,
+                12322,
+                25100,
+                102,
+            ],
+        ]
+    }
+
+class TestTransformersTokenizerPretokenized_WrongText(BaseDataProcessorTest):
+    # processor
+    processor_type = TransformersTokenizer
+    processor_config = TransformersTokenizerConfig(
+        tokenizer="./tests/artifacts/tokenizers/bert-base-uncased",
+        is_split_into_words=False,
+    )
+    # inputs
+    input_features = Features({"text": Sequence(Value("string"))})
+    input_data = {
+        "text": [
+            [
+                "Lorem",
+                "ipsum",
+                "dolor",
+                "sit",
+                "amet,",
+                "consectetur",
+                "adipiscing",
+                "elit.",
+            ],
+            [
+                "Vivamus",
+                "lacinia",
+                "odio",
+                "vitae",
+                "vestibulum",
+                "vestibulum",
+            ],
+        ]
+    }
+    input_index = [0, 1]
+    # expected outputs
+    expected_input_verification_error = RuntimeError
