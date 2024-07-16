@@ -52,7 +52,7 @@ class UnaryOpInputRefs(InputRefs):
     a: Annotated[
         FeatureRef, CheckFeatureEquals(NUMERICAL_TYPES + [Value("bool")])
     ]
-    """The input feature. Can be any value type."""
+    """The input feature. Must be a numerical type or bool."""
 
 
 class BaseUnaryOpOutputRefs(OutputRefs, ABC):

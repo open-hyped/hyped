@@ -59,12 +59,12 @@ class BinaryOpInputRefs(InputRefs):
     a: Annotated[
         FeatureRef, CheckFeatureEquals(NUMERICAL_TYPES + [Value("bool")])
     ]
-    """The first input feature. Can be any value type."""
+    """The first input feature. Must be a numerical type or bool."""
 
     b: Annotated[
         FeatureRef, CheckFeatureEquals(NUMERICAL_TYPES + [Value("bool")])
     ]
-    """The second input feature. Can be any value type."""
+    """The second input feature. Must be a numerical type or bool."""
 
 
 class BaseBinaryOpOutputRefs(OutputRefs, ABC):
@@ -283,13 +283,13 @@ class MathInputRefs(BinaryOpInputRefs):
         FeatureRef,
         CheckFeatureEquals(NUMERICAL_TYPES),
     ]
-    """The first input feature. Must be an integer or float."""
+    """The first input feature. Must be a numerical type."""
 
     b: Annotated[
         FeatureRef,
         CheckFeatureEquals(NUMERICAL_TYPES),
     ]
-    """The second input feature. Must be an integer or float."""
+    """The second input feature. Must be a numerical type."""
 
 
 class BaseClosedOpConfig(BaseBinaryOpConfig):

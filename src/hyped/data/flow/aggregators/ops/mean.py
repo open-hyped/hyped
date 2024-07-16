@@ -36,14 +36,7 @@ class MeanAggregatorInputRefs(InputRefs):
         CheckFeatureEquals(NUMERICAL_TYPES + [Value("bool")]),
     ]
     """
-    The input feature reference for the aggregation. It must be of one of the specified types:
-
-    .. code-block:: python
-
-        Value("bool"),
-        Value("float16"), Value("float32"), Value("float64"),
-        Value("int8"), Value("int16"), Value("int32"), Value("int64"),
-        Value("uint8"), Value("uint16"), Value("uint32"), Value("uint64")
+    The input feature reference for the aggregation. Must be a numerical type.
     """
 
 

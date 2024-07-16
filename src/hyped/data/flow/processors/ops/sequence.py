@@ -585,15 +585,15 @@ class MultiSequenceOpInputRefs(InputRefs):
         FeatureRef, FeatureValidator(validate_multisequence_feat)
     ]
     """The sequence of input sequences to process. This is validated to be a 
-    dict of sequences indexed by consecutive integers.
+    dict of sequences indexed by consecutive integers starting from 0.
     
     Example:
         .. code-block:: python
         sequences = collect(
             {
-                0: feature_ref_1,
-                1: feature_ref_2,
-                2: feature_ref_3,
+                "0": feature_ref_1,
+                "1": feature_ref_2,
+                "2": feature_ref_3,
             }
         )
     """
@@ -646,17 +646,17 @@ class BaseMultiSequenceOp(BaseDataProcessor[C, I, O], ABC):
 
 
 class SequenceChainConfig(BaseBinaryOpConfig):
-    """Configuration class for the Concat operation."""
+    """Configuration class for the SequenceChain operation."""
 
 
 def infer_concat_output_dtype(
     config: SequenceChainConfig, inputs: MultiSequenceOpInputRefs
 ) -> Sequence:
-    """Infer the output data type for the Concat operation.
+    """Infer the output data type for the Chain operation.
 
     Args:
-        config (ConcatConfig): The configuration for the Concat operation.
-        inputs (ConcatInputRefs): The input references for the Concat operation.
+        config (SequenceChainConfig): The configuration for the Chain operation.
+        inputs (MultiSequenceOpInputRefs): The input references for the Chain operation.
 
     Returns:
         Sequence: The output sequence feature with inferred length.
@@ -674,12 +674,12 @@ def infer_concat_output_dtype(
 
 
 class SequenceChainOutputRefs(BaseBinaryOpOutputRefs):
-    """Output references for the Concat operation."""
+    """Output references for the Chain operation."""
 
     result: Annotated[
         FeatureRef, LambdaOutputFeature(infer_concat_output_dtype)
     ]
-    """The feature reference to the result of the concatenation operation."""
+    """The feature reference to the result of the chain operation."""
 
 
 class SequenceChain(
@@ -687,13 +687,13 @@ class SequenceChain(
         SequenceChainConfig, MultiSequenceOpInputRefs, SequenceChainOutputRefs
     ]
 ):
-    """Sequence Concatente Data Processor.
+    """Sequence Chain Data Processor.
 
-    This class defines the concatenation operation for sequence features.
+    This class defines the chain operation for sequence features.
     """
 
     def op(self, *args: list[Any]) -> list[Any]:
-        """Concatenate all sequences."""
+        """Chain all sequences."""
         return list(chain(*args))
 
 

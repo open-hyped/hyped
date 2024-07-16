@@ -789,10 +789,10 @@ def chain(*sequences: FeatureRef) -> FeatureRef:
     """Concatenate sequence features.
 
     Args:
-        *sequences (FeatureRef): Sequence features to concatenate. Must all have the same Value type.
+        *sequences (FeatureRef): Sequence features to chain. Must all have the same Value type.
 
     Returns:
-        FeatureRef: A FeatureRef instance representing the concatenated sequences.
+        FeatureRef: A FeatureRef instance representing the chained sequences.
 
     Raises:
         TypeError: If the features are of unexpected types.
