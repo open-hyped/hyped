@@ -591,9 +591,9 @@ class MultiSequenceOpInputRefs(InputRefs):
         .. code-block:: python
         sequences = collect(
             {
-                0: feature_ref_1,
-                1: feature_ref_2,
-                2: feature_ref_3,
+                "0": feature_ref_1,
+                "1": feature_ref_2,
+                "2": feature_ref_3,
             }
         )
     """
