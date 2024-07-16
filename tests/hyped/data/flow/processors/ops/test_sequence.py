@@ -4,39 +4,6 @@ from hyped.data.flow.processors.ops import sequence
 from tests.hyped.data.flow.processors.base import BaseDataProcessorTest
 
 
-class TestSequenceConcat(BaseDataProcessorTest):
-    processor_type = sequence.SequenceChain
-    processor_config = sequence.SequenceChainConfig()
-
-    input_features = Features(
-        {"a": Sequence(Value("int32")), "b": Sequence(Value("int32"))}
-    )
-    input_data = {"a": [[1, 2, 3]], "b": [[4, 5, 6]]}
-    input_index = [0]
-
-    expected_output_features = Features({"result": Sequence(Value("int32"))})
-    expected_output_data = {"result": [[1, 2, 3, 4, 5, 6]]}
-
-
-class TestSequenceConcat_FixedLength(BaseDataProcessorTest):
-    processor_type = sequence.SequenceChain
-    processor_config = sequence.SequenceChainConfig()
-
-    input_features = Features(
-        {
-            "a": Sequence(Value("int32"), length=3),
-            "b": Sequence(Value("int32"), length=3),
-        }
-    )
-    input_data = {"a": [[1, 2, 3]], "b": [[4, 5, 6]]}
-    input_index = [0]
-
-    expected_output_features = Features(
-        {"result": Sequence(Value("int32"), length=6)}
-    )
-    expected_output_data = {"result": [[1, 2, 3, 4, 5, 6]]}
-
-
 class TestSequenceLength(BaseDataProcessorTest):
     processor_type = sequence.SequenceLength
     processor_config = sequence.SequenceLengthConfig()
@@ -225,19 +192,78 @@ class TestSequenceIndexOf(BaseDataProcessorTest):
     expected_output_data = {"index": [0, 0, 1]}
 
 
+class TestSequenceChain(BaseDataProcessorTest):
+    processor_type = sequence.SequenceChain
+    processor_config = sequence.SequenceChainConfig()
+
+    input_features = Features(
+        {
+            "sequences": {
+                "0": Sequence(Value("int32")),
+                "1": Sequence(Value("int32")),
+            }
+        }
+    )
+    input_data = {
+        "sequences": [
+            {
+                "0": [1, 2, 3],
+                "1": [4, 5, 6],
+            }
+        ]
+    }
+    input_index = [0]
+
+    expected_output_features = Features({"result": Sequence(Value("int32"))})
+    expected_output_data = {"result": [[1, 2, 3, 4, 5, 6]]}
+
+
+class TestSequenceChain_FixedLength(BaseDataProcessorTest):
+    processor_type = sequence.SequenceChain
+    processor_config = sequence.SequenceChainConfig()
+
+    input_features = Features(
+        {
+            "sequences": {
+                "0": Sequence(Value("int32"), length=3),
+                "1": Sequence(Value("int32"), length=3),
+            }
+        }
+    )
+    input_data = {
+        "sequences": [
+            {
+                "0": [1, 2, 3],
+                "1": [4, 5, 6],
+            }
+        ]
+    }
+    input_index = [0]
+
+    expected_output_features = Features(
+        {"result": Sequence(Value("int32"), length=6)}
+    )
+    expected_output_data = {"result": [[1, 2, 3, 4, 5, 6]]}
+
+
 class TestSequenceZip(BaseDataProcessorTest):
     processor_type = sequence.SequenceZip
     processor_config = sequence.SequenceZipConfig()
 
     input_features = Features(
-        {"sequences": Sequence(Sequence(Value("int32"), length=4), length=2)}
+        {
+            "sequences": {
+                "0": Sequence(Value("int32"), length=4),
+                "1": Sequence(Value("int32"), length=4),
+            }
+        }
     )
     input_data = {
         "sequences": [
-            [
-                [0, 1, 2, 3],
-                [4, 5, 6, 7],
-            ],
+            {
+                "0": [0, 1, 2, 3],
+                "1": [4, 5, 6, 7],
+            }
         ]
     }
     input_index = [0]

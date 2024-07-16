@@ -94,7 +94,7 @@ def _check_args(*args: FeatureRef | Any) -> tuple[FeatureRef]:
         (
             arg
             if isinstance(arg, FeatureRef)
-            else Const(value=arg).to(flow).value
+            else Const(value=arg).call(flow).value
         )
         for arg in args
     )
@@ -567,9 +567,7 @@ def neg(a: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the negated value of the input feature.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
+    if check_feature_is_sequence(a.feature_):
         raise NotImplementedError(
             "Element-wise Negation of sequence types not implemented."
         )
@@ -598,9 +596,7 @@ def invert(a: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the bitwise inverted value of the input feature.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
+    if check_feature_is_sequence(a.feature_):
         raise NotImplementedError(
             "Element-wise Inversion of sequence types not implemented."
         )
@@ -720,6 +716,10 @@ def contains(obj: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
             .contains
         )
 
+    elif check_feature_equals(obj.feature_, STRING_LIKE_TYPES):
+        # implement contains operation for string-like features
+        raise NotImplementedError()
+
     else:
         raise TypeError(
             f"Unexpected feature type for contains operation, "
@@ -798,7 +798,7 @@ def chain(*sequences: FeatureRef) -> FeatureRef:
         TypeError: If the features are of unexpected types.
     """
     sequences = _check_args(*sequences)
-    seq_container = collect({i: seq for i, seq in enumerate(sequences)})
+    seq_container = collect({str(i): seq for i, seq in enumerate(sequences)})
     # return concatenated sequence feature
     return sequence.SequenceChain().call(sequences=seq_container).result
 
@@ -816,6 +816,6 @@ def zip_(*sequences: FeatureRef) -> FeatureRef:
         TypeError: If the features are of unexpected types.
     """
     sequences = _check_args(*sequences)
-    seq_container = collect({i: seq for i, seq in enumerate(sequences)})
+    seq_container = collect({str(i): seq for i, seq in enumerate(sequences)})
     # zip collected sequences
     return sequence.SequenceZip().call(sequences=seq_container).result

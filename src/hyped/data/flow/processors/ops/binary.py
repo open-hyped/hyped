@@ -296,6 +296,9 @@ class BaseClosedOpConfig(BaseBinaryOpConfig):
     """Configuration class for closed mathematical operations."""
 
 
+NUMERICAL_TYPE_NAMES = [t.dtype for t in NUMERICAL_TYPES]
+
+
 def closed_op_infer_dtype(
     config: BaseClosedOpConfig, inputs: MathInputRefs
 ) -> Value:
@@ -315,9 +318,9 @@ def closed_op_infer_dtype(
     """
     return Value(
         max(
-            inputs.a.feature_.dtype,
-            inputs.b.feature_.dtype,
-            key=NUMERICAL_TYPES.index,  # this order prefers higher precision types
+            inputs["a"].feature_.dtype,
+            inputs["b"].feature_.dtype,
+            key=NUMERICAL_TYPE_NAMES.index,  # this order prefers higher precision types
         )
     )
 

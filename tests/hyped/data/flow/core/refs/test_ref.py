@@ -330,8 +330,7 @@ class TestFeatureRef(object):
             (operator.or_, "hyped.data.flow.ops.or_", "bool"),
             (operator.xor, "hyped.data.flow.ops.xor_", "bool"),
             # concat strings
-            (operator.add, "hyped.data.flow.ops.concat", "string"),
-            (operator.concat, "hyped.data.flow.ops.concat", "string"),
+            (operator.add, "hyped.data.flow.ops.add", "string"),
             # in operator for sequences and string-likes
             (FeatureRef.contains_, "hyped.data.flow.ops.contains", "string"),
         ],
@@ -366,7 +365,7 @@ class TestFeatureRef(object):
             (operator.or_, "hyped.data.flow.ops.or_", "bool"),
             (operator.xor, "hyped.data.flow.ops.xor_", "bool"),
             # concat strings
-            (operator.add, "hyped.data.flow.ops.concat", "string"),
+            (operator.add, "hyped.data.flow.ops.add", "string"),
         ],
     )
     def test_reflected_binary_ops(self, op, op_fn, dtype):
@@ -398,8 +397,7 @@ class TestFeatureRef(object):
             (operator.ior, "hyped.data.flow.ops.or_", "bool"),
             (operator.ixor, "hyped.data.flow.ops.xor_", "bool"),
             # concat strings
-            (operator.iadd, "hyped.data.flow.ops.concat", "string"),
-            (operator.iconcat, "hyped.data.flow.ops.concat", "string"),
+            (operator.iadd, "hyped.data.flow.ops.add", "string"),
         ],
     )
     def test_inplace_binary_ops(self, iop, op_fn, dtype):
