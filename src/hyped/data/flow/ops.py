@@ -799,7 +799,7 @@ def chain(*sequences: FeatureRef) -> FeatureRef:
     """
     sequences = _check_args(*sequences)
     seq_container = collect({str(i): seq for i, seq in enumerate(sequences)})
-    # return chained sequence feature
+    # return concatenated sequence feature
     return sequence.SequenceChain().call(sequences=seq_container).result
 
 

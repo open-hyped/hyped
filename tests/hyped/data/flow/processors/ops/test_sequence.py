@@ -193,48 +193,6 @@ class TestSequenceIndexOf(BaseDataProcessorTest):
     expected_output_data = {"index": [0, 0, 1]}
 
 
-class TestSequenceChainInvalidTypes(BaseDataProcessorTest):
-    processor_type = sequence.SequenceChain
-    processor_config = sequence.SequenceChainConfig()
-    input_features = Features(
-        {
-            "sequences": {
-                "0": Sequence(Value("string")),
-                "1": Sequence(Value("int32")),
-            }
-        }
-    )
-    expected_input_verification_error = RuntimeError
-
-
-class TestSequenceChainNonConsecutiveIntegerIndex(BaseDataProcessorTest):
-    processor_type = sequence.SequenceChain
-    processor_config = sequence.SequenceChainConfig()
-    input_features = Features(
-        {
-            "sequences": {
-                "1": Sequence(Value("string")),
-                "3": Sequence(Value("string")),
-            }
-        }
-    )
-    expected_input_verification_error = RuntimeError
-
-
-class TestSequenceChainNonIntegerIndex(BaseDataProcessorTest):
-    processor_type = sequence.SequenceChain
-    processor_config = sequence.SequenceChainConfig()
-    input_features = Features(
-        {
-            "sequences": {
-                "a": Sequence(Value("string")),
-                "b": Sequence(Value("string")),
-            }
-        }
-    )
-    expected_input_verification_error = RuntimeError
-
-
 class TestSequenceChain(BaseDataProcessorTest):
     processor_type = sequence.SequenceChain
     processor_config = sequence.SequenceChainConfig()

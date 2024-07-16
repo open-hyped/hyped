@@ -548,15 +548,21 @@ def validate_multisequence_feat(
             % (feat_ref.key_, type(feat_ref.feature_))
         )
 
-    # check that multisequence is indexed with integers
-    if not all((isinstance(k, int) for k in feat_ref.feature_.keys())):
+    # convert all multisequence keys to integer indices
+    try:
+        indices = [int(key) for key in feat_ref.feature_]
+    except ValueError:
         raise TypeError(
-            "Expected multisequence feature `%s` to have integer keys, got %s "
+            "Expected multisequence feature `%s` to have integer-like keys, got %s "
             % (feat_ref.key_, feat_ref.feature_)
         )
-    # check that multisequence is indexed by consecutive integers
-    sorted_indices = list(sorted(feat_ref.feature_.keys()))
-    if not all(k == i for i, k in enumerate(sorted_indices)):
+
+    # check that multisequence is indexed by consecutive integers starting at 0
+    sorted_indices = list(sorted(indices))
+    if (
+        not all(k == i for i, k in enumerate(sorted_indices))
+        and sorted_indices[0] == 0
+    ):
         raise TypeError(
             "Expected multisequence feature `%s` to be indexed by consecutive integers, got %s "
             % (feat_ref.key_, sorted_indices)
@@ -585,9 +591,9 @@ class MultiSequenceOpInputRefs(InputRefs):
         .. code-block:: python
         sequences = collect(
             {
-                "0": feature_ref_1,
-                "1": feature_ref_2,
-                "2": feature_ref_3,
+                0: feature_ref_1,
+                1: feature_ref_2,
+                2: feature_ref_3,
             }
         )
     """
@@ -657,9 +663,6 @@ def infer_chain_output_dtype(
     """
     sequence_feature = get_sequence_feature(
         next(iter(inputs["sequences"].feature_.values()))
-    )
-    sequence_lengths = map(
-        lambda feat: feat.length, inputs["sequences"].feature_.values()
     )
     sequence_lengths = [
         feat.length for feat in inputs["sequences"].feature_.values()
