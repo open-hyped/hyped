@@ -559,8 +559,8 @@ def validate_multisequence_feat(
 
     # check that multisequence is indexed by consecutive integers starting at 0
     sorted_indices = list(sorted(indices))
-    if (
-        not all(k == i for i, k in enumerate(sorted_indices))
+    if not (
+        all(k == i for i, k in enumerate(sorted_indices))
         and sorted_indices[0] == 0
     ):
         raise TypeError(
