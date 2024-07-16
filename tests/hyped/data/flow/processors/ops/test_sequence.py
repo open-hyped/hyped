@@ -235,7 +235,7 @@ class TestSequenceChainInvalidMultisequenceIndex2(BaseDataProcessorTest):
     expected_input_verification_error = RuntimeError
 
 
-class TestSequenceChainInvalidMultisequenceIndex2(BaseDataProcessorTest):
+class TestSequenceChainInvalidMultisequenceIndex3(BaseDataProcessorTest):
     processor_type = sequence.SequenceChain
     processor_config = sequence.SequenceChainConfig()
     input_features = Features({"sequences": [Sequence(Value("string"))]})
