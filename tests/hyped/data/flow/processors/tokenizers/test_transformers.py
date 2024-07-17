@@ -695,6 +695,7 @@ class TestTransformersTokenizerPretokenized(BaseDataProcessorTest):
         ]
     }
 
+
 class TestTransformersTokenizerPretokenized_WrongText(BaseDataProcessorTest):
     # processor
     processor_type = TransformersTokenizer

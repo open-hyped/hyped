@@ -44,12 +44,13 @@ def _validate_text_type(config: TransformersTokenizerConfig, ref: FeatureRef):
                 ref.key_, ref.feature_, Sequence(Value("string"))
             )
         except TypeError as e:
-            raise RuntimeError(*e.args) from e
+            raise TypeError(
+                f"{str(e)}\nExpects a list of pre-tokenized words "
+                "when `is_split_into-words=True`. You possibly "
+                "passed the input text as a single string."
+            )
     else:
-        try:
-            raise_feature_equals(ref.key_, ref.feature_, Value("string"))
-        except TypeError as e:
-            raise RuntimeError(*e.args) from e
+        raise_feature_equals(ref.key_, ref.feature_, Value("string"))
 
 
 def _get_output_sequence_length(config: TransformersTokenizerConfig) -> int:
@@ -77,17 +78,17 @@ class TransformersTokenizerInputRefs(InputRefs):
     # optional input features
     text_pair: NotRequired[
         Annotated[FeatureRef, FeatureValidator(_validate_text_type)]
-    ] = NONE_REF
+    ]
     """Optional input feature representing the paired text."""
 
     text_target: NotRequired[
         Annotated[FeatureRef, FeatureValidator(_validate_text_type)]
-    ] = NONE_REF
+    ]
     """Optional input feature representing the target text."""
 
     text_pair_target: NotRequired[
         Annotated[FeatureRef, FeatureValidator(_validate_text_type)]
-    ] = NONE_REF
+    ]
     """Optional input feature representing the paired target text."""
 
 
