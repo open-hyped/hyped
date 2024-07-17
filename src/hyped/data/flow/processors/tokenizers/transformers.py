@@ -46,7 +46,7 @@ def _validate_text_type(config: TransformersTokenizerConfig, ref: FeatureRef):
         except TypeError as e:
             raise TypeError(
                 f"{str(e)}\nExpects a list of pre-tokenized words "
-                "when `is_split_into-words=True`. You possibly "
+                "when `is_split_into_words=True`. You possibly "
                 "passed the input text as a single string."
             )
     else:
