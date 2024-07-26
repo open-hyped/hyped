@@ -65,6 +65,28 @@ def test_error_on_invalid_value():
         validator.validate(**CustomInputRefs(x=int))
 
 
+def test_global_validator():
+    # create mock validator
+    mock_validator = MagicMock()
+
+    class CustomInputRefs(
+        Annotated[InputRefs, GlobalValidator(mock_validator)]
+    ):
+        ...
+
+    # create validator instance from custom input refs type
+    validator = InputRefsValidator(BaseConfig(), CustomInputRefs)
+    # instantiate the input refs and call the validator
+    refs = CustomInputRefs()
+    validator.validate(**refs)
+    # make sure validator is called correctly
+    mock_validator.assert_called_once_with(validator.config, refs)
+    # check error handling when global validator raises an error
+    mock_validator.side_effect = Exception("Mock Error on Global Validator")
+    with pytest.raises(RuntimeError):
+        validator.validate(**refs)
+
+
 def test_feature_validator():
     # create mock validators
     x_validator = MagicMock()
@@ -115,6 +137,7 @@ def test_check_feature_equals():
 
 def test_check_or_feature_validator():
     # create custom input refs class using mock validators
+
     class CustomInputRefs(InputRefs):
         x: Annotated[
             FeatureRef,
@@ -315,19 +338,27 @@ def test_missing_and_unexpected_input_arguments():
 
 
 def test_collect_validators():
-    global_validator = GlobalValidator(MagicMock())
+    global_validator_1 = GlobalValidator(MagicMock())
+    global_validator_2 = GlobalValidator(MagicMock())
+    a_validator = FeatureValidator(MagicMock())
     x_validator_1 = FeatureValidator(MagicMock())
     x_validator_2 = FeatureValidator(MagicMock())
     y_validator = FeatureValidator(MagicMock())
 
-    class CustomInputRefs(Annotated[InputRefs, global_validator]):
+    class BaseCustomInputRefs(Annotated[InputRefs, global_validator_1]):
+        a: Annotated[FeatureRef, a_validator]
+
+    class CustomInputRefs(Annotated[BaseCustomInputRefs, global_validator_2]):
         x: Annotated[FeatureRef, x_validator_1, x_validator_2]
         y: Annotated[FeatureRef, y_validator]
 
     validator = InputRefsValidator(BaseConfig(), CustomInputRefs)
 
     assert validator.validators == {
+        "a": tuple((a_validator,)),
         "x": tuple((x_validator_1, x_validator_2)),
         "y": tuple((y_validator,)),
     }
-    assert validator.global_validators == tuple((global_validator,))
+    assert validator.global_validators == tuple(
+        (global_validator_2, global_validator_1)
+    )

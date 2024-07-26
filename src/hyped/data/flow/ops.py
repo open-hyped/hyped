@@ -719,7 +719,7 @@ def index_of(obj: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
 
 
 def chain(*sequences: FeatureRef) -> FeatureRef:
-    """Concatenate sequence features.
+    """Chain sequence features.
 
     Args:
         *sequences (FeatureRef): Sequence features to chain. Must all have the same Value type.
