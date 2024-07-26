@@ -189,7 +189,7 @@ def collect(
 
     def _add_const(p: tuple[str, int], v: FeatureRef | Any) -> FeatureRef:
         return (
-            v if isinstance(v, FeatureRef) else Const(value=v).to(flow).value
+            v if isinstance(v, FeatureRef) else Const(value=v).call(flow).value
         )
 
     # add all constants in the collection to the flow
@@ -799,7 +799,7 @@ def chain(*sequences: FeatureRef) -> FeatureRef:
     """
     sequences = _check_args(*sequences)
     seq_container = collect({str(i): seq for i, seq in enumerate(sequences)})
-    # return concatenated sequence feature
+    # return chained sequence feature
     return sequence.SequenceChain().call(sequences=seq_container).result
 
 

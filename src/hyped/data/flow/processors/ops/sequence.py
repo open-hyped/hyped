@@ -182,8 +182,8 @@ def validate_setitem_input_refs(
     """Ensure values align for setting in the sequence.
 
     Args:
-        config (SequenceSetItemConfig): The configuration for the Concat operation.
-        refs (SequenceSetItemInputRefs): The input references for the Concat operation.
+        config (SequenceSetItemConfig): The configuration for the setitem operation.
+        refs (SequenceSetItemInputRefs): The input references for the setitem operation.
 
     Raises:
         TypeError: If the values do not match the required type or length.
@@ -347,8 +347,8 @@ def validate_seqvalop_input_refs(
     """Post-initialization check to ensure value matches the feature type of the sequence values.
 
     Args:
-        config (BaseSequenceValueOpConfig): The configuration for the Concat operation.
-        refs (SequenceValueOpInputRefs): The input references for the Concat operation.
+        config (BaseSequenceValueOpConfig): The configuration for the valop operation.
+        refs (SequenceValueOpInputRefs): The input references for the valop operation.
 
     Raises:
         TypeError: If the value feature does not match the feature type of the sequence values.
@@ -649,7 +649,7 @@ class SequenceChainConfig(BaseBinaryOpConfig):
     """Configuration class for the SequenceChain operation."""
 
 
-def infer_concat_output_dtype(
+def infer_chain_output_dtype(
     config: SequenceChainConfig, inputs: MultiSequenceOpInputRefs
 ) -> Sequence:
     """Infer the output data type for the Chain operation.
@@ -677,7 +677,7 @@ class SequenceChainOutputRefs(BaseBinaryOpOutputRefs):
     """Output references for the Chain operation."""
 
     result: Annotated[
-        FeatureRef, LambdaOutputFeature(infer_concat_output_dtype)
+        FeatureRef, LambdaOutputFeature(infer_chain_output_dtype)
     ]
     """The feature reference to the result of the chain operation."""
 

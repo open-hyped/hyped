@@ -261,7 +261,8 @@ class FeatureRef(BaseModel):
     def __add__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform addition with another feature.
 
-        Performs a concatenation of the inputs in case of sequences or strings.
+        Performs a concatenation of the inputs in case of strings.
+        Performs element wise operation in case of sequences.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature reference to add.
@@ -276,6 +277,8 @@ class FeatureRef(BaseModel):
     def __sub__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform subtraction with another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature reference to subtract.
 
@@ -288,6 +291,8 @@ class FeatureRef(BaseModel):
 
     def __mul__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform multiplication with another feature.
+
+        Performs element wise operation in case of sequences.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature to multiply.
@@ -302,6 +307,8 @@ class FeatureRef(BaseModel):
     def __truediv__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform division with another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature to divide.
 
@@ -314,6 +321,8 @@ class FeatureRef(BaseModel):
 
     def __floordiv__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform floor division with another feature.
+
+        Performs element wise operation in case of sequences.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature to floor divide.
@@ -328,6 +337,8 @@ class FeatureRef(BaseModel):
     def __pow__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform exponentiation with another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature to use as the exponent.
 
@@ -340,6 +351,8 @@ class FeatureRef(BaseModel):
 
     def __mod__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform modulo operation with another feature.
+
+        Performs element wise operation in case of sequences.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature to use as the divisor.
@@ -354,6 +367,8 @@ class FeatureRef(BaseModel):
     def __and__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform logical AND with another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature to use in the AND operation.
 
@@ -366,6 +381,8 @@ class FeatureRef(BaseModel):
 
     def __or__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform logical OR with another feature.
+
+        Performs element wise operation in case of sequences.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature to use in the OR operation.
@@ -380,6 +397,8 @@ class FeatureRef(BaseModel):
     def __xor__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform logical XOR with another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature to use in the XOR operation.
 
@@ -393,7 +412,8 @@ class FeatureRef(BaseModel):
     def __radd__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform reflected addition with another feature.
 
-        Performs a concatenation of the inputs in case of sequences or strings.
+        Performs a concatenation of the inputs in case of strings.
+        Performs element wise operation in case of sequences.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature reference to add.
@@ -408,6 +428,8 @@ class FeatureRef(BaseModel):
     def __rsub__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform reflected subtraction with another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature reference to subtract.
 
@@ -420,6 +442,8 @@ class FeatureRef(BaseModel):
 
     def __rmul__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform reflected multiplication with another feature.
+
+        Performs element wise operation in case of sequences.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature to multiply.
@@ -434,6 +458,8 @@ class FeatureRef(BaseModel):
     def __rtruediv__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform reflected division with another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature to divide.
 
@@ -446,6 +472,8 @@ class FeatureRef(BaseModel):
 
     def __rfloordiv__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform reflected floor division with another feature.
+
+        Performs element wise operation in case of sequences.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature to floor divide.
@@ -460,6 +488,8 @@ class FeatureRef(BaseModel):
     def __rpow__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform reflected exponentiation with another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature to use as the exponent.
 
@@ -472,6 +502,8 @@ class FeatureRef(BaseModel):
 
     def __rmod__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform reflected modulo operation with another feature.
+
+        Performs element wise operation in case of sequences.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature to use as the divisor.
@@ -486,6 +518,8 @@ class FeatureRef(BaseModel):
     def __rand__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform reflected logical AND with another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature to use in the AND operation.
 
@@ -498,6 +532,8 @@ class FeatureRef(BaseModel):
 
     def __ror__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform reflected logical OR with another feature.
+
+        Performs element wise operation in case of sequences.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature to use in the OR operation.
@@ -512,6 +548,8 @@ class FeatureRef(BaseModel):
     def __rxor__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform reflected logical XOR with another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature to use in the XOR operation.
 
@@ -525,7 +563,9 @@ class FeatureRef(BaseModel):
     def __iadd__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace addition with another feature.
 
-        Performs a concatenation of the inputs in case of sequences or strings.
+        Performs element wise operation in case of sequences.
+
+        Performs a concatenation of the inputs in case of strings.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature reference to add.
@@ -540,6 +580,8 @@ class FeatureRef(BaseModel):
     def __isub__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace subtraction with another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature reference to subtract.
 
@@ -552,6 +594,8 @@ class FeatureRef(BaseModel):
 
     def __imul__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace multiplication with another feature.
+
+        Performs element wise operation in case of sequences.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature to multiply.
@@ -566,6 +610,8 @@ class FeatureRef(BaseModel):
     def __itruediv__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace division with another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature to divide.
 
@@ -578,6 +624,8 @@ class FeatureRef(BaseModel):
 
     def __ifloordiv__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace floor division with another feature.
+
+        Performs element wise operation in case of sequences.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature to floor divide.
@@ -592,6 +640,8 @@ class FeatureRef(BaseModel):
     def __ipow__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace exponentiation with another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature to use as the exponent.
 
@@ -604,6 +654,8 @@ class FeatureRef(BaseModel):
 
     def __imod__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace modulo operation with another feature.
+
+        Performs element wise operation in case of sequences.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature to use as the divisor.
@@ -618,6 +670,8 @@ class FeatureRef(BaseModel):
     def __iand__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace logical AND with another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature to use in the AND operation.
 
@@ -630,6 +684,8 @@ class FeatureRef(BaseModel):
 
     def __ior__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace logical OR with another feature.
+
+        Performs element wise operation in case of sequences.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature to use in the OR operation.
@@ -644,6 +700,8 @@ class FeatureRef(BaseModel):
     def __ixor__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform inplace logical XOR with another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature to use in the XOR operation.
 
@@ -656,6 +714,8 @@ class FeatureRef(BaseModel):
 
     def __eq__(self, other: FeatureRef | Any) -> FeatureRef:
         """Check equality with another feature.
+
+        Performs element wise operation in case of sequences.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature to compare with.
@@ -670,6 +730,8 @@ class FeatureRef(BaseModel):
     def __ne__(self, other: FeatureRef | Any) -> FeatureRef:
         """Check inequality with another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature to compare with.
 
@@ -682,6 +744,8 @@ class FeatureRef(BaseModel):
 
     def __lt__(self, other: FeatureRef | Any) -> FeatureRef:
         """Check if less than another feature.
+
+        Performs element wise operation in case of sequences.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature to compare with.
@@ -696,6 +760,8 @@ class FeatureRef(BaseModel):
     def __le__(self, other: FeatureRef | Any) -> FeatureRef:
         """Check if less than or equal to another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature to compare with.
 
@@ -708,6 +774,8 @@ class FeatureRef(BaseModel):
 
     def __gt__(self, other: FeatureRef | Any) -> FeatureRef:
         """Check if greater than another feature.
+
+        Performs element wise operation in case of sequences.
 
         Args:
             other (FeatureRef | Any): Reference to the other feature to compare with.
@@ -722,6 +790,8 @@ class FeatureRef(BaseModel):
     def __ge__(self, other: FeatureRef | Any) -> FeatureRef:
         """Check if greater than or equal to another feature.
 
+        Performs element wise operation in case of sequences.
+
         Args:
             other (FeatureRef | Any): Reference to the other feature to compare with.
 
@@ -735,6 +805,8 @@ class FeatureRef(BaseModel):
     def __neg__(self) -> FeatureRef:
         """Perform unary negation on the feature.
 
+        Performs element wise operation in case of sequences.
+
         Returns:
             FeatureRef: Reference to the result of the unary negation operation.
         """
@@ -745,6 +817,8 @@ class FeatureRef(BaseModel):
     def __abs__(self) -> FeatureRef:
         """Compute the absolute value of the feature.
 
+        Performs element wise operation in case of sequences.
+
         Returns:
             FeatureRef: Reference to the result of the absolute value computation.
         """
@@ -754,6 +828,8 @@ class FeatureRef(BaseModel):
 
     def __invert__(self) -> FeatureRef:
         """Perform bitwise inversion on the feature.
+
+        Performs element wise operation in case of sequences.
 
         Returns:
             FeatureRef: Reference to the result of the bitwise inversion operation.
