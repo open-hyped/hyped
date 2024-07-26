@@ -230,12 +230,17 @@ def test_len_op():
         flow.src_features.inv.length_()
 
 
-def test_concat_op():
+@pytest.mark.parametrize(
+    "op, proc_type",
+    [(ops.chain, "hyped.data.flow.processors.ops.sequence.SequenceChain")],
+)
+def test_chain_op(op, proc_type):
     flow = DataFlow(
         Features(
             {
                 "seqA": Sequence(Value("int32")),
                 "seqB": Sequence(Value("int32")),
+                "seqC": Sequence(Value("int32")),
                 "strA": Value("string"),
                 "strB": Value("string"),
                 "inv": Value("int32"),
@@ -243,22 +248,26 @@ def test_concat_op():
         )
     )
 
-    with patch(
-        "hyped.data.flow.processors.ops.sequence.SequenceConcat"
-    ) as mock:
-        ops.concat(flow.src_features.seqA, flow.src_features.seqB)
+    with (
+        patch(proc_type) as proc_mock,
+        patch("hyped.data.flow.ops.collect") as collect_mock,
+    ):
+        op(
+            flow.src_features.seqA,
+            flow.src_features.seqB,
+            flow.src_features.seqC,
+        )
         # make sure processor was called correctly
-        mock().call.assert_called_once_with(
-            a=flow.src_features.seqA, b=flow.src_features.seqB
+        collect_mock.assert_called_once_with(
+            {
+                "0": flow.src_features.seqA,
+                "1": flow.src_features.seqB,
+                "2": flow.src_features.seqC,
+            }
         )
 
-    with pytest.raises(NotImplementedError):
-        # TODO: string features are not supported yet
-        ops.concat(flow.src_features.strA, flow.src_features.strB)
-
-    with pytest.raises(TypeError):
-        # test with invalid feature
-        ops.concat(flow.src_features.inv, flow.src_features.inv)
+        # and the processor is called on the collected features
+        proc_mock().call.assert_called_once_with(sequences=collect_mock())
 
 
 def test_sequence_get_set_item():
@@ -369,11 +378,11 @@ def test_multi_sequence_op(op, proc_type):
         )
         # make sure the features are collected before
         collect_mock.assert_called_once_with(
-            [
-                flow.src_features.a,
-                flow.src_features.b,
-                flow.src_features.c,
-            ]
+            {
+                "0": flow.src_features.a,
+                "1": flow.src_features.b,
+                "2": flow.src_features.c,
+            }
         )
         # and the processor is called on the collected features
         proc_mock().call.assert_called_once_with(sequences=collect_mock())
