@@ -10,7 +10,7 @@ from typing import Annotated
 from datasets import Value
 from typing_extensions import Unpack
 
-from hyped.common.feature_checks import NUMERICAL_TYPES
+from hyped.common.feature_checks import NUMERIC_TYPES
 from hyped.data.flow.core.nodes.aggregator import (
     BaseDataAggregator,
     BaseDataAggregatorConfig,
@@ -31,7 +31,7 @@ class SumAggregatorInputRefs(InputRefs):
 
     x: Annotated[
         FeatureRef,
-        CheckFeatureEquals(NUMERICAL_TYPES + [Value("bool")]),
+        CheckFeatureEquals(NUMERIC_TYPES + [Value("bool")]),
     ]
     """
     The input feature reference for the aggregation. Must be a numerical type.
@@ -64,9 +64,7 @@ class SumAggregatorConfig(BaseDataAggregatorConfig):
 
 
 class SumAggregator(
-    BaseDataAggregator[
-        SumAggregatorConfig, SumAggregatorInputRefs, SumAggregatorOutputRefs
-    ]
+    BaseDataAggregator[SumAggregatorConfig, SumAggregatorInputRefs, SumAggregatorOutputRefs]
 ):
     """A data aggregator that computes the sum of input features.
 
@@ -85,9 +83,7 @@ class SumAggregator(
         """
         return {"value": self.config.start}, None
 
-    async def extract(
-        self, inputs: Batch, index: list[int], rank: int, io: IOContext
-    ) -> float:
+    async def extract(self, inputs: Batch, index: list[int], rank: int, io: IOContext) -> float:
         """Extracts the sum of the input feature :code:`x` from the batch of data.
 
         Args:
@@ -117,9 +113,7 @@ class SumAggregator(
         """
         return {"value": val["value"] + ctx}, None
 
-    def call(
-        self, **kwargs: Unpack[SumAggregatorInputRefs]
-    ) -> SumAggregatorOutputRefs:
+    def call(self, **kwargs: Unpack[SumAggregatorInputRefs]) -> SumAggregatorOutputRefs:
         """Execute the SumAggregator to compute the mean value.
 
         Args:

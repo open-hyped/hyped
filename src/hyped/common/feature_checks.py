@@ -37,13 +37,12 @@ STRING_LIKE_TYPES = [
     Value("large_binary"),
 ]
 
-NUMERICAL_TYPES = INT_TYPES + UINT_TYPES + FLOAT_TYPES
+NUMERIC_TYPES = INT_TYPES + UINT_TYPES + FLOAT_TYPES
+SCALAR_TYPES = [Value("bool")] + NUMERIC_TYPES
 INDEX_TYPES = INT_TYPES + UINT_TYPES
 
 
-def check_feature_equals(
-    feature: FeatureType, target: FeatureType | list[FeatureType]
-) -> bool:
+def check_feature_equals(feature: FeatureType, target: FeatureType | list[FeatureType]) -> bool:
     """Check whether a given feature equals a target feature.
 
     This confirms exact matches, including for instance
@@ -71,9 +70,9 @@ def check_feature_equals(
         if len(target) != 1:
             return any(check_feature_equals(feature, t) for t in target)
         # a list of length one is a valid definition of sequence
-        return check_feature_is_sequence(
-            feature, target[0]
-        ) and check_sequence_lengths_match(feature, target)
+        return check_feature_is_sequence(feature, target[0]) and check_sequence_lengths_match(
+            feature, target
+        )
 
     # a list of length one is a valid definition of a sequence
     if isinstance(feature, list):
@@ -98,10 +97,7 @@ def check_feature_equals(
         return (
             isinstance(target, dict)
             and (feature.keys() == target.keys())
-            and all(
-                check_feature_equals(feature[k], target[k])
-                for k in feature.keys()
-            )
+            and all(check_feature_equals(feature[k], target[k]) for k in feature.keys())
         )
 
     # otherwise it should just match the target
@@ -138,9 +134,9 @@ def check_feature_is_sequence(
         # only check if the feature is a sequence
         return isinstance(feature, (Sequence, list, tuple))
 
-    return isinstance(
-        feature, (Sequence, list, tuple)
-    ) and check_feature_equals(get_sequence_feature(feature), value_type)
+    return isinstance(feature, (Sequence, list, tuple)) and check_feature_equals(
+        get_sequence_feature(feature), value_type
+    )
 
 
 def get_sequence_length(seq: Sequence | list | tuple) -> int:
@@ -246,9 +242,7 @@ def raise_feature_equals(
                 "in %s, got %s" % (name, target, type(feature))
             )
 
-        raise TypeError(
-            "Expected `%s` to be of type %s, got %s" % (name, target, feature)
-        )
+        raise TypeError("Expected `%s` to be of type %s, got %s" % (name, target, feature))
 
 
 def raise_features_align(
@@ -302,9 +296,7 @@ def raise_feature_is_sequence(
     """
     if not check_feature_is_sequence(feature, value_type):
         if value_type is None:
-            raise TypeError(
-                "Expected `%s` to be a sequence, got %s" % (name, feature)
-            )
+            raise TypeError("Expected `%s` to be a sequence, got %s" % (name, feature))
 
         if isinstance(value_type, (list, tuple)) and (len(value_type) > 1):
             # slightly different error message for list of
@@ -315,8 +307,7 @@ def raise_feature_is_sequence(
             )
 
         raise TypeError(
-            "Expected `%s` to be a sequence of type %s, got %s"
-            % (name, value_type, feature)
+            "Expected `%s` to be a sequence of type %s, got %s" % (name, value_type, feature)
         )
 
 
@@ -332,6 +323,4 @@ def raise_object_matches_feature(obj: Any, feature: FeatureType):
             when the object is not of the feature type
     """
     if not check_object_matches_feature(obj, feature):
-        raise TypeError(
-            "Expected object to be of type %s, got %s" % (feature, obj)
-        )
+        raise TypeError("Expected object to be of type %s, got %s" % (feature, obj))

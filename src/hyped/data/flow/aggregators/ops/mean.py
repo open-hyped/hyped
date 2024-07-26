@@ -12,7 +12,7 @@ from datasets import Value
 from pydantic import Field
 from typing_extensions import Unpack
 
-from hyped.common.feature_checks import NUMERICAL_TYPES
+from hyped.common.feature_checks import NUMERIC_TYPES
 from hyped.data.flow.core.nodes.aggregator import (
     BaseDataAggregator,
     BaseDataAggregatorConfig,
@@ -33,7 +33,7 @@ class MeanAggregatorInputRefs(InputRefs):
 
     x: Annotated[
         FeatureRef,
-        CheckFeatureEquals(NUMERICAL_TYPES + [Value("bool")]),
+        CheckFeatureEquals(NUMERIC_TYPES + [Value("bool")]),
     ]
     """
     The input feature reference for the aggregation. Must be a numerical type.
@@ -69,9 +69,7 @@ class MeanAggregatorConfig(BaseDataAggregatorConfig):
 
 
 class MeanAggregator(
-    BaseDataAggregator[
-        MeanAggregatorConfig, MeanAggregatorInputRefs, MeanAggregatorOutputRefs
-    ]
+    BaseDataAggregator[MeanAggregatorConfig, MeanAggregatorInputRefs, MeanAggregatorOutputRefs]
 ):
     """A data aggregator that computes the mean of input features.
 
@@ -102,7 +100,8 @@ class MeanAggregator(
             io (IOContext): Context information for the aggregator execution.
 
         Returns:
-            tuple[float, int]: The sum of the input feature :code:`x` and the count of items in the batch.
+            tuple[float, int]: The sum of the input feature :code:`x` and the count
+            of items in the batch.
         """
         return sum(inputs["x"]), len(index)
 
@@ -121,13 +120,11 @@ class MeanAggregator(
             tuple[float, float]: The updated running mean and the new count of items.
         """
         ext_val, ext_count = ctx
-        return {
-            "value": (val["value"] * state + ext_val) / (state + ext_count)
-        }, (state + ext_count)
+        return {"value": (val["value"] * state + ext_val) / (state + ext_count)}, (
+            state + ext_count
+        )
 
-    def call(
-        self, **kwargs: Unpack[MeanAggregatorInputRefs]
-    ) -> MeanAggregatorOutputRefs:
+    def call(self, **kwargs: Unpack[MeanAggregatorInputRefs]) -> MeanAggregatorOutputRefs:
         """Execute the MeanAggregator to compute the mean value.
 
         Args:
