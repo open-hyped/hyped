@@ -1,12 +1,12 @@
 from datasets import Features, Sequence, Value
 
-from hyped.data.flow.processors.ops.sequence import item
+from hyped.data.flow.processors.ops.sequence import itemaccess
 from tests.hyped.data.flow.processors.base import BaseDataProcessorTest
 
 
 class TestSequenceGetItem(BaseDataProcessorTest):
-    processor_type = item.SequenceGetItem
-    processor_config = item.SequenceGetItemConfig()
+    processor_type = itemaccess.SequenceGetItem
+    processor_config = itemaccess.SequenceGetItemConfig()
 
     input_features = Features({"sequence": Sequence(Value("int32")), "index": Value("int32")})
     input_data = {
@@ -20,8 +20,8 @@ class TestSequenceGetItem(BaseDataProcessorTest):
 
 
 class TestSequenceGetItem_MultiIndex(BaseDataProcessorTest):
-    processor_type = item.SequenceGetItem
-    processor_config = item.SequenceGetItemConfig()
+    processor_type = itemaccess.SequenceGetItem
+    processor_config = itemaccess.SequenceGetItemConfig()
 
     input_features = Features(
         {
@@ -40,8 +40,8 @@ class TestSequenceGetItem_MultiIndex(BaseDataProcessorTest):
 
 
 class TestSequenceGetItem_MultiIndex_FixedLength(BaseDataProcessorTest):
-    processor_type = item.SequenceGetItem
-    processor_config = item.SequenceGetItemConfig()
+    processor_type = itemaccess.SequenceGetItem
+    processor_config = itemaccess.SequenceGetItemConfig()
 
     input_features = Features(
         {
@@ -60,8 +60,8 @@ class TestSequenceGetItem_MultiIndex_FixedLength(BaseDataProcessorTest):
 
 
 class TestSequenceSetItem(BaseDataProcessorTest):
-    processor_type = item.SequenceSetItem
-    processor_config = item.SequenceSetItemConfig()
+    processor_type = itemaccess.SequenceSetItem
+    processor_config = itemaccess.SequenceSetItemConfig()
 
     input_features = Features(
         {
@@ -82,8 +82,8 @@ class TestSequenceSetItem(BaseDataProcessorTest):
 
 
 class TestSequenceSetItem_MultiIndex(BaseDataProcessorTest):
-    processor_type = item.SequenceSetItem
-    processor_config = item.SequenceSetItemConfig()
+    processor_type = itemaccess.SequenceSetItem
+    processor_config = itemaccess.SequenceSetItemConfig()
 
     input_features = Features(
         {
@@ -104,8 +104,8 @@ class TestSequenceSetItem_MultiIndex(BaseDataProcessorTest):
 
 
 class TestSequenceSetItem_MultiIndex_FixedLength(BaseDataProcessorTest):
-    processor_type = item.SequenceSetItem
-    processor_config = item.SequenceSetItemConfig()
+    processor_type = itemaccess.SequenceSetItem
+    processor_config = itemaccess.SequenceSetItemConfig()
 
     input_features = Features(
         {

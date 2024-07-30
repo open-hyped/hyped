@@ -59,27 +59,10 @@ from .core.nodes.const import Const
 from .core.refs.ref import FeatureRef
 from .processors.ops.collect import CollectFeatures, NestedContainer
 from .processors.ops.sequence.aggregation import SequenceLength
-from .processors.ops.sequence.item import SequenceGetItem, SequenceSetItem
+from .processors.ops.sequence.itemaccess import SequenceGetItem, SequenceSetItem
 from .processors.ops.sequence.multisequence import SequenceChain, SequenceZip
-from .processors.ops.sequence.value import SequenceContains, SequenceCountOf, SequenceIndexOf
-from .processors.ops.value.any_value import Equals, NotEquals
-from .processors.ops.value.boolean import BooleanInvert, LogicalAnd, LogicalOr, LogicalXOr
-from .processors.ops.value.numeric import (
-    Abs,
-    Add,
-    FloorDiv,
-    GreaterThan,
-    GreaterThanOrEqual,
-    Invert,
-    LessThan,
-    LessThanOrEqual,
-    Mod,
-    Mul,
-    Neg,
-    Pow,
-    Sub,
-    TrueDiv,
-)
+from .processors.ops.sequence.seq_val import SequenceContains, SequenceCountOf, SequenceIndexOf
+from .processors.ops.value import binary, unary
 
 
 def _check_args(*args: FeatureRef | Any) -> tuple[FeatureRef]:
@@ -602,7 +585,7 @@ def abs_(a: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_):
         raise NotImplementedError("Element-wise absolute of sequence types not implemented.")
     else:
-        return Abs().call(a=a).result
+        return unary.Abs().call(a=a).result
 
 
 def invert(a: FeatureRef) -> FeatureRef:
@@ -615,10 +598,10 @@ def invert(a: FeatureRef) -> FeatureRef:
         FeatureRef: A FeatureRef instance representing the bitwise inverted
             value of the input feature.
     """
-    if check_feature_is_sequence(a.feature_):
-        raise NotImplementedError(
-            "Element-wise Inversion of sequence types not implemented."
-        )
+    if check_feature_equals(a, Value("bool")):
+        return unary.BooleanInvert().call(a=a).result
+    elif check_feature_is_sequence(a.feature_):
+        raise NotImplementedError("Element-wise Inversion of sequence types not implemented.")
     else:
         return unary.Invert().call(a=a).result
 

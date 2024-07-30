@@ -105,82 +105,82 @@ def test_simple_aggregators(op, agg_type):
     [
         (
             ops.add,
-            "hyped.data.flow.ops.Add",
+            "hyped.data.flow.ops.binary.Add",
             "int32",
         ),
         (
             ops.sub,
-            "hyped.data.flow.ops.Sub",
+            "hyped.data.flow.ops.binary.Sub",
             "int32",
         ),
         (
             ops.mul,
-            "hyped.data.flow.ops.Mul",
+            "hyped.data.flow.ops.binary.Mul",
             "int32",
         ),
         (
             ops.pow,
-            "hyped.data.flow.ops.Pow",
+            "hyped.data.flow.ops.binary.Pow",
             "int32",
         ),
         (
             ops.mod,
-            "hyped.data.flow.ops.Mod",
+            "hyped.data.flow.ops.binary.Mod",
             "int32",
         ),
         (
             ops.truediv,
-            "hyped.data.flow.ops.TrueDiv",
+            "hyped.data.flow.ops.binary.TrueDiv",
             "int32",
         ),
         (
             ops.floordiv,
-            "hyped.data.flow.ops.FloorDiv",
+            "hyped.data.flow.ops.binary.FloorDiv",
             "int32",
         ),
         (
             ops.eq,
-            "hyped.data.flow.ops.Equals",
+            "hyped.data.flow.ops.binary.Equals",
             "int32",
         ),
         (
             ops.ne,
-            "hyped.data.flow.ops.NotEquals",
+            "hyped.data.flow.ops.binary.NotEquals",
             "int32",
         ),
         (
             ops.lt,
-            "hyped.data.flow.ops.LessThan",
+            "hyped.data.flow.ops.binary.LessThan",
             "int32",
         ),
         (
             ops.le,
-            "hyped.data.flow.ops.LessThanOrEqual",
+            "hyped.data.flow.ops.binary.LessThanOrEqual",
             "int32",
         ),
         (
             ops.gt,
-            "hyped.data.flow.ops.GreaterThan",
+            "hyped.data.flow.ops.binary.GreaterThan",
             "int32",
         ),
         (
             ops.ge,
-            "hyped.data.flow.ops.GreaterThanOrEqual",
+            "hyped.data.flow.ops.binary.GreaterThanOrEqual",
             "int32",
         ),
         (
             ops.and_,
-            "hyped.data.flow.ops.LogicalAnd",
+            "hyped.data.flow.ops.binary.LogicalAnd",
             "bool",
         ),
         (
             ops.or_,
-            "hyped.data.flow.ops.LogicalOr",
+            "hyped.data.flow.ops.binary.LogicalOr",
             "bool",
         ),
         (
             ops.xor_,
-            "hyped.data.flow.ops.LogicalXOr",
+            "hyped.data.flow.ops.binary.LogicalXOr",
             "bool",
         ),
     ],
@@ -205,9 +205,9 @@ def test_binary_op(op, proc_type, dtype):
 @pytest.mark.parametrize(
     "op, proc_type, dtype",
     [
-        (ops.neg, "hyped.data.flow.ops.Neg", "int32"),
-        (ops.abs_, "hyped.data.flow.ops.Abs", "int32"),
-        (ops.invert, "hyped.data.flow.ops.Invert", "int32"),
+        (ops.neg, "hyped.data.flow.ops.unary.Neg", "int32"),
+        (ops.abs_, "hyped.data.flow.ops.unary.Abs", "int32"),
+        (ops.invert, "hyped.data.flow.ops.unary.Invert", "int32"),
     ],
 )
 def test_unary_op(op, proc_type, dtype):
