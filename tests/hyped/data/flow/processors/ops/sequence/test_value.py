@@ -1,12 +1,12 @@
 from datasets import Features, Sequence, Value
 
-from hyped.data.flow.processors.ops.sequence import value
+from hyped.data.flow.processors.ops.sequence import seq_val
 from tests.hyped.data.flow.processors.base import BaseDataProcessorTest
 
 
 class TestSequenceContains(BaseDataProcessorTest):
-    processor_type = value.SequenceContains
-    processor_config = value.SequenceContainsConfig()
+    processor_type = seq_val.SequenceContains
+    processor_config = seq_val.SequenceContainsConfig()
 
     input_features = Features({"sequence": Sequence(Value("int32")), "value": Value("int32")})
     input_data = {
@@ -20,8 +20,8 @@ class TestSequenceContains(BaseDataProcessorTest):
 
 
 class TestSequenceCountOf(BaseDataProcessorTest):
-    processor_type = value.SequenceCountOf
-    processor_config = value.SequenceCountOfConfig()
+    processor_type = seq_val.SequenceCountOf
+    processor_config = seq_val.SequenceCountOfConfig()
 
     input_features = Features({"sequence": Sequence(Value("int32")), "value": Value("int32")})
     input_data = {
@@ -35,8 +35,8 @@ class TestSequenceCountOf(BaseDataProcessorTest):
 
 
 class TestSequenceIndexOf(BaseDataProcessorTest):
-    processor_type = value.SequenceIndexOf
-    processor_config = value.SequenceIndexOfConfig()
+    processor_type = seq_val.SequenceIndexOf
+    processor_config = seq_val.SequenceIndexOfConfig()
 
     input_features = Features({"sequence": Sequence(Value("int32")), "value": Value("int32")})
     input_data = {

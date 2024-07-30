@@ -59,27 +59,10 @@ from .core.nodes.const import Const
 from .core.refs.ref import FeatureRef
 from .processors.ops.collect import CollectFeatures, NestedContainer
 from .processors.ops.sequence.aggregation import SequenceLength
-from .processors.ops.sequence.item import SequenceGetItem, SequenceSetItem
+from .processors.ops.sequence.itemaccess import SequenceGetItem, SequenceSetItem
 from .processors.ops.sequence.multisequence import SequenceChain, SequenceZip
-from .processors.ops.sequence.value import SequenceContains, SequenceCountOf, SequenceIndexOf
-from .processors.ops.value.any_value import Equals, NotEquals
-from .processors.ops.value.boolean import BooleanInvert, LogicalAnd, LogicalOr, LogicalXOr
-from .processors.ops.value.numeric import (
-    Abs,
-    Add,
-    FloorDiv,
-    GreaterThan,
-    GreaterThanOrEqual,
-    Invert,
-    LessThan,
-    LessThanOrEqual,
-    Mod,
-    Mul,
-    Neg,
-    Pow,
-    Sub,
-    TrueDiv,
-)
+from .processors.ops.sequence.seq_val import SequenceContains, SequenceCountOf, SequenceIndexOf
+from .processors.ops.value import binary, unary
 
 
 def _check_args(*args: FeatureRef | Any) -> tuple[FeatureRef]:
@@ -249,7 +232,7 @@ def add(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(b.feature_):
         raise NotImplementedError("Element-wise addition of sequence types not implemented.")
     else:
-        return Add().call(a=a, b=b).result
+        return binary.Add().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -266,7 +249,7 @@ def sub(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(b.feature_):
         raise NotImplementedError("Element-wise subtraction of sequence types not implemented.")
     else:
-        return Sub().call(a=a, b=b).result
+        return binary.Sub().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -283,7 +266,7 @@ def mul(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(b.feature_):
         raise NotImplementedError("Element-wise multiplication of sequence types not implemented.")
     else:
-        return Mul().call(a=a, b=b).result
+        return binary.Mul().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -300,7 +283,7 @@ def truediv(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(b.feature_):
         raise NotImplementedError("Element-wise division of sequence types not implemented.")
     else:
-        return TrueDiv().call(a=a, b=b).result
+        return binary.TrueDiv().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -319,7 +302,7 @@ def floordiv(a: FeatureRef, b: FeatureRef) -> FeatureRef:
             "Element-wise integer division of sequence types not implemented."
         )
     else:
-        return FloorDiv().call(a=a, b=b).result
+        return binary.FloorDiv().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -336,7 +319,7 @@ def pow(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(b.feature_):
         raise NotImplementedError("Element-wise power of sequence types not implemented.")
     else:
-        return Pow().call(a=a, b=b).result
+        return binary.Pow().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -353,7 +336,7 @@ def mod(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(b.feature_):
         raise NotImplementedError("Element-wise modulo of sequence types not implemented.")
     else:
-        return Mod().call(a=a, b=b).result
+        return binary.Mod().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -370,7 +353,7 @@ def eq(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(b.feature_):
         raise NotImplementedError("Element-wise comparison of sequence types not implemented.")
     else:
-        return Equals().call(a=a, b=b).result
+        return binary.Equals().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -387,7 +370,7 @@ def ne(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(b.feature_):
         raise NotImplementedError("Element-wise comparison of sequence types not implemented.")
     else:
-        return NotEquals().call(a=a, b=b).result
+        return binary.NotEquals().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -404,7 +387,7 @@ def lt(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(b.feature_):
         raise NotImplementedError("Element-wise comparison of sequence types not implemented.")
     else:
-        return LessThan().call(a=a, b=b).result
+        return binary.LessThan().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -422,7 +405,7 @@ def le(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(b.feature_):
         raise NotImplementedError("Element-wise comparison of sequence types not implemented.")
     else:
-        return LessThanOrEqual().call(a=a, b=b).result
+        return binary.LessThanOrEqual().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -439,7 +422,7 @@ def gt(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(b.feature_):
         raise NotImplementedError("Element-wise comparison of sequence types not implemented.")
     else:
-        return GreaterThan().call(a=a, b=b).result
+        return binary.GreaterThan().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -457,7 +440,7 @@ def ge(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(b.feature_):
         raise NotImplementedError("Element-wise comparison of sequence types not implemented.")
     else:
-        return GreaterThanOrEqual().call(a=a, b=b).result
+        return binary.GreaterThanOrEqual().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -474,7 +457,7 @@ def and_(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(b.feature_):
         raise NotImplementedError("Element-wise Conjugation of sequence types not implemented.")
     else:
-        return LogicalAnd().call(a=a, b=b).result
+        return binary.LogicalAnd().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -491,7 +474,7 @@ def or_(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(b.feature_):
         raise NotImplementedError("Element-wise Disjunction of sequence types not implemented.")
     else:
-        return LogicalOr().call(a=a, b=b).result
+        return binary.LogicalOr().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -508,7 +491,7 @@ def xor_(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(b.feature_):
         raise NotImplementedError("Element-wise Disjunction of sequence types not implemented.")
     else:
-        return LogicalXOr().call(a=a, b=b).result
+        return binary.LogicalXOr().call(a=a, b=b).result
 
 
 def neg(a: FeatureRef) -> FeatureRef:
@@ -523,7 +506,7 @@ def neg(a: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_):
         raise NotImplementedError("Element-wise Negation of sequence types not implemented.")
     else:
-        return Neg().call(a=a).result
+        return unary.Neg().call(a=a).result
 
 
 def abs_(a: FeatureRef) -> FeatureRef:
@@ -538,7 +521,7 @@ def abs_(a: FeatureRef) -> FeatureRef:
     if check_feature_is_sequence(a.feature_):
         raise NotImplementedError("Element-wise absolute of sequence types not implemented.")
     else:
-        return Abs().call(a=a).result
+        return unary.Abs().call(a=a).result
 
 
 def invert(a: FeatureRef) -> FeatureRef:
@@ -552,11 +535,11 @@ def invert(a: FeatureRef) -> FeatureRef:
             value of the input feature.
     """
     if check_feature_equals(a, Value("bool")):
-        return BooleanInvert().call(a=a).result
+        return unary.BooleanInvert().call(a=a).result
     elif check_feature_is_sequence(a.feature_):
         raise NotImplementedError("Element-wise Inversion of sequence types not implemented.")
     else:
-        return Invert().call(a=a).result
+        return unary.Invert().call(a=a).result
 
 
 def len_(a: FeatureRef) -> FeatureRef | int:
