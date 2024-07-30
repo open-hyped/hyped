@@ -48,7 +48,7 @@ class BinaryOpBooleanInputRefs(BinaryOpInputRefs):
 
 
 class BaseComparatorConfig(BaseBinaryOpConfig):
-    """Configuration class for numeric comparator operations."""
+    """Configuration class for comparator operations."""
 
 
 C = TypeVar("C", bound=BaseComparatorConfig)
@@ -56,7 +56,7 @@ I = TypeVar("I", bound=BinaryOpInputRefs)
 
 
 class BaseComparator(BaseBinaryOp[C, I, BooleanOutputRefs]):
-    """Base class for numeric comparator operations.
+    """Base class for comparator operations.
 
     Comparators are characterized by their ability to take inputs of any value type
     and output a boolean feature.
@@ -66,7 +66,7 @@ class BaseComparator(BaseBinaryOp[C, I, BooleanOutputRefs]):
     def op(self, a: Any, b: Any) -> bool:
         """The comparator operation to be applied.
 
-        Takes numeric inputs and outputs a boolean feature.
+        Takes any inputs and outputs a boolean feature.
         """
 
 

@@ -7,11 +7,13 @@ from typing import Any, TypeVar
 from datasets import Value
 from typing_extensions import Annotated, Unpack
 
-from hyped.data.flow.core.nodes.processor import BaseDataProcessor, Batch, IOContext
+from hyped.common.feature_checks import SCALAR_TYPES
+from hyped.data.flow.core.nodes.processor import Batch, IOContext
 from hyped.data.flow.core.refs.inputs import CheckFeatureIsSequence
-from hyped.data.flow.core.refs.outputs import OutputFeature
+from hyped.data.flow.core.refs.outputs import LambdaOutputFeature, OutputFeature
 from hyped.data.flow.core.refs.ref import FeatureRef
 from hyped.data.flow.processors.ops.base import (
+    BaseUnaryOp,
     BaseUnaryOpConfig,
     BaseUnaryOpOutputRefs,
     UnaryOpInputRefs,
@@ -29,6 +31,13 @@ class SequenceAggregationInputRefs(UnaryOpInputRefs):
     """The sequence feature reference for the aggregation operation."""
 
 
+class SequenceAggregationScalarInputRefs(UnaryOpInputRefs):
+    """Input references for sequence aggregation operations."""
+
+    a: Annotated[FeatureRef, CheckFeatureIsSequence(SCALAR_TYPES)]
+    """The sequence feature reference for the aggregation operation."""
+
+
 class BaseSequenceAggregationOutputRefs(BaseUnaryOpOutputRefs):
     """Output references for sequence aggreagtion operations."""
 
@@ -38,11 +47,11 @@ I = TypeVar("I", bound=SequenceAggregationInputRefs)
 O = TypeVar("O", bound=BaseSequenceAggregationOutputRefs)
 
 
-class BaseSequenceAggregation(BaseDataProcessor[C, I, O], ABC):
+class BaseSequenceAggregation(BaseUnaryOp[C, I, O], ABC):
     """Base class for sequence aggregation operations."""
 
     @abstractmethod
-    def op(self, val: list) -> Any:
+    def op(self, vals: list) -> Any:
         """The aggregation operation to apply."""
         ...
 
@@ -104,3 +113,72 @@ class SequenceLength(
     """
 
     op = len
+
+
+SCALAR_TYPE_NAMES = [t.dtype for t in SCALAR_TYPES]
+
+
+def scalar_seq_aggr_infer_dtype(
+    config: BaseSequenceAggregateConfig, inputs: SequenceAggregationScalarInputRefs
+) -> Value:
+    return Value(
+        max(
+            inputs["a"].feature_.feature.dtype,
+            "int32",
+            key=SCALAR_TYPE_NAMES.index,  # this order prefers int over bool
+        )
+    )
+
+
+class SequenceSumConfig(BaseSequenceAggregateConfig):
+    """Configuration class for the Sequence Sum operation."""
+
+
+class SequenceSumOutputRefs(BaseSequenceAggregationOutputRefs):
+    """Output references for the Sequence Sum operation."""
+
+    result: Annotated[FeatureRef, LambdaOutputFeature(scalar_seq_aggr_infer_dtype)]
+    """The feature reference to the sum of the sequence."""
+
+
+class SequenceSum(
+    BaseSequenceAggregation[
+        SequenceSumConfig,
+        SequenceAggregationScalarInputRefs,
+        SequenceSumOutputRefs,
+    ]
+):
+    """Sequence Sum Data Processor.
+
+    This class defines the operation to get the sum of a sequence feature.
+    """
+
+    op = sum
+
+
+class SequenceMeanConfig(BaseSequenceAggregateConfig):
+    """Configuration class for the Sequence Mean operation."""
+
+
+class SequenceMeanOutputRefs(BaseSequenceAggregationOutputRefs):
+    """Output references for the Sequence Mean operation."""
+
+    result: Annotated[FeatureRef, LambdaOutputFeature(scalar_seq_aggr_infer_dtype)]
+    """The feature reference to the mean of the sequence."""
+
+
+class SequenceMean(
+    BaseSequenceAggregation[
+        SequenceMeanConfig,
+        SequenceAggregationScalarInputRefs,
+        SequenceMeanOutputRefs,
+    ]
+):
+    """Sequence Mean Data Processor.
+
+    This class defines the operation to get the mean of a sequence feature.
+    """
+
+    def op(self, vals: list) -> Any:
+        """The mean operation."""
+        return sum(vals) / len(vals)

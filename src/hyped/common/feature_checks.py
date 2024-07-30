@@ -169,18 +169,27 @@ def get_sequence_feature(seq: Sequence | list | tuple) -> FeatureType:
 
 
 def check_sequence_lengths_match(
-    seq_A: Sequence | list | tuple, seq_B: Sequence | list | tuple
+    seq_A: Sequence | list | tuple,
+    seq_B: Sequence | list | tuple,
+    ignore_arbitrary_length: bool = False,
 ) -> bool:
     """Check whether the lengths of two sequences match.
 
     Arguments:
         seq_A (Sequence | list | tuple): sequence A
         seq_B (Sequence | list | tuple): sequence B
+        ignore_arbitrary_length (bool): Wether to ignore if both features have length -1
 
     Returns:
         match (bool): bool indicating if the lengths match
     """
-    return get_sequence_length(seq_A) == get_sequence_length(seq_B)
+    a_len = get_sequence_length(seq_A)
+    b_len = get_sequence_length(seq_B)
+
+    if ignore_arbitrary_length:
+        return a_len == b_len
+    else:
+        return a_len == b_len and a_len != -1 and b_len != -1
 
 
 def check_object_matches_feature(obj: Any, feature: FeatureType):
@@ -207,6 +216,10 @@ def check_object_matches_feature(obj: Any, feature: FeatureType):
     except (pa.lib.ArrowTypeError, pa.lib.ArrowInvalid):
         # catch error in type check
         return False
+
+
+def check_feature_is_castable(feat_A: FeatureType, feat_B: FeatureType) -> bool:
+    return feat_A in SCALAR_TYPES and feat_B in SCALAR_TYPES
 
 
 def raise_feature_equals(
@@ -307,6 +320,29 @@ def raise_feature_is_sequence(
 
         raise TypeError(
             "Expected `%s` to be a sequence of type %s, got %s" % (name, value_type, feature)
+        )
+
+
+def raise_sequence_lengths_match(
+    name_A: str,
+    name_B: str,
+    seq_A: FeatureType,
+    seq_B: FeatureType,
+    ignore_arbitrary_length: bool = False,
+) -> None:
+    if not check_sequence_lengths_match(seq_A, seq_B, ignore_arbitrary_length):
+        a_len = get_sequence_length(seq_A)
+        b_len = get_sequence_length(seq_B)
+        raise TypeError(f"Sequence lengths do not match. {name_A} is {a_len}, {name_B} is {b_len}")
+
+
+def raise_feature_is_castable(
+    name_A: str, name_B: str, feat_A: FeatureType, feat_B: FeatureType
+) -> None:
+    if not check_feature_is_castable(feat_A, feat_B):
+        raise TypeError(
+            f"Feature types cannot be casted: {name_A} is {feat_A.dtype}, "
+            f"{name_B} is {feat_B.dtype}"
         )
 
 

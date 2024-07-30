@@ -170,7 +170,7 @@ def infer_chain_output_dtype(
         Sequence: The output sequence feature with inferred length.
     """
     sequence_feature = get_sequence_feature(next(iter(inputs["sequences"].feature_.values())))
-    sequence_lengths = [feat.length for feat in inputs["sequences"].feature_.values()]
+    sequence_lengths = [get_sequence_length(feat) for feat in inputs["sequences"].feature_.values()]
     return Sequence(
         feature=sequence_feature,
         length=-1 if -1 in sequence_lengths else sum(sequence_lengths),

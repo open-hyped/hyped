@@ -7,17 +7,14 @@ Entity Recognition (NER).
 from datasets.features.features import Sequence, Value
 from typing_extensions import Annotated, NotRequired, Unpack
 
+from hyped.common.feature_checks import get_sequence_length
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     IOContext,
     Sample,
 )
-from hyped.data.flow.core.refs.inputs import (
-    CheckFeatureEquals,
-    FeatureValidator,
-    InputRefs,
-)
+from hyped.data.flow.core.refs.inputs import CheckFeatureEquals, FeatureValidator, InputRefs
 from hyped.data.flow.core.refs.outputs import LambdaOutputFeature, OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
 
@@ -30,9 +27,7 @@ class ChrToTokSpansInputRefs(InputRefs):
     chr_spans: Annotated[FeatureRef, FeatureValidator(validate_spans_feature)]
     """Character spans feature reference."""
 
-    query_spans: Annotated[
-        FeatureRef, FeatureValidator(validate_spans_feature)
-    ]
+    query_spans: Annotated[FeatureRef, FeatureValidator(validate_spans_feature)]
     """Query spans feature reference."""
 
     special_tokens_mask: NotRequired[
@@ -49,7 +44,7 @@ class ChrToTokSpansOutputRefs(OutputRefs):
         LambdaOutputFeature(
             lambda _, i: Sequence(
                 Sequence(Value("int32"), length=2),
-                length=i["query_spans"].feature_.length,
+                length=get_sequence_length(i["query_spans"].feature_),
             )
         ),
     ]
@@ -61,9 +56,7 @@ class ChrToTokSpansConfig(BaseDataProcessorConfig):
 
 
 class ChrToTokSpans(
-    BaseDataProcessor[
-        ChrToTokSpansConfig, ChrToTokSpansInputRefs, ChrToTokSpansOutputRefs
-    ]
+    BaseDataProcessor[ChrToTokSpansConfig, ChrToTokSpansInputRefs, ChrToTokSpansOutputRefs]
 ):
     """Processor to convert character spans to token spans.
 
@@ -71,9 +64,7 @@ class ChrToTokSpans(
     and then converts the overlapping spans into token spans.
     """
 
-    def process(
-        self, inputs: Sample, index: int, rank: int, io: IOContext
-    ) -> Sample:
+    def process(self, inputs: Sample, index: int, rank: int, io: IOContext) -> Sample:
         """Process input samples to compute token spans.
 
         Args:
@@ -99,9 +90,7 @@ class ChrToTokSpans(
         tok_spans = list(zip(tok_spans_begin, tok_spans_end))
         return Sample(tok_spans=tok_spans)
 
-    def call(
-        self, **kwargs: Unpack[ChrToTokSpansInputRefs]
-    ) -> ChrToTokSpansOutputRefs:
+    def call(self, **kwargs: Unpack[ChrToTokSpansInputRefs]) -> ChrToTokSpansOutputRefs:
         """Execute the ChrToTokSpans processor.
 
         Processes the input references to convert character spans ('chr_spans')

@@ -12,7 +12,7 @@ from datasets import Value
 from pydantic import Field
 from typing_extensions import Unpack
 
-from hyped.common.feature_checks import NUMERICAL_TYPES
+from hyped.common.feature_checks import SCALAR_TYPES
 from hyped.data.flow.core.nodes.aggregator import (
     BaseDataAggregator,
     BaseDataAggregatorConfig,
@@ -33,7 +33,7 @@ class MeanAggregatorInputRefs(InputRefs):
 
     x: Annotated[
         FeatureRef,
-        CheckFeatureEquals(NUMERICAL_TYPES + [Value("bool")]),
+        CheckFeatureEquals(SCALAR_TYPES),
     ]
     """
     The input feature reference for the aggregation. Must be a numerical type.

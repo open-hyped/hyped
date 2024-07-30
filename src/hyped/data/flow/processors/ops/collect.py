@@ -25,7 +25,7 @@ from datasets.features.features import Features, FeatureType, Sequence
 from typing_extensions import Annotated
 
 from hyped.common.container import NestedContainer
-from hyped.common.feature_checks import check_feature_equals
+from hyped.common.feature_checks import check_feature_equals, get_sequence_length
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
@@ -65,9 +65,7 @@ def _infer_feature_type(
         Features: The inferred feature type.
     """
     if isinstance(container.data, dict):
-        return Features(
-            {k: _infer_feature_type(v) for k, v in container.data.items()}
-        )
+        return Features({k: _infer_feature_type(v) for k, v in container.data.items()})
 
     if isinstance(container.data, list):
         assert len(container.data) > 0
@@ -94,9 +92,7 @@ class CollectFeaturesOutputRefs(OutputRefs):
 
     collected: Annotated[
         FeatureRef,
-        LambdaOutputFeature(
-            lambda _, inputs: _infer_feature_type(inputs["collection"])
-        ),
+        LambdaOutputFeature(lambda _, inputs: _infer_feature_type(inputs["collection"])),
     ]
     """Reference to the collected feature."""
 
@@ -115,9 +111,7 @@ class CollectFeatures(
     the features, maintaining the structure defined by the collection.
     """
 
-    def call(
-        self, collection: NestedContainer[FeatureRef]
-    ) -> CollectFeaturesOutputRefs:
+    def call(self, collection: NestedContainer[FeatureRef]) -> CollectFeaturesOutputRefs:
         """Collect features from a nested container and return output references.
 
         This method takes a nested container of feature references and returns
@@ -133,9 +127,7 @@ class CollectFeatures(
             collection.
         """
         # parse collection and get the flow
-        named_refs = {
-            _path_to_str(key): ref for key, ref in collection.flatten().items()
-        }
+        named_refs = {_path_to_str(key): ref for key, ref in collection.flatten().items()}
         flow = next(iter(named_refs.values())).flow_
         # create input reference container
         kwargs = dict(collection=collection)
@@ -167,18 +159,15 @@ class CollectFeatures(
             # parse feature dictionary
             if isinstance(feature, (Features, dict)):
                 return NestedContainer[tuple[Hashable | int, ...]](
-                    data={
-                        k: build_nested_lookup(v, path + (k,))
-                        for k, v in feature.items()
-                    }
+                    data={k: build_nested_lookup(v, path + (k,)) for k, v in feature.items()}
                 )
             # parse sequence feature
             if isinstance(feature, Sequence):
-                assert feature.length >= 0
+                seq_length = get_sequence_length(feature)
+                assert seq_length >= 0
                 return NestedContainer[tuple[Hashable | int, ...]](
                     data=[
-                        build_nested_lookup(feature.feature, path + (i,))
-                        for i in range(feature.length)
+                        build_nested_lookup(feature.feature, path + (i,)) for i in range(seq_length)
                     ]
                 )
 
@@ -213,7 +202,6 @@ class CollectFeatures(
         # collect values from each sample
         return {
             "collected": [
-                self._lookup(io).map(lambda _, key: sample[key], Any).unpack()
-                for sample in samples
+                self._lookup(io).map(lambda _, key: sample[key], Any).unpack() for sample in samples
             ]
         }

@@ -7,10 +7,9 @@ retrieve nested features within the data flow graph.
 
 from __future__ import annotations
 
-import json
 from typing import Any, TypeAlias
 
-from datasets.features.features import Features, FeatureType, Sequence, Value
+from datasets.features.features import Features, FeatureType, Value
 from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
 from typing_extensions import Annotated
 
@@ -80,9 +79,7 @@ class FeatureRef(BaseModel):
         Features | FeatureType,
         # custom serialization
         PlainSerializer(
-            lambda f: json.dumps(
-                Features({"feature": f}).to_dict()["feature"]
-            ),
+            lambda f: json.dumps(Features({"feature": f}).to_dict()["feature"]),
             return_type=str,
             when_used="unless-none",
         ),
@@ -155,13 +152,9 @@ class FeatureRef(BaseModel):
             return self.__getitem__(key)
         except (KeyError, TypeError) as e:
             # raise attribute error
-            raise AttributeError(
-                f"'FeatureRef' object has no attribute '{key}'"
-            ) from e
+            raise AttributeError(f"'FeatureRef' object has no attribute '{key}'") from e
 
-    def __getitem__(
-        self, key: str | int | slice | FeatureKey | FeatureRef
-    ) -> FeatureRef:
+    def __getitem__(self, key: str | int | slice | FeatureKey | FeatureRef) -> FeatureRef:
         """Access a sub-feature within the FeatureRef instance via index-style access.
 
         Args:
@@ -178,9 +171,7 @@ class FeatureRef(BaseModel):
         if isinstance(key, FeatureRef):
             # make sure the feature is a sequence
             if not check_feature_is_sequence(self.feature_):
-                raise TypeError(
-                    f"'{self.feature_}' object is not subscriptable."
-                )
+                raise TypeError(f"'{self.feature_}' object is not subscriptable.")
 
             from hyped.data.flow.ops import get_item
 
@@ -218,12 +209,14 @@ class FeatureRef(BaseModel):
     ) -> FeatureRef:
         """Set an item in the feature collection or sequence.
 
-        This method sets a specified key or index in the feature collection or sequence to the given value.
-        If the feature is a collection (like a dictionary), it updates the collection with the new key-value pair.
-        Otherwise, it uses the set_item operation to set the value at the specified index.
+        This method sets a specified key or index in the feature collection or sequence to the
+        given value. If the feature is a collection (like a dictionary), it updates the
+        collection with the new key-value pair. Otherwise, it uses the set_item operation to
+        set the value at the specified index.
 
         Args:
-            key (str | FeatureRef | int | list[int] | slice): The key or index where the value should be set.
+            key (str | FeatureRef | int | list[int] | slice): The key or index where the
+                value should be set.
             value (FeatureRef | Any): The value to set at the specified key or index.
 
         Returns:
@@ -238,9 +231,7 @@ class FeatureRef(BaseModel):
 
             # collect all the features in the current collection and
             # additionally the requested feature
-            out = collect(
-                {k: self[k] for k in self.feature_.keys()} | {key: value}
-            )
+            out = collect({k: self[k] for k in self.feature_.keys()} | {key: value})
             # update reference to the output reference
             return self._update(out)
 
@@ -254,9 +245,7 @@ class FeatureRef(BaseModel):
 
         else:
             # setitem not supported
-            raise TypeError(
-                f"'{self.feature_}' object does not support item assignment."
-            )
+            raise TypeError(f"'{self.feature_}' object does not support item assignment.")
 
     def __add__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform addition with another feature.
@@ -868,7 +857,7 @@ class FeatureRef(BaseModel):
 
         return contains(self, value)
 
-    def sum_(self) -> FeatureRef:
+    def sum_(self, axis: int = 0) -> FeatureRef:
         """Calculate the sum of the referenced feature.
 
         Returns:
@@ -876,9 +865,9 @@ class FeatureRef(BaseModel):
         """
         from hyped.data.flow.ops import sum_
 
-        return sum_(self)
+        return sum_(self, axis=axis)
 
-    def mean_(self) -> FeatureRef:
+    def mean_(self, axis: int = 0) -> FeatureRef:
         """Calculate the mean of the referenced feature.
 
         Returns:
@@ -886,7 +875,7 @@ class FeatureRef(BaseModel):
         """
         from hyped.data.flow.ops import mean
 
-        return mean(self)
+        return mean(self, axis=axis)
 
 
 NONE_REF = FeatureRef(
