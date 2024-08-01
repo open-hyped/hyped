@@ -218,15 +218,12 @@ class DataFlow(object):
         if collect.flow_ is not self._graph:
             raise RuntimeError("The collect feature does not belong to the current graph.")
 
-        collect_type = self._graph.nodes[collect.node_id_][DataFlowGraph.NodeAttribute.NODE_TYPE]
         collect_partition = self._graph.nodes[collect.node_id_][
             DataFlowGraph.NodeAttribute.PARTITION
         ]
-        # validate collect type
-        if (collect_type != DataFlowGraph.NodeType.DATA_PROCESSOR) or (
-            collect_partition != DataFlowGraph.PredefinedPartition.DEFAULT
-        ):
-            raise RuntimeError("invalid collect, must be the output of an processor call")
+        # validate collect partition
+        if collect_partition == DataFlowGraph.PredefinedPartition.AGGREGATED:
+            raise RuntimeError("invalid collect, must not be an aggregator result!")
 
         if aggregate is not None:
             if aggregate.flow_ is not self._graph:
