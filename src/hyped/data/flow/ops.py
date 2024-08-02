@@ -880,7 +880,8 @@ def precision_recall_fscore_support(
                 TypeError: If the features are of unexpected types.
 
     Returns:
-        PrecisionRecallFScoreSupportOutputRefs: A FeatureRef instance representing the aggregated scores.
+        PrecisionRecallFScoreSupportOutputRefs: A FeatureRef instance representing
+        the aggregated scores.
     """
     multilabel_confusion_matrix = (
         MultiLabelConfusionMatrix()
