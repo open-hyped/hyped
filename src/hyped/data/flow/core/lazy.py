@@ -56,8 +56,9 @@ class LazyFlowOutput(Mapping):
             MappingProxyType[Hashable, Any]: A read-only proxy to the computed output values.
         """
         proxy_snapshot = dict(self._proxy)
-        # check
-        if self._proxy_snapshot != proxy_snapshot:
+        # TODO: implement check that works with nested types, such as np.ndarray
+        # if self._proxy_snapshot != proxy_snapshot:
+        if True:
             # build batch of inputs
             inputs = {k: [v] for k, v in proxy_snapshot.items()}
             # execute the flow executor on the inputs

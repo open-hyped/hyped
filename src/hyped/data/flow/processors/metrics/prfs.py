@@ -1,0 +1,383 @@
+"""Module implementing the PrecisionRecallFScoreSupport processor.
+
+This can be used for computing precision, recall, F-score, and support metrics.
+
+This module contains classes and functions to calculate precision, recall, F-score, and
+support metrics from a given confusion matrix. It leverages scikit-learn's underlying functions
+but adapts them to operate directly on confusion matrices within the HypED data flow framework.
+
+Classes:
+    - PrecisionRecallFScoreSupportConfig: Configuration class for the PrecisionRecallFScoreSupport
+        processor.
+    - PrecisionRecallFScoreSupportInputRefs: Defines the input references required for
+        the processor.
+    - PrecisionRecallFScoreSupportOutputRefs: Defines the output references produced
+        by the processor.
+    - PrecisionRecallFScoreSupport: Implements the core functionality for computing and
+        aggregating precision, recall, F-score, and support metrics.
+
+Usage:
+    The `PrecisionRecallFScoreSupport` processor computes precision, recall, F-score, and support
+    metrics from an input confusion matrix. It supports various averaging methods (`micro`,
+    `macro`, `weighted`) and can handle custom label sets.
+"""
+from typing import Annotated, Literal
+
+import numpy as np
+from datasets import Array3D, Sequence, Value
+from datasets.features.features import FeatureType
+from sklearn.metrics._classification import _prf_divide
+from sklearn.utils.extmath import _nanaverage
+from typing_extensions import Unpack
+
+from hyped.data.flow.core.nodes.processor import (
+    BaseDataProcessor,
+    BaseDataProcessorConfig,
+    IOContext,
+    Sample,
+)
+from hyped.data.flow.core.refs.inputs import (
+    CheckFeatureEquals,
+    FeatureValidator,
+    InputRefs,
+)
+from hyped.data.flow.core.refs.outputs import (
+    LambdaOutputFeature,
+    OutputFeature,
+    OutputRefs,
+)
+from hyped.data.flow.core.refs.ref import FeatureRef
+
+
+class PrecisionRecallFScoreSupportConfig(BaseDataProcessorConfig):
+    """Configuration for the PrecisionRecallFScoreSupport Processor."""
+
+    beta: float = 1.0
+    """The strength of recall versus precision in the F-score."""
+
+    labels: list | None = None
+    """The set of labels to include and their order if average is None.
+    Labels present in the data can be excluded, for example in multiclass classification
+    to exclude a “negative class”. Labels not present in the data can be included and will
+    be “assigned” 0 samples. For multilabel targets, labels are column indices.
+    By default, all labels in y_true and y_pred are used in sorted order.
+    """
+
+    average: Literal["micro", "macro", "weighted"] | None = None
+    """If None, the metrics for each class are returned. Otherwise, this determines
+    the type of averaging performed on the data:
+
+    `micro`:
+    Calculate metrics globally by counting the total true positives, false negatives
+    and false positives.
+
+    `macro`:
+    Calculate metrics for each label, and find their unweighted mean. This does not
+    take label imbalance into account.
+
+    `weighted`:
+    Calculate metrics for each label, and find their average weighted by support
+    (the number of true instances for each label). This alters `macro` to account for
+    label imbalance; it can result in an F-score that is not between precision and recall.
+    """
+
+    warn_for: list | tuple | set = ("precision", "recall", "f-score")
+    """For internal use.
+    
+    This determines which warnings will be made in the case that this function is
+    being used to return only one of its metrics.
+    """
+
+    zero_division: Literal["warn"] | float = "warn"
+    """Sets the value to return when there is a zero division:
+
+    {“warn”, 0.0, 1.0, np.nan}, default=”warn”
+
+    - recall: when there are no positive labels
+    - precision: when there are no positive predictions
+    - f-score: both
+
+    Notes: - If set to “warn”, this acts like 0, but a warning is also raised.
+    If set to np.nan, such values will be excluded from the average.
+    """
+
+
+def check_input_confusion_matrix(
+    config: PrecisionRecallFScoreSupportConfig, ref: FeatureRef
+) -> None:
+    """Validates the input confusion matrix against the processor configuration.
+
+    This function ensures that the input confusion matrix has the correct feature type
+    (Array3D) and that the length of the labels specified in the configuration does not
+    exceed the number of classes in the confusion matrix. It raises a RuntimeError if
+    the labels are longer than the number of classes.
+
+    Args:
+        config (PrecisionRecallFScoreSupportConfig): Configuration parameters for the processor.
+        ref (FeatureRef): Reference to the input feature, which should be a confusion matrix.
+
+    Raises:
+        RuntimeError: If the length of the labels in the configuration is greater than the
+        number of classes in the confusion matrix.
+    """
+    # TODO: `and`` not implemented yet
+    # check for the correct feature type
+    CheckFeatureEquals(Array3D).f(config, ref)
+
+    # check labels argument
+    if (
+        config.labels is not None
+        and len(config.labels) > ref.feature_.shape[0]
+    ):
+        raise RuntimeError(
+            "Labels in PrecisionRecallFScoreSupportConfig cannot longer than the number "
+            "of classes in the confusion matrix. Confusion matrix has shape "
+            f"{ref.feature_.shape}, but labels have length {len(config.labels)}."
+        )
+
+
+class PrecisionRecallFScoreSupportInputRefs(InputRefs):
+    """Input ref description for the PrecisionRecallFScoreSupport Processor."""
+
+    # TODO: `and`` not implemented yet
+    # confusion_matrix: Annotated[
+    #     FeatureRef, CheckFeatureEquals(Array3D) & FeatureValidator(check_input_confusion_matrix)
+    # ]
+    confusion_matrix: Annotated[
+        FeatureRef, FeatureValidator(check_input_confusion_matrix)
+    ]
+    """Confusion matrix to compute scores from.
+    
+    Must be of type Array3D with shape (n_classes, 2, 2)
+    """
+
+    # TODO: sample_weight
+
+
+def infer_prf_output_feature(
+    config: PrecisionRecallFScoreSupportConfig,
+    inputs: PrecisionRecallFScoreSupportInputRefs,
+) -> FeatureType:
+    """Infers the feature type for precision, recall, and F-score outputs based on the configuration.
+
+    This function determines the appropriate feature type for the precision, recall,
+    and F-score outputs of the processor. It returns a single float value if an averaging
+    method is specified in the configuration. Otherwise, it returns a sequence of integers
+    with the length determined by the labels in the configuration or the number of classes
+    in the confusion matrix.
+
+    Args:
+        config (PrecisionRecallFScoreSupportConfig): Configuration parameters for the processor.
+        inputs (PrecisionRecallFScoreSupportInputRefs): Input references for the processor.
+
+    Returns:
+        FeatureType: The inferred feature type for precision, recall, and F-score outputs.
+    """
+    if config.average is not None:
+        return Value("float32")
+    elif config.labels is not None:
+        return Sequence(Value("int32"), length=len(config.labels))
+    else:
+        return Sequence(
+            Value("int32"), length=inputs["confusion_matrix"].feature_.shape[0]
+        )
+
+
+def infer_support_output_feature(
+    config: PrecisionRecallFScoreSupportConfig,
+    inputs: PrecisionRecallFScoreSupportInputRefs,
+) -> FeatureType:
+    """Infers the feature type for the support output based on the configuration.
+
+    This function determines the appropriate feature type for the support output of
+    the processor. It returns None if an averaging method is specified in the configuration.
+    Otherwise, it returns a sequence of integers with the length determined by the labels
+    in the configuration or the number of classes in the confusion matrix.
+
+    Args:
+        config (PrecisionRecallFScoreSupportConfig): Configuration parameters for the processor.
+        inputs (PrecisionRecallFScoreSupportInputRefs): Input references for the processor.
+
+    Returns:
+        FeatureType: The inferred feature type for the support output.
+    """
+    if config.average is not None:
+        return None
+    elif config.labels is not None:
+        return Sequence(Value("int32"), length=len(config.labels))
+    else:
+        return Sequence(
+            Value("int32"), length=inputs["confusion_matrix"].feature_.shape[0]
+        )
+
+
+class PrecisionRecallFScoreSupportOutputRefs(OutputRefs):
+    """Outputs of the PrecisionRecallFScoreSupport Processor."""
+
+    precision: Annotated[
+        FeatureRef, LambdaOutputFeature(infer_prf_output_feature)
+    ]
+    """Precision score.
+    
+    float (if average is not None) or sequence of float, shape = [n_unique_labels]
+    """
+
+    recall: Annotated[
+        FeatureRef, LambdaOutputFeature(infer_prf_output_feature)
+    ]
+    """Recall score.
+
+    float (if average is not None) or sequence of float, shape = [n_unique_labels]
+    """
+
+    f_score: Annotated[
+        FeatureRef, LambdaOutputFeature(infer_prf_output_feature)
+    ]
+    """F-beta score.
+    
+    float (if average is not None) or sequence of float, shape = [n_unique_labels]
+    """
+
+    support: Annotated[
+        FeatureRef, LambdaOutputFeature(infer_support_output_feature)
+    ]
+    """The number of occurrences of each label in y_true.
+    
+    None (if average is not None) or sequence of int, shape = [n_unique_labels]
+    """
+
+
+class PrecisionRecallFScoreSupport(
+    BaseDataProcessor[
+        PrecisionRecallFScoreSupportConfig,
+        PrecisionRecallFScoreSupportInputRefs,
+        PrecisionRecallFScoreSupportOutputRefs,
+    ]
+):
+    """The PrecisionRecallFScoreSupport Processor.
+
+    Implements an adaption of sklearn`s `precision_recall_fscore_support` function,
+    but takes the confusion matrix as an input.
+    """
+
+    async def process(
+        self, inputs: Sample, index: int, rank: int, io: IOContext
+    ) -> Sample:
+        """Processes a single input sample and returns the corresponding output sample.
+
+        Args:
+            inputs (Sample): The input sample to be processed.
+            index (int): The index associated with the input sample.
+            rank (int): The rank of the processor in a distributed setting.
+            io (IOContext): Context information for the data processors execution.
+
+        Returns:
+            Sample: The processed output sample.
+        """
+        # config parameters
+        average = self.config.average
+        beta = self.config.beta
+        labels = self.config.labels
+        warn_for = self.config.warn_for
+        zero_division = self.config.zero_division
+
+        # input confusion matrix
+        MCM = inputs["confusion_matrix"]
+        # reduce the confusion matrix to selected labels
+        if labels is not None:
+            MCM = MCM[labels]
+
+        # *** The code below is mostly kläut by sklearn's `precision_recall_fscore_support` ***
+        # The only difference is that we start with the confusion matrix
+        tp_sum = MCM[:, 1, 1]
+        pred_sum = tp_sum + MCM[:, 0, 1]
+        true_sum = tp_sum + MCM[:, 1, 0]
+
+        if average == "micro":
+            tp_sum = np.array([tp_sum.sum()])
+            pred_sum = np.array([pred_sum.sum()])
+            true_sum = np.array([true_sum.sum()])
+
+        # Finally, we have all our sufficient statistics. Divide! #
+        beta2 = beta**2
+
+        # Divide, and on zero-division, set scores and/or warn according to
+        # zero_division:
+        precision = _prf_divide(
+            tp_sum,
+            pred_sum,
+            "precision",
+            "predicted",
+            average,
+            warn_for,
+            zero_division,
+        )
+        recall = _prf_divide(
+            tp_sum,
+            true_sum,
+            "recall",
+            "true",
+            average,
+            warn_for,
+            zero_division,
+        )
+
+        if np.isposinf(beta):
+            f_score = recall
+        elif beta == 0:
+            f_score = precision
+        else:
+            # The score is defined as:
+            # score = (1 + beta**2) * precision * recall / (beta**2 * precision + recall)
+            # Therefore, we can express the score in terms of confusion matrix entries as:
+            # score = (1 + beta**2) * tp / ((1 + beta**2) * tp + beta**2 * fn + fp)
+            denom = beta2 * true_sum + pred_sum
+            f_score = _prf_divide(
+                (1 + beta2) * tp_sum,
+                denom,
+                "f-score",
+                "true nor predicted",
+                average,
+                warn_for,
+                zero_division,
+            )
+
+        # Average the results
+        if average == "weighted":
+            weights = true_sum
+        else:
+            weights = None
+
+        if average is not None:
+            assert average != "binary" or len(precision) == 1
+            precision = _nanaverage(precision, weights=weights)
+            recall = _nanaverage(recall, weights=weights)
+            f_score = _nanaverage(f_score, weights=weights)
+            true_sum = None  # return no support
+
+        return_sample = Sample(
+            precision=precision.tolist(),
+            recall=recall.tolist(),
+            f_score=f_score.tolist(),
+        )
+        if true_sum is not None:
+            return_sample["support"] = true_sum.tolist()
+
+        return return_sample
+
+    def call(
+        self, **kwargs: Unpack[PrecisionRecallFScoreSupportInputRefs]
+    ) -> PrecisionRecallFScoreSupportOutputRefs:
+        """Adds the processor to the data flow.
+
+        This method first prepares the inputs, then adds the processor to the data
+        flow and returns a feature reference to the output features of the processor.
+
+        Args:
+            confusion_matrix (FeatureRef): The input confusion matrix from which to compute the scores.
+            **kwargs (FeatureRef): Keyword arguments passed to call method.
+
+        Returns:
+            PrecisionRecallFScoreSupportOutputRefs: The output references produced by the processor.
+        """
+        return super().call(**kwargs)

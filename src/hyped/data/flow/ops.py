@@ -42,7 +42,7 @@ Usage Example:
 """
 
 from functools import wraps
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 from datasets import Value
 
@@ -53,10 +53,15 @@ from hyped.common.feature_checks import (
     get_sequence_length,
 )
 
+from .aggregators.confusion.mcm import MultiLabelConfusionMatrix
 from .aggregators.ops.mean import MeanAggregator
 from .aggregators.ops.sum import SumAggregator
 from .core.nodes.const import Const
 from .core.refs.ref import FeatureRef
+from .processors.metrics.prfs import (
+    PrecisionRecallFScoreSupport,
+    PrecisionRecallFScoreSupportOutputRefs,
+)
 from .processors.ops import binary, sequence, unary
 from .processors.ops.collect import CollectFeatures, NestedContainer
 
@@ -819,3 +824,77 @@ def zip_(*sequences: FeatureRef) -> FeatureRef:
     seq_container = collect({str(i): seq for i, seq in enumerate(sequences)})
     # zip collected sequences
     return sequence.SequenceZip().call(sequences=seq_container).result
+
+
+def precision_recall_fscore_support(
+    y_true: FeatureRef,
+    y_pred: FeatureRef,
+    labels: list | None = None,
+    beta: float = 1.0,
+    average: Literal["micro", "macro", "weighted"] | None = None,
+    warn_for: list | tuple | set = ("precision", "recall", "f-score"),
+    zero_division: Literal["warn"] | float = "warn",
+) -> PrecisionRecallFScoreSupportOutputRefs:
+    """Compute precision, recall, f-score and support for given predictions and ground truths.
+
+    Args:
+        y_true (FeatureRef): The ground truths.
+        y_pred (FeatureRef): The predictions.
+        labels (list): The set of labels to include and their order if average is None.
+            Labels present in the data can be excluded, for example in multiclass classification
+            to exclude a “negative class”. Labels not present in the data can be included and
+            will be “assigned” 0 samples. For multilabel targets, labels are column indices.
+            By default, all labels in y_true and y_pred are used in sorted order.
+        beta (float): The strength of recall versus precision in the F-score.
+        average (str): If None, the metrics for each class are returned. Otherwise, this
+            determines the type of averaging performed on the data:
+            `micro`:
+            Calculate metrics globally by counting the total true positives,
+            false negatives and false positives.
+
+            `macro`:
+            Calculate metrics for each label, and find their unweighted mean. This does
+            not take label imbalance into account.
+
+            `weighted`:
+            Calculate metrics for each label, and find their average weighted by support
+            (the number of true instances for each label). This alters `macro` to account for
+            label imbalance; it can result in an F-score that is not between precision and recall.
+        warn_for (list | tuple | set): For internal use. This determines which warnings will be
+            made in the case that this function is being used to return only one of its metrics.
+        zero_division: (str | float): Sets the value to return when there is a zero division:
+
+            {“warn”, 0.0, 1.0, np.nan}, default=”warn”
+
+            - recall: when there are no positive labels
+            - precision: when there are no positive predictions
+            - f-score: both
+
+            Notes: - If set to “warn”, this acts like 0, but a warning is also raised.
+            If set to np.nan, such values will be excluded from the average.
+
+    Returns:
+                FeatureRef: A FeatureRef instance representing the zipped sequences.
+
+    Raises:
+                TypeError: If the features are of unexpected types.
+
+    Returns:
+        PrecisionRecallFScoreSupportOutputRefs: A FeatureRef instance representing the aggregated scores.
+    """
+    multilabel_confusion_matrix = (
+        MultiLabelConfusionMatrix()
+        .call(
+            y_true=y_true,
+            y_pred=y_pred,
+        )
+        .confusion_matrix
+    )
+
+    return PrecisionRecallFScoreSupport(
+        labels=labels,
+        beta=beta,
+        average=average,
+        warn_for=warn_for,
+        zero_division=zero_division,
+    ).call(confusion_matrix=multilabel_confusion_matrix)
