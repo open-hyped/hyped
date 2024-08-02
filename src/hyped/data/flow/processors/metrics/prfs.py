@@ -41,11 +41,7 @@ from hyped.data.flow.core.refs.inputs import (
     FeatureValidator,
     InputRefs,
 )
-from hyped.data.flow.core.refs.outputs import (
-    LambdaOutputFeature,
-    OutputFeature,
-    OutputRefs,
-)
+from hyped.data.flow.core.refs.outputs import LambdaOutputFeature, OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
 
 
@@ -158,7 +154,7 @@ def infer_prf_output_feature(
     config: PrecisionRecallFScoreSupportConfig,
     inputs: PrecisionRecallFScoreSupportInputRefs,
 ) -> FeatureType:
-    """Infers the feature type for precision, recall, and F-score outputs based on the configuration.
+    """Infers the feature type for precision, recall, and F-score outputs.
 
     This function determines the appropriate feature type for the precision, recall,
     and F-score outputs of the processor. It returns a single float value if an averaging
@@ -202,7 +198,8 @@ def infer_support_output_feature(
         FeatureType: The inferred feature type for the support output.
     """
     if config.average is not None:
-        return None
+        # return None
+        return Value("int32")
     elif config.labels is not None:
         return Sequence(Value("int32"), length=len(config.labels))
     else:
@@ -241,9 +238,10 @@ class PrecisionRecallFScoreSupportOutputRefs(OutputRefs):
     support: Annotated[
         FeatureRef, LambdaOutputFeature(infer_support_output_feature)
     ]
-    """The number of occurrences of each label in y_true.
+    """The number of occurrences of each label in y_true. If average is not None, this
+    will be computed as the sum of each label occurences in y_true.
     
-    None (if average is not None) or sequence of int, shape = [n_unique_labels]
+    sequence of int, shape = [n_unique_labels]
     """
 
 
@@ -353,15 +351,16 @@ class PrecisionRecallFScoreSupport(
             precision = _nanaverage(precision, weights=weights)
             recall = _nanaverage(recall, weights=weights)
             f_score = _nanaverage(f_score, weights=weights)
-            true_sum = None  # return no support
+            # Different to sklearn, we return the support as the sum of
+            # all target labels support values, if average is not None
+            true_sum = true_sum.sum()
 
         return_sample = Sample(
             precision=precision.tolist(),
             recall=recall.tolist(),
             f_score=f_score.tolist(),
+            support=true_sum.astype("int").tolist(),
         )
-        if true_sum is not None:
-            return_sample["support"] = true_sum.tolist()
 
         return return_sample
 
@@ -374,7 +373,8 @@ class PrecisionRecallFScoreSupport(
         flow and returns a feature reference to the output features of the processor.
 
         Args:
-            confusion_matrix (FeatureRef): The input confusion matrix from which to compute the scores.
+            confusion_matrix (FeatureRef): The input confusion matrix from which
+                to compute the scores.
             **kwargs (FeatureRef): Keyword arguments passed to call method.
 
         Returns:
