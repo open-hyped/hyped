@@ -110,7 +110,6 @@ class BaseBinaryElementWiseOpConfig(BaseBinaryOpConfig):
 def validate_sequence_inputs(
     config: BaseBinaryElementWiseOpConfig, refs: "BinaryElementWiseOpInputRefs"
 ) -> None:
-    print("Validating sequences")
     a_key = refs["a"].key_
     b_key = refs["b"].key_
 
