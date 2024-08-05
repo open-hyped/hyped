@@ -84,6 +84,7 @@ skip = ["docs/source/conf.py"]
 line-length = 79
 # check docstrings
 select = ["D"]
+ignore = ["E741"]
 
 [tool.ruff.pydocstyle]
 convention = "google"
