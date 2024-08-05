@@ -30,6 +30,7 @@ from typing import Annotated, Any, TypeVar
 from datasets import Value
 from typing_extensions import Unpack
 
+from hyped.common.feature_checks import NUMERICAL_TYPES
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
@@ -48,8 +49,10 @@ from hyped.data.flow.core.refs.ref import FeatureRef
 class UnaryOpInputRefs(InputRefs):
     """Defines input references for unary operations."""
 
-    a: Annotated[FeatureRef, CheckFeatureEquals(Value)]
-    """The input feature. Can be any value type."""
+    a: Annotated[
+        FeatureRef, CheckFeatureEquals(NUMERICAL_TYPES + [Value("bool")])
+    ]
+    """The input feature. Must be a numerical type or bool."""
 
 
 class BaseUnaryOpOutputRefs(OutputRefs, ABC):

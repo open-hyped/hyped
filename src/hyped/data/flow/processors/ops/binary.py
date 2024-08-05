@@ -37,7 +37,7 @@ from typing import Annotated, Any, TypeVar
 from datasets import Value
 from typing_extensions import Unpack
 
-from hyped.common.feature_checks import FLOAT_TYPES, INT_TYPES
+from hyped.common.feature_checks import FLOAT_TYPES, INT_TYPES, NUMERICAL_TYPES
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
@@ -56,11 +56,15 @@ from hyped.data.flow.core.refs.ref import FeatureRef
 class BinaryOpInputRefs(InputRefs):
     """Defines input references for binary operations."""
 
-    a: Annotated[FeatureRef, CheckFeatureEquals(Value)]
-    """The first input feature. Can be any value type."""
+    a: Annotated[
+        FeatureRef, CheckFeatureEquals(NUMERICAL_TYPES + [Value("bool")])
+    ]
+    """The first input feature. Must be a numerical type or bool."""
 
-    b: Annotated[FeatureRef, CheckFeatureEquals(Value)]
-    """The second input feature. Can be any value type."""
+    b: Annotated[
+        FeatureRef, CheckFeatureEquals(NUMERICAL_TYPES + [Value("bool")])
+    ]
+    """The second input feature. Must be a numerical type or bool."""
 
 
 class BaseBinaryOpOutputRefs(OutputRefs, ABC):
@@ -277,19 +281,22 @@ class MathInputRefs(BinaryOpInputRefs):
 
     a: Annotated[
         FeatureRef,
-        CheckFeatureEquals(INT_TYPES + FLOAT_TYPES),
+        CheckFeatureEquals(NUMERICAL_TYPES),
     ]
-    """The first input feature. Must be an integer or float."""
+    """The first input feature. Must be a numerical type."""
 
     b: Annotated[
         FeatureRef,
-        CheckFeatureEquals(INT_TYPES + FLOAT_TYPES),
+        CheckFeatureEquals(NUMERICAL_TYPES),
     ]
-    """The second input feature. Must be an integer or float."""
+    """The second input feature. Must be a numerical type."""
 
 
 class BaseClosedOpConfig(BaseBinaryOpConfig):
     """Configuration class for closed mathematical operations."""
+
+
+NUMERICAL_TYPE_NAMES = [t.dtype for t in NUMERICAL_TYPES]
 
 
 def closed_op_infer_dtype(
@@ -309,20 +316,12 @@ def closed_op_infer_dtype(
     Returns:
         Value: The inferred data type for the output.
     """
-    a_dtype = inputs["a"].feature_
-    b_dtype = inputs["b"].feature_
-
-    if (a_dtype in INT_TYPES) and (b_dtype in INT_TYPES):
-        return Value(max(a_dtype.dtype, b_dtype.dtype))
-
-    if (a_dtype in FLOAT_TYPES) and (b_dtype in FLOAT_TYPES):
-        return Value(max(a_dtype.dtype, b_dtype.dtype))
-
-    # type mismatch, one is int and one is float, keep the float
-    return (
-        inputs["a"].feature_
-        if a_dtype in FLOAT_TYPES
-        else inputs["b"].feature_
+    return Value(
+        max(
+            inputs["a"].feature_.dtype,
+            inputs["b"].feature_.dtype,
+            key=NUMERICAL_TYPE_NAMES.index,  # this order prefers higher precision types
+        )
     )
 
 
