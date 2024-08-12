@@ -30,6 +30,14 @@ FLOAT_TYPES = [
     Value("float64"),
 ]
 
+STRING_LIKE_TYPES = [
+    Value("string"),
+    Value("large_string"),
+    Value("binary"),
+    Value("large_binary"),
+]
+
+NUMERICAL_TYPES = INT_TYPES + UINT_TYPES + FLOAT_TYPES
 INDEX_TYPES = INT_TYPES + UINT_TYPES
 
 
@@ -146,7 +154,7 @@ def get_sequence_length(seq: Sequence | list | tuple) -> int:
             the length of the given sequence. Returns -1 for
             sequences of undefined length
     """
-    assert isinstance(seq, (Sequence, list, tuple))
+    assert isinstance(seq, (Sequence, list, tuple)), seq
     return seq.length if isinstance(seq, Sequence) else -1
 
 
