@@ -277,26 +277,6 @@ class DataFlowGraph(nx.MultiDiGraph):
         transmitted from one node to another in the data flow graph.
         """
 
-    @property
-    def depth(self) -> int:
-        """Computes the total depth of the data flow graph.
-
-        The depth is defined as the maximum level of any node in the graph, where the root
-        node has a depth of 0. This property calculates the depth by finding the maximum
-        depth attribute among all nodes in the graph.
-
-        Returns:
-            int: The total depth of the graph.
-        """
-        return (
-            max(
-                nx.get_node_attributes(
-                    self, DataFlowGraph.NodeAttribute.DEPTH
-                ).values()
-            )
-            + 1
-        )
-
     @wraps(nx.MultiDiGraph)
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize the DataFlowGraph.
@@ -328,6 +308,26 @@ class DataFlowGraph(nx.MultiDiGraph):
         return self.graph[DataFlowGraph.GraphProperty.SRC_NODE_ID]
 
     @property
+    def depth(self) -> int:
+        """Computes the total depth of the data flow graph.
+
+        The depth is defined as the maximum level of any node in the graph, where the root
+        node has a depth of 0. This property calculates the depth by finding the maximum
+        depth attribute among all nodes in the graph.
+
+        Returns:
+            int: The total depth of the graph.
+        """
+        return (
+            max(
+                nx.get_node_attributes(
+                    self, DataFlowGraph.NodeAttribute.DEPTH
+                ).values()
+            )
+            + 1
+        )
+
+    @property
     def width(self) -> int:
         """Computes the width of the data flow graph.
 
@@ -354,6 +354,11 @@ class DataFlowGraph(nx.MultiDiGraph):
         these partitions. The resulting partition graph is required to have a tree
         structure, where each partition (except the root) has a single parent partition.
 
+        Note that while the partition graph includes the constant partition, it does not
+        model the flow of constants to other partitions, i.e. the constant partition is
+        not isolated from the remaining partition graph. Reason for this design choice is
+        that constants are special in that they can be used in any partition.
+
         Returns:
             nx.DiGraph: A directed graph representing the partitioned data flow.
 
@@ -369,16 +374,32 @@ class DataFlowGraph(nx.MultiDiGraph):
             ]
         )
 
+        # TODO: the aggregated partition is a special case since multiple
+        #       independent partitions can point into it, this is not captured
+        #       in the partition graph yet and would also break the tree structure
+        #       asserted below
         for node_id, attrs in self.nodes(data=True):
             src_partition = attrs[DataFlowGraph.NodeAttribute.PARTITION]
             tgt_partition = self.get_node_output_partition(node_id)
 
-            # TODO: the aggregated partition is a special case since multiple
-            #       independent partitions can point into it, this is not captured
-            #       in the partition graph yet and would also break the tree structure
-            #       asserted below
-            if (src_partition != tgt_partition) and (tgt_partition not in G):
+            # make sure the source partition is contained in the partition graph
+            assert (
+                src_partition in G
+            ), f"The source partition '{src_partition}' is not present in the partition graph."
+
+            # don't include edges from the constant partition in partition graph
+            if src_partition == DataFlowGraph.PredefinedPartition.CONST:
+                continue
+
+            # add the target partition to the partition graph
+            if tgt_partition not in G:
                 G.add_node(tgt_partition)
+
+            # only add a connection if there is no path from the source to the
+            # target partition yet
+            if (src_partition != tgt_partition) and not nx.has_path(
+                G, src_partition, tgt_partition
+            ):
                 G.add_edge(src_partition, tgt_partition)
 
         # the partition graph needs to be a tree structure
@@ -455,10 +476,10 @@ class DataFlowGraph(nx.MultiDiGraph):
             return node_id
 
         else:
-            # add the partition of the input node
+            # other node types don't transition between partitions
             return input_node[DataFlowGraph.NodeAttribute.PARTITION]
 
-    def infer_partition(
+    def infer_node_partition(
         self, node_type: DataFlowGraph.NodeType, refs: list[FeatureRef]
     ) -> str:
         """Infer the appropriate partition for a given node.
@@ -543,17 +564,17 @@ class DataFlowGraph(nx.MultiDiGraph):
 
             return DataFlowGraph.PredefinedPartition.AGGREGATED.value
 
-        if len(candidate_partitions) == 1:
-            return next(iter(candidate_partitions))
-
         # remove the constant partition from the set of candidates
         # if there is any other partition to select from
         candidate_partitions -= {DataFlowGraph.PredefinedPartition.CONST}
 
+        if len(candidate_partitions) == 1:
+            return next(iter(candidate_partitions))
+
         # build the partition graph and compute the depth of each node
         p_graph = self.build_partition_graph()
-
         p_depths = _compute_node_depth(p_graph)
+
         # select the candidate partition that is deepest in the partition graph
         # as it is the only one that can consume all candidate partitions
         candidate = max(candidate_partitions, key=p_depths.get)
@@ -641,11 +662,11 @@ class DataFlowGraph(nx.MultiDiGraph):
 
         # infer partition of the node
         refs = list(inputs.refs) if inputs is not None else []
-        partition = self.infer_partition(node_type, refs)
+        partition = self.infer_node_partition(node_type, refs)
 
         # aggregated partition currently only supports processor type nodes
-        if (node_type != DataFlowGraph.NodeType.DATA_PROCESSOR) and (
-            partition == DataFlowGraph.PredefinedPartition.AGGREGATED
+        if (partition == DataFlowGraph.PredefinedPartition.AGGREGATED) and (
+            node_type != DataFlowGraph.NodeType.DATA_PROCESSOR
         ):
             raise NotImplementedError(
                 f"Aggregator outputs may only be processed by data processors, got {node_type}."
