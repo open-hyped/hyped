@@ -56,7 +56,9 @@ def setup_state(setup_graph):
     graph, const_node, proc_node, agg_node = setup_graph
     # create state
     batch, index, rank = {"x": [1, 2, 3]}, [0, 1, 2], 0
-    state = ExecutionState(graph, batch, index, rank)
+    state = ExecutionState(
+        graph, graph.build_partition_graph(), batch, index, rank
+    )
     # return setup
     return state, graph, const_node, proc_node, agg_node
 

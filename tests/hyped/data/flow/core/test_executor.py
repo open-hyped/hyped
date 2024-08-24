@@ -48,7 +48,9 @@ class TestExecutionState:
         src_node_id = graph.add_source_node(src_features)
         src = graph.get_node_output_ref(src_node_id)
         # create execution state
-        state = ExecutionState(graph, batch, [0, 1, 2], 0)
+        state = ExecutionState(
+            graph, graph.build_partition_graph(), batch, [0, 1, 2], 0
+        )
         # collect full node output
         collected = state.collect_value(src)
         assert collected == batch
@@ -60,11 +62,12 @@ class TestExecutionState:
         state, graph, const_node, proc_node, agg_node = setup_state
 
         # capture output of the const node
-        state.capture_output(const_node, {"value": [0, 0, 0]})
+        state.capture_output(const_node, {"value": [0]})
 
         # collect inputs for processor
-        collected = state.collect_inputs(proc_node)
+        collected, index = state.collect_inputs(proc_node)
         assert collected == {"a": [1, 2, 3], "b": [0, 0, 0]}
+        assert index == [0, 1, 2]
 
         # create processor
         p = MockProcessor()
@@ -78,11 +81,12 @@ class TestExecutionState:
         node_id = graph.add_processor_node(p, i, o)
 
         # collect nested inputs for processor
-        collected = state.collect_inputs(node_id)
+        collected, index = state.collect_inputs(node_id)
         assert collected == {
             "a": [{"x": 1}, {"x": 2}, {"x": 3}],
             "b": [1, 2, 3],
         }
+        assert index == [0, 1, 2]
 
     def test_collect_inputs_parent_not_ready(self, setup_state):
         state, graph, const_node, node_id_1, agg_node = setup_state
@@ -164,7 +168,7 @@ class TestDataFlowExecutor:
         state, graph, const_node, proc_node, agg_node = setup_state
         proc_io_ctx, agg_io_ctx = io_contexts
         # capture output of const node
-        state.capture_output(const_node, {"value": [0, 0, 0]})
+        state.capture_output(const_node, {"value": [0]})
         # create aggregation manager
         manager = MagicMock()
         manager.aggregate = AsyncMock()
