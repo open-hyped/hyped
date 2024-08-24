@@ -1,5 +1,4 @@
-from itertools import chain
-from unittest.mock import call
+from unittest.mock import MagicMock, call
 
 import pytest
 from datasets import Features, Value
@@ -10,9 +9,14 @@ from tests.hyped.data.flow.core.mock import MockAugmenter
 
 class TestDataAugmenter:
     @pytest.mark.asyncio
-    async def test_batch_process(self):
+    @pytest.mark.parametrize("k", range(0, 5))
+    async def test_batch_process(self, k):
         # create the mock instance
         augmenter = MockAugmenter()
+        augmenter.process = MagicMock(
+            return_value=[{"y": i} for i in range(k)]
+        )
+
         # create dummy inputs
         rank = 0
         index = list(range(10))
@@ -27,8 +31,8 @@ class TestDataAugmenter:
             batch, index, rank, io_ctx
         )
         # check output
-        assert out_batch == {"y": [0] * 10 * 2}
-        assert trace_index == list(chain.from_iterable(zip(index, index)))
+        assert out_batch == {"y": [i % k for i in range(10 * k)]}
+        assert all(i == j // k for j, i in enumerate(trace_index))
         # make sure the process function was called for each input sample
         calls = [call({"x": i}, i, rank, io_ctx) for i in index]
         augmenter.process.assert_has_calls(calls, any_order=True)

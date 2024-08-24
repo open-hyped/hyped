@@ -117,6 +117,12 @@ class BaseDataAugmenter(BaseNode[C, I, O], ABC):
             zip(repeat(j), self.process(sample, i, rank, io))
             for j, (i, sample) in enumerate(zip(index, samples))
         )
+
+        # check if any samples remain
+        trace_and_outputs = list(trace_and_outputs)
+        if len(trace_and_outputs) == 0:
+            return {key: [] for key in io.outputs.keys()}, []
+
         # separate the trace index and the outputs
         trace_index, outputs = zip(*trace_and_outputs)
 
