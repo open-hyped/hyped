@@ -12,19 +12,85 @@ import uuid
 from enum import Enum
 from functools import wraps
 from itertools import groupby
-from typing import Any
+from typing import Any, Hashable
 
 import datasets
 import networkx as nx
 from datasets.features.features import FeatureType
 
 from hyped.data.flow.core.nodes.aggregator import BaseDataAggregator
+from hyped.data.flow.core.nodes.augmenter import BaseDataAugmenter
 from hyped.data.flow.core.nodes.base import BaseNode
 from hyped.data.flow.core.nodes.const import Const
 from hyped.data.flow.core.nodes.processor import BaseDataProcessor
 from hyped.data.flow.core.refs.inputs import InputRefsContainer
 from hyped.data.flow.core.refs.outputs import OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
+
+
+def _compute_node_depth(G: nx.DiGraph) -> dict[Hashable, int]:
+    """Compute the depth of each node in the graph.
+
+    This function calculates the depth for each node in the provided networkx
+    graph, where depth is defined as the shortest path length from a designated
+    root node to each node in the graph. If the graph is a directed acyclic graph
+    (DAG), the root is typically a node with no incoming edges.
+
+    Args:
+        G (nx.Graph): The networkx graph for which to compute node depths.
+
+    Returns:
+        dict: A dictionary mapping each node to its depth in the graph.
+
+    Raises:
+        ValueError: If the graph contains cycles.
+        ValueError: If a root node cannot be determined.
+    """
+    node_depths = {}
+    # trafers graph in topological order and compute the node depth
+    for partition_node in nx.topological_sort(G):
+        node_depths[partition_node] = max(
+            (
+                node_depths[parent] + 1
+                for parent in G.predecessors(partition_node)
+            ),
+            default=0,
+        )
+
+    return node_depths
+
+
+def _build_dependency_graph(G: nx.DiGraph, nodes: set[Hashable]) -> nx.DiGraph:
+    """Build a subgraph containing all dependencies for a given set of nodes.
+
+    This function constructs a subgraph from a directed graph :code:`G` by including
+    all nodes that are dependencies (predecessors) of the specified :code:`nodes`.
+    The resulting subgraph consists of the nodes in :code:`nodes` and all their
+    upstream dependencies.
+
+    Args:
+        G (nx.DiGraph): The original directed graph.
+        nodes (set[Hashable]): A set of nodes for which to build the dependency subgraph.
+
+    Returns:
+        nx.DiGraph: A subgraph of :code:`G` containing the specified nodes and their dependencies.
+
+    Raises:
+        AssertionError: If any node in :code:`nodes` is not present in :code:`G`.
+    """
+    assert all(
+        node in G for node in nodes
+    ), "All nodes must be present in the graph 'G'."
+
+    visited = set()
+    nodes = nodes.copy()
+    # search through dependency graph
+    while len(nodes) > 0:
+        node = nodes.pop()
+        visited.add(node)
+        nodes.update(G.predecessors(node))
+
+    return G.subgraph(visited)
 
 
 class DataFlowGraph(nx.MultiDiGraph):
@@ -106,10 +172,17 @@ class DataFlowGraph(nx.MultiDiGraph):
         """
         Represents a data aggregator node in the data flow graph.
 
-        This type of node is responsible for aggregating data from multiple
-        sources or processing stages within the data flow graph. Aggregator
-        nodes typically perform dataset-wide computations or combine data
-        from different sources into a unified representation.
+        This type of node is responsible for aggregating samples. Aggregator
+        nodes typically perform dataset-wide computations.
+        """
+
+        DATA_AUGMENTER = "DATA_AUGMENTER_NODE"
+        """
+        Represents a data augmenter node in the data flow graph.
+
+        This type of node is responsible for modifying the dataset by generating
+        new samples from existing ones or filtering out certain samples. Data 
+        augmenter nodes are used to expand or contract the dataset.
         """
 
     class NodeAttribute(str, Enum):
@@ -273,6 +346,49 @@ class DataFlowGraph(nx.MultiDiGraph):
         # find larges layer in graph
         return max(len(list(layer)) for _, layer in layers)
 
+    def build_partition_graph(self) -> nx.DiGraph:
+        """Construct a partition graph from the data flow graph.
+
+        This method builds a directed graph where each node represents a partition
+        within the data flow graph, and edges represent the flow of data between
+        these partitions. The resulting partition graph is required to have a tree
+        structure, where each partition (except the root) has a single parent partition.
+
+        Returns:
+            nx.DiGraph: A directed graph representing the partitioned data flow.
+
+        Raises:
+            AssertionError: If the resulting partition graph is not a tree (i.e., any node
+                            has more than one incoming edge).
+        """
+        G = nx.DiGraph()
+        G.add_nodes_from(
+            [
+                DataFlowGraph.PredefinedPartition.CONST.value,
+                DataFlowGraph.PredefinedPartition.DEFAULT.value,
+            ]
+        )
+
+        for node_id, attrs in self.nodes(data=True):
+            src_partition = attrs[DataFlowGraph.NodeAttribute.PARTITION]
+            tgt_partition = self.get_node_output_partition(node_id)
+
+            # TODO: the aggregated partition is a special case since multiple
+            #       independent partitions can point into it, this is not captured
+            #       in the partition graph yet and would also break the tree structure
+            #       asserted below
+            if (src_partition != tgt_partition) and (tgt_partition not in G):
+                G.add_node(tgt_partition)
+                G.add_edge(src_partition, tgt_partition)
+
+        # the partition graph needs to be a tree structure
+        assert max(dict(G.in_degree).values()) <= 1, (
+            "The partition graph must be a tree structure, but a node with more "
+            "than one incoming edge was found."
+        )
+
+        return G
+
     def add_source_node(
         self, features: datasets.Features, node_id: None | str = None
     ) -> int:
@@ -299,6 +415,159 @@ class DataFlowGraph(nx.MultiDiGraph):
         self.graph[DataFlowGraph.GraphProperty.SRC_NODE_ID] = node_id
         # return the source node id
         return node_id
+
+    def get_node_output_partition(self, node_id: str) -> str:
+        """Determine the output partition for a given node in the data flow graph.
+
+        This method determines the partition that the output of a specified node
+        belongs to, based on the node's type. Different types of nodes may direct
+        their output to different partitions, reflecting their role in the data flow:
+
+        - :code:`DATA_AGGREGATOR`: Outputs always point to the :code:`AGGREGATED` partition,
+        even though the aggregator node itself is not part of this partition.
+        - :code:`DATA_AUGMENTER`: Outputs always point to their own partition, using the
+        node's ID as the partition name. Like aggregators, augmenters are not part of
+        the partition they point to.
+        - Other node types: Outputs remain within the partition specified by the
+        node's :code:`PARTITION` attribute.
+
+        Args:
+            node_id (str): The ID of the node for which to determine the output partition.
+
+        Returns:
+            str: The partition that the node's output will be directed to.
+        """
+        input_node = self.nodes[node_id]
+        input_node_type = input_node[DataFlowGraph.NodeAttribute.NODE_TYPE]
+
+        if input_node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
+            # data aggregator outputs always point into
+            # the aggregated partition while the aggregator
+            # node itself is not part of the aggregated partition
+            return DataFlowGraph.PredefinedPartition.AGGREGATED.value
+
+        elif input_node_type == DataFlowGraph.NodeType.DATA_AUGMENTER:
+            # data augmenters always point into their own partition
+            # we re-use the node-id of the augmenter as the partition
+            # note that while they point into their own partition, they
+            # are not part of them, similar to aggregators they point
+            # from outside the partition into it
+            return node_id
+
+        else:
+            # add the partition of the input node
+            return input_node[DataFlowGraph.NodeAttribute.PARTITION]
+
+    def infer_partition(
+        self, node_type: DataFlowGraph.NodeType, refs: list[FeatureRef]
+    ) -> str:
+        """Infer the appropriate partition for a given node.
+
+        This method determines the partition to which a node belongs, based on its
+        type and the partitions of its input references.
+
+        The method handles different node types as follows:
+        - :code:`SOURCE`: Assigned to the default partition.
+        - :code:`CONST`: Assigned to the constant partition.
+        - Other node types: The partition is inferred based on the partitions of
+        the input references.
+
+        The partition is inferred from the inputs as follows:
+        - If the input references are from constant partitions, the node is also assigned
+        to the constant partition.
+        - If any input comes from an aggregated partition, the node is assigned to the
+        aggregated partition.
+        - If multiple candidate partitions are found, the method selects the partition
+        that is deepest in the partition graph.
+
+        If the resulting partitions include a mix of independent partitions, an error is raised.
+        Independent partitions are those that are not connected in the partition graph, meaning
+        the resulting partition graph would not form a valid tree structure. This ensures that
+        the partition graph remains a tree, with each partition having a single parent and no
+        cycles or disjoint components.
+
+        Args:
+            node_type (DataFlowGraph.NodeType): The type of the node for which to infer the partition.
+            refs (list[FeatureRef]): A list of input references associated with the node.
+
+        Returns:
+            str: The inferred partition for the node.
+
+        Raises:
+            AssertionError: If no input references are provided.
+            RuntimeError: If conflicting partitions are mixed.
+        """
+        if node_type == DataFlowGraph.NodeType.SOURCE:
+            # source node is added to the default partition
+            return DataFlowGraph.PredefinedPartition.DEFAULT.value
+
+        if node_type == DataFlowGraph.NodeType.CONST:
+            # contants are added to the constant partition
+            return DataFlowGraph.PredefinedPartition.CONST.value
+
+        # partition could not be inferred
+        assert (
+            len(refs) > 0
+        ), "Partition cannot be inferred for nodes without any input references."
+
+        # get the input partitions
+        candidate_partitions = {
+            self.get_node_output_partition(ref.node_id_) for ref in refs
+        }
+
+        if candidate_partitions == {DataFlowGraph.PredefinedPartition.CONST}:
+            # if all inputs come from the constant partition, then this node
+            # is also part of the constant partition
+            return DataFlowGraph.PredefinedPartition.CONST.value
+
+        if (
+            DataFlowGraph.PredefinedPartition.AGGREGATED
+            in candidate_partitions
+        ):
+            # if the inputs come directly from an aggregator or from the
+            # aggregated partition, then stay in the aggregated partition
+
+            if (
+                len(
+                    candidate_partitions
+                    - {
+                        DataFlowGraph.PredefinedPartition.AGGREGATED,
+                        DataFlowGraph.PredefinedPartition.CONST,
+                    }
+                )
+                != 0
+            ):
+                raise RuntimeError(
+                    "Cannot mix aggregated and non-aggregated features."
+                )
+
+            return DataFlowGraph.PredefinedPartition.AGGREGATED.value
+
+        if len(candidate_partitions) == 1:
+            return next(iter(candidate_partitions))
+
+        # remove the constant partition from the set of candidates
+        # if there is any other partition to select from
+        candidate_partitions -= {DataFlowGraph.PredefinedPartition.CONST}
+
+        # build the partition graph and compute the depth of each node
+        p_graph = self.build_partition_graph()
+
+        p_depths = _compute_node_depth(p_graph)
+        # select the candidate partition that is deepest in the partition graph
+        # as it is the only one that can consume all candidate partitions
+        candidate = max(candidate_partitions, key=p_depths.get)
+
+        p_dep_graph = _build_dependency_graph(p_graph, {candidate})
+        # build the set of allowed partitions
+        # note that the constant partition is always allowed
+        allowed_partitions = set(p_dep_graph.nodes())
+        allowed_partitions.add(DataFlowGraph.PredefinedPartition.CONST.value)
+        # make sure only allowed partitions are used
+        if not candidate_partitions.issubset(allowed_partitions):
+            raise RuntimeError("Cannot mix independent partitions.")
+
+        return candidate
 
     # TODO: rename to more generic 'add_node'
     def add_processor_node(
@@ -340,6 +609,8 @@ class DataFlowGraph(nx.MultiDiGraph):
             if isinstance(obj, BaseDataProcessor)
             else DataFlowGraph.NodeType.DATA_AGGREGATOR
             if isinstance(obj, BaseDataAggregator)
+            else DataFlowGraph.NodeType.DATA_AUGMENTER
+            if isinstance(obj, BaseDataAugmenter)
             else None
         )
         # make sure the object is valid
@@ -368,75 +639,16 @@ class DataFlowGraph(nx.MultiDiGraph):
             )
         )
 
-        partition = None
         # infer partition of the node
-        if node_type == DataFlowGraph.NodeType.SOURCE:
-            # source node is added to the default partition
-            partition = DataFlowGraph.PredefinedPartition.DEFAULT.value
-
-        elif node_type == DataFlowGraph.NodeType.CONST:
-            # contants are added to the constant partition
-            partition = DataFlowGraph.PredefinedPartition.CONST.value
-
-        elif inputs is not None:
-            # for other node types the partition is inferred from the inputs
-            candidate_partitions = set(
-                [
-                    self.nodes[ref.node_id_][
-                        DataFlowGraph.NodeAttribute.PARTITION
-                    ]
-                    if self.nodes[ref.node_id_][
-                        DataFlowGraph.NodeAttribute.NODE_TYPE
-                    ]
-                    != DataFlowGraph.NodeType.DATA_AGGREGATOR
-                    else DataFlowGraph.PredefinedPartition.AGGREGATED
-                    for ref in inputs.refs
-                ]
-            )
-
-            if candidate_partitions == {
-                DataFlowGraph.PredefinedPartition.CONST
-            }:
-                # if all inputs come from the constant partition, then this node
-                # is also part of the constant partition
-                partition = DataFlowGraph.PredefinedPartition.CONST.value
-
-            elif (
-                DataFlowGraph.PredefinedPartition.AGGREGATED
-                in candidate_partitions
-            ) and (
-                DataFlowGraph.PredefinedPartition.DEFAULT
-                in candidate_partitions
-            ):
-                raise RuntimeError(
-                    "Cannot mix aggregated and non-aggregated features."
-                )
-
-            elif (
-                DataFlowGraph.PredefinedPartition.AGGREGATED
-                in candidate_partitions
-            ):
-                # if the inputs come directly from an aggregator or from the
-                # aggregated partition, then stay in the aggregated partition
-                partition = DataFlowGraph.PredefinedPartition.AGGREGATED.value
-
-            else:
-                # if any of the inputs are not from the constant partition,
-                # then the node is part of the default partition
-                partition = DataFlowGraph.PredefinedPartition.DEFAULT.value
-
-        # partition could not be inferred
-        assert partition is not None, (
-            "Partition cannot be inferred for source nodes, "
-            "i.e. nodes without any input references."
-        )
+        refs = list(inputs.refs) if inputs is not None else []
+        partition = self.infer_partition(node_type, refs)
 
         # aggregated partition currently only supports processor type nodes
         if (node_type != DataFlowGraph.NodeType.DATA_PROCESSOR) and (
             partition == DataFlowGraph.PredefinedPartition.AGGREGATED
         ):
             raise NotImplementedError(
-                f"Aggregator may only be processed by data processors, got {node_type}."
+                f"Aggregator outputs may only be processed by data processors, got {node_type}."
             )
 
         # create the node id if it was not provided
@@ -529,27 +741,19 @@ class DataFlowGraph(nx.MultiDiGraph):
         assert isinstance(node_obj, BaseNode)
         return node_obj._out_refs_type(self, node_id, features)
 
-    def dependency_graph(self, nodes: set[int]) -> DataFlowGraph:
+    def dependency_graph(self, nodes: set[str]) -> DataFlowGraph:
         """Generate the dependency subgraph for a given node.
 
         This method generates a subgraph containing all nodes that the given
         set of nodes depend on directly or indirectly.
 
         Args:
-            nodes (set[int]): The node IDs for which to generate the dependency graph.
+            nodes (set[str]): The node IDs for which to generate the dependency graph.
 
         Returns:
             DataFlowGraph: A subgraph representing the dependencies.
         """
-        visited = set()
-        nodes = nodes.copy()
-        # search through dependency graph
-        while len(nodes) > 0:
-            node = nodes.pop()
-            visited.add(node)
-            nodes.update(self.predecessors(node))
-
-        return self.subgraph(visited)
+        return _build_dependency_graph(self, nodes)
 
     def get_partition(self, partition: str) -> DataFlowGraph:
         """Extract a subgraph containing only nodes from a specific partition.
@@ -646,12 +850,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         order of the graph. The depth of a node is defined as the length of the
         longest path from the source node to the node.
         """
-        for node_id in nx.topological_sort(self):
-            self.nodes[node_id][DataFlowGraph.NodeAttribute.DEPTH] = max(
-                (
-                    self.nodes[in_node_id][DataFlowGraph.NodeAttribute.DEPTH]
-                    + 1
-                    for in_node_id, _ in self.in_edges(node_id)
-                ),
-                default=0,
-            )
+        node_depths = _compute_node_depth(self)
+        nx.set_node_attributes(
+            self, node_depths, DataFlowGraph.NodeAttribute.DEPTH
+        )

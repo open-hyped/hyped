@@ -68,8 +68,8 @@ class BaseDataProcessorConfig(BaseNodeConfig):
     """Base configuration class for data processors.
 
     This class serves as the base configuration class for data processors.
-    It inherits from `BaseConfig`, a Pydantic model, providing basic configuration
-    functionality for data processing tasks.
+    It inherits from :code:`BaseNodeConfig`, a Pydantic model, providing
+    basic configuration functionality for data processing tasks.
     """
 
 
@@ -133,7 +133,7 @@ class BaseDataProcessor(BaseNode[C, I, O], ABC):
             outputs = await asyncio.gather(*outputs)
 
         # pack output samples to batch format
-        return {key: [d[key] for d in outputs] for key in outputs[0].keys()}
+        return {key: [d[key] for d in outputs] for key in io.outputs.keys()}
 
     @overload
     async def process(
