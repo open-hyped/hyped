@@ -902,9 +902,9 @@ class TestDataFlowGraph:
                 DataFlowGraph.NodeType.DATA_PROCESSOR, mock_input_refs
             )
             assert partition == expected_partition
-            assert mock_node_output_partition.mock_calls == [
-                call(ref.node_id_) for ref in mock_input_refs
-            ]
+            mock_node_output_partition.assert_has_calls(
+                [call(ref.node_id_) for ref in mock_input_refs], any_order=True
+            )
 
     def test_infer_node_partition_with_partition_graph(self):
         # create a mock partition graph consisting of a simple

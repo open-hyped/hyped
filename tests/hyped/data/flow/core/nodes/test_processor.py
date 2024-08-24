@@ -9,11 +9,7 @@ from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessorConfig,
     IOContext,
 )
-from hyped.data.flow.core.refs.inputs import (
-    CheckFeatureEquals,
-    InputRefs,
-    InputRefsContainer,
-)
+from hyped.data.flow.core.refs.inputs import CheckFeatureEquals, InputRefs
 from hyped.data.flow.core.refs.outputs import OutputFeature, OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
 

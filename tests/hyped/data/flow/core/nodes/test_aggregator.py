@@ -6,7 +6,6 @@ from datasets import Features, Value
 
 from hyped.data.flow.core.nodes.aggregator import DataAggregationManager
 from hyped.data.flow.core.nodes.base import IOContext
-from hyped.data.flow.core.refs.ref import FeatureRef
 from tests.hyped.data.flow.core.mock import MockAggregator
 
 mock_init_value = MagicMock()

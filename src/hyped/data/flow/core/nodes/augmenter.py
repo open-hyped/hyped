@@ -122,7 +122,7 @@ class BaseDataAugmenter(BaseNode[C, I, O], ABC):
 
         # pack output samples to batch format
         batch = {key: [d[key] for d in outputs] for key in io.outputs.keys()}
-        return batch, trace_index
+        return batch, list(trace_index)
 
     # TODO: support async process functions
     def process(

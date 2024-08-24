@@ -57,7 +57,7 @@ class MockAugmenter(
     BaseDataAugmenter[MockAugmenterConfig, MockInputRefs, MockOutputRefs]
 ):
     # mock process function
-    process = MagicMock(return_value=iter([{"y": 0}, {"y": 0}]))
+    process = MagicMock(return_value=[{"y": 0}, {"y": 0}])
 
 
 class MockAggregatorConfig(BaseDataAggregatorConfig):
