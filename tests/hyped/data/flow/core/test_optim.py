@@ -11,7 +11,7 @@ from hyped.data.flow.processors.ops.collect import (
     NestedContainer,
 )
 
-from .mock import MockInputRefs, MockProcessor, mock_input_refs_validator
+from .mock import MockProcessor, mock_input_refs_validator
 
 
 def new_graph():

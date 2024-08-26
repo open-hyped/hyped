@@ -16,12 +16,18 @@ import datasets
 import networkx as nx
 import numpy as np
 
+from hyped.common.utils import convert_lod_to_dol
+
 from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import IOContext
 from .refs.ref import FeatureRef
 
 Batch: TypeAlias = dict[str, list[Any]]
+
+
+def _gather(values: list[Any], pos: list[int]) -> list[Any]:
+    return [values[i] for i in pos]
 
 
 class ExecutionState(object):
@@ -63,11 +69,11 @@ class ExecutionState(object):
         self.outputs = {graph.src_node_id: batch}
         self.ready = {
             node_id: asyncio.Event()
-            for node_id in graph.nodes()
+            for node_id, attrs in graph.nodes(data=True)
             if (
                 (node_id != graph.src_node_id)
                 and (
-                    graph.nodes[node_id][DataFlowGraph.NodeAttribute.NODE_TYPE]
+                    attrs[DataFlowGraph.NodeAttribute.NODE_TYPE]
                     != DataFlowGraph.NodeType.DATA_AGGREGATOR
                 )
             )
@@ -109,8 +115,12 @@ class ExecutionState(object):
                 match the length of the index associated with the source partition.
         """
         # make sure the partitions are valid nodes in the partition graph
-        assert src in self.p_graph
-        assert tgt in self.p_graph
+        assert (
+            src in self.p_graph
+        ), f"Source partition '{src}' not included in partition graph."
+        assert (
+            tgt in self.p_graph
+        ), f"Target partition '{tgt}' not included in partition graph."
         # get the index to the source partition
         index = self.index[src]
         assert all(len(vals) == len(index) for vals in values)
@@ -124,7 +134,7 @@ class ExecutionState(object):
             _, src = edge
 
         # apply the final trace index to the given values
-        return [[vals[i] for i in trace_index] for vals in values]
+        return [_gather(vals, trace_index) for vals in values]
 
     def register_partition_trace(
         self, node_id: str, trace_index: list[int], index: list[int]
@@ -180,14 +190,12 @@ class ExecutionState(object):
         # in case the feature key is empty the collected values are already
         # in batch format, otherwise they need to be converted from a
         # list-of-dicts to a dict-of-lists
-        if len(ref.key_) != 0:
-            batch = (
-                {key: [d[key] for d in batch] for key in batch[0].keys()}
-                if len(batch) > 0
-                else {}
-            )
-
-        return batch
+        # TODO: this logic should be part of the FeatureKey.index_batch function
+        return (
+            batch
+            if len(ref.key_) == 0
+            else convert_lod_to_dol(batch, ref.feature_.keys())
+        )
 
     def collect_inputs(self, node_id: str) -> tuple[Batch, list[int]]:
         """Collect inputs for a given node.
@@ -205,6 +213,8 @@ class ExecutionState(object):
         """
         inputs = dict()
         src_partitions = defaultdict(list)
+        # TODO: first group edges by reference to the same feature
+        #       then collect the feature only once
         for u, _, name, data in self.graph.in_edges(
             node_id, keys=True, data=True
         ):
@@ -212,7 +222,7 @@ class ExecutionState(object):
                 u
             ].is_set(), f"Node {u} is not ready."
             # get the values requested from the batch
-            key = data["feature_key"]
+            key = data[DataFlowGraph.EdgeAttribute.KEY]
             values = key.index_batch(self.outputs[u])
             # this is always a list of values, except when the key is empty
             # in that case the values are the exact output of the source node u
@@ -225,9 +235,6 @@ class ExecutionState(object):
                 values = [
                     dict(zip(keys, vals)) for vals in zip(*values.values())
                 ]
-            assert isinstance(
-                values, list
-            ), f"Expected values to be a list, but got {type(values)}"
 
             partition = self.graph.get_node_output_partition(u)
             # store the values in inputs and keep track of the source partition

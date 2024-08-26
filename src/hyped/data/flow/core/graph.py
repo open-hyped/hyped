@@ -101,7 +101,7 @@ class DataFlowGraph(nx.MultiDiGraph):
     edges define the data flow between these processors.
     """
 
-    class GraphProperty(str, Enum):
+    class GraphAttribute(str, Enum):
         """Enum representing properties of the data flow graph."""
 
         SRC_NODE_ID = "src_node_id"
@@ -140,7 +140,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         nodes that process the output of aggregator nodes.
         """
 
-    class NodeType(Enum):
+    class NodeType(str, Enum):
         """Enum representing types of nodes in the data flow graph."""
 
         SOURCE = "SOURCE_NODE"
@@ -288,12 +288,12 @@ class DataFlowGraph(nx.MultiDiGraph):
         super(DataFlowGraph, self).__init__(*args, **kwargs)
 
         # set default source node id
-        if DataFlowGraph.GraphProperty.SRC_NODE_ID not in self.graph:
-            self.graph[DataFlowGraph.GraphProperty.SRC_NODE_ID] = None
+        if DataFlowGraph.GraphAttribute.SRC_NODE_ID not in self.graph:
+            self.graph[DataFlowGraph.GraphAttribute.SRC_NODE_ID] = None
 
         # reset source node id for subgraphs
         if (self.src_node_id is not None) and (self.src_node_id not in self):
-            self.graph[DataFlowGraph.GraphProperty.SRC_NODE_ID] = None
+            self.graph[DataFlowGraph.GraphAttribute.SRC_NODE_ID] = None
 
     @property
     def src_node_id(self) -> str:
@@ -305,7 +305,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         Returns:
             str: The uuid of the source node.
         """
-        return self.graph[DataFlowGraph.GraphProperty.SRC_NODE_ID]
+        return self.graph[DataFlowGraph.GraphAttribute.SRC_NODE_ID]
 
     @property
     def depth(self) -> int:
@@ -433,7 +433,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             raise RuntimeError("Graph already contains a source node.")
         # add the source node and set the source node id in the graph properties
         node_id = self.add_processor_node(None, None, features, node_id)
-        self.graph[DataFlowGraph.GraphProperty.SRC_NODE_ID] = node_id
+        self.graph[DataFlowGraph.GraphAttribute.SRC_NODE_ID] = node_id
         # return the source node id
         return node_id
 

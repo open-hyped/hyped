@@ -9,7 +9,6 @@ from hyped.data.flow.core.nodes.base import (
     InputRefs,
     OutputRefs,
 )
-from hyped.data.flow.core.refs.inputs import InputRefsContainer
 
 from ..mock import MockInputRefs, MockOutputRefs
 
