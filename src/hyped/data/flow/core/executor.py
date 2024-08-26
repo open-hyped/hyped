@@ -16,7 +16,7 @@ import datasets
 import networkx as nx
 import numpy as np
 
-from hyped.common.utils import convert_lod_to_dol
+from hyped.common.utils import list_of_dicts_to_dict_of_lists
 
 from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
@@ -186,15 +186,9 @@ class ExecutionState(object):
             f"Expected features of type datasets.Features or dict, "
             f"but got {type(ref.feature_)}"
         )
-        batch = ref.key_.index_batch(self.outputs[ref.node_id_])
-        # in case the feature key is empty the collected values are already
-        # in batch format, otherwise they need to be converted from a
-        # list-of-dicts to a dict-of-lists
-        # TODO: this logic should be part of the FeatureKey.index_batch function
-        return (
-            batch
-            if len(ref.key_) == 0
-            else convert_lod_to_dol(batch, ref.feature_.keys())
+        return list_of_dicts_to_dict_of_lists(
+            ref.key_.index_batch(self.outputs[ref.node_id_]),
+            keys=ref.feature_.keys(),
         )
 
     def collect_inputs(self, node_id: str) -> tuple[Batch, list[int]]:
@@ -224,17 +218,6 @@ class ExecutionState(object):
             # get the values requested from the batch
             key = data[DataFlowGraph.EdgeAttribute.KEY]
             values = key.index_batch(self.outputs[u])
-            # this is always a list of values, except when the key is empty
-            # in that case the values are the exact output of the source node u
-            # TODO: this logic should be implemented in FeatureKey.index_batch
-            if len(key) == 0:
-                assert isinstance(
-                    values, (dict, datasets.formatting.formatting.LazyBatch)
-                ), f"Expected values of type dict, but got {type(values)}"
-                keys = values.keys()
-                values = [
-                    dict(zip(keys, vals)) for vals in zip(*values.values())
-                ]
 
             partition = self.graph.get_node_output_partition(u)
             # store the values in inputs and keep track of the source partition

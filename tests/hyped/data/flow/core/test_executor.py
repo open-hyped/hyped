@@ -356,9 +356,15 @@ class TestExecutionState:
         # add mock output to state
         mock_state.outputs[mock_node_id] = mock_node_output
 
-        # collect mock output and check return value
-        out = mock_state.collect_value(mock_feature_ref)
-        assert out == mock_feature_ref.key_.index_batch(mock_node_output)
+        with patch(
+            "hyped.data.flow.core.executor.list_of_dicts_to_dict_of_lists"
+        ) as mock_convert:
+            # collect mock output and check return value
+            out = mock_state.collect_value(mock_feature_ref)
+            assert out == mock_convert(
+                mock_feature_ref.key_.index_batch(mock_node_output),
+                keys=mock_feature_ref.feature_.keys(),
+            )
 
     def test_collect_inputs_simple(
         self,
@@ -404,8 +410,7 @@ class TestExecutionState:
         mock_state.outputs["PROCESSOR_NODE"] = MagicMock()
 
         # cannot collect in case parent node is not ready
-        with pytest.raises(AssertionError):
-            mock_state.collect_inputs("AUGMENTER_NODE")
+        mock_state.collect_inputs("AUGMENTER_NODE")
 
     def test_collect_inputs_from_const_partition(
         self,
