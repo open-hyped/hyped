@@ -74,7 +74,7 @@ class SumAggregator(
     input feature :code:`x` over batches of data.
     """
 
-    def initialize(self, io: IOContext) -> tuple[float, None]:
+    def initialize(self, io: IOContext) -> tuple[dict[str, float], None]:
         """Initializes the aggregation with the starting value from the configuration.
 
         Args:
@@ -103,7 +103,7 @@ class SumAggregator(
 
     async def update(
         self, val: float, ctx: float, state: None, io: IOContext
-    ) -> tuple[float, None]:
+    ) -> tuple[dict[str, float], None]:
         """Updates the running total with the extracted value.
 
         Args:
@@ -113,7 +113,7 @@ class SumAggregator(
             io (IOContext): Context information for the aggregator execution.
 
         Returns:
-            tuple[float, None]: The updated running total and None for the state.
+            tuple[dict[str, float], None]: The updated running total and None for the state.
         """
         return {"value": val["value"] + ctx}, None
 

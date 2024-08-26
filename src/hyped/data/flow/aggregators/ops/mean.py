@@ -79,7 +79,7 @@ class MeanAggregator(
     input feature :code:`x` over batches of data.
     """
 
-    def initialize(self, io: IOContext) -> tuple[float, float]:
+    def initialize(self, io: IOContext) -> tuple[dict[str, float], float]:
         """Initializes the aggregation with the starting value and a count of 0.
 
         Args:
@@ -108,7 +108,7 @@ class MeanAggregator(
 
     async def update(
         self, val: float, ctx: tuple[float, int], state: float, io: IOContext
-    ) -> tuple[float, None]:
+    ) -> tuple[dict[str, float], float]:
         """Updates the running mean with the extracted value and count.
 
         Args:
@@ -118,7 +118,7 @@ class MeanAggregator(
             io (IOContext): Context information for the aggregator execution.
 
         Returns:
-            tuple[float, float]: The updated running mean and the new count of items.
+            tuple[dict[str, float], float]: The updated running mean and the new count of items.
         """
         ext_val, ext_count = ctx
         return {
