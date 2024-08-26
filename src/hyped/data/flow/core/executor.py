@@ -323,12 +323,9 @@ class DataFlowExecutor(object):
 
         # collect inputs for processor execution
         inputs, index = state.collect_inputs(node_id)
-        node_obj = self.graph.nodes[node_id][
-            DataFlowGraph.NodeAttribute.NODE_OBJ
-        ]
-        node_type = self.graph.nodes[node_id][
-            DataFlowGraph.NodeAttribute.NODE_TYPE
-        ]
+        node_attrs = self.graph.nodes[node_id]
+        node_obj = node_attrs[DataFlowGraph.NodeAttribute.NODE_OBJ]
+        node_type = node_attrs[DataFlowGraph.NodeAttribute.NODE_TYPE]
 
         if node_type == DataFlowGraph.NodeType.CONST:
             # get constants from node object
@@ -340,12 +337,8 @@ class DataFlowExecutor(object):
         # build the io context
         io = IOContext(
             node_id=node_id,
-            inputs=self.graph.nodes[node_id][
-                DataFlowGraph.NodeAttribute.IN_FEATURES
-            ],
-            outputs=self.graph.nodes[node_id][
-                DataFlowGraph.NodeAttribute.OUT_FEATURES
-            ],
+            inputs=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURES],
+            outputs=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURES],
         )
 
         if node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:

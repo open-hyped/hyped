@@ -87,7 +87,6 @@ class Const(BaseNode[ConstConfig, None, ConstOutputRefs]):
     This type of node introduces a constant value into the data flow graph.
     """
 
-    # TODO: depricated, should remove
     def get_const_batch(self, batch_size: int) -> list[Any]:
         """Returns a batch of the constant value.
 
