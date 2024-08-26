@@ -19,7 +19,9 @@ Flow Structure and Feature Compatibility
 In the data flow architecture, maintaining a valid structure is crucial for ensuring consistent data processing and preventing errors. The framework enforces a specific structure based on the concept of partitions. A partition is defined as a subgraph within the data flow where the dataset size is guaranteed to remain constant. Each augmenter node introduces a new partition, as it may modify the dataset size by generating new samples or filtering existing ones.
 
 To maintain a valid flow structure, the data flow must adhere to a tree-like structure at the partition level. This means that:
+
 - **Tree Structure**: The outputs of any node within a partition should only flow into downstream partition. As long as the flow remains tree-like, the structure is considered valid.
+
 - **Validation Mechanism**: During the construction of the data flow graph, the framework automatically validates the graph to ensure that these rules are followed. Any deviation from the tree structure, such as merging outputs from different partitions, will result in an invalid graph, which is flagged by the framework.
 
 The diagram below illustrates an example of a valid data flow structure, including various partitions and connections. **Green lines indicate valid connections** where the tree structure is maintained, while **red lines indicate invalid connections** where incompatible outputs are combined, breaking the tree structure.
