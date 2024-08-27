@@ -12,13 +12,7 @@ from hyped.data.flow.core.graph import (
 from hyped.data.flow.core.nodes.const import Const
 from hyped.data.flow.core.refs.ref import FeatureRef
 
-from .mock import (
-    MockAggregator,
-    MockAugmenter,
-    MockInputRefs,
-    MockOutputRefs,
-    MockProcessor,
-)
+from .mock import MockAggregator, MockAugmenter, MockOutputRefs, MockProcessor
 
 
 class TestComputeNodeDepth:
