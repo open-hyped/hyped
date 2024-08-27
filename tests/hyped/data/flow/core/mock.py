@@ -7,6 +7,10 @@ from hyped.data.flow.core.nodes.aggregator import (
     BaseDataAggregator,
     BaseDataAggregatorConfig,
 )
+from hyped.data.flow.core.nodes.augmenter import (
+    BaseDataAugmenter,
+    BaseDataAugmenterConfig,
+)
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
@@ -43,6 +47,17 @@ class MockProcessor(
 ):
     # mock process function
     process = MagicMock(return_value={"y": 0})
+
+
+class MockAugmenterConfig(BaseDataAugmenterConfig):
+    i: int = 0
+
+
+class MockAugmenter(
+    BaseDataAugmenter[MockAugmenterConfig, MockInputRefs, MockOutputRefs]
+):
+    # mock process function
+    process = MagicMock(return_value=[{"y": 0}, {"y": 0}])
 
 
 class MockAggregatorConfig(BaseDataAggregatorConfig):

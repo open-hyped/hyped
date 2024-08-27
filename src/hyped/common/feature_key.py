@@ -19,6 +19,7 @@ from .feature_checks import (
     raise_feature_equals,
     raise_feature_is_sequence,
 )
+from .utils import dict_of_lists_to_list_of_dicts
 
 
 class FeatureKey(tuple[str | int | slice]):
@@ -199,10 +200,13 @@ class FeatureKey(tuple[str | int | slice]):
         Returns:
             list[Any]: The batch of values of the examples at the given key.
         """
-        if len(self) == 0:
-            return batch
-
-        return FeatureKey(self[0], slice(None), *self[1:]).index_example(batch)
+        return (
+            dict_of_lists_to_list_of_dicts(batch)
+            if (len(self) == 0)
+            else FeatureKey(self[0], slice(None), *self[1:]).index_example(
+                batch
+            )
+        )
 
     def __hash__(self) -> int:
         """Compute the hash value of the feature key.

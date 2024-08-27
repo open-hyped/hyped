@@ -4,16 +4,6 @@ from unittest.mock import AsyncMock, MagicMock
 from hyped.data.flow.core.lazy import LazyFlowOutput
 
 
-def old_test_lazy_flow():
-    input_proxy = {"x": 0}
-    executor = MagicMock()
-    executor.execute = AsyncMock(return_value={"y": [1]})
-    executor.collect.feature_.keys = MagicMock()
-
-    obj = LazyFlowOutput(input_proxy, executor)
-    assert obj.keys() == executor.collect.feature_.keys()
-
-
 def test_lazy_flow_initialization():
     input_proxy = MappingProxyType({"x": 0})
     executor = MagicMock()

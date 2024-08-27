@@ -29,9 +29,25 @@ Nodes in a data flow can be of various types, each performing a specific functio
 
 - **Source Node**: A Data Flow always has exactly one source node, representing the entry points of data into the flow. The data going into this node is provided from the dataset to be processed.
 - **Data Processor Nodes**: Processor nodes apply transformations to the features of an isolated example in the dataset. This might include tokenization or normalization.
+- **Data Augmentation Nodes**: Augmentation nodes generate or filter samples in the dataset, therby changing the size of the dataset. This might include operations like chunking sequences or filtering invalid samples.
 - **Data Aggregator Nodes**: Aggregator nodes perform dataset-wide statistical operations on the features. This might include summation or averaging.
-- **Data Augmentation Nodes**: Coming Soon
 
+Partitions
+~~~~~~~~~~
+
+In a data flow, the underlying graph is divided into several partitions, which are essential for both bookkeeping and execution of the data flow. As the data flow executes, a batch of samples is processed through the graph, with nodes like aggregators or augmenters potentially altering the batch size, resulting in a dynamic batch size across different stages. However, within each partition, the batch size is guaranteed to be constant, allowing a steady and consistent data flow through the processing steps. This partitioning strategy enhances the efficiency of data flow management and execution, ensuring that each phase is handled in an organized and controlled manner.
+
+Certain predefined partitions are present at most once in every data flow graph:
+
+- **Constant Partition**: This partition contains all nodes that hold or compute constant values within the data flow. It includes nodes that introduce constant values as well as those performing operations solely on these constants.
+- **Default Partition**: Assigned to the source node and its sub-graph, this is the standard partition for nodes that do not fall under any specific category. It serves as the default grouping for general processing steps in the data flow.
+- **Aggregated Partition**: This partition comprises nodes that deal with aggregated values. It includes nodes that process the outputs of aggregator nodes, where dataset-wide statistical operations are performed.
+
+In addition to these predefined partitions, the outputs of each data augmentation node introduce a new partition.
+
+It is important to note that while data augmentation nodes introduce new partitions to the graph, they are not part of the partitions they create - they simply point to them. Similarly, aggregator nodes are not included in the aggregated partition — they only direct towards it.
+
+.. image:: _static/Partitions.svg
 
 Execution Model
 ---------------

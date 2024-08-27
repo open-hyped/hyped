@@ -365,6 +365,39 @@ class DataFlow(object):
                     chain(value_graph, const_graph)
                 )
                 lazy_graph = lazy_graph.dependency_graph({aggregate.node_id_})
+
+                # further processing of aggregates is currently only supported
+                # through data processors
+                assert all(
+                    (
+                        (node_type == DataFlowGraph.NodeType.DATA_PROCESSOR)
+                        or (node_type == DataFlowGraph.NodeType.CONST)
+                    )
+                    for node_type in nx.get_node_attributes(
+                        lazy_graph, DataFlowGraph.NodeAttribute.NODE_TYPE
+                    ).values()
+                )
+
+                # create a copy of the view of the graph
+                lazy_graph = DataFlowGraph(lazy_graph)
+                # set the aggregated partition to the default partition in the lazy graph
+                partitions = nx.get_node_attributes(
+                    lazy_graph, DataFlowGraph.NodeAttribute.PARTITION
+                )
+                partitions = {
+                    node_id: (
+                        p
+                        if p != DataFlowGraph.PredefinedPartition.AGGREGATED
+                        else DataFlowGraph.PredefinedPartition.DEFAULT
+                    )
+                    for node_id, p in partitions.items()
+                }
+                nx.set_node_attributes(
+                    lazy_graph,
+                    partitions,
+                    DataFlowGraph.NodeAttribute.PARTITION,
+                )
+
                 # now introduce the source node to the lazy graph
                 # the source features to the lazy graph are the aggregator outputs
                 # managed by the aggregation manager, note how the features match
