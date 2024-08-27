@@ -7,15 +7,12 @@ import pytest
 from datasets import Features, Value
 
 from hyped.data.flow.core.executor import (
-    Batch,
     DataFlowExecutor,
     ExecutionState,
     _gather,
 )
 from hyped.data.flow.core.graph import DataFlowGraph
 from hyped.data.flow.core.nodes.base import IOContext
-
-from .mock import MockAggregator, MockAugmenter, MockProcessor
 
 
 def test_gather():
@@ -67,7 +64,7 @@ class TestExecutionState:
             "PROCESSOR_NODE",
             **{
                 DataFlowGraph.NodeAttribute.NODE_TYPE: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                DataFlowGraph.NodeAttribute.NODE_OBJ: MockProcessor(),
+                DataFlowGraph.NodeAttribute.NODE_OBJ: MagicMock(),
                 DataFlowGraph.NodeAttribute.PARTITION: DataFlowGraph.PredefinedPartition.DEFAULT.value,
                 DataFlowGraph.NodeAttribute.IN_FEATURES: mock_in_features,
                 DataFlowGraph.NodeAttribute.OUT_FEATURES: mock_out_features,
@@ -89,7 +86,7 @@ class TestExecutionState:
             "AUGMENTER_NODE",
             **{
                 DataFlowGraph.NodeAttribute.NODE_TYPE: DataFlowGraph.NodeType.DATA_AUGMENTER,
-                DataFlowGraph.NodeAttribute.NODE_OBJ: MockAugmenter(),
+                DataFlowGraph.NodeAttribute.NODE_OBJ: MagicMock(),
                 DataFlowGraph.NodeAttribute.PARTITION: DataFlowGraph.PredefinedPartition.DEFAULT.value,
                 DataFlowGraph.NodeAttribute.IN_FEATURES: mock_in_features,
                 DataFlowGraph.NodeAttribute.OUT_FEATURES: mock_out_features,
@@ -111,7 +108,7 @@ class TestExecutionState:
             "PROCESSOR_NODE_IN_AUGMENTER_PARTITION",
             **{
                 DataFlowGraph.NodeAttribute.NODE_TYPE: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                DataFlowGraph.NodeAttribute.NODE_OBJ: MockProcessor(),
+                DataFlowGraph.NodeAttribute.NODE_OBJ: MagicMock(),
                 DataFlowGraph.NodeAttribute.PARTITION: "AUGMENTER_NODE",
                 DataFlowGraph.NodeAttribute.IN_FEATURES: mock_in_features,
                 DataFlowGraph.NodeAttribute.OUT_FEATURES: mock_out_features,
@@ -133,7 +130,7 @@ class TestExecutionState:
             "AUGMENTER_NODE_2",
             **{
                 DataFlowGraph.NodeAttribute.NODE_TYPE: DataFlowGraph.NodeType.DATA_AUGMENTER,
-                DataFlowGraph.NodeAttribute.NODE_OBJ: MockAugmenter(),
+                DataFlowGraph.NodeAttribute.NODE_OBJ: MagicMock(),
                 DataFlowGraph.NodeAttribute.PARTITION: "AUGMENTER_NODE",
                 DataFlowGraph.NodeAttribute.IN_FEATURES: mock_in_features,
                 DataFlowGraph.NodeAttribute.OUT_FEATURES: mock_out_features,
@@ -155,7 +152,7 @@ class TestExecutionState:
             "PROCESSOR_NODE_IN_AUGMENTER_PARTITION_2",
             **{
                 DataFlowGraph.NodeAttribute.NODE_TYPE: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                DataFlowGraph.NodeAttribute.NODE_OBJ: MockProcessor(),
+                DataFlowGraph.NodeAttribute.NODE_OBJ: MagicMock(),
                 DataFlowGraph.NodeAttribute.PARTITION: "AUGMENTER_NODE_2",
                 DataFlowGraph.NodeAttribute.IN_FEATURES: mock_in_features,
                 DataFlowGraph.NodeAttribute.OUT_FEATURES: mock_out_features,

@@ -5,12 +5,14 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 import datasets
 import matplotlib.pyplot as plt
 import pytest
+from datasets import Features, Value
 
-from hyped.common.feature_checks import check_object_matches_feature
 from hyped.data.flow.core.flow import DataFlow
 from hyped.data.flow.core.graph import DataFlowGraph
+from hyped.data.flow.core.nodes.base import IOContext
+from hyped.data.flow.core.nodes.const import Const
 
-from .mock import MockInputRefs, MockProcessor
+from .mock import MockAggregator, MockInputRefs, MockProcessor
 
 
 class TestDataFlow:
@@ -34,7 +36,67 @@ class TestDataFlow:
             }  # matches the output of the mock aggregator
             yield mock_lazy_vals
 
-    def test_build_flow(self, setup_flow, mock_manager, mock_lazy_flow_output):
+    @pytest.fixture
+    def setup_flow(self):
+        # create graph
+        graph = DataFlowGraph()
+        # add source node
+        src_features = Features({"x": Value("int64")})
+        src_node = graph.add_source_node(src_features)
+        # add constant node
+        c = Const(value=0)
+        co = c._out_refs_type.build_features(c.config, None)
+        const_node = graph.add_processor_node(c, None, co)
+
+        # create nodes
+        p = MockProcessor()
+        a = MockAggregator()
+
+        # create input refs from source features
+        i = MockInputRefs(
+            a=graph.get_node_output_ref(src_node).x,
+            b=graph.get_node_output_ref(const_node).value,
+        )
+        pi = p._in_refs_validator.validate(**i)
+        ai = p._in_refs_validator.validate(**i)
+        # build output features
+        po = p._out_refs_type.build_features(p.config, pi)
+        ao = a._out_refs_type.build_features(a.config, ai)
+        # add nodes
+        proc_node = graph.add_processor_node(p, pi, po)
+        agg_node = graph.add_processor_node(a, ai, ao)
+
+        flow = DataFlow(Features({"x": Value("int64")}))
+        flow._graph = graph
+        # return setup
+        return flow, graph, const_node, proc_node, agg_node
+
+    @pytest.fixture
+    def io_contexts(self, setup_flow):
+        flow, graph, const_node, proc_node, agg_node = setup_flow
+
+        return [
+            IOContext(
+                node_id=proc_node,
+                inputs=graph.nodes[proc_node][
+                    DataFlowGraph.NodeAttribute.IN_FEATURES
+                ],
+                outputs=graph.nodes[proc_node][
+                    DataFlowGraph.NodeAttribute.OUT_FEATURES
+                ],
+            ),
+            IOContext(
+                node_id=agg_node,
+                inputs=graph.nodes[agg_node][
+                    DataFlowGraph.NodeAttribute.IN_FEATURES
+                ],
+                outputs=graph.nodes[agg_node][
+                    DataFlowGraph.NodeAttribute.OUT_FEATURES
+                ],
+            ),
+        ]
+
+    def test_build_flow(self, setup_flow):
         flow, graph, const_node, proc_node, agg_node = setup_flow
 
         src_ref = graph.get_node_output_ref(graph.src_node_id)
@@ -219,9 +281,7 @@ class TestDataFlow:
             a, {"a": [1, 2, 3], "b": [0, 0, 0]}, [0, 1, 2], 0, agg_io_ctx
         )
 
-    def test_apply_overload(
-        self, setup_flow, mock_manager, mock_lazy_flow_output
-    ):
+    def test_apply_overload(self, setup_flow, mock_lazy_flow_output):
         flow, graph, const_node, proc_node, agg_node = setup_flow
         # get references
         out_ref = graph.get_node_output_ref(proc_node)
@@ -381,6 +441,8 @@ class TestDataFlow:
         # get the processor and aggregator instance
         p = graph.nodes[proc_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
         a = graph.nodes[agg_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
+
+        p.process.reset_mock()
 
         # create dummy dataset
         ds = datasets.Dataset.from_dict(
