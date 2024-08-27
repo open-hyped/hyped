@@ -32,7 +32,7 @@ Note that the tree structure requirement applies only on partition-level. Within
 
 As seen above, a valid flow structure allows the flow of features from one (source) partition into downstream partitions. However, since dataset sizes can vary even between partitions on the same path, this poses a challenge. To address this, features from the source partition are processed along the path to the downstream partition. This process either duplicates or filters the features based on the operations of the data augmenter, ensuring the compatibility with the features in the downstream partiton.
 
-Implementing Custom Data Processors
+Implementing Custom Data Augmenters
 -----------------------------------
 
 Custom data augmenters provide a way to extend the functionality of the data flow framework by implementing custom augmentation operations tailored to specific use cases. Here’s a step-by-step guide on how to implement a custom data augmenter:
