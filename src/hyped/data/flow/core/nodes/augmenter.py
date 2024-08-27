@@ -146,6 +146,6 @@ class BaseDataAugmenter(BaseNode[C, I, O], ABC):
 
         Returns:
             Iterable[Sample]: An iterable of augmented output samples, which can be multiple samples
-                per input sample.
+            per input sample.
         """
         raise NotImplementedError()
