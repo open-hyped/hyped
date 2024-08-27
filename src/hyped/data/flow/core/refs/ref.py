@@ -200,7 +200,7 @@ class FeatureRef(BaseModel):
             # raise keyerror on mismatch
             raise KeyError(
                 f"Key doesn't match feature structure, got 'key={key}' "
-                "and 'features={self.feature_}'."
+                f"and 'features={self.feature_}'."
             ) from e
 
         # build feature reference to feature at key
