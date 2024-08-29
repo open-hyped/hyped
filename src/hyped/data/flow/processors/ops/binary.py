@@ -37,7 +37,7 @@ from typing import Annotated, Any, TypeVar
 from datasets import Value
 from typing_extensions import Unpack
 
-from hyped.common.feature_checks import FLOAT_TYPES, INT_TYPES, NUMERICAL_TYPES
+from hyped.common.feature_checks import FLOAT_TYPES, INT_TYPES, NUMERIC_TYPES
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
@@ -57,12 +57,12 @@ class BinaryOpInputRefs(InputRefs):
     """Defines input references for binary operations."""
 
     a: Annotated[
-        FeatureRef, CheckFeatureEquals(NUMERICAL_TYPES + [Value("bool")])
+        FeatureRef, CheckFeatureEquals(NUMERIC_TYPES + [Value("bool")])
     ]
     """The first input feature. Must be a numerical type or bool."""
 
     b: Annotated[
-        FeatureRef, CheckFeatureEquals(NUMERICAL_TYPES + [Value("bool")])
+        FeatureRef, CheckFeatureEquals(NUMERIC_TYPES + [Value("bool")])
     ]
     """The second input feature. Must be a numerical type or bool."""
 
@@ -281,13 +281,13 @@ class MathInputRefs(BinaryOpInputRefs):
 
     a: Annotated[
         FeatureRef,
-        CheckFeatureEquals(NUMERICAL_TYPES),
+        CheckFeatureEquals(NUMERIC_TYPES),
     ]
     """The first input feature. Must be a numerical type."""
 
     b: Annotated[
         FeatureRef,
-        CheckFeatureEquals(NUMERICAL_TYPES),
+        CheckFeatureEquals(NUMERIC_TYPES),
     ]
     """The second input feature. Must be a numerical type."""
 
@@ -296,7 +296,7 @@ class BaseClosedOpConfig(BaseBinaryOpConfig):
     """Configuration class for closed mathematical operations."""
 
 
-NUMERICAL_TYPE_NAMES = [t.dtype for t in NUMERICAL_TYPES]
+NUMERICAL_TYPE_NAMES = [t.dtype for t in NUMERIC_TYPES]
 
 
 def closed_op_infer_dtype(

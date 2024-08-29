@@ -37,7 +37,8 @@ STRING_LIKE_TYPES = [
     Value("large_binary"),
 ]
 
-NUMERICAL_TYPES = INT_TYPES + UINT_TYPES + FLOAT_TYPES
+NUMERIC_TYPES = INT_TYPES + UINT_TYPES + FLOAT_TYPES
+SCALAR_TYPES = NUMERIC_TYPES + [Value("bool")]
 INDEX_TYPES = INT_TYPES + UINT_TYPES
 
 
@@ -171,14 +172,14 @@ def get_sequence_feature(seq: Sequence | list | tuple) -> FeatureType:
 def check_sequence_lengths_match(
     seq_A: Sequence | list | tuple,
     seq_B: Sequence | list | tuple,
-    ignore_arbitrary_length: bool = False,
+    allow_arbitrary_length: bool = True,
 ) -> bool:
     """Check whether the lengths of two sequences match.
 
     Arguments:
         seq_A (Sequence | list | tuple): sequence A
         seq_B (Sequence | list | tuple): sequence B
-        ignore_arbitrary_length (bool): Wether to ignore if both features have length -1
+        allow_arbitrary_length (bool): Wether to support -1 as valid sequence length
 
     Returns:
         match (bool): bool indicating if the lengths match
@@ -186,10 +187,10 @@ def check_sequence_lengths_match(
     a_len = get_sequence_length(seq_A)
     b_len = get_sequence_length(seq_B)
 
-    if ignore_arbitrary_length:
-        return a_len == b_len
-    else:
-        return a_len == b_len and a_len != -1 and b_len != -1
+    if not allow_arbitrary_length and (seq_A == -1 or seq_B == -1):
+        return False
+
+    return a_len == b_len
 
 
 def check_object_matches_feature(obj: Any, feature: FeatureType):
@@ -328,9 +329,9 @@ def raise_sequence_lengths_match(
     name_B: str,
     seq_A: FeatureType,
     seq_B: FeatureType,
-    ignore_arbitrary_length: bool = False,
+    allow_arbitrary_length: bool = True,
 ) -> None:
-    if not check_sequence_lengths_match(seq_A, seq_B, ignore_arbitrary_length):
+    if not check_sequence_lengths_match(seq_A, seq_B, allow_arbitrary_length):
         a_len = get_sequence_length(seq_A)
         b_len = get_sequence_length(seq_B)
         raise TypeError(f"Sequence lengths do not match. {name_A} is {a_len}, {name_B} is {b_len}")
