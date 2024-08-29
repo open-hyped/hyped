@@ -1,3 +1,26 @@
+"""Module for performing unary element-wise operations on sequences.
+
+This module defines a set of processors (:class:`BaseUnaryElementWiseOp` and its subclasses) 
+that apply unary operations to each element within a sequence. The operations include 
+negation, absolute value, bitwise inversion, and boolean inversion.
+
+Each processor is configured to handle a specific type of input feature, such as numeric, 
+integer, or boolean sequences. The processors are designed to be integrated into data processing 
+pipelines, where they can be applied to transform data on a per-element basis.
+
+The input features for these operations are defined using specific input reference classes 
+(:class:`UnaryElementWiseOpNumericInputRefs`, :class:`UnaryElementWiseOpIntInputRefs`, 
+and :class:`UnaryElementWiseOpBooleanInputRefs`), which enforce the required feature types 
+through type checks.
+
+The resulting output of these operations is specified in output reference classes 
+(:class:`UnaryElementWiseOpNumericOutputRefs` and :class:`UnaryElementWiseOpBooleanOutputRefs`), 
+ensuring that the transformed features maintain consistency in type and structure.
+
+This module is particularly useful for tasks requiring element-wise transformations within 
+sequences, such as flipping bits, negating numbers, or applying boolean logic across elements 
+in a sequence.
+"""
 import operator
 from typing import Annotated
 
@@ -109,5 +132,10 @@ class ElementWiseBooleanInvert(
     """Processor for the element-wise boolean inversion operation."""
 
     # operator.invert is not the same as boolean negation
-    def op(self, b):
+    def op(self, b: bool) -> bool:
+        """The invert operation.
+
+        Args:
+            b (bool): the boolean value.
+        """
         return not b

@@ -13,14 +13,12 @@ INT_TYPES = [
     Value("int16"),
     Value("int32"),
     Value("int64"),
-    Value("int64"),
 ]
 
 UINT_TYPES = [
     Value("uint8"),
     Value("uint16"),
     Value("uint32"),
-    Value("uint64"),
     Value("uint64"),
 ]
 
@@ -42,7 +40,9 @@ SCALAR_TYPES = NUMERIC_TYPES + [Value("bool")]
 INDEX_TYPES = INT_TYPES + UINT_TYPES
 
 
-def check_feature_equals(feature: FeatureType, target: FeatureType | list[FeatureType]) -> bool:
+def check_feature_equals(
+    feature: FeatureType, target: FeatureType | list[FeatureType]
+) -> bool:
     """Check whether a given feature equals a target feature.
 
     This confirms exact matches, including for instance
@@ -70,9 +70,9 @@ def check_feature_equals(feature: FeatureType, target: FeatureType | list[Featur
         if len(target) != 1:
             return any(check_feature_equals(feature, t) for t in target)
         # a list of length one is a valid definition of sequence
-        return check_feature_is_sequence(feature, target[0]) and check_sequence_lengths_match(
-            feature, target
-        )
+        return check_feature_is_sequence(
+            feature, target[0]
+        ) and check_sequence_lengths_match(feature, target)
 
     # a list of length one is a valid definition of a sequence
     if isinstance(feature, list):
@@ -97,7 +97,10 @@ def check_feature_equals(feature: FeatureType, target: FeatureType | list[Featur
         return (
             isinstance(target, dict)
             and (feature.keys() == target.keys())
-            and all(check_feature_equals(feature[k], target[k]) for k in feature.keys())
+            and all(
+                check_feature_equals(feature[k], target[k])
+                for k in feature.keys()
+            )
         )
 
     # otherwise it should just match the target
@@ -134,9 +137,9 @@ def check_feature_is_sequence(
         # only check if the feature is a sequence
         return isinstance(feature, (Sequence, list, tuple))
 
-    return isinstance(feature, (Sequence, list, tuple)) and check_feature_equals(
-        get_sequence_feature(feature), value_type
-    )
+    return isinstance(
+        feature, (Sequence, list, tuple)
+    ) and check_feature_equals(get_sequence_feature(feature), value_type)
 
 
 def get_sequence_length(seq: Sequence | list | tuple) -> int:
@@ -187,7 +190,9 @@ def check_sequence_lengths_match(
     a_len = get_sequence_length(seq_A)
     b_len = get_sequence_length(seq_B)
 
-    if not allow_arbitrary_length and (seq_A == -1 or seq_B == -1):
+    print(a_len, b_len)
+
+    if (not allow_arbitrary_length) and (a_len == -1 or b_len == -1):
         return False
 
     return a_len == b_len
@@ -219,7 +224,25 @@ def check_object_matches_feature(obj: Any, feature: FeatureType):
         return False
 
 
-def check_feature_is_castable(feat_A: FeatureType, feat_B: FeatureType) -> bool:
+def check_value_feature_is_castable(feat_A: Value, feat_B: Value) -> bool:
+    """Check whether two Value features are castable to each other.
+
+    Arguments:
+        feat_A (Value): the first Value feature to check.
+        feat_B (Value): the second Value feature to check.
+
+    Returns:
+        is_castable (bool):
+            Boolean indicating whether the two Value features
+            can be cast to each other or not.
+
+    Raises:
+        AssertionError: if either feat_A or feat_B is not an instance of Value.
+    """
+    assert isinstance(feat_A, Value)
+    assert isinstance(feat_B, Value)
+
+    # If both features are scalar types, they are castable
     return feat_A in SCALAR_TYPES and feat_B in SCALAR_TYPES
 
 
@@ -255,27 +278,8 @@ def raise_feature_equals(
                 "in %s, got %s" % (name, target, type(feature))
             )
 
-        raise TypeError("Expected `%s` to be of type %s, got %s" % (name, target, feature))
-
-
-def raise_features_align(
-    name_A: str, name_B: str, feature_A: FeatureType, feature_B: FeatureType
-) -> None:
-    """Check if two features align/match.
-
-    Arguments:
-        name_A (str): name of feature A, only used in error message
-        name_B (str): name of feature B, only used in error message
-        feature_A (FeatureType): feature A to compare
-        feature_B (FeatureType): feature B to compare
-
-    Raises:
-        exp (TypeError): when features don't match
-    """
-    if not check_feature_equals(feature_A, feature_B):
         raise TypeError(
-            "Feature type of %s doesn't match the feature type of %s,"
-            " got %s != %s" % (name_A, name_B, feature_A, feature_B)
+            "Expected `%s` to be of type %s, got %s" % (name, target, feature)
         )
 
 
@@ -309,7 +313,9 @@ def raise_feature_is_sequence(
     """
     if not check_feature_is_sequence(feature, value_type):
         if value_type is None:
-            raise TypeError("Expected `%s` to be a sequence, got %s" % (name, feature))
+            raise TypeError(
+                "Expected `%s` to be a sequence, got %s" % (name, feature)
+            )
 
         if isinstance(value_type, (list, tuple)) and (len(value_type) > 1):
             # slightly different error message for list of
@@ -320,7 +326,8 @@ def raise_feature_is_sequence(
             )
 
         raise TypeError(
-            "Expected `%s` to be a sequence of type %s, got %s" % (name, value_type, feature)
+            "Expected `%s` to be a sequence of type %s, got %s"
+            % (name, value_type, feature)
         )
 
 
@@ -331,16 +338,45 @@ def raise_sequence_lengths_match(
     seq_B: FeatureType,
     allow_arbitrary_length: bool = True,
 ) -> None:
+    """Raise an error if the lengths of two sequences do not match.
+
+    Arguments:
+        name_A (str): The name of the first sequence (used in the error message).
+        name_B (str): The name of the second sequence (used in the error message).
+        seq_A (FeatureType): The first sequence feature to compare.
+        seq_B (FeatureType): The second sequence feature to compare.
+        allow_arbitrary_length (bool, optional):
+            If True, allows comparison of sequences where one or both have arbitrary length.
+            Defaults to True.
+
+    Raises:
+        TypeError: If the lengths of seq_A and seq_B do not match. The error message will include
+        the names of the sequences and their respective lengths.
+    """
     if not check_sequence_lengths_match(seq_A, seq_B, allow_arbitrary_length):
         a_len = get_sequence_length(seq_A)
         b_len = get_sequence_length(seq_B)
-        raise TypeError(f"Sequence lengths do not match. {name_A} is {a_len}, {name_B} is {b_len}")
+        raise TypeError(
+            f"Sequence lengths do not match. {name_A} is {a_len}, {name_B} is {b_len}"
+        )
 
 
-def raise_feature_is_castable(
-    name_A: str, name_B: str, feat_A: FeatureType, feat_B: FeatureType
+def raise_value_feature_is_castable(
+    name_A: str, name_B: str, feat_A: Value, feat_B: Value
 ) -> None:
-    if not check_feature_is_castable(feat_A, feat_B):
+    """Raise an error if two Value features cannot be cast to each other.
+
+    Arguments:
+        name_A (str): The name of the first feature (used in the error message).
+        name_B (str): The name of the second feature (used in the error message).
+        feat_A (Value): The first Value feature to compare.
+        feat_B (Value): The second Value feature to compare.
+
+    Raises:
+        TypeError: If feat_A and feat_B cannot be cast to each other. The error message will include
+        the names of the features and their respective data types.
+    """
+    if not check_value_feature_is_castable(feat_A, feat_B):
         raise TypeError(
             f"Feature types cannot be casted: {name_A} is {feat_A.dtype}, "
             f"{name_B} is {feat_B.dtype}"
@@ -359,4 +395,6 @@ def raise_object_matches_feature(obj: Any, feature: FeatureType):
             when the object is not of the feature type
     """
     if not check_object_matches_feature(obj, feature):
-        raise TypeError("Expected object to be of type %s, got %s" % (feature, obj))
+        raise TypeError(
+            "Expected object to be of type %s, got %s" % (feature, obj)
+        )

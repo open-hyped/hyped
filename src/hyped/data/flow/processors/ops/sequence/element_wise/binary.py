@@ -1,3 +1,23 @@
+"""Module for performing element-wise binary operations on sequences.
+
+This module defines a comprehensive set of processors for element-wise binary operations, 
+including arithmetic, logical, and comparison operations. These processors apply binary 
+operations to corresponding elements in two sequences or a sequence and a scalar.
+
+Key operations covered by this module include addition, subtraction, multiplication, 
+division, comparison (equality, inequality, greater than, less than), and logical 
+operations (AND, OR, XOR). These operations can handle sequences of numeric, integer, 
+and boolean types, ensuring that the data types of inputs and outputs are validated 
+and consistent.
+
+Each processor class extends the base class :class:`BaseBinaryElementWiseOp`, and 
+operations are defined by overriding the `op` method, which performs the specific 
+binary operation. The input references (:class:`BinaryElementWiseOpNumericInputRefs`, 
+:class:`BinaryElementWiseOpBooleanInputRefs`) ensure that the inputs meet the required 
+type constraints, either as sequences or individual scalar values. Output references 
+(:class:`ElementWiseClosedOpOutputRefs`, :class:`BinaryElementWiseOpBooleanOutputRefs`) 
+specify the type and structure of the operation's result.
+"""
 import operator
 from abc import abstractmethod
 from typing import Annotated, Any, TypeVar
@@ -8,7 +28,7 @@ from hyped.common.feature_checks import (
     NUMERIC_TYPES,
     check_feature_is_sequence,
     get_sequence_feature,
-    raise_feature_is_castable,
+    raise_value_feature_is_castable,
 )
 from hyped.data.flow.core.refs.inputs import (
     CheckFeatureEquals,
@@ -28,8 +48,28 @@ from hyped.data.flow.processors.ops.sequence.element_wise.base import (
 
 
 def validate_sequence_castable(
-    config: BaseBinaryElementWiseOpConfig, refs: "BinaryElementWiseOpNumericInputRefs"
+    config: BaseBinaryElementWiseOpConfig,
+    refs: "BinaryElementWiseOpNumericInputRefs",
 ) -> None:
+    """Validate that features in a binary element-wise operation are castable.
+
+    This function checks whether the input features are sequences or scalar
+    values and ensures that they can be cast to each other. If both features
+    are sequences, it validates that their underlying value types are castable.
+    If only one feature is a sequence, it checks that the sequence's element
+    type is castable to the other feature's type. If neither feature is a
+    sequence, a `TypeError` is raised as at least one sequence type is required
+    for the operation.
+
+    Arguments:
+        config (BaseBinaryElementWiseOpConfig): The configuration for the binary element-wise operation.
+        refs (BinaryElementWiseOpNumericInputRefs): The input references containing the features to be
+        validated.
+
+    Raises:
+        TypeError: If both features are of `Value` type without at least one being a sequence, or if the
+        sequence features are not castable to each other.
+    """
     a_key = refs["a"].key_
     b_key = refs["b"].key_
 
@@ -37,23 +77,27 @@ def validate_sequence_castable(
     b_feat = refs["b"].feature_
 
     if check_feature_is_sequence(a_feat) and check_feature_is_sequence(b_feat):
-        raise_feature_is_castable(
+        raise_value_feature_is_castable(
             a_key,
             b_key,
             get_sequence_feature(a_feat),
             get_sequence_feature(b_feat),
         )
 
-    elif check_feature_is_sequence(a_feat) and not check_feature_is_sequence(b_feat):
-        raise_feature_is_castable(
+    elif check_feature_is_sequence(a_feat) and not check_feature_is_sequence(
+        b_feat
+    ):
+        raise_value_feature_is_castable(
             a_key,
             b_key,
             get_sequence_feature(a_feat),
             b_feat,
         )
 
-    elif not check_feature_is_sequence(a_feat) and check_feature_is_sequence(b_feat):
-        raise_feature_is_castable(
+    elif not check_feature_is_sequence(a_feat) and check_feature_is_sequence(
+        b_feat
+    ):
+        raise_value_feature_is_castable(
             a_key,
             b_key,
             a_feat,
@@ -68,17 +112,24 @@ def validate_sequence_castable(
 
 
 class BinaryElementWiseOpNumericInputRefs(
-    Annotated[BinaryElementWiseOpInputRefs, GlobalValidator(validate_sequence_castable)]
+    Annotated[
+        BinaryElementWiseOpInputRefs,
+        GlobalValidator(validate_sequence_castable),
+    ]
 ):
     """Defines input references for binary element-wise operations."""
 
     a: Annotated[
-        FeatureRef, CheckFeatureIsSequence(NUMERIC_TYPES) | CheckFeatureEquals(NUMERIC_TYPES)
+        FeatureRef,
+        CheckFeatureIsSequence(NUMERIC_TYPES)
+        | CheckFeatureEquals(NUMERIC_TYPES),
     ]
     """The first input feature. Must be a numeric value or sequence of numerical type."""
 
     b: Annotated[
-        FeatureRef, CheckFeatureIsSequence(NUMERIC_TYPES) | CheckFeatureEquals(NUMERIC_TYPES)
+        FeatureRef,
+        CheckFeatureIsSequence(NUMERIC_TYPES)
+        | CheckFeatureEquals(NUMERIC_TYPES),
     ]
     """The second input feature. Must be a numeric value or sequence of numerical type."""
 
@@ -87,12 +138,16 @@ class BinaryElementWiseOpBooleanInputRefs(BinaryElementWiseOpInputRefs):
     """Defines input references for boolean element-wise binary operations."""
 
     a: Annotated[
-        FeatureRef, CheckFeatureIsSequence(Value("bool")) | CheckFeatureEquals(Value("bool"))
+        FeatureRef,
+        CheckFeatureIsSequence(Value("bool"))
+        | CheckFeatureEquals(Value("bool")),
     ]
     """The first input feature. Must be a boolean value or sequence of boolean."""
 
     b: Annotated[
-        FeatureRef, CheckFeatureIsSequence(Value("bool")) | CheckFeatureEquals(Value("bool"))
+        FeatureRef,
+        CheckFeatureIsSequence(Value("bool"))
+        | CheckFeatureEquals(Value("bool")),
     ]
     """The second input feature. Must be a boolean value or sequence of boolean."""
 
@@ -127,7 +182,9 @@ class ElementWiseEqualsConfig(BaseElementWiseComparatorConfig):
 
 
 class ElementWiseEquals(
-    BaseElementWiseComparator[ElementWiseEqualsConfig, BinaryElementWiseOpInputRefs]
+    BaseElementWiseComparator[
+        ElementWiseEqualsConfig, BinaryElementWiseOpInputRefs
+    ]
 ):
     """Processor for the equality operation."""
 
@@ -139,7 +196,9 @@ class ElementWiseNotEqualsConfig(BaseElementWiseComparatorConfig):
 
 
 class ElementWiseNotEquals(
-    BaseElementWiseComparator[ElementWiseNotEqualsConfig, BinaryElementWiseOpInputRefs]
+    BaseElementWiseComparator[
+        ElementWiseNotEqualsConfig, BinaryElementWiseOpInputRefs
+    ]
 ):
     """Processor for the inequality operation."""
 
@@ -151,7 +210,9 @@ class ElementWiseLessThanConfig(BaseElementWiseComparatorConfig):
 
 
 class ElementWiseLessThan(
-    BaseElementWiseComparator[ElementWiseLessThanConfig, BinaryElementWiseOpNumericInputRefs]
+    BaseElementWiseComparator[
+        ElementWiseLessThanConfig, BinaryElementWiseOpNumericInputRefs
+    ]
 ):
     """Processor for the less-than operation."""
 
@@ -163,7 +224,9 @@ class ElementWiseLessThanOrEqualConfig(BaseElementWiseComparatorConfig):
 
 
 class ElementWiseLessThanOrEqual(
-    BaseElementWiseComparator[ElementWiseLessThanOrEqualConfig, BinaryElementWiseOpNumericInputRefs]
+    BaseElementWiseComparator[
+        ElementWiseLessThanOrEqualConfig, BinaryElementWiseOpNumericInputRefs
+    ]
 ):
     """Processor for the less-than-or-equal operation."""
 
@@ -175,7 +238,9 @@ class ElementWiseGreaterThanConfig(BaseElementWiseComparatorConfig):
 
 
 class ElementWiseGreaterThan(
-    BaseElementWiseComparator[ElementWiseGreaterThanConfig, BinaryElementWiseOpNumericInputRefs]
+    BaseElementWiseComparator[
+        ElementWiseGreaterThanConfig, BinaryElementWiseOpNumericInputRefs
+    ]
 ):
     """Processor for the greater-than operation."""
 
@@ -188,7 +253,8 @@ class ElementWiseGreaterThanOrEqualConfig(BaseElementWiseComparatorConfig):
 
 class ElementWiseGreaterThanOrEqual(
     BaseElementWiseComparator[
-        ElementWiseGreaterThanOrEqualConfig, BinaryElementWiseOpNumericInputRefs
+        ElementWiseGreaterThanOrEqualConfig,
+        BinaryElementWiseOpNumericInputRefs,
     ]
 ):
     """Processor for the greater-than-or-equal operation."""
@@ -203,7 +269,9 @@ class BaseElementWiseLogicalOpConfig(BaseElementWiseComparatorConfig):
 C = TypeVar("C", bound=BaseElementWiseLogicalOpConfig)
 
 
-class BaseElementWiseLogicalOp(BaseElementWiseComparator[C, BinaryElementWiseOpBooleanInputRefs]):
+class BaseElementWiseLogicalOp(
+    BaseElementWiseComparator[C, BinaryElementWiseOpBooleanInputRefs]
+):
     """Base class for logical operations."""
 
     @abstractmethod
@@ -218,7 +286,9 @@ class ElementWiseLogicalAndConfig(BaseElementWiseLogicalOpConfig):
     """Configuration class for the logical AND operation."""
 
 
-class ElementWiseLogicalAnd(BaseElementWiseLogicalOp[ElementWiseLogicalAndConfig]):
+class ElementWiseLogicalAnd(
+    BaseElementWiseLogicalOp[ElementWiseLogicalAndConfig]
+):
     """Processor for the logical AND operation."""
 
     op = operator.and_
@@ -228,7 +298,9 @@ class ElementWiseLogicalOrConfig(BaseElementWiseLogicalOpConfig):
     """Configuration class for the logical OR operation."""
 
 
-class ElementWiseLogicalOr(BaseElementWiseLogicalOp[ElementWiseLogicalOrConfig]):
+class ElementWiseLogicalOr(
+    BaseElementWiseLogicalOp[ElementWiseLogicalOrConfig]
+):
     """Processor for the logical OR operation."""
 
     op = operator.or_
@@ -238,7 +310,9 @@ class ElementWiseLogicalXOrConfig(BaseElementWiseLogicalOpConfig):
     """Configuration class for the logical XOR operation."""
 
 
-class ElementWiseLogicalXOr(BaseElementWiseLogicalOp[ElementWiseLogicalXOrConfig]):
+class ElementWiseLogicalXOr(
+    BaseElementWiseLogicalOp[ElementWiseLogicalXOrConfig]
+):
     """Processor for the logical XOR operation."""
 
     op = operator.xor
@@ -252,7 +326,8 @@ NUMERICAL_TYPE_NAMES = [t.dtype for t in NUMERIC_TYPES]
 
 
 def element_wise_closed_op_infer_dtype(
-    config: BaseElementWiseClosedOpConfig, inputs: BinaryElementWiseOpNumericInputRefs
+    config: BaseElementWiseClosedOpConfig,
+    inputs: BinaryElementWiseOpNumericInputRefs,
 ) -> Value:
     """Infers the output data type for closed operations based on input types.
 
@@ -290,7 +365,9 @@ def element_wise_closed_op_infer_dtype(
 class ElementWiseClosedOpOutputRefs(BaseBinaryOpOutputRefs):
     """Defines output references for closed mathematical operations."""
 
-    result: Annotated[FeatureRef, LambdaOutputFeature(element_wise_closed_op_infer_dtype)]
+    result: Annotated[
+        FeatureRef, LambdaOutputFeature(element_wise_closed_op_infer_dtype)
+    ]
     """The result of the closed mathematical operation."""
 
 
@@ -298,7 +375,9 @@ C = TypeVar("C", bound=BaseElementWiseClosedOpConfig)
 
 
 class BaseElementWiseClosedOp(
-    BaseBinaryElementWiseOp[C, BinaryElementWiseOpNumericInputRefs, ElementWiseClosedOpOutputRefs]
+    BaseBinaryElementWiseOp[
+        C, BinaryElementWiseOpNumericInputRefs, ElementWiseClosedOpOutputRefs
+    ]
 ):
     """Base class for closed mathematical operations.
 
@@ -379,7 +458,11 @@ class ElementWiseFloorDivOutputRefs(BaseBinaryOpOutputRefs):
 
     result: Annotated[
         FeatureRef,
-        LambdaOutputFeature(lambda _, i: Sequence(Value("int32"), length=infer_output_length(i))),
+        LambdaOutputFeature(
+            lambda _, i: Sequence(
+                Value("int32"), length=infer_output_length(i)
+            )
+        ),
     ]
     """The result of the floor division operation."""
 
@@ -405,14 +488,20 @@ class ElementWiseTrueDivOutputRefs(BaseBinaryOpOutputRefs):
 
     result: Annotated[
         FeatureRef,
-        LambdaOutputFeature(lambda _, i: Sequence(Value("float32"), length=infer_output_length(i))),
+        LambdaOutputFeature(
+            lambda _, i: Sequence(
+                Value("float32"), length=infer_output_length(i)
+            )
+        ),
     ]
     """The result of the true division operation."""
 
 
 class ElementWiseTrueDiv(
     BaseBinaryElementWiseOp[
-        ElementWiseTrueDivConfig, BinaryElementWiseOpNumericInputRefs, ElementWiseTrueDivOutputRefs
+        ElementWiseTrueDivConfig,
+        BinaryElementWiseOpNumericInputRefs,
+        ElementWiseTrueDivOutputRefs,
     ]
 ):
     """Processor for the true division operation."""
