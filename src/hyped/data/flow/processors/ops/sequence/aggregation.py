@@ -7,7 +7,7 @@ from typing import Any, TypeVar
 from datasets import Value
 from typing_extensions import Annotated, Unpack
 
-from hyped.common.feature_checks import SCALAR_TYPES
+from hyped.common.feature_checks import SCALAR_TYPES, get_sequence_feature
 from hyped.data.flow.core.nodes.processor import Batch, IOContext
 from hyped.data.flow.core.refs.inputs import CheckFeatureIsSequence
 from hyped.data.flow.core.refs.outputs import LambdaOutputFeature, OutputFeature
@@ -123,7 +123,7 @@ def scalar_seq_aggr_infer_dtype(
 ) -> Value:
     return Value(
         max(
-            inputs["a"].feature_.feature.dtype,
+            get_sequence_feature(inputs["a"].feature_).dtype,
             "int32",
             key=SCALAR_TYPE_NAMES.index,  # this order prefers int over bool
         )

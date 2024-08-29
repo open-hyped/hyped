@@ -9,7 +9,7 @@ from datasets import Sequence
 from typing_extensions import Annotated, Unpack
 
 from hyped.common.feature_checks import get_sequence_length  # noqa: F401
-from hyped.common.feature_checks import check_feature_is_sequence, get_sequence_feature
+from hyped.common.feature_checks import check_value_feature_is_castable, get_sequence_feature
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
@@ -64,13 +64,13 @@ def validate_multisequence_feat(config: BaseMultiSequenceOpConfig, feat_ref: Fea
             % (feat_ref.key_, sorted_indices)
         )
 
-    # TODO: Allow castable types
-    value_type = next(iter(feat_ref.feature_.values())).feature
-    for k in feat_ref.feature_.keys():
-        if not check_feature_is_sequence(feat_ref.feature_[k], value_type):
+    first_seq_feat = get_sequence_feature(next(iter(feat_ref.feature_.values())))
+    for k, feat in feat_ref.feature_.items():
+        seq_feat = get_sequence_feature(feat)
+        if not check_value_feature_is_castable(seq_feat, first_seq_feat):
             raise TypeError(
                 "Expected `%s.%s` to be a sequence of type %s"
-                ", got %s " % (feat_ref.key_, k, value_type, feat_ref.feature_[k])
+                ", got %s " % (feat_ref.key_, k, first_seq_feat, seq_feat)
             )
 
 
