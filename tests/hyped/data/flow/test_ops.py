@@ -289,7 +289,6 @@ def test_len_op():
         flow.src_features.inv.length_()
 
 
-
 @pytest.mark.parametrize(
     "op, proc_type, dtype",
     [
@@ -397,10 +396,26 @@ def test_element_wise_binary_op(op, proc_type, dtype):
 @pytest.mark.parametrize(
     "op, proc_type, dtype",
     [
-        (ops.neg, "hyped.data.flow.ops.element_wise_unary.ElementWiseNeg", "int32"),
-        (ops.abs_, "hyped.data.flow.ops.element_wise_unary.ElementWiseAbs", "int32"),
-        (ops.invert, "hyped.data.flow.ops.element_wise_unary.ElementWiseInvert", "int32"),
-        (ops.invert, "hyped.data.flow.ops.element_wise_unary.ElementWiseBooleanInvert", "bool"),
+        (
+            ops.neg,
+            "hyped.data.flow.ops.element_wise_unary.ElementWiseNeg",
+            "int32",
+        ),
+        (
+            ops.abs_,
+            "hyped.data.flow.ops.element_wise_unary.ElementWiseAbs",
+            "int32",
+        ),
+        (
+            ops.invert,
+            "hyped.data.flow.ops.element_wise_unary.ElementWiseInvert",
+            "int32",
+        ),
+        (
+            ops.invert,
+            "hyped.data.flow.ops.element_wise_unary.ElementWiseBooleanInvert",
+            "bool",
+        ),
     ],
 )
 def test_element_wise_unary_op(op, proc_type, dtype):

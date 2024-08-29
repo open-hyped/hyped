@@ -162,7 +162,10 @@ class SequenceSumOutputRefs(BaseSequenceAggregationOutputRefs):
     """Output references for the Sequence Sum operation."""
 
     result: Annotated[
-        FeatureRef, LambdaOutputFeature(lambda _, i: scalar_seq_aggr_infer_dtype(i, "int64"))
+        FeatureRef,
+        LambdaOutputFeature(
+            lambda _, i: scalar_seq_aggr_infer_dtype(i, "int64")
+        ),
     ]
     """The feature reference to the sum of the sequence."""
 
@@ -190,7 +193,10 @@ class SequenceMeanOutputRefs(BaseSequenceAggregationOutputRefs):
     """Output references for the Sequence Mean operation."""
 
     result: Annotated[
-        FeatureRef, LambdaOutputFeature(lambda _, i: scalar_seq_aggr_infer_dtype(i, "float32"))
+        FeatureRef,
+        LambdaOutputFeature(
+            lambda _, i: scalar_seq_aggr_infer_dtype(i, "float32")
+        ),
     ]
     """The feature reference to the mean of the sequence."""
 

@@ -243,9 +243,7 @@ def mean(a: FeatureRef) -> FeatureRef:
         FeatureRef: A reference to the result of the mean operation.
     """
     if check_feature_is_sequence(a.feature_):
-        return (
-            SequenceMean().call(a=a).result
-        )
+        return SequenceMean().call(a=a).result
     else:
         return MeanAggregator().call(x=a).value
 
