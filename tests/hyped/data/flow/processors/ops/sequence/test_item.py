@@ -8,7 +8,9 @@ class TestSequenceGetItem(BaseDataProcessorTest):
     processor_type = itemaccess.SequenceGetItem
     processor_config = itemaccess.SequenceGetItemConfig()
 
-    input_features = Features({"sequence": Sequence(Value("int32")), "index": Value("int32")})
+    input_features = Features(
+        {"sequence": Sequence(Value("int32")), "index": Value("int32")}
+    )
     input_data = {
         "sequence": [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
         "index": [0, 1, 2],
@@ -55,7 +57,9 @@ class TestSequenceGetItem_MultiIndex_FixedLength(BaseDataProcessorTest):
     }
     input_index = [0, 1, 2]
 
-    expected_output_features = Features({"gathered": Sequence(Value("int32"), length=2)})
+    expected_output_features = Features(
+        {"gathered": Sequence(Value("int32"), length=2)}
+    )
     expected_output_data = {"gathered": [[1, 2], [5, 6], [7, 9]]}
 
 

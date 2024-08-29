@@ -8,7 +8,9 @@ class TestSequenceContains(BaseDataProcessorTest):
     processor_type = seq_val.SequenceContains
     processor_config = seq_val.SequenceContainsConfig()
 
-    input_features = Features({"sequence": Sequence(Value("int32")), "value": Value("int32")})
+    input_features = Features(
+        {"sequence": Sequence(Value("int32")), "value": Value("int32")}
+    )
     input_data = {
         "sequence": [[0, 1, 2], [0, 0, 1], [0, 0, 0]],
         "value": [0, 1, 2],
@@ -23,7 +25,9 @@ class TestSequenceCountOf(BaseDataProcessorTest):
     processor_type = seq_val.SequenceCountOf
     processor_config = seq_val.SequenceCountOfConfig()
 
-    input_features = Features({"sequence": Sequence(Value("int32")), "value": Value("int32")})
+    input_features = Features(
+        {"sequence": Sequence(Value("int32")), "value": Value("int32")}
+    )
     input_data = {
         "sequence": [[0, 1, 2], [0, 0, 1], [0, 0, 0]],
         "value": [0, 0, 0],
@@ -38,7 +42,9 @@ class TestSequenceIndexOf(BaseDataProcessorTest):
     processor_type = seq_val.SequenceIndexOf
     processor_config = seq_val.SequenceIndexOfConfig()
 
-    input_features = Features({"sequence": Sequence(Value("int32")), "value": Value("int32")})
+    input_features = Features(
+        {"sequence": Sequence(Value("int32")), "value": Value("int32")}
+    )
     input_data = {
         "sequence": [[0, 1, 2], [0, 0, 1], [1, 0, 0]],
         "value": [0, 0, 0],

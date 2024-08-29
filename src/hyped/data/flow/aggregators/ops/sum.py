@@ -64,7 +64,9 @@ class SumAggregatorConfig(BaseDataAggregatorConfig):
 
 
 class SumAggregator(
-    BaseDataAggregator[SumAggregatorConfig, SumAggregatorInputRefs, SumAggregatorOutputRefs]
+    BaseDataAggregator[
+        SumAggregatorConfig, SumAggregatorInputRefs, SumAggregatorOutputRefs
+    ]
 ):
     """A data aggregator that computes the sum of input features.
 
@@ -83,7 +85,9 @@ class SumAggregator(
         """
         return {"value": self.config.start}, None
 
-    async def extract(self, inputs: Batch, index: list[int], rank: int, io: IOContext) -> float:
+    async def extract(
+        self, inputs: Batch, index: list[int], rank: int, io: IOContext
+    ) -> float:
         """Extracts the sum of the input feature :code:`x` from the batch of data.
 
         Args:
@@ -113,7 +117,9 @@ class SumAggregator(
         """
         return {"value": val["value"] + ctx}, None
 
-    def call(self, **kwargs: Unpack[SumAggregatorInputRefs]) -> SumAggregatorOutputRefs:
+    def call(
+        self, **kwargs: Unpack[SumAggregatorInputRefs]
+    ) -> SumAggregatorOutputRefs:
         """Execute the SumAggregator to compute the mean value.
 
         Args:

@@ -1,3 +1,7 @@
+"""Module for unary operations in data processing pipelines.
+
+This module defines various unary operations for processing individual features.
+"""
 import operator
 from typing import Annotated
 
@@ -51,7 +55,9 @@ class NegConfig(BaseUnaryOpConfig):
     """Configuration class for the negation operation."""
 
 
-class Neg(BaseUnaryOp[NegConfig, UnaryOpNumericInputRefs, UnaryOpNumericOutputRefs]):
+class Neg(
+    BaseUnaryOp[NegConfig, UnaryOpNumericInputRefs, UnaryOpNumericOutputRefs]
+):
     """Processor for the negation operation."""
 
     op = operator.neg
@@ -61,7 +67,9 @@ class AbsConfig(BaseUnaryOpConfig):
     """Configuration class for the absolute operation."""
 
 
-class Abs(BaseUnaryOp[AbsConfig, UnaryOpNumericInputRefs, UnaryOpNumericOutputRefs]):
+class Abs(
+    BaseUnaryOp[AbsConfig, UnaryOpNumericInputRefs, UnaryOpNumericOutputRefs]
+):
     """Processor for the absolute operation."""
 
     op = operator.abs
@@ -71,7 +79,9 @@ class InvertConfig(BaseUnaryOpConfig):
     """Configuration class for the bitwise inversion operation."""
 
 
-class Invert(BaseUnaryOp[InvertConfig, UnaryOpIntInputRefs, UnaryOpNumericOutputRefs]):
+class Invert(
+    BaseUnaryOp[InvertConfig, UnaryOpIntInputRefs, UnaryOpNumericOutputRefs]
+):
     """Processor for the bitwise inversion operation."""
 
     op = operator.invert
@@ -81,9 +91,21 @@ class BooleanInvertConfig(BaseUnaryOpConfig):
     """Configuration class for the boolean inversion operation."""
 
 
-class BooleanInvert(BaseUnaryOp[BooleanInvertConfig, UnaryOpBooleanInputRefs, BooleanOutputRefs]):
+class BooleanInvert(
+    BaseUnaryOp[
+        BooleanInvertConfig, UnaryOpBooleanInputRefs, BooleanOutputRefs
+    ]
+):
     """Processor for the negation operation."""
 
     # operator.invert is not the same as boolean negation
-    def op(self, b):
+    def op(self, b: bool) -> bool:
+        """Invert the boolean value.
+
+        Args:
+            b (bool): The boolean input.
+
+        Returns:
+        (bool): The inversion.
+        """
         return not b

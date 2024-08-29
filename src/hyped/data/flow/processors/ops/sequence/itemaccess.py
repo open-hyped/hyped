@@ -103,9 +103,15 @@ class SequenceGetItem(
             else (lambda s, i: s[i])
         )
 
-        return {"gathered": list(starmap(op, zip(inputs["sequence"], inputs["index"])))}
+        return {
+            "gathered": list(
+                starmap(op, zip(inputs["sequence"], inputs["index"]))
+            )
+        }
 
-    def call(self, **kwargs: Unpack[SequenceGetItemInputRefs]) -> SequenceGetItemOutputRefs:
+    def call(
+        self, **kwargs: Unpack[SequenceGetItemInputRefs]
+    ) -> SequenceGetItemOutputRefs:
         """Add the GetItem node to the data flow.
 
         This method processes the input references for the GetItem operation, adds
@@ -171,7 +177,9 @@ def validate_setitem_input_refs(
             raise TypeError("Value must match the sequence type.")
 
 
-class SequenceSetItemInputRefs(Annotated[InputRefs, GlobalValidator(validate_setitem_input_refs)]):
+class SequenceSetItemInputRefs(
+    Annotated[InputRefs, GlobalValidator(validate_setitem_input_refs)]
+):
     """Input references for the SetItem operation."""
 
     sequence: Annotated[FeatureRef, CheckFeatureIsSequence()]
@@ -191,7 +199,9 @@ class SequenceSetItemInputRefs(Annotated[InputRefs, GlobalValidator(validate_set
 class SequenceSetItemOutputRefs(OutputRefs):
     """Output references for the SetItem operation."""
 
-    result: Annotated[FeatureRef, LambdaOutputFeature(lambda _, i: i["sequence"].feature_)]
+    result: Annotated[
+        FeatureRef, LambdaOutputFeature(lambda _, i: i["sequence"].feature_)
+    ]
     """The feature reference to the result of the SetItem operation."""
 
 
@@ -244,19 +254,28 @@ class SequenceSetItem(
             )
         ):
             # make sure the length of the value and index list match
-            if any(len(vals) != len(idx) for vals, idx in zip(inputs["value"], inputs["index"])):
+            if any(
+                len(vals) != len(idx)
+                for vals, idx in zip(inputs["value"], inputs["index"])
+            ):
                 raise RuntimeError()  # TODO: write error message
 
         # convert sequences to numpy arrays and create all put operations
-        sequences = list(map(partial(np.asarray, dtype=object), inputs["sequence"]))
-        operations = starmap(np.put, zip(sequences, inputs["index"], inputs["value"]))
+        sequences = list(
+            map(partial(np.asarray, dtype=object), inputs["sequence"])
+        )
+        operations = starmap(
+            np.put, zip(sequences, inputs["index"], inputs["value"])
+        )
         # efficiently exhaust operations iterator, basically run all operations
         deque(operations, maxlen=0)
 
         # convert arrays with new values back to python lists
         return {"result": list(map(np.ndarray.tolist, sequences))}
 
-    def call(self, **kwargs: Unpack[SequenceSetItemInputRefs]) -> SequenceSetItemOutputRefs:
+    def call(
+        self, **kwargs: Unpack[SequenceSetItemInputRefs]
+    ) -> SequenceSetItemOutputRefs:
         """Add the SetItem node to the data flow.
 
         This method processes the input references for the SetItem operation, adds

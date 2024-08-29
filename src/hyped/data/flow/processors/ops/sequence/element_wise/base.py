@@ -1,4 +1,8 @@
-"""Module containing processor implementations for sequence operators."""
+"""Module for element-wise operations in data processing pipelines.
+
+This module provides base classes and utilities for performing element-wise operations 
+on sequence and value features in data processing pipelines.
+"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -50,7 +54,9 @@ class UnaryElementWiseOpBooleanOutputRefs(BaseUnaryOpOutputRefs):
     result: Annotated[
         FeatureRef,
         LambdaOutputFeature(
-            lambda _, i: Sequence(Value("bool"), length=get_sequence_length(i["a"].feature_))
+            lambda _, i: Sequence(
+                Value("bool"), length=get_sequence_length(i["a"].feature_)
+            )
         ),
     ]
     """The boolean result of the operation."""
@@ -83,7 +89,9 @@ class BaseUnaryElementWiseOp(BaseUnaryOp[C, I, O_], ABC):
         Returns:
             Batch: The batch containing the result of the element-wise operation.
         """
-        return {"result": [[self.op(item) for item in seq] for seq in inputs["a"]]}
+        return {
+            "result": [[self.op(item) for item in seq] for seq in inputs["a"]]
+        }
 
     def call(self, **kwargs: Unpack[UnaryElementWiseOpInputRefs]) -> O_:
         """Add the element-wise node to the data flow.
@@ -110,6 +118,26 @@ class BaseBinaryElementWiseOpConfig(BaseBinaryOpConfig):
 def validate_sequence_inputs(
     config: BaseBinaryElementWiseOpConfig, refs: "BinaryElementWiseOpInputRefs"
 ) -> None:
+    """Validate the input features for binary element-wise operations.
+
+    This function checks the validity of input features used in binary element-wise operations. It
+    ensures that:
+
+    1. At least one of the features is a sequence. If both features are sequences, it validates
+    that their lengths match.
+    2. If neither feature is a sequence, a `TypeError` is raised indicating that at least one feature
+    must be a sequence.
+
+    Args:
+        config (BaseBinaryElementWiseOpConfig): The configuration for the binary element-wise
+        operation.
+        refs (BinaryElementWiseOpInputRefs): The input references containing the features to be
+        validated.
+
+    Raises:
+        TypeError: If both features are non-sequence values or if the lengths of sequence features
+        do not match.
+    """
     a_key = refs["a"].key_
     b_key = refs["b"].key_
 
@@ -119,7 +147,9 @@ def validate_sequence_inputs(
     if check_feature_is_sequence(a_feat) and check_feature_is_sequence(b_feat):
         raise_sequence_lengths_match(a_key, b_key, a_feat, b_feat)
 
-    elif not check_feature_is_sequence(a_feat) and not check_feature_is_sequence(b_feat):
+    elif not check_feature_is_sequence(
+        a_feat
+    ) and not check_feature_is_sequence(b_feat):
         raise TypeError(
             "Both features for element-wise binary operation are of Value type. "
             f"Need min. 1 sequence type. Got {a_key} ({a_feat}) and {b_key} ({b_feat})"
@@ -131,20 +161,37 @@ class BinaryElementWiseOpInputRefs(
 ):
     """Input references for binary element-wise sequence operations."""
 
-    a: Annotated[FeatureRef, CheckFeatureIsSequence(Value) | CheckFeatureEquals(Value)]
+    a: Annotated[
+        FeatureRef, CheckFeatureIsSequence(Value) | CheckFeatureEquals(Value)
+    ]
     """The first input feature. Must be a value or non-nested sequence type."""
 
-    b: Annotated[FeatureRef, CheckFeatureIsSequence(Value) | CheckFeatureEquals(Value)]
+    b: Annotated[
+        FeatureRef, CheckFeatureIsSequence(Value) | CheckFeatureEquals(Value)
+    ]
     """The second input feature. Must be a value or non-nested sequence type."""
 
 
 def infer_output_length(inputs: BinaryElementWiseOpInputRefs) -> int:
+    """Infer the output length for binary element-wise operations based on input features.
+
+    Args:
+        inputs (BinaryElementWiseOpInputRefs): The input references containing the features.
+
+    Returns:
+        int: The length of the sequence feature.
+
+    Raises:
+        RuntimeError: If neither of the input features is a sequence.
+    """
     if check_feature_is_sequence(inputs["a"].feature_):
         return get_sequence_length(inputs["a"].feature_)
     elif check_feature_is_sequence(inputs["b"].feature_):
         return get_sequence_length(inputs["b"].feature_)
     else:
-        raise RuntimeError("One of `a` or `b` must be of sequence feature type.")
+        raise RuntimeError(
+            "One of `a` or `b` must be of sequence feature type."
+        )
 
 
 class BinaryElementWiseOpBooleanOutputRefs(BaseBinaryOpOutputRefs):
@@ -152,7 +199,9 @@ class BinaryElementWiseOpBooleanOutputRefs(BaseBinaryOpOutputRefs):
 
     result: Annotated[
         FeatureRef,
-        LambdaOutputFeature(lambda _, i: Sequence(Value("bool"), length=infer_output_length(i))),
+        LambdaOutputFeature(
+            lambda _, i: Sequence(Value("bool"), length=infer_output_length(i))
+        ),
     ]
     """The boolean result of the operation."""
 
@@ -184,22 +233,26 @@ class BaseBinaryElementWiseOp(BaseBinaryOp[C, I, O], ABC):
             Batch: The batch containing the result of the element-wise operation.
         """
         # check for broadcasting
-        if check_feature_is_sequence(io.inputs["a"]) and check_feature_is_sequence(io.inputs["b"]):
+        if check_feature_is_sequence(
+            io.inputs["a"]
+        ) and check_feature_is_sequence(io.inputs["b"]):
             iterator = (
                 [self.op(a, b) for a, b in zip(seq_a, seq_b)]
                 for seq_a, seq_b in zip(inputs["a"], inputs["b"])
             )
-        elif check_feature_is_sequence(io.inputs["a"]) and not check_feature_is_sequence(
-            io.inputs["b"]
-        ):
+        elif check_feature_is_sequence(
+            io.inputs["a"]
+        ) and not check_feature_is_sequence(io.inputs["b"]):
             iterator = (
-                [self.op(a, b) for a in seq_a] for seq_a, b in zip(inputs["a"], inputs["b"])
+                [self.op(a, b) for a in seq_a]
+                for seq_a, b in zip(inputs["a"], inputs["b"])
             )
-        elif not check_feature_is_sequence(io.inputs["a"]) and check_feature_is_sequence(
-            io.inputs["b"]
-        ):
+        elif not check_feature_is_sequence(
+            io.inputs["a"]
+        ) and check_feature_is_sequence(io.inputs["b"]):
             iterator = (
-                [self.op(a, b) for b in seq_b] for a, seq_b in zip(inputs["a"], inputs["b"])
+                [self.op(a, b) for b in seq_b]
+                for a, seq_b in zip(inputs["a"], inputs["b"])
             )
         else:
             raise RuntimeError(

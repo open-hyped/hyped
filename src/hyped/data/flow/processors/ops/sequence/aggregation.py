@@ -1,4 +1,7 @@
-"""Module containing processor implementations for sequence operators."""
+"""Sequence Aggregation Operations.
+
+This module contains `DataProcessor` implementations for various sequence aggregation operations.
+"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -10,7 +13,10 @@ from typing_extensions import Annotated, Unpack
 from hyped.common.feature_checks import SCALAR_TYPES, get_sequence_feature
 from hyped.data.flow.core.nodes.processor import Batch, IOContext
 from hyped.data.flow.core.refs.inputs import CheckFeatureIsSequence
-from hyped.data.flow.core.refs.outputs import LambdaOutputFeature, OutputFeature
+from hyped.data.flow.core.refs.outputs import (
+    LambdaOutputFeature,
+    OutputFeature,
+)
 from hyped.data.flow.core.refs.ref import FeatureRef
 from hyped.data.flow.processors.ops.base import (
     BaseUnaryOp,
@@ -119,8 +125,25 @@ SCALAR_TYPE_NAMES = [t.dtype for t in SCALAR_TYPES]
 
 
 def scalar_seq_aggr_infer_dtype(
-    config: BaseSequenceAggregateConfig, inputs: SequenceAggregationScalarInputRefs
+    config: BaseSequenceAggregateConfig,
+    inputs: SequenceAggregationScalarInputRefs,
 ) -> Value:
+    """Infer the output data type for scalar sequence aggregation operations.
+
+    This function determines the appropriate data type for the result of a scalar aggregation operation
+    on a sequence. It examines the data type of the sequence elements and selects a castable
+    scalar type to ensure compatibility with the input types.
+
+    Args:
+        config (BaseSequenceAggregateConfig): Configuration for the sequence aggregation operation.
+                                              Is not directly used.
+        inputs (SequenceAggregationScalarInputRefs): Input references for the sequence aggregation,
+                                                     including the sequence feature reference. This is used
+                                                     to infer the data type of the sequence elements.
+
+    Returns:
+        Value: The inferred data type for the result of the sequence aggregation operation.
+    """
     return Value(
         max(
             get_sequence_feature(inputs["a"].feature_).dtype,
@@ -137,7 +160,9 @@ class SequenceSumConfig(BaseSequenceAggregateConfig):
 class SequenceSumOutputRefs(BaseSequenceAggregationOutputRefs):
     """Output references for the Sequence Sum operation."""
 
-    result: Annotated[FeatureRef, LambdaOutputFeature(scalar_seq_aggr_infer_dtype)]
+    result: Annotated[
+        FeatureRef, LambdaOutputFeature(scalar_seq_aggr_infer_dtype)
+    ]
     """The feature reference to the sum of the sequence."""
 
 
@@ -163,7 +188,9 @@ class SequenceMeanConfig(BaseSequenceAggregateConfig):
 class SequenceMeanOutputRefs(BaseSequenceAggregationOutputRefs):
     """Output references for the Sequence Mean operation."""
 
-    result: Annotated[FeatureRef, LambdaOutputFeature(scalar_seq_aggr_infer_dtype)]
+    result: Annotated[
+        FeatureRef, LambdaOutputFeature(scalar_seq_aggr_infer_dtype)
+    ]
     """The feature reference to the mean of the sequence."""
 
 

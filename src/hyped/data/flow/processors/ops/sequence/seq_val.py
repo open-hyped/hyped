@@ -38,11 +38,17 @@ def validate_seqvalop_input_refs(
         TypeError: If the value feature does not match the feature type of the sequence values.
     """
     # make sure the value matches the feature type of the sequence values
-    if not check_feature_is_sequence(refs["sequence"].feature_, refs["value"].feature_):
-        raise TypeError("Value feature type does not match the sequence feature type.")
+    if not check_feature_is_sequence(
+        refs["sequence"].feature_, refs["value"].feature_
+    ):
+        raise TypeError(
+            "Value feature type does not match the sequence feature type."
+        )
 
 
-class SequenceValueOpInputRefs(Annotated[InputRefs, GlobalValidator(validate_seqvalop_input_refs)]):
+class SequenceValueOpInputRefs(
+    Annotated[InputRefs, GlobalValidator(validate_seqvalop_input_refs)]
+):
     """Input references for sequence value operations."""
 
     sequence: Annotated[FeatureRef, CheckFeatureIsSequence()]
@@ -92,7 +98,8 @@ class BaseSequenceValueOp(BaseDataProcessor[C, I, O], ABC):
         """
         return {
             type(self)._OUTPUT_KEY: [
-                self.op(a, b) for a, b in zip(inputs["sequence"], inputs["value"])
+                self.op(a, b)
+                for a, b in zip(inputs["sequence"], inputs["value"])
             ]
         }
 

@@ -137,5 +137,8 @@ class ElementWiseBooleanInvert(
 
         Args:
             b (bool): the boolean value.
+
+        Return:
+            (bool): The inversion.
         """
         return not b

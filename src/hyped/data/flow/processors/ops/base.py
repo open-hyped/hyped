@@ -1,3 +1,23 @@
+"""Unary and binary operations processors.
+
+This module defines base classes and configurations for implementing unary and binary operations 
+within a data processing pipeline. It includes abstract base classes for unary and binary operations, 
+along with their respective input and output reference classes. The module supports defining operations 
+that can handle various data types and perform element-wise computations on them. These processors are 
+designed to be integrated into data flows, enabling seamless application of operations on input features 
+to produce desired outputs.
+
+Classes:
+    BooleanOutputRefs: Defines output references for operations that yield boolean results.
+    BaseUnaryOpConfig: Configuration class for unary operations.
+    UnaryOpInputRefs: Defines input references for unary operations.
+    BaseUnaryOpOutputRefs: Defines output references for unary operations.
+    BaseUnaryOp: Abstract base class for unary operations.
+    BaseBinaryOpConfig: Configuration class for binary operations.
+    BinaryOpInputRefs: Defines input references for binary operations.
+    BaseBinaryOpOutputRefs: Defines output references for binary operations.
+    BaseBinaryOp: Abstract base class for binary operations.
+"""
 from abc import ABC, abstractmethod
 from typing import Annotated, Any, TypeVar
 
@@ -5,7 +25,11 @@ from datasets import Value
 from typing_extensions import Unpack
 
 from hyped.data.flow.core.nodes.base import IOContext
-from hyped.data.flow.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, Batch
+from hyped.data.flow.core.nodes.processor import (
+    BaseDataProcessor,
+    BaseDataProcessorConfig,
+    Batch,
+)
 from hyped.data.flow.core.refs.inputs import AnyFeatureType, InputRefs
 from hyped.data.flow.core.refs.outputs import OutputFeature, OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
@@ -129,7 +153,9 @@ class BaseBinaryOp(BaseDataProcessor[C, I, O], ABC):
         Returns:
             Batch: The batch containing the result of the binary operation.
         """
-        return {"result": [self.op(a, b) for a, b in zip(inputs["a"], inputs["b"])]}
+        return {
+            "result": [self.op(a, b) for a, b in zip(inputs["a"], inputs["b"])]
+        }
 
     def call(self, **kwargs: Unpack[BinaryOpInputRefs]) -> O:
         """Add the binary operation node to the data flow.

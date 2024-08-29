@@ -69,7 +69,9 @@ class MeanAggregatorConfig(BaseDataAggregatorConfig):
 
 
 class MeanAggregator(
-    BaseDataAggregator[MeanAggregatorConfig, MeanAggregatorInputRefs, MeanAggregatorOutputRefs]
+    BaseDataAggregator[
+        MeanAggregatorConfig, MeanAggregatorInputRefs, MeanAggregatorOutputRefs
+    ]
 ):
     """A data aggregator that computes the mean of input features.
 
@@ -120,11 +122,13 @@ class MeanAggregator(
             tuple[dict[str, float], float]: The updated running mean and the new count of items.
         """
         ext_val, ext_count = ctx
-        return {"value": (val["value"] * state + ext_val) / (state + ext_count)}, (
-            state + ext_count
-        )
+        return {
+            "value": (val["value"] * state + ext_val) / (state + ext_count)
+        }, (state + ext_count)
 
-    def call(self, **kwargs: Unpack[MeanAggregatorInputRefs]) -> MeanAggregatorOutputRefs:
+    def call(
+        self, **kwargs: Unpack[MeanAggregatorInputRefs]
+    ) -> MeanAggregatorOutputRefs:
         """Execute the MeanAggregator to compute the mean value.
 
         Args:

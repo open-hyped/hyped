@@ -9,7 +9,10 @@ from datasets import Sequence
 from typing_extensions import Annotated, Unpack
 
 from hyped.common.feature_checks import get_sequence_length  # noqa: F401
-from hyped.common.feature_checks import check_value_feature_is_castable, get_sequence_feature
+from hyped.common.feature_checks import (
+    check_value_feature_is_castable,
+    get_sequence_feature,
+)
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
@@ -17,7 +20,11 @@ from hyped.data.flow.core.nodes.processor import (
     IOContext,
 )
 from hyped.data.flow.core.refs.inputs import FeatureValidator, InputRefs
-from hyped.data.flow.core.refs.outputs import LambdaOutputFeature, OutputFeature, OutputRefs
+from hyped.data.flow.core.refs.outputs import (
+    LambdaOutputFeature,
+    OutputFeature,
+    OutputRefs,
+)
 from hyped.data.flow.core.refs.ref import FeatureRef
 
 
@@ -25,7 +32,9 @@ class BaseMultiSequenceOpConfig(BaseDataProcessorConfig):
     """Configuration for MultiSequenceOp."""
 
 
-def validate_multisequence_feat(config: BaseMultiSequenceOpConfig, feat_ref: FeatureRef) -> None:
+def validate_multisequence_feat(
+    config: BaseMultiSequenceOpConfig, feat_ref: FeatureRef
+) -> None:
     """Validates that the provided feature is a multisequence feature.
 
     This function ensures that the feature is a dictionary indexed by consecutive integers,
@@ -58,13 +67,18 @@ def validate_multisequence_feat(config: BaseMultiSequenceOpConfig, feat_ref: Fea
 
     # check that multisequence is indexed by consecutive integers starting at 0
     sorted_indices = list(sorted(indices))
-    if not (all(k == i for i, k in enumerate(sorted_indices)) and sorted_indices[0] == 0):
+    if not (
+        all(k == i for i, k in enumerate(sorted_indices))
+        and sorted_indices[0] == 0
+    ):
         raise TypeError(
             "Expected multisequence feature `%s` to be indexed by consecutive integers, got %s "
             % (feat_ref.key_, sorted_indices)
         )
 
-    first_seq_feat = get_sequence_feature(next(iter(feat_ref.feature_.values())))
+    first_seq_feat = get_sequence_feature(
+        next(iter(feat_ref.feature_.values()))
+    )
     for k, feat in feat_ref.feature_.items():
         seq_feat = get_sequence_feature(feat)
         if not check_value_feature_is_castable(seq_feat, first_seq_feat):
@@ -77,7 +91,9 @@ def validate_multisequence_feat(config: BaseMultiSequenceOpConfig, feat_ref: Fea
 class MultiSequenceOpInputRefs(InputRefs):
     """Input references for MultiSequenceOp."""
 
-    sequences: Annotated[FeatureRef, FeatureValidator(validate_multisequence_feat)]
+    sequences: Annotated[
+        FeatureRef, FeatureValidator(validate_multisequence_feat)
+    ]
     """The sequence of input sequences to process. This is validated to be a 
     dict of sequences indexed by consecutive integers starting from 0.
     
@@ -131,7 +147,9 @@ class BaseMultiSequenceOp(BaseDataProcessor[C, I, O], ABC):
         """
         return {
             "result": [
-                list(self.op(*(seq_dict[str(i)] for i in range(len(seq_dict)))))
+                list(
+                    self.op(*(seq_dict[str(i)] for i in range(len(seq_dict))))
+                )
                 for seq_dict in inputs["sequences"]
             ]
         }
@@ -169,8 +187,13 @@ def infer_chain_output_dtype(
     Returns:
         Sequence: The output sequence feature with inferred length.
     """
-    sequence_feature = get_sequence_feature(next(iter(inputs["sequences"].feature_.values())))
-    sequence_lengths = [get_sequence_length(feat) for feat in inputs["sequences"].feature_.values()]
+    sequence_feature = get_sequence_feature(
+        next(iter(inputs["sequences"].feature_.values()))
+    )
+    sequence_lengths = [
+        get_sequence_length(feat)
+        for feat in inputs["sequences"].feature_.values()
+    ]
     return Sequence(
         feature=sequence_feature,
         length=-1 if -1 in sequence_lengths else sum(sequence_lengths),
@@ -180,12 +203,16 @@ def infer_chain_output_dtype(
 class SequenceChainOutputRefs(BaseMultiSequenceOpOutputRefs):
     """Output references for the Chain operation."""
 
-    result: Annotated[FeatureRef, LambdaOutputFeature(infer_chain_output_dtype)]
+    result: Annotated[
+        FeatureRef, LambdaOutputFeature(infer_chain_output_dtype)
+    ]
     """The feature reference to the result of the chain operation."""
 
 
 class SequenceChain(
-    BaseMultiSequenceOp[SequenceChainConfig, MultiSequenceOpInputRefs, SequenceChainOutputRefs]
+    BaseMultiSequenceOp[
+        SequenceChainConfig, MultiSequenceOpInputRefs, SequenceChainOutputRefs
+    ]
 ):
     """Sequence Chain Data Processor.
 
@@ -205,10 +232,14 @@ class SequenceZipOutputRefs(BaseMultiSequenceOpOutputRefs):
         LambdaOutputFeature(
             lambda _, i: Sequence(
                 Sequence(
-                    get_sequence_feature(next(iter(i["sequences"].feature_.values()))),
+                    get_sequence_feature(
+                        next(iter(i["sequences"].feature_.values()))
+                    ),
                     length=len(i["sequences"].feature_),
                 ),
-                length=min(map(get_sequence_length, i["sequences"].feature_.values())),
+                length=min(
+                    map(get_sequence_length, i["sequences"].feature_.values())
+                ),
             )
         ),
     ]
@@ -220,7 +251,9 @@ class SequenceZipConfig(BaseMultiSequenceOpConfig):
 
 
 class SequenceZip(
-    BaseMultiSequenceOp[SequenceZipConfig, MultiSequenceOpInputRefs, SequenceZipOutputRefs]
+    BaseMultiSequenceOp[
+        SequenceZipConfig, MultiSequenceOpInputRefs, SequenceZipOutputRefs
+    ]
 ):
     """Data Processor for zipping sequences."""
 
