@@ -109,7 +109,7 @@ class ElementWiseInvertConfig(BaseUnaryElementWiseOpConfig):
 class ElementWiseInvert(
     BaseUnaryElementWiseOp[
         ElementWiseInvertConfig,
-        UnaryElementWiseOpNumericInputRefs,
+        UnaryElementWiseOpIntInputRefs,
         UnaryElementWiseOpNumericOutputRefs,
     ]
 ):
@@ -125,7 +125,7 @@ class ElementWiseBooleanInvertConfig(BaseUnaryElementWiseOpConfig):
 class ElementWiseBooleanInvert(
     BaseUnaryElementWiseOp[
         ElementWiseBooleanInvertConfig,
-        UnaryElementWiseOpNumericInputRefs,
+        UnaryElementWiseOpBooleanInputRefs,
         UnaryElementWiseOpBooleanOutputRefs,
     ]
 ):

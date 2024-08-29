@@ -233,38 +233,21 @@ def sum_(a: FeatureRef) -> FeatureRef:
         return SumAggregator().call(x=a).value
 
 
-def mean(a: FeatureRef, axis: int = 0) -> FeatureRef:
+def mean(a: FeatureRef) -> FeatureRef:
     """Calculate the mean of feature values.
 
     Args:
         a (FeatureRef): The feature to aggregate.
-        axis (int): The axis to aggregate over. 0 represents aggregation
-            over batches. 1 represents sequence-level aggregation and requires
-            a sequence feature. Defaults to 0
 
     Returns:
         FeatureRef: A reference to the result of the mean operation.
     """
-    if axis == 0:
-        if check_feature_is_sequence(a.feature_):
-            return (
-                MeanAggregator().call(x=SequenceMean().call(a=a).result).value
-            )
-        else:
-            return MeanAggregator().call(x=a).value
-
-    elif axis == 1:
-        if check_feature_is_sequence(a.feature_):
-            return SequenceMean().call(a=a).result
-        else:
-            raise TypeError(
-                f"Mean with axis=1 only requires sequence features. Got {a.feature_}"
-            )
-
-    else:
-        raise ValueError(
-            f"Only {0, 1} are allowed values for `axis`, got {axis}"
+    if check_feature_is_sequence(a.feature_):
+        return (
+            SequenceMean().call(a=a).result
         )
+    else:
+        return MeanAggregator().call(x=a).value
 
 
 @_handle_constant_inputs_for_binary_op
@@ -808,24 +791,6 @@ def index_of(obj: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
             "Unexpected feature type for indexOf operation, "
             "got `{obj.feature_}`."
         )
-
-
-def chain(*sequences: FeatureRef) -> FeatureRef:
-    """Concatenate sequence features.
-
-    Args:
-        *sequences (FeatureRef): Sequence features to chain. Must all have the same Value type.
-
-    Returns:
-        FeatureRef: A FeatureRef instance representing the chained sequences.
-
-    Raises:
-        TypeError: If the features are of unexpected types.
-    """
-    sequences = _check_args(*sequences)
-    seq_container = collect({str(i): seq for i, seq in enumerate(sequences)})
-    # return chained sequence feature
-    return SequenceChain().call(sequences=seq_container).result
 
 
 def chain(*sequences: FeatureRef) -> FeatureRef:

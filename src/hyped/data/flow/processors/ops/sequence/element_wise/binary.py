@@ -25,6 +25,7 @@ from typing import Annotated, Any, TypeVar
 from datasets import Sequence, Value
 
 from hyped.common.feature_checks import (
+    INT_TYPES,
     NUMERIC_TYPES,
     check_feature_is_sequence,
     get_sequence_feature,

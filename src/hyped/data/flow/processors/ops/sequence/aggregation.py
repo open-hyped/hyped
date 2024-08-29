@@ -125,8 +125,8 @@ SCALAR_TYPE_NAMES = [t.dtype for t in SCALAR_TYPES]
 
 
 def scalar_seq_aggr_infer_dtype(
-    config: BaseSequenceAggregateConfig,
     inputs: SequenceAggregationScalarInputRefs,
+    min_precision_type: str = "bool",
 ) -> Value:
     """Infer the output data type for scalar sequence aggregation operations.
 
@@ -135,11 +135,12 @@ def scalar_seq_aggr_infer_dtype(
     scalar type to ensure compatibility with the input types.
 
     Args:
-        config (BaseSequenceAggregateConfig): Configuration for the sequence aggregation operation.
-                                              Is not directly used.
         inputs (SequenceAggregationScalarInputRefs): Input references for the sequence aggregation,
                                                      including the sequence feature reference. This is used
                                                      to infer the data type of the sequence elements.
+        min_precision_type (str): A minimum precision type to choose. This is useful if the output of the
+                                  operation should be e.g. float, but should still infer the precision
+                                  from the input feature, if this is also a float feature.
 
     Returns:
         Value: The inferred data type for the result of the sequence aggregation operation.
@@ -147,7 +148,7 @@ def scalar_seq_aggr_infer_dtype(
     return Value(
         max(
             get_sequence_feature(inputs["a"].feature_).dtype,
-            "int32",
+            min_precision_type,
             key=SCALAR_TYPE_NAMES.index,  # this order prefers int over bool
         )
     )
@@ -161,7 +162,7 @@ class SequenceSumOutputRefs(BaseSequenceAggregationOutputRefs):
     """Output references for the Sequence Sum operation."""
 
     result: Annotated[
-        FeatureRef, LambdaOutputFeature(scalar_seq_aggr_infer_dtype)
+        FeatureRef, LambdaOutputFeature(lambda _, i: scalar_seq_aggr_infer_dtype(i, "int64"))
     ]
     """The feature reference to the sum of the sequence."""
 
@@ -189,7 +190,7 @@ class SequenceMeanOutputRefs(BaseSequenceAggregationOutputRefs):
     """Output references for the Sequence Mean operation."""
 
     result: Annotated[
-        FeatureRef, LambdaOutputFeature(scalar_seq_aggr_infer_dtype)
+        FeatureRef, LambdaOutputFeature(lambda _, i: scalar_seq_aggr_infer_dtype(i, "float32"))
     ]
     """The feature reference to the mean of the sequence."""
 

@@ -190,8 +190,6 @@ def check_sequence_lengths_match(
     a_len = get_sequence_length(seq_A)
     b_len = get_sequence_length(seq_B)
 
-    print(a_len, b_len)
-
     if (not allow_arbitrary_length) and (a_len == -1 or b_len == -1):
         return False
 
