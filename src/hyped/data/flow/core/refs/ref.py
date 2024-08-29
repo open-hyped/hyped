@@ -7,6 +7,7 @@ retrieve nested features within the data flow graph.
 
 from __future__ import annotations
 
+import json
 from typing import Any, TypeAlias
 
 from datasets.features.features import Features, FeatureType, Value
