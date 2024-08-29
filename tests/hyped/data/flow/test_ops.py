@@ -264,7 +264,7 @@ def test_len_op():
 
 @pytest.mark.parametrize(
     "op, proc_type",
-    [(ops.chain, "hyped.data.flow.processors.ops.sequence.SequenceChain")],
+    [(ops.chain, "hyped.data.flow.ops.SequenceChain")],
 )
 def test_chain_op(op, proc_type):
     flow = DataFlow(

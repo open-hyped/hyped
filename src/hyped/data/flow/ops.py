@@ -196,32 +196,19 @@ def collect(
     return CollectFeatures().call(collection=container).collected
 
 
-def sum_(a: FeatureRef, axis: int = 0) -> FeatureRef:
+def sum_(a: FeatureRef) -> FeatureRef:
     """Calculate the sum of feature values.
 
     Args:
         a (FeatureRef): The feature to aggregate.
-        axis (int): The axis to aggregate over. 0 represents aggregation
-            over batches. 1 represents sequence-level aggregation and requires
-            a sequence feature. Defaults to 0
 
     Returns:
         FeatureRef: A reference to the result of the sum operation.
     """
-    if axis == 0:
-        if check_feature_is_sequence(a.feature_):
-            return SumAggregator().call(x=SequenceSum().call(a=a).result).value
-        else:
-            return SumAggregator().call(x=a).value
-
-    elif axis == 1:
-        if check_feature_is_sequence(a.feature_):
-            return SequenceSum().call(a=a).result
-        else:
-            raise TypeError(f"Sum with axis=1 only requires sequence features. Got {a.feature_}")
-
+    if check_feature_is_sequence(a.feature_):
+        return SequenceSum().call(a=a).result
     else:
-        raise ValueError(f"Only {0, 1} are allowed values for `axis`, got {axis}")
+        return SumAggregator().call(x=a).value
 
 
 def mean(a: FeatureRef, axis: int = 0) -> FeatureRef:
@@ -609,10 +596,7 @@ def len_(a: FeatureRef) -> FeatureRef | int:
 
     else:
         # unexpected feature type
-        raise TypeError(
-            f"Unexpected feature type for length operation, "
-            "got `{a.feature_}`."
-        )
+        raise TypeError(f"Unexpected feature type for length operation, " "got `{a.feature_}`.")
 
 
 def get_item(seq: FeatureRef | Any, index: FeatureRef | Any) -> FeatureRef:
@@ -771,7 +755,7 @@ def chain(*sequences: FeatureRef) -> FeatureRef:
     sequences = _check_args(*sequences)
     seq_container = collect({str(i): seq for i, seq in enumerate(sequences)})
     # return chained sequence feature
-    return sequence.SequenceChain().call(sequences=seq_container).result
+    return SequenceChain().call(sequences=seq_container).result
 
 
 def zip_(*sequences: FeatureRef) -> FeatureRef:
@@ -789,4 +773,4 @@ def zip_(*sequences: FeatureRef) -> FeatureRef:
     sequences = _check_args(*sequences)
     seq_container = collect({str(i): seq for i, seq in enumerate(sequences)})
     # zip collected sequences
-    return sequence.SequenceZip().call(sequences=seq_container).result
+    return SequenceZip().call(sequences=seq_container).result

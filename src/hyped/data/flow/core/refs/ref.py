@@ -858,7 +858,7 @@ class FeatureRef(BaseModel):
 
         return contains(self, value)
 
-    def sum_(self, axis: int = 0) -> FeatureRef:
+    def sum_(self) -> FeatureRef:
         """Calculate the sum of the referenced feature.
 
         Returns:
@@ -866,9 +866,9 @@ class FeatureRef(BaseModel):
         """
         from hyped.data.flow.ops import sum_
 
-        return sum_(self, axis=axis)
+        return sum_(self)
 
-    def mean_(self, axis: int = 0) -> FeatureRef:
+    def mean_(self) -> FeatureRef:
         """Calculate the mean of the referenced feature.
 
         Returns:
@@ -876,7 +876,7 @@ class FeatureRef(BaseModel):
         """
         from hyped.data.flow.ops import mean
 
-        return mean(self, axis=axis)
+        return mean(self)
 
 
 NONE_REF = FeatureRef(
