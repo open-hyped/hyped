@@ -104,13 +104,13 @@ class MultiLabelConfusionMatrixInputRefs(
     1. **Multi-class Classification:**
        - If :class:`y_true`and :class:`y_pred` is a single class label, the task is interpreted as
        a standard multi-class classification problem. In this setting, each instance is assigned
-       exactly one class label out of the possible `n_classes` labels.
+       exactly one class label out of the possible :code:`n_classes` labels.
 
     2. **Multi-label Classification:**
        - If :class:`y_true`and :class:`y_pred` are a sequences of boolean values with shape
-       `(n_classes,)`,  then the task is interpreted as a multi-label classification problem.
-       Here, each class label is represented as a boolean value, where `True` indicates the
-       presence of the class,  and `False` indicates its absence. Multiple classes can be
+       :code:`(n_classes,)`,  then the task is interpreted as a multi-label classification problem.
+       Here, each class label is represented as a boolean value, where :code:`True` indicates the
+       presence of the class,  and :code:`False` indicates its absence. Multiple classes can be
        associated with a single instance.
 
 
