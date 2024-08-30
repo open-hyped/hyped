@@ -1,25 +1,10 @@
-"""Module implementing the PrecisionRecallFScoreSupport processor.
+"""Module implementing the :class:`PrecisionRecallFScoreSupport` processor.
 
-This can be used for computing precision, recall, F-score, and support metrics.
+This can be used for computing precision, recall, F-score and support metrics for classification tasks.
 
 This module contains classes and functions to calculate precision, recall, F-score, and
 support metrics from a given confusion matrix. It leverages scikit-learn's underlying functions
-but adapts them to operate directly on confusion matrices within the HypED data flow framework.
-
-Classes:
-    - PrecisionRecallFScoreSupportConfig: Configuration class for the PrecisionRecallFScoreSupport
-        processor.
-    - PrecisionRecallFScoreSupportInputRefs: Defines the input references required for
-        the processor.
-    - PrecisionRecallFScoreSupportOutputRefs: Defines the output references produced
-        by the processor.
-    - PrecisionRecallFScoreSupport: Implements the core functionality for computing and
-        aggregating precision, recall, F-score, and support metrics.
-
-Usage:
-    The `PrecisionRecallFScoreSupport` processor computes precision, recall, F-score, and support
-    metrics from an input confusion matrix. It supports various averaging methods (`micro`,
-    `macro`, `weighted`) and can handle custom label sets.
+but adapts them to operate directly on confusion matrices within the hyped data flow framework.
 """
 from typing import Annotated, Literal
 
