@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from typing import Any, TypeAlias
 
-from datasets.features.features import Features, FeatureType, Sequence, Value
+from datasets.features.features import Features, FeatureType, Value
 from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
 from typing_extensions import Annotated
 
@@ -218,12 +218,14 @@ class FeatureRef(BaseModel):
     ) -> FeatureRef:
         """Set an item in the feature collection or sequence.
 
-        This method sets a specified key or index in the feature collection or sequence to the given value.
-        If the feature is a collection (like a dictionary), it updates the collection with the new key-value pair.
-        Otherwise, it uses the set_item operation to set the value at the specified index.
+        This method sets a specified key or index in the feature collection or sequence to the
+        given value. If the feature is a collection (like a dictionary), it updates the
+        collection with the new key-value pair. Otherwise, it uses the set_item operation to
+        set the value at the specified index.
 
         Args:
-            key (str | FeatureRef | int | list[int] | slice): The key or index where the value should be set.
+            key (str | FeatureRef | int | list[int] | slice): The key or index where the
+                value should be set.
             value (FeatureRef | Any): The value to set at the specified key or index.
 
         Returns:

@@ -5,11 +5,9 @@ from datasets import Features, Sequence, Value
 from pydantic import BaseModel
 
 from hyped.data.flow import ops
-from hyped.data.flow.aggregators.ops.mean import MeanAggregator
 from hyped.data.flow.core.flow import DataFlow
 from hyped.data.flow.core.graph import DataFlowGraph
 from hyped.data.flow.core.refs.ref import FeatureRef
-from hyped.data.flow.processors.ops import binary, sequence, unary
 from hyped.data.flow.processors.ops.collect import CollectFeatures
 
 
@@ -111,40 +109,105 @@ def test_simple_aggregators(op, agg_type):
 
 
 @pytest.mark.parametrize(
+    "op, agg_type",
+    [
+        (ops.sum_, "hyped.data.flow.ops.SequenceSum"),
+        (ops.mean, "hyped.data.flow.ops.SequenceMean"),
+    ],
+)
+def test_sequence_aggregators(op, agg_type):
+    flow = DataFlow(Features({"a": Sequence(Value("int32"))}))
+
+    with patch(agg_type) as mock:
+        # run operator
+        op(flow.src_features.a)
+        # make sure the processor was called with the correct inputs
+        mock().call.assert_called_once_with(a=flow.src_features.a)
+
+
+@pytest.mark.parametrize(
     "op, proc_type, dtype",
     [
-        (ops.add, "hyped.data.flow.processors.ops.binary.Add", "int32"),
-        (ops.sub, "hyped.data.flow.processors.ops.binary.Sub", "int32"),
-        (ops.mul, "hyped.data.flow.processors.ops.binary.Mul", "int32"),
-        (ops.pow, "hyped.data.flow.processors.ops.binary.Pow", "int32"),
-        (ops.mod, "hyped.data.flow.processors.ops.binary.Mod", "int32"),
+        (
+            ops.add,
+            "hyped.data.flow.ops.binary.Add",
+            "int32",
+        ),
+        (
+            ops.sub,
+            "hyped.data.flow.ops.binary.Sub",
+            "int32",
+        ),
+        (
+            ops.mul,
+            "hyped.data.flow.ops.binary.Mul",
+            "int32",
+        ),
+        (
+            ops.pow,
+            "hyped.data.flow.ops.binary.Pow",
+            "int32",
+        ),
+        (
+            ops.mod,
+            "hyped.data.flow.ops.binary.Mod",
+            "int32",
+        ),
         (
             ops.truediv,
-            "hyped.data.flow.processors.ops.binary.TrueDiv",
+            "hyped.data.flow.ops.binary.TrueDiv",
             "int32",
         ),
         (
             ops.floordiv,
-            "hyped.data.flow.processors.ops.binary.FloorDiv",
+            "hyped.data.flow.ops.binary.FloorDiv",
             "int32",
         ),
-        (ops.eq, "hyped.data.flow.processors.ops.binary.Equals", "int32"),
-        (ops.ne, "hyped.data.flow.processors.ops.binary.NotEquals", "int32"),
-        (ops.lt, "hyped.data.flow.processors.ops.binary.LessThan", "int32"),
+        (
+            ops.eq,
+            "hyped.data.flow.ops.binary.Equals",
+            "int32",
+        ),
+        (
+            ops.ne,
+            "hyped.data.flow.ops.binary.NotEquals",
+            "int32",
+        ),
+        (
+            ops.lt,
+            "hyped.data.flow.ops.binary.LessThan",
+            "int32",
+        ),
         (
             ops.le,
-            "hyped.data.flow.processors.ops.binary.LessThanOrEqual",
+            "hyped.data.flow.ops.binary.LessThanOrEqual",
             "int32",
         ),
-        (ops.gt, "hyped.data.flow.processors.ops.binary.GreaterThan", "int32"),
+        (
+            ops.gt,
+            "hyped.data.flow.ops.binary.GreaterThan",
+            "int32",
+        ),
         (
             ops.ge,
-            "hyped.data.flow.processors.ops.binary.GreaterThanOrEqual",
+            "hyped.data.flow.ops.binary.GreaterThanOrEqual",
             "int32",
         ),
-        (ops.and_, "hyped.data.flow.processors.ops.binary.LogicalAnd", "bool"),
-        (ops.or_, "hyped.data.flow.processors.ops.binary.LogicalOr", "bool"),
-        (ops.xor_, "hyped.data.flow.processors.ops.binary.LogicalXOr", "bool"),
+        (
+            ops.and_,
+            "hyped.data.flow.ops.binary.LogicalAnd",
+            "bool",
+        ),
+        (
+            ops.or_,
+            "hyped.data.flow.ops.binary.LogicalOr",
+            "bool",
+        ),
+        (
+            ops.xor_,
+            "hyped.data.flow.ops.binary.LogicalXOr",
+            "bool",
+        ),
     ],
 )
 def test_binary_op(op, proc_type, dtype):
@@ -169,9 +232,9 @@ def test_binary_op(op, proc_type, dtype):
 @pytest.mark.parametrize(
     "op, proc_type, dtype",
     [
-        (ops.neg, "hyped.data.flow.processors.ops.unary.Neg", "int32"),
-        (ops.abs_, "hyped.data.flow.processors.ops.unary.Abs", "int32"),
-        (ops.invert, "hyped.data.flow.processors.ops.unary.Invert", "int32"),
+        (ops.neg, "hyped.data.flow.ops.unary.Neg", "int32"),
+        (ops.abs_, "hyped.data.flow.ops.unary.Abs", "int32"),
+        (ops.invert, "hyped.data.flow.ops.unary.Invert", "int32"),
     ],
 )
 def test_unary_op(op, proc_type, dtype):
@@ -204,18 +267,14 @@ def test_len_op():
         )
     )
 
-    with patch(
-        "hyped.data.flow.processors.ops.sequence.SequenceLength"
-    ) as mock:
+    with patch("hyped.data.flow.ops.SequenceLength") as mock:
         # test constant length sequence
         out = flow.src_features.constant_seq.length_()
         # make sure the processor was not called and check the output
         assert not mock().call.called
         assert out == 5
 
-    with patch(
-        "hyped.data.flow.processors.ops.sequence.SequenceLength"
-    ) as mock:
+    with patch("hyped.data.flow.ops.SequenceLength") as mock:
         # test dynamic length sequence
         out = flow.src_features.dynamic_seq.length_()
         # make sure processor was called correctly
@@ -232,7 +291,7 @@ def test_len_op():
 
 @pytest.mark.parametrize(
     "op, proc_type",
-    [(ops.chain, "hyped.data.flow.processors.ops.sequence.SequenceChain")],
+    [(ops.chain, "hyped.data.flow.ops.SequenceChain")],
 )
 def test_chain_op(op, proc_type):
     flow = DataFlow(
@@ -281,18 +340,14 @@ def test_sequence_get_set_item():
         )
     )
 
-    with patch(
-        "hyped.data.flow.processors.ops.sequence.SequenceGetItem"
-    ) as mock:
+    with patch("hyped.data.flow.ops.SequenceGetItem") as mock:
         ops.get_item(flow.src_features.seq, flow.src_features.idx)
         # make sure processor was called correctly
         mock().call.assert_called_once_with(
             sequence=flow.src_features.seq, index=flow.src_features.idx
         )
 
-    with patch(
-        "hyped.data.flow.processors.ops.sequence.SequenceSetItem"
-    ) as mock:
+    with patch("hyped.data.flow.ops.SequenceSetItem") as mock:
         ops.set_item(
             flow.src_features.seq, flow.src_features.idx, flow.src_features.val
         )
@@ -309,15 +364,15 @@ def test_sequence_get_set_item():
     [
         (
             FeatureRef.contains_,
-            "hyped.data.flow.processors.ops.sequence.SequenceContains",
+            "hyped.data.flow.ops.SequenceContains",
         ),
         (
             ops.count_of,
-            "hyped.data.flow.processors.ops.sequence.SequenceCountOf",
+            "hyped.data.flow.ops.SequenceCountOf",
         ),
         (
             ops.index_of,
-            "hyped.data.flow.processors.ops.sequence.SequenceIndexOf",
+            "hyped.data.flow.ops.SequenceIndexOf",
         ),
     ],
 )
@@ -353,7 +408,7 @@ def test_value_lookup_op(op, seq_proc_type):
 
 @pytest.mark.parametrize(
     "op, proc_type",
-    [(ops.zip_, "hyped.data.flow.processors.ops.sequence.SequenceZip")],
+    [(ops.zip_, "hyped.data.flow.ops.SequenceZip")],
 )
 def test_multi_sequence_op(op, proc_type):
     flow = DataFlow(
