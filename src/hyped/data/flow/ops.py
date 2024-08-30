@@ -829,7 +829,7 @@ def zip_(*sequences: FeatureRef) -> FeatureRef:
 def precision_recall_fscore_support(
     y_true: FeatureRef,
     y_pred: FeatureRef,
-    labels: list | None = None,
+    labels: list[int] | None = None,
     beta: float = 1.0,
     average: Literal["micro", "macro", "weighted"] | None = None,
     warn_for: list | tuple | set = ("precision", "recall", "f-score"),
@@ -874,10 +874,10 @@ def precision_recall_fscore_support(
             If set to np.nan, such values will be excluded from the average.
 
     Returns:
-                FeatureRef: A FeatureRef instance representing the zipped sequences.
+        FeatureRef: An Aggregator FeatureRef instance representing the result metrics.
 
     Raises:
-                TypeError: If the features are of unexpected types.
+        TypeError: If the features are of unexpected types.
 
     Returns:
         PrecisionRecallFScoreSupportOutputRefs: A FeatureRef instance representing

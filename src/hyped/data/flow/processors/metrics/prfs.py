@@ -24,23 +24,20 @@ Usage:
 from typing import Annotated, Literal
 
 import numpy as np
-from datasets import Array3D, Sequence, Value
+from datasets import Sequence, Value
 from datasets.features.features import FeatureType
 from sklearn.metrics._classification import _prf_divide
 from sklearn.utils.extmath import _nanaverage
 from typing_extensions import Unpack
 
+from hyped.common.feature_checks import get_sequence_length, get_sequence_shape
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     IOContext,
     Sample,
 )
-from hyped.data.flow.core.refs.inputs import (
-    CheckFeatureEquals,
-    FeatureValidator,
-    InputRefs,
-)
+from hyped.data.flow.core.refs.inputs import FeatureValidator, InputRefs
 from hyped.data.flow.core.refs.outputs import LambdaOutputFeature, OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
 
@@ -51,7 +48,7 @@ class PrecisionRecallFScoreSupportConfig(BaseDataProcessorConfig):
     beta: float = 1.0
     """The strength of recall versus precision in the F-score."""
 
-    labels: list | None = None
+    labels: list[int] | None = None
     """The set of labels to include and their order if average is None.
     Labels present in the data can be excluded, for example in multiclass classification
     to exclude a “negative class”. Labels not present in the data can be included and will
@@ -116,35 +113,27 @@ def check_input_confusion_matrix(
         RuntimeError: If the length of the labels in the configuration is greater than the
         number of classes in the confusion matrix.
     """
-    # TODO: `and`` not implemented yet
-    # check for the correct feature type
-    CheckFeatureEquals(Array3D).f(config, ref)
+    shape = get_sequence_shape(ref.feature_)
+    assert shape[1:] == (2, 2)
 
     # check labels argument
-    if (
-        config.labels is not None
-        and len(config.labels) > ref.feature_.shape[0]
-    ):
+    if config.labels is not None and len(config.labels) > shape[0]:
         raise RuntimeError(
             "Labels in PrecisionRecallFScoreSupportConfig cannot longer than the number "
             "of classes in the confusion matrix. Confusion matrix has shape "
-            f"{ref.feature_.shape}, but labels have length {len(config.labels)}."
+            f"{shape}, but labels have length {len(config.labels)}."
         )
 
 
 class PrecisionRecallFScoreSupportInputRefs(InputRefs):
     """Input ref description for the PrecisionRecallFScoreSupport Processor."""
 
-    # TODO: `and`` not implemented yet
-    # confusion_matrix: Annotated[
-    #     FeatureRef, CheckFeatureEquals(Array3D) & FeatureValidator(check_input_confusion_matrix)
-    # ]
     confusion_matrix: Annotated[
         FeatureRef, FeatureValidator(check_input_confusion_matrix)
     ]
     """Confusion matrix to compute scores from.
     
-    Must be of type Array3D with shape (n_classes, 2, 2)
+    Must be a nested Sequence of shape (n_classes, 2, 2)
     """
 
     # TODO: sample_weight
@@ -153,6 +142,7 @@ class PrecisionRecallFScoreSupportInputRefs(InputRefs):
 def infer_prf_output_feature(
     config: PrecisionRecallFScoreSupportConfig,
     inputs: PrecisionRecallFScoreSupportInputRefs,
+    dtype: str,
 ) -> FeatureType:
     """Infers the feature type for precision, recall, and F-score outputs.
 
@@ -165,46 +155,19 @@ def infer_prf_output_feature(
     Args:
         config (PrecisionRecallFScoreSupportConfig): Configuration parameters for the processor.
         inputs (PrecisionRecallFScoreSupportInputRefs): Input references for the processor.
+        dtype (str): The dtype of the output feature.
 
     Returns:
         FeatureType: The inferred feature type for precision, recall, and F-score outputs.
     """
     if config.average is not None:
-        return Value("float32")
+        return Value(dtype)
     elif config.labels is not None:
-        return Sequence(Value("int32"), length=len(config.labels))
+        return Sequence(Value(dtype), length=len(config.labels))
     else:
         return Sequence(
-            Value("int32"), length=inputs["confusion_matrix"].feature_.shape[0]
-        )
-
-
-def infer_support_output_feature(
-    config: PrecisionRecallFScoreSupportConfig,
-    inputs: PrecisionRecallFScoreSupportInputRefs,
-) -> FeatureType:
-    """Infers the feature type for the support output based on the configuration.
-
-    This function determines the appropriate feature type for the support output of
-    the processor. It returns None if an averaging method is specified in the configuration.
-    Otherwise, it returns a sequence of integers with the length determined by the labels
-    in the configuration or the number of classes in the confusion matrix.
-
-    Args:
-        config (PrecisionRecallFScoreSupportConfig): Configuration parameters for the processor.
-        inputs (PrecisionRecallFScoreSupportInputRefs): Input references for the processor.
-
-    Returns:
-        FeatureType: The inferred feature type for the support output.
-    """
-    if config.average is not None:
-        # return None
-        return Value("int32")
-    elif config.labels is not None:
-        return Sequence(Value("int32"), length=len(config.labels))
-    else:
-        return Sequence(
-            Value("int32"), length=inputs["confusion_matrix"].feature_.shape[0]
+            Value(dtype),
+            length=get_sequence_length(inputs["confusion_matrix"].feature_),
         )
 
 
@@ -212,7 +175,10 @@ class PrecisionRecallFScoreSupportOutputRefs(OutputRefs):
     """Outputs of the PrecisionRecallFScoreSupport Processor."""
 
     precision: Annotated[
-        FeatureRef, LambdaOutputFeature(infer_prf_output_feature)
+        FeatureRef,
+        LambdaOutputFeature(
+            lambda c, i: infer_prf_output_feature(c, i, "float32")
+        ),
     ]
     """Precision score.
     
@@ -220,7 +186,10 @@ class PrecisionRecallFScoreSupportOutputRefs(OutputRefs):
     """
 
     recall: Annotated[
-        FeatureRef, LambdaOutputFeature(infer_prf_output_feature)
+        FeatureRef,
+        LambdaOutputFeature(
+            lambda c, i: infer_prf_output_feature(c, i, "float32")
+        ),
     ]
     """Recall score.
 
@@ -228,7 +197,10 @@ class PrecisionRecallFScoreSupportOutputRefs(OutputRefs):
     """
 
     f_score: Annotated[
-        FeatureRef, LambdaOutputFeature(infer_prf_output_feature)
+        FeatureRef,
+        LambdaOutputFeature(
+            lambda c, i: infer_prf_output_feature(c, i, "float32")
+        ),
     ]
     """F-beta score.
     
@@ -236,7 +208,10 @@ class PrecisionRecallFScoreSupportOutputRefs(OutputRefs):
     """
 
     support: Annotated[
-        FeatureRef, LambdaOutputFeature(infer_support_output_feature)
+        FeatureRef,
+        LambdaOutputFeature(
+            lambda c, i: infer_prf_output_feature(c, i, "int64")
+        ),
     ]
     """The number of occurrences of each label in y_true. If average is not None, this
     will be computed as the sum of each label occurences in y_true.
@@ -280,7 +255,7 @@ class PrecisionRecallFScoreSupport(
         zero_division = self.config.zero_division
 
         # input confusion matrix
-        MCM = inputs["confusion_matrix"]
+        MCM = np.array(inputs["confusion_matrix"])
         # reduce the confusion matrix to selected labels
         if labels is not None:
             MCM = MCM[labels]

@@ -28,18 +28,28 @@ Usage:
 from typing import Annotated
 
 import numpy as np
-from datasets import Array3D, Value
+from datasets import ClassLabel, Sequence, Value
 from sklearn.metrics import multilabel_confusion_matrix
 from typing_extensions import Unpack
 
-from hyped.common.feature_checks import get_sequence_length
+from hyped.common.feature_checks import (
+    check_feature_is_sequence,
+    check_sequence_lengths_match,
+    get_sequence_length,
+    get_sequence_shape,
+)
 from hyped.data.flow.core.nodes.aggregator import (
     BaseDataAggregator,
     BaseDataAggregatorConfig,
     Batch,
     IOContext,
 )
-from hyped.data.flow.core.refs.inputs import CheckFeatureIsSequence, InputRefs
+from hyped.data.flow.core.refs.inputs import (
+    CheckFeatureEquals,
+    CheckFeatureIsSequence,
+    GlobalValidator,
+    InputRefs,
+)
 from hyped.data.flow.core.refs.outputs import LambdaOutputFeature, OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
 
@@ -47,7 +57,7 @@ from hyped.data.flow.core.refs.ref import FeatureRef
 class MultiLabelConfusionMatrixConfig(BaseDataAggregatorConfig):
     """Configuration for the MultiLabelConfusionMatrix Aggregator."""
 
-    labels: list | None = None
+    labels: list[int] | None = None
     """A list of classes or column indices to select some
     (or to force inclusion of classes absent from the data).
 
@@ -55,28 +65,85 @@ class MultiLabelConfusionMatrixConfig(BaseDataAggregatorConfig):
     """
 
 
-class MultiLabelConfusionMatrixInputRefs(InputRefs):
+def validate_input_sequences(
+    config: MultiLabelConfusionMatrixConfig, input_refs: InputRefs
+) -> None:
+    """Validates that the input sequences for the MultiLabelConfusionMatrix aggregator are compatible.
+
+    This function checks the compatibility of the `y_true` and `y_pred` input features to ensure
+    they are appropriate for multilabel classification. It performs the following checks:
+
+    Args:
+        config (MultiLabelConfusionMatrixConfig): Configuration object for the MultiLabelConfusionMatrix.
+        input_refs (InputRefs): A reference to the input features (y_true, y_pred) to validate.
+
+    Raises:
+        RuntimeError: If the input features do not meet the required compatibility criteria.
+
+    Note:
+        This function is used internally within the MultiLabelConfusionMatrixInputRefs class to
+        validate inputs before processing. If the inputs are not compatible, it raises an error
+        to prevent incorrect computations in the confusion matrix.
+    """
+    if check_feature_is_sequence(
+        input_refs["y_true"].feature_
+    ) and check_feature_is_sequence(input_refs["y_pred"].feature_):
+        assert get_sequence_length(input_refs["y_true"].feature_) != -1
+        assert get_sequence_length(input_refs["y_pred"].feature_) != -1
+        # TODO: use allow_arbitrary_lengths arg of `check_sequence_lengths_match` instead of asserts
+        if not check_sequence_lengths_match(
+            input_refs["y_true"].feature_, input_refs["y_pred"].feature_
+        ):
+            raise RuntimeError(
+                "Sequence length of y_true must match sequence length of y_pred "
+                f"Got y_true with len={get_sequence_length(input_refs['y_true'].feature_)} "
+                f"and y_pred with len={get_sequence_length(input_refs['y_pred'].feature_)}"
+            )
+
+    elif check_feature_is_sequence(
+        input_refs["y_true"].feature_
+    ) or check_feature_is_sequence(input_refs["y_pred"].feature_):
+        raise RuntimeError(
+            "MultiLabelConfusionMatrix cannot handle a mix of multiclass and multilabel -indicator targets"
+        )
+
+    else:
+        if input_refs["y_true"].feature_ != input_refs["y_pred"].feature_:
+            raise RuntimeError(
+                "ClassLabel feature of y_true must be identical to the feature of y_pred "
+                f"Got y_true with {input_refs['y_true'].feature_} "
+                f"and y_pred with {input_refs['y_pred'].feature_}"
+            )
+
+
+class MultiLabelConfusionMatrixInputRefs(
+    Annotated[InputRefs, GlobalValidator(validate_input_sequences)]
+):
     """Input Ref description for the MultiLabelConfusionMatrix Aggregator."""
 
-    y_true: Annotated[FeatureRef, CheckFeatureIsSequence(Value("bool"))]
+    y_true: Annotated[
+        FeatureRef,
+        CheckFeatureIsSequence(Value("bool")) | CheckFeatureEquals(ClassLabel),
+    ]
     """Ground truth (correct) target values.
 
-    Sequence of length n_classes.
+    Either label indicator or a sequence of shape (n_classes,)
     """
 
-    y_pred: Annotated[FeatureRef, CheckFeatureIsSequence(Value("bool"))]
+    y_pred: Annotated[
+        FeatureRef,
+        CheckFeatureIsSequence(Value("bool")) | CheckFeatureEquals(ClassLabel),
+    ]
     """Estimated targets as returned by a classifier.
 
-    Sequence of length n_classes.
+    Either label indicator or a sequence of shape (n_classes,)
     """
-
-    # TODO: sample_weight
 
 
 def infer_confusion_matrix_output_feature(
     config: MultiLabelConfusionMatrixConfig,
     inputs: MultiLabelConfusionMatrixInputRefs,
-):
+) -> Sequence:
     """Infer the output feature type for the MultiLabelConfusionMatrix processor.
 
     Checks the configuration if `labels` is specified, otherwise uses the input
@@ -84,10 +151,18 @@ def infer_confusion_matrix_output_feature(
     """
     if config.labels is not None:
         n_classes = len(config.labels)
-    else:
+    elif check_feature_is_sequence(inputs["y_pred"].feature_):
         n_classes = get_sequence_length(inputs["y_pred"].feature_)
+    else:
+        n_classes = len(inputs["y_pred"].feature_.names)
 
-    return Array3D(shape=(n_classes, 2, 2), dtype="int64")
+    return Sequence(
+        Sequence(
+            Sequence(Value("int64"), length=2),
+            length=2,
+        ),
+        length=n_classes,
+    )
 
 
 class MultiLabelConfusionMatrixOutputRefs(OutputRefs):
@@ -114,10 +189,9 @@ class MultiLabelConfusionMatrix(
 
     def initialize(self, io: IOContext) -> tuple[dict[str, float], None]:
         """Initialize the confusion matrix to zeros."""
+        shape = get_sequence_shape(io.outputs["confusion_matrix"])
         return {
-            "confusion_matrix": np.zeros(
-                shape=io.outputs["confusion_matrix"].shape
-            )
+            "confusion_matrix": np.zeros(shape=shape, dtype=np.int64).tolist()
         }, None
 
     async def extract(
@@ -134,7 +208,11 @@ class MultiLabelConfusionMatrix(
         self, val: float, ctx: np.ndarray, state: None, io: IOContext
     ) -> tuple[dict[str, float], None]:
         """Updates the confusion matrix by addition."""
-        return {"confusion_matrix": val["confusion_matrix"] + ctx}, None
+        return {
+            "confusion_matrix": (
+                np.array(val["confusion_matrix"]) + ctx
+            ).tolist()
+        }, None
 
     def call(
         self, **kwargs: Unpack[MultiLabelConfusionMatrixInputRefs]

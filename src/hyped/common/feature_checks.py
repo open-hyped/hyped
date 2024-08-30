@@ -154,7 +154,7 @@ def get_sequence_length(seq: Sequence | list | tuple) -> int:
             the length of the given sequence. Returns -1 for
             sequences of undefined length
     """
-    assert isinstance(seq, (Sequence, list, tuple)), seq
+    assert check_feature_is_sequence(seq), seq
     return seq.length if isinstance(seq, Sequence) else -1
 
 
@@ -169,8 +169,77 @@ def get_sequence_feature(seq: Sequence | list | tuple) -> FeatureType:
         feature (FeatureType):
             the item feature type of the sequence
     """
-    assert isinstance(seq, (Sequence, list, tuple))
+    assert check_feature_is_sequence(seq), seq
     return seq.feature if isinstance(seq, Sequence) else seq[0]
+
+
+def get_nested_sequence_type(seq: Sequence | list | tuple) -> tuple[int]:
+    """Gets the value type of a nested sequence.
+
+    Args:
+        seq (Sequence | list | tuple): The sequence feature.
+
+    Returns:
+        value (Value): The Value type of the nested sequence.
+    """
+    seq_feat = get_sequence_feature(seq)
+    if check_feature_is_sequence(seq_feat):
+        return get_nested_sequence_type(seq_feat)
+    else:
+        return seq_feat
+
+
+def get_sequence_shape(seq: Sequence | list | tuple) -> tuple[int]:
+    """Gets the shape of the nested sequence structure for nested sequences.
+
+    Args:
+        seq (Sequence | list | tuple): The sequence feature.
+
+    Returns:
+        shape (tuple[int]): The shape of the nested sequence.
+    """
+    # init shape as sequence length for the first axis
+    shape = (get_sequence_length(seq),)
+    # check if sequence is nested and retrieve nested shape recursively
+    seq_feat = get_sequence_feature(seq)
+    if check_feature_is_sequence(seq_feat):
+        shape = shape + get_sequence_shape(seq_feat)
+    # return the full shape
+    return shape
+
+
+def check_sequence_shape(
+    seq: Sequence | list | tuple, shape: tuple[int]
+) -> bool:
+    """Checks if Sequence has a given shape.
+
+    Arguments:
+        seq (Sequence | list | tuple): the sequence feature to check.
+        shape (tuple[int]): The target shape.
+
+    Returns:
+        match (bool):
+            when the shape of the sequence matches the target shape.
+    """
+    seq_shape = get_sequence_shape(seq)
+    return seq_shape == shape
+
+
+def check_nested_sequence_type(
+    seq: Sequence | list | tuple, value_type: FeatureType | list[FeatureType]
+) -> bool:
+    """Checks if nested Sequence is of a given value type.
+
+    Arguments:
+        seq (Sequence | list | tuple): the sequence feature to check.
+        value_type (Value): The target value type.
+
+    Returns:
+        match (bool):
+            when the sequence is of the target value type
+    """
+    seq_type = get_nested_sequence_type(seq)
+    return check_feature_equals(seq_type, value_type)
 
 
 def check_sequence_lengths_match(
@@ -317,6 +386,54 @@ def raise_feature_is_sequence(
         raise TypeError(
             "Expected `%s` to be a sequence of type %s, got %s"
             % (name, value_type, feature)
+        )
+
+
+def raise_sequence_shape(
+    name: str,
+    seq: Sequence | list | tuple,
+    shape: tuple[int],
+) -> None:
+    """Raise Sequence has a given shape.
+
+    Arguments:
+        name (str):
+            the name of the sequence feature, only used in the error message.
+        seq (Sequence | list | tuple): the sequence feature to check.
+        shape (tuple[int]): The target shape.
+
+    Raises:
+        exc (TypeError):
+            when the shape of the sequence doesn't match.
+    """
+    if not check_sequence_shape(seq, shape):
+        raise TypeError(
+            "Expected `%s` to be a sequence of shape %s, got shape %s"
+            % (name, shape, get_sequence_shape(seq))
+        )
+
+
+def raise_nested_sequence_type(
+    name: str,
+    seq: Sequence | list | tuple,
+    value_type: FeatureType | list[FeatureType],
+) -> bool:
+    """Raise if nested Sequence is not of a given value type.
+
+    Arguments:
+        name (str):
+            the name of the sequence feature, only used in the error message.
+        seq (Sequence | list | tuple): the sequence feature to check.
+        value_type (Value): The target value type.
+
+    Raises:
+        exc (TypeError):
+            when the sequence is not of the target value type
+    """
+    if not check_nested_sequence_type(seq, value_type):
+        raise TypeError(
+            "Expected `%s` to be a sequence of type %s, got type %s"
+            % (name, value_type, get_nested_sequence_type(seq))
         )
 
 
