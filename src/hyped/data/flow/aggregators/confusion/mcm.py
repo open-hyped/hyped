@@ -57,7 +57,7 @@ def validate_input_sequences(
 
     Args:
         config (MultiLabelConfusionMatrixConfig): Configuration object for the MultiLabelConfusionMatrix.
-        input_refs (InputRefs): A reference to the input features (y_true, y_pred) to validate.
+        input_refs (MultiLabelConfusionMatrixInputRefs): A reference to the input features (y_true, y_pred) to validate.
 
     Raises:
         RuntimeError: If the input features do not meet the required compatibility criteria.
