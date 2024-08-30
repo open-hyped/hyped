@@ -50,10 +50,10 @@ def validate_input_sequences(
     config: MultiLabelConfusionMatrixConfig,
     input_refs: MultiLabelConfusionMatrixInputRefs,
 ) -> None:
-    """Validates that the input sequences for the MultiLabelConfusionMatrix aggregator are compatible.
+    """Validates that the input sequences for the :class:`MultiLabelConfusionMatrix` aggregator are compatible.
 
-    This function checks the compatibility of the `y_true` and `y_pred` input features to ensure
-    they are appropriate for multilabel classification. It performs the following checks:
+    This function checks the compatibility of the :code:`y_true` and :code:`y_pred` input features to ensure
+    they are appropriate for multi-label classification.
 
     Args:
         config (MultiLabelConfusionMatrixConfig): Configuration object for the MultiLabelConfusionMatrix.
@@ -61,11 +61,6 @@ def validate_input_sequences(
 
     Raises:
         RuntimeError: If the input features do not meet the required compatibility criteria.
-
-    Note:
-        This function is used internally within the MultiLabelConfusionMatrixInputRefs class to
-        validate inputs before processing. If the inputs are not compatible, it raises an error
-        to prevent incorrect computations in the confusion matrix.
     """
     y_true = input_refs["y_true"].feature_
     y_pred = input_refs["y_pred"].feature_
