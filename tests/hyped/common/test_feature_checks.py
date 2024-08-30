@@ -2,17 +2,22 @@ import pytest
 from datasets import Features, Sequence, Value
 
 from hyped.common.feature_checks import (
+    INT_TYPES,
     check_feature_equals,
     check_feature_is_sequence,
+    check_nested_sequence_type,
     check_object_matches_feature,
     check_sequence_lengths_match,
+    check_sequence_shape,
     check_value_feature_is_castable,
     get_sequence_feature,
     get_sequence_length,
     raise_feature_equals,
     raise_feature_is_sequence,
+    raise_nested_sequence_type,
     raise_object_matches_feature,
     raise_sequence_lengths_match,
+    raise_sequence_shape,
     raise_value_feature_is_castable,
 )
 
@@ -550,3 +555,86 @@ class TestValueFeatureIsCastable:
         # should raise an error
         with pytest.raises(TypeError):
             raise_value_feature_is_castable("A", "B", A, B)
+
+
+class TestSequenceShape:
+    @pytest.mark.parametrize(
+        "seq, shape",
+        [
+            [Sequence(Value("int32")), (-1,)],
+            [Sequence(Sequence(Value("int32"), length=4)), (-1, 4)],
+            [Sequence(Sequence(Value("int32")), length=4), (4, -1)],
+            [
+                Sequence(
+                    Sequence(Sequence(Value("int32"), length=2)), length=4
+                ),
+                (4, -1, 2),
+            ],
+            [[Value("int32")], (-1,)],
+            [[[Value("int32")]], (-1, -1)],
+        ],
+    )
+    def test_shape_match(self, seq, shape):
+        assert check_sequence_shape(seq, shape)
+        raise_sequence_shape("seq", seq, shape)
+
+    @pytest.mark.parametrize(
+        "seq, shape",
+        [
+            [Sequence(Value("int32")), (-1, 2)],
+            [Sequence(Sequence(Value("int32"), length=4)), (-1, -1)],
+            [Sequence(Sequence(Value("int32")), length=4), (0,)],
+            [
+                Sequence(
+                    Sequence(Sequence(Value("int32"), length=2)), length=4
+                ),
+                (-1, -1, 2),
+            ],
+            [[Value("int32")], (-1, -1)],
+            [[[Value("int32")]], (-1,)],
+        ],
+    )
+    def test_shape_dont_match(self, seq, shape):
+        assert not check_sequence_shape(seq, shape)
+        with pytest.raises(TypeError):
+            raise_sequence_shape("seq", seq, shape)
+
+
+class TestNestedSequenceType:
+    @pytest.mark.parametrize(
+        "seq, val_type",
+        [
+            [Sequence(Value("int32")), Value("int32")],
+            [Sequence(Sequence(Value("int32"), length=4)), Value("int32")],
+            [Sequence(Sequence(Value("int32")), length=4), Value],
+            [Sequence(Sequence(Value("int32")), length=4), INT_TYPES],
+            [
+                Sequence(
+                    Sequence(Sequence(Value("int32"), length=2)), length=4
+                ),
+                Value("int32"),
+            ],
+            [[Value("int32")], Value("int32")],
+            [[[Value("int32")]], INT_TYPES],
+        ],
+    )
+    def test_type_match(self, seq, val_type):
+        assert check_nested_sequence_type(seq, val_type)
+        raise_nested_sequence_type("seq", seq, val_type)
+
+    @pytest.mark.parametrize(
+        "seq, val_type",
+        [
+            [Sequence(Value("int32")), Value("int64")],
+            [Sequence(Sequence(Value("int32"), length=4)), Value("float32")],
+            [
+                Sequence(Sequence(Value("int32"), length=4)),
+                Sequence(Value("int32"), length=4),
+            ],
+            [[Value("int32")], Value("float32")],
+        ],
+    )
+    def test_type_dont_match(self, seq, val_type):
+        assert not check_nested_sequence_type(seq, val_type)
+        with pytest.raises(TypeError):
+            raise_nested_sequence_type("seq", seq, val_type)

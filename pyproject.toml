@@ -24,6 +24,7 @@ dependencies = [
     "pydantic>=2.6.4",
     "json_repair>=0.17.0",
     "nest-asyncio>=1.6.0",
+    "scikit-learn>=1.5.1",
 ]
 
 [project.optional-dependencies]

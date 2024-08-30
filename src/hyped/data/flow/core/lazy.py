@@ -12,6 +12,8 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Any, Hashable, Iterable
 
+from hyped.common.utils import deep_equal
+
 from .executor import DataFlowExecutor
 
 
@@ -56,8 +58,10 @@ class LazyFlowOutput(Mapping):
             MappingProxyType[Hashable, Any]: A read-only proxy to the computed output values.
         """
         proxy_snapshot = dict(self._proxy)
-        # check
-        if self._proxy_snapshot != proxy_snapshot:
+
+        if (self._proxy_snapshot is None) or not deep_equal(
+            proxy_snapshot, self._proxy_snapshot
+        ):
             # build batch of inputs
             inputs = {k: [v] for k, v in proxy_snapshot.items()}
             # execute the flow executor on the inputs

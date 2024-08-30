@@ -9,6 +9,7 @@ from hyped.common.feature_checks import (
     check_feature_equals,
     check_object_matches_feature,
 )
+from hyped.common.utils import deep_equal
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
@@ -105,7 +106,9 @@ class BaseDataProcessorTest:
             out = processor.call(**input_refs.named_refs)
             # check the output features
             if cls.expected_output_features is not None:
-                assert out.feature_ == cls.expected_output_features
+                assert check_feature_equals(
+                    out.feature_, cls.expected_output_features
+                )
 
     @pytest.mark.asyncio
     async def test_pickle(
@@ -190,4 +193,8 @@ class BaseDataProcessorTest:
 
         # check output matches expectation
         if cls.expected_output_data is not None:
-            assert output == cls.expected_output_data
+            assert deep_equal(output, cls.expected_output_data), (
+                f"Output data do not match expected data.\n"
+                f"Expected: {cls.expected_output_data}\n"
+                f"Received: {output}"
+            )
