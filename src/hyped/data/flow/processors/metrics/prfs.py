@@ -227,9 +227,9 @@ class PrecisionRecallFScoreSupport(
         PrecisionRecallFScoreSupportOutputRefs,
     ]
 ):
-    """The PrecisionRecallFScoreSupport Processor.
+    """The :class`PrecisionRecallFScoreSupport` Processor.
 
-    Implements an adaption of sklearn`s `precision_recall_fscore_support` function,
+    Implements an adaption of sklearn's :code:`precision_recall_fscore_support` function,
     but takes the confusion matrix as an input.
     """
 
