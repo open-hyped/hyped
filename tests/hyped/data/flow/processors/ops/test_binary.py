@@ -212,7 +212,7 @@ class TestFloorDiv(BaseDataProcessorTest):
     input_data = {"a": [4, 6, 9], "b": [2, 4, 4]}
     input_index = [0, 1, 2]
 
-    expected_output_features = Features({"result": Value("int32")})
+    expected_output_features = Features({"result": Value("int64")})
     expected_output_data = {"result": [2, 1, 2]}
 
 
@@ -224,7 +224,7 @@ class TestDiv(BaseDataProcessorTest):
     input_data = {"a": [4, 6, 9], "b": [2, 4, 4]}
     input_index = [0, 1, 2]
 
-    expected_output_features = Features({"result": Value("float32")})
+    expected_output_features = Features({"result": Value("float64")})
     expected_output_data = {"result": [2.0, 1.5, 2.25]}
 
 
@@ -458,7 +458,7 @@ class TestElementWiseFloorDiv(BaseDataProcessorTest):
     input_data = {"a": [[10, 15, 20], [8, 12]], "b": [[3, 4, 5], [3, 5]]}
     input_index = [0, 1]
 
-    expected_output_features = Features({"result": Sequence(Value("int32"))})
+    expected_output_features = Features({"result": Sequence(Value("int64"))})
     expected_output_data = {"result": [[3, 3, 4], [2, 2]]}
 
 
@@ -475,7 +475,7 @@ class TestElementWiseTrueDiv(BaseDataProcessorTest):
     }
     input_index = [0, 1]
 
-    expected_output_features = Features({"result": Sequence(Value("float32"))})
+    expected_output_features = Features({"result": Sequence(Value("float64"))})
     expected_output_data = {"result": [[5.0, 3.875, 4.0], [4, 2.5]]}
 
 

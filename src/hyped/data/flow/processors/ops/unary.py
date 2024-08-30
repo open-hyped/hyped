@@ -25,6 +25,7 @@ from datasets.features.features import FeatureType
 from typing_extensions import Unpack
 
 from hyped.common.feature_checks import (
+    INDEX_TYPES,
     NUMERIC_TYPES,
     check_feature_is_sequence,
     get_sequence_feature,
@@ -100,6 +101,16 @@ class UnaryOpNumericInputRefs(UnaryOpInputRefs):
         | CheckFeatureEquals(NUMERIC_TYPES),
     ]
     """The input feature. Must be a sequence or value of numeric type."""
+
+
+class UnaryOpIntegerInputRefs(UnaryOpInputRefs):
+    """Defines input references of integer type for unary operations."""
+
+    a: Annotated[
+        FeatureRef,
+        CheckFeatureIsSequence(INDEX_TYPES) | CheckFeatureEquals(INDEX_TYPES),
+    ]
+    """The input feature. Must be a sequence or value of integer type."""
 
 
 class UnaryOpBooleanInputRefs(UnaryOpInputRefs):
@@ -228,7 +239,7 @@ class InvertConfig(BaseUnaryOpConfig):
 class Invert(
     BaseUnaryOp[
         InvertConfig,
-        UnaryOpNumericInputRefs,
+        UnaryOpIntegerInputRefs,
         UnaryOpOutputRefs,
     ]
 ):

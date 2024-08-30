@@ -108,7 +108,7 @@ class SequenceGetItem(
         )
 
         return {
-            "gathered": list(
+            "result": list(
                 starmap(op, zip(inputs["sequence"], inputs["index"]))
             )
         }

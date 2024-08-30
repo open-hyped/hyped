@@ -168,41 +168,33 @@ def binary_op_infer_output_feature(
     a_feat = inputs["a"].feature_
     b_feat = inputs["b"].feature_
 
-    if check_feature_is_sequence(a_feat) and check_feature_is_sequence(b_feat):
+    a_is_sequence = check_feature_is_sequence(a_feat)
+    b_is_sequence = check_feature_is_sequence(b_feat)
+
+    a_value_type = (
+        get_sequence_feature(a_feat).dtype if a_is_sequence else a_feat.dtype
+    )
+    b_value_type = (
+        get_sequence_feature(b_feat).dtype if b_is_sequence else b_feat.dtype
+    )
+    result_type = override or Value(
+        max(a_value_type, b_value_type, key=NUMERIC_TYPE_NAMES.index)
+    )
+
+    if a_is_sequence and b_is_sequence:
         # if one of a, b has length -1,
         # we want to use that as our output length
         length = min(get_sequence_length(a_feat), get_sequence_length(b_feat))
-        a_type = get_sequence_feature(a_feat).dtype
-        b_type = get_sequence_feature(b_feat).dtype
-        feat = override or Value(
-            max(a_type, b_type, key=NUMERIC_TYPE_NAMES.index)
-        )
-        return Sequence(feat, length=length)
+        return Sequence(result_type, length=length)
 
-    elif check_feature_is_sequence(a_feat) and not check_feature_is_sequence(
-        b_feat
-    ):
-        length = get_sequence_length(a_feat)
-        a_type = get_sequence_feature(a_feat).dtype
-        feat = override or Value(
-            max(a_type, b_feat.dtype, key=NUMERIC_TYPE_NAMES.index)
-        )
-        return Sequence(feat, length=length)
+    elif a_is_sequence and not b_is_sequence:
+        return Sequence(result_type, length=get_sequence_length(a_feat))
 
-    elif not check_feature_is_sequence(a_feat) and check_feature_is_sequence(
-        b_feat
-    ):
-        length = get_sequence_length(b_feat)
-        b_type = get_sequence_feature(b_feat).dtype
-        feat = override or Value(
-            max(a_feat.dtype, b_type, key=NUMERIC_TYPE_NAMES.index)
-        )
-        return Sequence(feat, length=length)
+    elif not a_is_sequence and b_is_sequence:
+        return Sequence(result_type, length=get_sequence_length(b_feat))
 
     else:
-        return override or Value(
-            max(a_feat.dtype, b_feat.dtype, key=NUMERIC_TYPE_NAMES.index)
-        )
+        return result_type
 
 
 class BinaryOpOutputRefs(OutputRefs):
@@ -466,7 +458,7 @@ class BaseClosedOpConfig(BaseBinaryOpConfig):
 C___ = TypeVar("C___", bound=BaseBinaryOpConfig)
 
 
-class BaseClosedOp(BaseBinaryOp[C___, BinaryOpNumericInputRefs, O]):
+class BaseClosedOp(BaseBinaryOp[C___, I, O]):
     """Base class for closed mathematical operations.
 
     Closed operations are characterized by preserving closure within the set of
@@ -491,7 +483,9 @@ class AddConfig(BaseClosedOpConfig):
     """Configuration class for the addition operation."""
 
 
-class Add(BaseClosedOp[AddConfig, BinaryOpOutputRefs]):
+class Add(
+    BaseClosedOp[AddConfig, BinaryOpNumericInputRefs, BinaryOpOutputRefs]
+):
     """Processor for the addition operation."""
 
     op = operator.add
@@ -501,7 +495,9 @@ class SubConfig(BaseClosedOpConfig):
     """Configuration class for the subtraction operation."""
 
 
-class Sub(BaseClosedOp[SubConfig, BinaryOpOutputRefs]):
+class Sub(
+    BaseClosedOp[SubConfig, BinaryOpNumericInputRefs, BinaryOpOutputRefs]
+):
     """Processor for the subtraction operation."""
 
     op = operator.sub
@@ -511,7 +507,9 @@ class MulConfig(BaseClosedOpConfig):
     """Configuration class for the multiplication operation."""
 
 
-class Mul(BaseClosedOp[MulConfig, BinaryOpOutputRefs]):
+class Mul(
+    BaseClosedOp[MulConfig, BinaryOpNumericInputRefs, BinaryOpOutputRefs]
+):
     """Processor for the multiplication operation."""
 
     op = operator.mul
@@ -521,7 +519,9 @@ class PowConfig(BaseClosedOpConfig):
     """Configuration class for the power operation."""
 
 
-class Pow(BaseClosedOp[PowConfig, BinaryOpOutputRefs]):
+class Pow(
+    BaseClosedOp[PowConfig, BinaryOpNumericInputRefs, BinaryOpOutputRefs]
+):
     """Processor for the power operation."""
 
     op = operator.pow
@@ -531,7 +531,9 @@ class ModConfig(BaseClosedOpConfig):
     """Configuration class for the modulus operation."""
 
 
-class Mod(BaseClosedOp[ModConfig, BinaryOpOutputRefs]):
+class Mod(
+    BaseClosedOp[ModConfig, BinaryOpNumericInputRefs, BinaryOpOutputRefs]
+):
     """Processor for the modulus operation."""
 
     op = operator.mod
@@ -541,7 +543,11 @@ class FloorDivConfig(BaseClosedOpConfig):
     """Configuration class for the floor division operation."""
 
 
-class FloorDiv(BaseClosedOp[FloorDivConfig, BinaryOpIntOutputRefs]):
+class FloorDiv(
+    BaseClosedOp[
+        FloorDivConfig, BinaryOpNumericInputRefs, BinaryOpIntOutputRefs
+    ]
+):
     """Processor for the floor division operation."""
 
     op = operator.floordiv
@@ -551,7 +557,11 @@ class TrueDivConfig(BaseClosedOpConfig):
     """Configuration class for the true division operation."""
 
 
-class TrueDiv(BaseClosedOp[TrueDivConfig, BinaryOpFloatOutputRefs]):
+class TrueDiv(
+    BaseClosedOp[
+        TrueDivConfig, BinaryOpNumericInputRefs, BinaryOpFloatOutputRefs
+    ]
+):
     """Processor for the true division operation."""
 
     op = operator.truediv
