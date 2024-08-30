@@ -42,7 +42,7 @@ class MultiLabelConfusionMatrixConfig(BaseDataAggregatorConfig):
     """A list of classes or column indices to select some
     (or to force inclusion of classes absent from the data).
 
-    List of length n_classes.
+    List of length :code:`n_classes`.
     """
 
 
