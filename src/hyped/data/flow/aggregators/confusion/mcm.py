@@ -25,6 +25,8 @@ Usage:
             dataset. It can be configured to handle specific classes using the `labels`
             parameter, and it outputs a 3D array representing the confusion matrix for each class.
 """
+from __future__ import annotations
+
 from typing import Annotated
 
 import numpy as np
@@ -33,6 +35,7 @@ from sklearn.metrics import multilabel_confusion_matrix
 from typing_extensions import Unpack
 
 from hyped.common.feature_checks import (
+    check_feature_equals,
     check_feature_is_sequence,
     check_sequence_lengths_match,
     get_sequence_length,
@@ -66,7 +69,8 @@ class MultiLabelConfusionMatrixConfig(BaseDataAggregatorConfig):
 
 
 def validate_input_sequences(
-    config: MultiLabelConfusionMatrixConfig, input_refs: InputRefs
+    config: MultiLabelConfusionMatrixConfig,
+    input_refs: MultiLabelConfusionMatrixInputRefs,
 ) -> None:
     """Validates that the input sequences for the MultiLabelConfusionMatrix aggregator are compatible.
 
@@ -85,35 +89,35 @@ def validate_input_sequences(
         validate inputs before processing. If the inputs are not compatible, it raises an error
         to prevent incorrect computations in the confusion matrix.
     """
-    if check_feature_is_sequence(
-        input_refs["y_true"].feature_
-    ) and check_feature_is_sequence(input_refs["y_pred"].feature_):
-        assert get_sequence_length(input_refs["y_true"].feature_) != -1
-        assert get_sequence_length(input_refs["y_pred"].feature_) != -1
+    y_true = input_refs["y_true"].feature_
+    y_pred = input_refs["y_pred"].feature_
+    # check which features are sequences
+    y_true_is_sequence = check_feature_is_sequence(y_true)
+    y_pred_is_sequence = check_feature_is_sequence(y_pred)
+
+    if y_true_is_sequence and y_pred_is_sequence:
+        assert get_sequence_length(y_true) != -1
+        assert get_sequence_length(y_pred) != -1
         # TODO: use allow_arbitrary_lengths arg of `check_sequence_lengths_match` instead of asserts
-        if not check_sequence_lengths_match(
-            input_refs["y_true"].feature_, input_refs["y_pred"].feature_
-        ):
+        if not check_sequence_lengths_match(y_true, y_pred):
             raise RuntimeError(
                 "Sequence length of y_true must match sequence length of y_pred "
-                f"Got y_true with len={get_sequence_length(input_refs['y_true'].feature_)} "
-                f"and y_pred with len={get_sequence_length(input_refs['y_pred'].feature_)}"
+                f"Got y_true with len={get_sequence_length(y_true)} "
+                f"and y_pred with len={get_sequence_length(y_pred)}"
             )
 
-    elif check_feature_is_sequence(
-        input_refs["y_true"].feature_
-    ) or check_feature_is_sequence(input_refs["y_pred"].feature_):
+    elif y_true_is_sequence ^ y_pred_is_sequence:
         raise RuntimeError(
-            "MultiLabelConfusionMatrix cannot handle a mix of multiclass and multilabel -indicator targets"
+            "'MultiLabelConfusionMatrix' doesn't support a mix of "
+            "multiclass- and multilabel-indicator targets."
         )
 
-    else:
-        if input_refs["y_true"].feature_ != input_refs["y_pred"].feature_:
-            raise RuntimeError(
-                "ClassLabel feature of y_true must be identical to the feature of y_pred "
-                f"Got y_true with {input_refs['y_true'].feature_} "
-                f"and y_pred with {input_refs['y_pred'].feature_}"
-            )
+    elif not check_feature_equals(y_true, y_pred):
+        raise RuntimeError(
+            "ClassLabel features of y_true and y_pred must match. "
+            f"Got y_true with {input_refs['y_true'].feature_} "
+            f"and y_pred with {input_refs['y_pred'].feature_}"
+        )
 
 
 class MultiLabelConfusionMatrixInputRefs(
