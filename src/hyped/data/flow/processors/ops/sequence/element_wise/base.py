@@ -232,32 +232,31 @@ class BaseBinaryElementWiseOp(BaseBinaryOp[C, I, O], ABC):
         Returns:
             Batch: The batch containing the result of the element-wise operation.
         """
+        # check which of the inputs are a sequence
+        a_is_sequence = check_feature_is_sequence(io.inputs["a"])
+        b_is_sequence = check_feature_is_sequence(io.inputs["b"])
+
         # check for broadcasting
-        if check_feature_is_sequence(
-            io.inputs["a"]
-        ) and check_feature_is_sequence(io.inputs["b"]):
+        if a_is_sequence and b_is_sequence:
             iterator = (
                 [self.op(a, b) for a, b in zip(seq_a, seq_b)]
                 for seq_a, seq_b in zip(inputs["a"], inputs["b"])
             )
-        elif check_feature_is_sequence(
-            io.inputs["a"]
-        ) and not check_feature_is_sequence(io.inputs["b"]):
+        elif a_is_sequence and (not b_is_sequence):
             iterator = (
                 [self.op(a, b) for a in seq_a]
                 for seq_a, b in zip(inputs["a"], inputs["b"])
             )
-        elif not check_feature_is_sequence(
-            io.inputs["a"]
-        ) and check_feature_is_sequence(io.inputs["b"]):
+        elif (not a_is_sequence) and b_is_sequence:
             iterator = (
                 [self.op(a, b) for b in seq_b]
                 for a, seq_b in zip(inputs["a"], inputs["b"])
             )
         else:
             raise RuntimeError(
-                "Element-wise operations only allowed between sequence-sequence "
-                f"and sequence-value. Got {io.inputs['a']}-{io.inputs['b']}"
+                "Element-wise operations require at least one input to be a Sequence type. "
+                "Only sequence-sequence and sequence-value combinations are supported. "
+                f"Received {io.inputs['a']} and {io.inputs['b']}."
             )
 
         return {"result": list(iterator)}

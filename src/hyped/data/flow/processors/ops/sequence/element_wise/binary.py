@@ -47,6 +47,10 @@ from hyped.data.flow.processors.ops.sequence.element_wise.base import (
     infer_output_length,
 )
 
+get_value_type = lambda f: (
+    get_sequence_feature(f) if check_feature_is_sequence(f) else f
+)
+
 
 def validate_sequence_castable(
     config: BaseBinaryElementWiseOpConfig,
@@ -71,45 +75,26 @@ def validate_sequence_castable(
         TypeError: If both features are of `Value` type without at least one being a sequence, or if the
         sequence features are not castable to each other.
     """
-    a_key = refs["a"].key_
-    b_key = refs["b"].key_
+    a = refs["a"]
+    b = refs["b"]
 
-    a_feat = refs["a"].feature_
-    b_feat = refs["b"].feature_
+    # check which of the inputs is a sequence feature
+    a_is_sequence = check_feature_is_sequence(a.feature_)
+    b_is_sequence = check_feature_is_sequence(b.feature_)
 
-    if check_feature_is_sequence(a_feat) and check_feature_is_sequence(b_feat):
-        raise_value_feature_is_castable(
-            a_key,
-            b_key,
-            get_sequence_feature(a_feat),
-            get_sequence_feature(b_feat),
-        )
-
-    elif check_feature_is_sequence(a_feat) and not check_feature_is_sequence(
-        b_feat
-    ):
-        raise_value_feature_is_castable(
-            a_key,
-            b_key,
-            get_sequence_feature(a_feat),
-            b_feat,
-        )
-
-    elif not check_feature_is_sequence(a_feat) and check_feature_is_sequence(
-        b_feat
-    ):
-        raise_value_feature_is_castable(
-            a_key,
-            b_key,
-            a_feat,
-            get_sequence_feature(b_feat),
-        )
-
-    else:
+    if (not a_is_sequence) and (not b_is_sequence):
         raise TypeError(
-            "Both features for element-wise binary operation are of Value type. "
-            f"Need min. 1 sequence type. Got {a_key} ({a_feat}) and {b_key} ({b_feat})"
+            "Element-wise binary operation requires at least one feature to be of Sequence type. "
+            f"Both provided features are of Value type: {a.key_} ({a.feature_}) and {b.key_} ({b.feature_})."
         )
+
+    # get the value features
+    a_value_feature = get_value_type(a.feature_)
+    b_value_feature = get_value_type(b.feature_)
+    # make sure the value features are castable
+    raise_value_feature_is_castable(
+        a.key_, b.key_, a_value_feature, b_value_feature
+    )
 
 
 class BinaryElementWiseOpNumericInputRefs(
@@ -125,14 +110,14 @@ class BinaryElementWiseOpNumericInputRefs(
         CheckFeatureIsSequence(NUMERIC_TYPES)
         | CheckFeatureEquals(NUMERIC_TYPES),
     ]
-    """The first input feature. Must be a numeric value or sequence of numerical type."""
+    """The first input feature. Must be a numeric value or sequence of numeric type."""
 
     b: Annotated[
         FeatureRef,
         CheckFeatureIsSequence(NUMERIC_TYPES)
         | CheckFeatureEquals(NUMERIC_TYPES),
     ]
-    """The second input feature. Must be a numeric value or sequence of numerical type."""
+    """The second input feature. Must be a numeric value or sequence of numeric type."""
 
 
 class BinaryElementWiseOpBooleanInputRefs(BinaryElementWiseOpInputRefs):
@@ -323,7 +308,7 @@ class BaseElementWiseClosedOpConfig(BaseBinaryElementWiseOpConfig):
     """Configuration class for closed mathematical operations."""
 
 
-NUMERICAL_TYPE_NAMES = [t.dtype for t in NUMERIC_TYPES]
+NUMERIC_TYPE_NAMES = [t.dtype for t in NUMERIC_TYPES]
 
 
 def element_wise_closed_op_infer_dtype(
@@ -344,20 +329,14 @@ def element_wise_closed_op_infer_dtype(
     Returns:
         Value: The inferred data type for the output.
     """
-    if check_feature_is_sequence(inputs["a"].feature_):
-        a_type = get_sequence_feature(inputs["a"].feature_).dtype
-    else:
-        a_type = inputs["a"].feature_.dtype
-
-    if check_feature_is_sequence(inputs["b"].feature_):
-        b_type = get_sequence_feature(inputs["b"].feature_).dtype
-    else:
-        b_type = inputs["b"].feature_.dtype
+    # get the data types of the input features
+    a_dtype = get_value_type(inputs["a"].feature_).dtype
+    b_dtype = get_value_type(inputs["b"].feature_).dtype
 
     return Sequence(
         Value(
             # this order prefers higher precision types
-            max(a_type, b_type, key=NUMERICAL_TYPE_NAMES.index)
+            max(a_dtype, b_dtype, key=NUMERIC_TYPE_NAMES.index)
         ),
         length=infer_output_length(inputs),
     )

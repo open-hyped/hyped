@@ -130,17 +130,17 @@ def scalar_seq_aggr_infer_dtype(
 ) -> Value:
     """Infer the output data type for scalar sequence aggregation operations.
 
-    This function determines the appropriate data type for the result of a scalar aggregation operation
-    on a sequence. It examines the data type of the sequence elements and selects a castable
-    scalar type to ensure compatibility with the input types.
+    This function determines the appropriate data type for the result of a scalar
+    aggregation operation on a sequence. It examines the data type of the sequence
+    elements and selects a castable scalar type to ensure compatibility with the
+    input types.
 
     Args:
-        inputs (SequenceAggregationScalarInputRefs): Input references for the sequence aggregation,
-                                                     including the sequence feature reference. This is used
-                                                     to infer the data type of the sequence elements.
-        min_precision_type (str): A minimum precision type to choose. This is useful if the output of the
-                                  operation should be e.g. float, but should still infer the precision
-                                  from the input feature, if this is also a float feature.
+        inputs (SequenceAggregationScalarInputRefs): Input references for the sequence
+            aggregation.
+        min_precision_type (str): A minimum precision type to choose. This is useful if
+            the output of the operation should be e.g. float, but should still infer the
+            precision from the input feature.
 
     Returns:
         Value: The inferred data type for the result of the sequence aggregation operation.
