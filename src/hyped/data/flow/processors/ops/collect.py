@@ -25,7 +25,10 @@ from datasets.features.features import Features, FeatureType, Sequence
 from typing_extensions import Annotated
 
 from hyped.common.container import NestedContainer
-from hyped.common.feature_checks import check_feature_equals
+from hyped.common.feature_checks import (
+    check_feature_equals,
+    get_sequence_length,
+)
 from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
@@ -174,11 +177,12 @@ class CollectFeatures(
                 )
             # parse sequence feature
             if isinstance(feature, Sequence):
-                assert feature.length >= 0
+                seq_length = get_sequence_length(feature)
+                assert seq_length >= 0
                 return NestedContainer[tuple[Hashable | int, ...]](
                     data=[
                         build_nested_lookup(feature.feature, path + (i,))
-                        for i in range(feature.length)
+                        for i in range(seq_length)
                     ]
                 )
 

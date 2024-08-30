@@ -9,13 +9,16 @@ from hyped.common.feature_checks import (
     check_object_matches_feature,
     check_sequence_lengths_match,
     check_sequence_shape,
+    check_value_feature_is_castable,
     get_sequence_feature,
     get_sequence_length,
     raise_feature_equals,
     raise_feature_is_sequence,
     raise_nested_sequence_type,
     raise_object_matches_feature,
+    raise_sequence_lengths_match,
     raise_sequence_shape,
+    raise_value_feature_is_castable,
 )
 
 
@@ -361,6 +364,7 @@ class TestFeatureIsSequence:
     @pytest.mark.parametrize(
         "feature,value_type",
         [
+            [Value("int32"), None],
             [[Value("int32")], Value("string")],
             [Sequence(Value("int32")), Value("string")],
             [Sequence(Value("int32"), length=2), Value("string")],
@@ -486,20 +490,71 @@ class TestSequenceLengthsMatch:
     )
     def test_lengths_match(self, A, B):
         assert check_sequence_lengths_match(A, B)
+        # should not raise an error
+        raise_sequence_lengths_match("A", "B", A, B)
+
+    @pytest.mark.parametrize(
+        "A, B, allow_arbitrary_lengths",
+        [
+            [Sequence(Value("int32")), Sequence(Value("int32")), False],
+            [Sequence(Value("int32")), [Value("int32")], False],
+            [[Value("int32")], [Value("int32")], False],
+            [
+                Sequence(Value("int32"), length=2),
+                Sequence(Value("int32"), length=4),
+                False,
+            ],
+            [Sequence(Value("int32"), length=2), [Value("int32")], False],
+            [[Value("int32")], Sequence(Value("int32"), length=2), False],
+        ],
+    )
+    def test_lengths_dont_match(self, A, B, allow_arbitrary_lengths):
+        assert not check_sequence_lengths_match(A, B, allow_arbitrary_lengths)
+        # should raise an error
+        with pytest.raises(TypeError):
+            raise_sequence_lengths_match(
+                "A", "B", A, B, allow_arbitrary_lengths
+            )
+
+
+class TestValueFeatureIsCastable:
+    @pytest.mark.parametrize(
+        "A, B",
+        [
+            # same type
+            [Value("int32"), Value("int32")],
+            # mixed type
+            [Value("int32"), Value("bool")],
+            [Value("int32"), Value("uint8")],
+            [Value("int32"), Value("uint64")],
+            [Value("int32"), Value("int8")],
+            [Value("int32"), Value("int64")],
+            [Value("int32"), Value("float16")],
+            [Value("int32"), Value("float64")],
+            # mixed type swap argument order
+            [Value("float64"), Value("int32")],
+        ],
+    )
+    def test_is_castable(self, A, B):
+        assert check_value_feature_is_castable(A, B)
+        # should not raise an error
+        raise_value_feature_is_castable("A", "B", A, B)
 
     @pytest.mark.parametrize(
         "A, B",
         [
-            [
-                Sequence(Value("int32"), length=2),
-                Sequence(Value("int32"), length=4),
-            ],
-            [Sequence(Value("int32"), length=2), [Value("int32")]],
-            [[Value("int32")], Sequence(Value("int32"), length=2)],
+            # non scalar types
+            [Value("int32"), Value("string")],
+            [Value("int32"), Value("large_string")],
+            [Value("int32"), Value("binary")],
+            [Value("int32"), Value("large_binary")],
         ],
     )
-    def test_lengths_dont_match(self, A, B):
-        assert not check_sequence_lengths_match(A, B)
+    def test_is_not_castable(self, A, B):
+        assert not check_value_feature_is_castable(A, B)
+        # should raise an error
+        with pytest.raises(TypeError):
+            raise_value_feature_is_castable("A", "B", A, B)
 
 
 class TestSequenceShape:
