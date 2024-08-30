@@ -141,7 +141,7 @@ def infer_confusion_matrix_output_feature(
 ) -> Sequence:
     """Infer the output feature type for the :class:`MultiLabelConfusionMatrix` processor.
 
-    Checks the configuration if `labels` is specified, otherwise uses the input
+    Checks the configuration if :code:`labels` is specified, otherwise uses the input
     sequence length to determine the number of classes in the confusion matrix.
     """
     if config.labels is not None:
