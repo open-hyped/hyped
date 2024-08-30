@@ -1,29 +1,7 @@
-"""Module implementing the MultiLabelConfusionMatrix aggregator for multilabel classification tasks.
+"""Module implementing the :class:`MultiLabelConfusionMatrix` aggregator.
 
-This module contains classes and functions to compute and manage the confusion matrix for
-multilabel classification using scikit-learn's `multilabel_confusion_matrix`. It integrates
-with the HypED data flow framework, allowing the computation of the confusion matrix over
-a dataset in a distributed and scalable manner.
-
-Classes:
-    - MultiLabelConfusionMatrixConfig: Configuration class for
-        MultiLabelConfusionMatrix aggregator.
-    - MultiLabelConfusionMatrixInputRefs: Defines the input
-        references required for the aggregator.
-    - MultiLabelConfusionMatrixOutputRefs: Defines the output
-        references produced by the aggregator.
-    - MultiLabelConfusionMatrix: Implements the core functionality
-        for computing and aggregating multilabel confusion matrices.
-
-Functions:
-    - infer_confusion_matrix_output_feature: Infers the output feature type for
-        the aggregator based on configuration and inputs.
-
-Usage:
-    The `MultiLabelConfusionMatrix` aggregator computes the multilabel confusion matrix
-        for the input ground truth and predicted labels, and aggregates the results over the
-            dataset. It can be configured to handle specific classes using the `labels`
-            parameter, and it outputs a 3D array representing the confusion matrix for each class.
+This module contains classes and functions to compute the matrix in a multilabel
+classification setting using :code:`scikit-learn`'s :code:`multilabel_confusion_matrix`.
 """
 from __future__ import annotations
 
