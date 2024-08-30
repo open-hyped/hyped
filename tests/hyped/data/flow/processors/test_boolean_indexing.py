@@ -85,3 +85,19 @@ class TestBooleanIndexingWithFixedLengthSequences(BaseDataProcessorTest):
     expected_output_data = {
         "indexed_values": [[1.1, 3.3], [5.5], [7.7, 8.8, 9.9]]
     }
+
+
+class TestBooleanIndexingRaisesErrorOnMismatchedSequenceLengths(
+    BaseDataProcessorTest
+):
+    processor_type = BooleanIndexing
+    processor_config = BooleanIndexing.Config()
+
+    input_features = Features(
+        {
+            "values": Sequence(Value("float32"), length=5),
+            "mask": Sequence(Value("bool"), length=3),
+        }
+    )
+
+    expected_input_verification_error = RuntimeError

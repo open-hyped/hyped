@@ -2,6 +2,8 @@
 
 This module defines the functionality required to filter a sequence based on a boolean mask.
 """
+from __future__ import annotations
+
 from itertools import compress
 from typing import Annotated
 
@@ -10,6 +12,7 @@ from datasets.features.features import FeatureType
 
 from hyped.common.feature_checks import (
     check_feature_is_sequence,
+    check_sequence_lengths_match,
     get_sequence_feature,
 )
 from hyped.data.flow.core.nodes.base import IOContext
@@ -18,7 +21,11 @@ from hyped.data.flow.core.nodes.processor import (
     BaseDataProcessorConfig,
     Batch,
 )
-from hyped.data.flow.core.refs.inputs import CheckFeatureIsSequence, InputRefs
+from hyped.data.flow.core.refs.inputs import (
+    CheckFeatureIsSequence,
+    GlobalValidator,
+    InputRefs,
+)
 from hyped.data.flow.core.refs.outputs import LambdaOutputFeature, OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
 
@@ -29,7 +36,33 @@ class BooleanIndexingConfig(BaseDataProcessorConfig):
     # No additional configuration needed
 
 
-class BooleanIndexingInputRefs(InputRefs):
+def validate_input_refs(
+    config: BooleanIndexingConfig, inputs: BooleanIndexingInputRefs
+) -> None:
+    """Validates that the input sequences for values and mask have matching lengths.
+
+    This function ensures that the sequences referenced by :code:`values` and :code:`mask`
+    in the inputs have the same length. This is critical because the BooleanIndexing
+    processor requires that each element in the :code:`mask` corresponds to an element
+    in the :code:`values` sequence.
+
+    Args:
+        config (BooleanIndexingConfig): The configuration for the :class:`BooleanIndexing` processor.
+        inputs (BooleanIndexingInputRefs): The input references containing the values and mask.
+
+    Raises:
+        RuntimeError: If the lengths of the :code:`values` and :code:`mask` sequences do not match.
+    """
+    values = inputs["values"].feature_
+    mask = inputs["mask"].feature_
+
+    if not check_sequence_lengths_match(values, mask):
+        raise RuntimeError()  # TODO: write error message
+
+
+class BooleanIndexingInputRefs(
+    Annotated[InputRefs, GlobalValidator(validate_input_refs)]
+):
     """Input references to the :code:`BooleanIndexing` processor."""
 
     values: Annotated[
