@@ -57,25 +57,20 @@ from .aggregators.ops.mean import MeanAggregator
 from .aggregators.ops.sum import SumAggregator
 from .core.nodes.const import Const
 from .core.refs.ref import FeatureRef
+from .processors.ops import binary, unary
 from .processors.ops.collect import CollectFeatures, NestedContainer
-from .processors.ops.sequence.aggregation import (
-    SequenceLength,
-    SequenceMean,
-    SequenceSum,
-)
-from .processors.ops.sequence.element_wise import binary as element_wise_binary
-from .processors.ops.sequence.element_wise import unary as element_wise_unary
-from .processors.ops.sequence.itemaccess import (
-    SequenceGetItem,
-    SequenceSetItem,
-)
-from .processors.ops.sequence.multisequence import SequenceChain, SequenceZip
-from .processors.ops.sequence.seq_val import (
+from .processors.ops.sequence.access import SequenceGetItem, SequenceSetItem
+from .processors.ops.sequence.multi import SequenceChain, SequenceZip
+from .processors.ops.sequence.query import (
     SequenceContains,
     SequenceCountOf,
     SequenceIndexOf,
 )
-from .processors.ops.value import binary, unary
+from .processors.ops.sequence.reduce import (
+    SequenceLength,
+    SequenceMean,
+    SequenceSum,
+)
 
 
 def _check_args(*args: FeatureRef | Any) -> tuple[FeatureRef]:
@@ -259,12 +254,7 @@ def add(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the addition.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
-        return element_wise_binary.ElementWiseAdd().call(a=a, b=b).result
-    else:
-        return binary.Add().call(a=a, b=b).result
+    return binary.Add().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -278,12 +268,7 @@ def sub(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the subtraction.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
-        return element_wise_binary.ElementWiseSub().call(a=a, b=b).result
-    else:
-        return binary.Sub().call(a=a, b=b).result
+    return binary.Sub().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -297,12 +282,7 @@ def mul(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the multiplication.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
-        return element_wise_binary.ElementWiseMul().call(a=a, b=b).result
-    else:
-        return binary.Mul().call(a=a, b=b).result
+    return binary.Mul().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -316,12 +296,7 @@ def truediv(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the division.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
-        return element_wise_binary.ElementWiseTrueDiv().call(a=a, b=b).result
-    else:
-        return binary.TrueDiv().call(a=a, b=b).result
+    return binary.TrueDiv().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -335,12 +310,7 @@ def floordiv(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the integer division.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
-        return element_wise_binary.ElementWiseFloorDiv().call(a=a, b=b).result
-    else:
-        return binary.FloorDiv().call(a=a, b=b).result
+    return binary.FloorDiv().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -354,12 +324,7 @@ def pow(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the exponentiation.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
-        return element_wise_binary.ElementWisePow().call(a=a, b=b).result
-    else:
-        return binary.Pow().call(a=a, b=b).result
+    return binary.Pow().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -373,12 +338,7 @@ def mod(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the modulo operation.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
-        return element_wise_binary.ElementWiseMod().call(a=a, b=b).result
-    else:
-        return binary.Mod().call(a=a, b=b).result
+    return binary.Mod().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -392,12 +352,7 @@ def eq(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the equality comparison.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
-        return element_wise_binary.ElementWiseEquals().call(a=a, b=b).result
-    else:
-        return binary.Equals().call(a=a, b=b).result
+    return binary.Equals().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -411,12 +366,7 @@ def ne(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the inequality comparison.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
-        return element_wise_binary.ElementWiseNotEquals().call(a=a, b=b).result
-    else:
-        return binary.NotEquals().call(a=a, b=b).result
+    return binary.NotEquals().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -430,12 +380,7 @@ def lt(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the less-than comparison.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
-        return element_wise_binary.ElementWiseLessThan().call(a=a, b=b).result
-    else:
-        return binary.LessThan().call(a=a, b=b).result
+    return binary.LessThan().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -450,16 +395,7 @@ def le(a: FeatureRef, b: FeatureRef) -> FeatureRef:
         FeatureRef: A FeatureRef instance representing the result of the
             less-than-or-equal-to comparison.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
-        return (
-            element_wise_binary.ElementWiseLessThanOrEqual()
-            .call(a=a, b=b)
-            .result
-        )
-    else:
-        return binary.LessThanOrEqual().call(a=a, b=b).result
+    return binary.LessThanOrEqual().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -473,14 +409,7 @@ def gt(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the greater-than comparison.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
-        return (
-            element_wise_binary.ElementWiseGreaterThan().call(a=a, b=b).result
-        )
-    else:
-        return binary.GreaterThan().call(a=a, b=b).result
+    return binary.GreaterThan().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -495,16 +424,7 @@ def ge(a: FeatureRef, b: FeatureRef) -> FeatureRef:
         FeatureRef: A FeatureRef instance representing the result of the
             greater-than-or-equal-to comparison.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
-        return (
-            element_wise_binary.ElementWiseGreaterThanOrEqual()
-            .call(a=a, b=b)
-            .result
-        )
-    else:
-        return binary.GreaterThanOrEqual().call(a=a, b=b).result
+    return binary.GreaterThanOrEqual().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -518,14 +438,7 @@ def and_(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the and operation.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
-        return (
-            element_wise_binary.ElementWiseLogicalAnd().call(a=a, b=b).result
-        )
-    else:
-        return binary.LogicalAnd().call(a=a, b=b).result
+    return binary.LogicalAnd().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -539,12 +452,7 @@ def or_(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the or operation.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
-        return element_wise_binary.ElementWiseLogicalOr().call(a=a, b=b).result
-    else:
-        return binary.LogicalOr().call(a=a, b=b).result
+    return binary.LogicalOr().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -558,14 +466,7 @@ def xor_(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the xor operation.
     """
-    if check_feature_is_sequence(a.feature_) or check_feature_is_sequence(
-        b.feature_
-    ):
-        return (
-            element_wise_binary.ElementWiseLogicalXOr().call(a=a, b=b).result
-        )
-    else:
-        return binary.LogicalXOr().call(a=a, b=b).result
+    return binary.LogicalXOr().call(a=a, b=b).result
 
 
 def neg(a: FeatureRef) -> FeatureRef:
@@ -577,10 +478,7 @@ def neg(a: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the negated value of the input feature.
     """
-    if check_feature_is_sequence(a.feature_):
-        return element_wise_unary.ElementWiseNeg().call(a=a).result
-    else:
-        return unary.Neg().call(a=a).result
+    return unary.Neg().call(a=a).result
 
 
 def abs_(a: FeatureRef) -> FeatureRef:
@@ -592,10 +490,7 @@ def abs_(a: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the absolute value of the input feature.
     """
-    if check_feature_is_sequence(a.feature_):
-        return element_wise_unary.ElementWiseAbs().call(a=a).result
-    else:
-        return unary.Abs().call(a=a).result
+    return unary.Abs().call(a=a).result
 
 
 def invert(a: FeatureRef) -> FeatureRef:
@@ -608,12 +503,10 @@ def invert(a: FeatureRef) -> FeatureRef:
         FeatureRef: A FeatureRef instance representing the bitwise inverted
             value of the input feature.
     """
-    if check_feature_equals(a.feature_, Value("bool")):
+    if check_feature_equals(
+        a.feature_, Value("bool")
+    ) or check_feature_is_sequence(a.feature_, Value("bool")):
         return unary.BooleanInvert().call(a=a).result
-    elif check_feature_is_sequence(a.feature_, Value("bool")):
-        return element_wise_unary.ElementWiseBooleanInvert().call(a=a).result
-    elif check_feature_is_sequence(a.feature_):
-        return element_wise_unary.ElementWiseInvert().call(a=a).result
     else:
         return unary.Invert().call(a=a).result
 
@@ -652,7 +545,7 @@ def len_(a: FeatureRef) -> FeatureRef | int:
     else:
         # unexpected feature type
         raise TypeError(
-            f"Unexpected feature type for length operation, "
+            "Unexpected feature type for length operation, "
             "got `{a.feature_}`."
         )
 
@@ -671,7 +564,7 @@ def get_item(seq: FeatureRef | Any, index: FeatureRef | Any) -> FeatureRef:
     # check arguments
     seq, index = _check_args(seq, index)
     # add the getitem processor
-    return SequenceGetItem().call(sequence=seq, index=index).gathered
+    return SequenceGetItem().call(sequence=seq, index=index).result
 
 
 def set_item(
@@ -720,7 +613,7 @@ def contains(obj: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
     obj, value = _check_args(obj, value)
 
     if check_feature_is_sequence(obj.feature_):
-        return SequenceContains().call(sequence=obj, value=value).contains
+        return SequenceContains().call(sequence=obj, value=value).result
 
     elif check_feature_equals(obj.feature_, STRING_LIKE_TYPES):
         # implement contains operation for string-like features
@@ -749,7 +642,7 @@ def count_of(obj: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
     obj, value = _check_args(obj, value)
 
     if check_feature_is_sequence(obj.feature_):
-        return SequenceCountOf().call(sequence=obj, value=value).count
+        return SequenceCountOf().call(sequence=obj, value=value).result
 
     elif check_feature_equals(obj.feature_, STRING_LIKE_TYPES):
         # implement contains operation for string-like features
@@ -778,7 +671,7 @@ def index_of(obj: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
     obj, value = _check_args(obj, value)
 
     if check_feature_is_sequence(obj.feature_):
-        return SequenceIndexOf().call(sequence=obj, value=value).index
+        return SequenceIndexOf().call(sequence=obj, value=value).result
 
     elif check_feature_equals(obj.feature_, STRING_LIKE_TYPES):
         # implement contains operation for string-like features

@@ -1,9 +1,14 @@
-"""Module containing processor implementations for sequence operators."""
+"""Module containing processor implementations for sequence-query operations.
+
+This module provides data processors for querying sequence features, 
+including operations like checking containment, counting occurrences, 
+and finding the index of a value within sequences.
+"""
 from __future__ import annotations
 
 import operator
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, TypeVar
+from typing import Any, TypeVar
 
 from datasets import Value
 from typing_extensions import Annotated, Unpack
@@ -25,14 +30,18 @@ from hyped.data.flow.core.refs.outputs import OutputFeature, OutputRefs
 from hyped.data.flow.core.refs.ref import FeatureRef
 
 
-def validate_seqvalop_input_refs(
-    config: BaseSequenceValueOpConfig, refs: SequenceValueOpInputRefs
+class BaseSequenceQueryOpConfig(BaseDataProcessorConfig):
+    """Base Configuration class for sequence-query operations."""
+
+
+def validate_input_refs(
+    config: BaseSequenceQueryOpConfig, refs: SequenceQueryOpInputRefs
 ) -> None:
     """Post-initialization check to ensure value matches the feature type of the sequence values.
 
     Args:
-        config (BaseSequenceValueOpConfig): The configuration for the valop operation.
-        refs (SequenceValueOpInputRefs): The input references for the valop operation.
+        config (BaseSequenceQueryOpConfig): The configuration for the query operation.
+        refs (SequenceQueryOpInputRefs): The input references for the query operation.
 
     Raises:
         TypeError: If the value feature does not match the feature type of the sequence values.
@@ -46,10 +55,10 @@ def validate_seqvalop_input_refs(
         )
 
 
-class SequenceValueOpInputRefs(
-    Annotated[InputRefs, GlobalValidator(validate_seqvalop_input_refs)]
+class SequenceQueryOpInputRefs(
+    Annotated[InputRefs, GlobalValidator(validate_input_refs)]
 ):
-    """Input references for sequence value operations."""
+    """Input references for sequence query operations."""
 
     sequence: Annotated[FeatureRef, CheckFeatureIsSequence()]
     """The reference to the sequence feature."""
@@ -58,34 +67,26 @@ class SequenceValueOpInputRefs(
     """The reference to the value feature to be checked against the sequence values."""
 
 
-class BaseSequenceValueOpConfig(BaseDataProcessorConfig):
-    """Base Configuration class for sequence-value operations."""
-
-
-C = TypeVar("C", bound=BaseSequenceValueOpConfig)
-I = TypeVar("I", bound=SequenceValueOpInputRefs)
+C = TypeVar("C", bound=BaseSequenceQueryOpConfig)
+I = TypeVar("I", bound=SequenceQueryOpInputRefs)
 O = TypeVar("O", bound=OutputRefs)
 
 
-class BaseSequenceValueOp(BaseDataProcessor[C, I, O], ABC):
-    """Base class for sequence value operations.
+class BaseSequenceQueryOp(BaseDataProcessor[C, I, O], ABC):
+    """Base class for sequence query operations.
 
-    This class provides a template for processing operations that involve a sequence and a value.
-
-    Attributes:
-        _OUTPUT_KEY (str): The key for the output feature in the result batch.
+    This class provides a template for processing operations
+    that involve a sequence and a query value.
     """
-
-    _OUTPUT_KEY: ClassVar[str]
 
     @abstractmethod
     def op(self, seq: list[Any], val: Any) -> Any:
-        """The sequence-value operation to apply."""
+        """The sequence-query operation to apply."""
 
     async def batch_process(
         self, inputs: Batch, index: list[int], rank: int, io: IOContext
     ) -> Batch:
-        """Processes a batch of inputs, applying the sequence-value operation.
+        """Processes a batch of inputs, applying the sequence-query operation.
 
         Args:
             inputs (Batch): The input batch containing features 'a' and 'b'.
@@ -94,19 +95,19 @@ class BaseSequenceValueOp(BaseDataProcessor[C, I, O], ABC):
             io (IOContext): Context information for the data processors execution.
 
         Returns:
-            Batch: The batch containing the result of the sequence-value operation.
+            Batch: The batch containing the result of the sequence-query operation.
         """
         return {
-            type(self)._OUTPUT_KEY: [
+            "result": [
                 self.op(a, b)
                 for a, b in zip(inputs["sequence"], inputs["value"])
             ]
         }
 
-    def call(self, **kwargs: Unpack[SequenceValueOpInputRefs]) -> O:
-        """Add the sequence-value operation node to the data flow.
+    def call(self, **kwargs: Unpack[SequenceQueryOpInputRefs]) -> O:
+        """Add the sequence-query operation node to the data flow.
 
-        This method processes the input references for the sequence-value operation, adds
+        This method processes the input references for the sequence-query operation, adds
         the corresponding node to the data flow, and returns the references to the
         output features generated by the processor.
 
@@ -117,28 +118,28 @@ class BaseSequenceValueOp(BaseDataProcessor[C, I, O], ABC):
             **kwargs (FeatureRef): Keyword arguments passed to call method.
 
         Returns:
-            O: The output references produced by the sequence-value data processor.
+            O: The output references produced by the sequence-query data processor.
         """
-        return super(BaseSequenceValueOp, self).call(**kwargs)
+        return super(BaseSequenceQueryOp, self).call(**kwargs)
 
 
 class SequenceContainsOutputRefs(OutputRefs):
     """Output references for the :code:`contains` operation."""
 
-    contains: Annotated[FeatureRef, OutputFeature(Value("bool"))]
+    result: Annotated[FeatureRef, OutputFeature(Value("bool"))]
     """The feature reference to the result of the :code:`contains` operation."""
 
 
-class SequenceContainsConfig(BaseSequenceValueOpConfig):
+class SequenceContainsConfig(BaseSequenceQueryOpConfig):
     """Configuration class for the :code:`contains` operation."""
 
     """The :code:`contains` operation."""
 
 
 class SequenceContains(
-    BaseSequenceValueOp[
+    BaseSequenceQueryOp[
         SequenceContainsConfig,
-        SequenceValueOpInputRefs,
+        SequenceQueryOpInputRefs,
         SequenceContainsOutputRefs,
     ]
 ):
@@ -147,25 +148,24 @@ class SequenceContains(
     This class defines the operation that checks if a value is contained within a sequence.
     """
 
-    _OUTPUT_KEY: ClassVar[str] = "contains"
     op = operator.contains
 
 
 class SequenceCountOfOutputRefs(OutputRefs):
     """Output references for the :code:`countOf` operation."""
 
-    count: Annotated[FeatureRef, OutputFeature(Value("int64"))]
+    result: Annotated[FeatureRef, OutputFeature(Value("int64"))]
     """The feature reference to the result of the :code:`countOf` operation."""
 
 
-class SequenceCountOfConfig(BaseSequenceValueOpConfig):
+class SequenceCountOfConfig(BaseSequenceQueryOpConfig):
     """Configuration class for the :code:`countOf operation."""
 
 
 class SequenceCountOf(
-    BaseSequenceValueOp[
+    BaseSequenceQueryOp[
         SequenceCountOfConfig,
-        SequenceValueOpInputRefs,
+        SequenceQueryOpInputRefs,
         SequenceCountOfOutputRefs,
     ]
 ):
@@ -174,25 +174,24 @@ class SequenceCountOf(
     This class defines the operation that counts occurrences of a value within a sequence.
     """
 
-    _OUTPUT_KEY: ClassVar[str] = "count"
     op = operator.countOf
 
 
 class SequenceIndexOfOutputRefs(OutputRefs):
     """Output references for the :code:`indexOf` operation."""
 
-    index: Annotated[FeatureRef, OutputFeature(Value("int64"))]
+    result: Annotated[FeatureRef, OutputFeature(Value("int64"))]
     """The feature reference to the result of the :code:`indexOf` operation."""
 
 
-class SequenceIndexOfConfig(BaseSequenceValueOpConfig):
+class SequenceIndexOfConfig(BaseSequenceQueryOpConfig):
     """Configuration class for the :code:`indexOf` operation."""
 
 
 class SequenceIndexOf(
-    BaseSequenceValueOp[
+    BaseSequenceQueryOp[
         SequenceIndexOfConfig,
-        SequenceValueOpInputRefs,
+        SequenceQueryOpInputRefs,
         SequenceIndexOfOutputRefs,
     ]
 ):
@@ -201,5 +200,4 @@ class SequenceIndexOf(
     This class defines the operation that finds the index of a value within a sequence.
     """
 
-    _OUTPUT_KEY: ClassVar[str] = "index"
     op = operator.indexOf

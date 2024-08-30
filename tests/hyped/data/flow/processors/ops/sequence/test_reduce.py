@@ -1,12 +1,12 @@
 from datasets import Features, Sequence, Value
 
-from hyped.data.flow.processors.ops.sequence import aggregation
+from hyped.data.flow.processors.ops.sequence import reduce
 from tests.hyped.data.flow.processors.base import BaseDataProcessorTest
 
 
 class TestSequenceLength(BaseDataProcessorTest):
-    processor_type = aggregation.SequenceLength
-    processor_config = aggregation.SequenceLengthConfig()
+    processor_type = reduce.SequenceLength
+    processor_config = reduce.SequenceLengthConfig()
 
     input_features = Features({"a": Sequence(Value("int32"))})
     input_data = {"a": [[1, 2, 3], [1, 2], [1]]}
@@ -17,8 +17,8 @@ class TestSequenceLength(BaseDataProcessorTest):
 
 
 class TestSequenceSum(BaseDataProcessorTest):
-    processor_type = aggregation.SequenceSum
-    processor_config = aggregation.SequenceSumConfig()
+    processor_type = reduce.SequenceSum
+    processor_config = reduce.SequenceSumConfig()
 
     input_features = Features({"a": Sequence(Value("int32"))})
     input_data = {"a": [[1, 2, 3], [1, 2], [1]]}
@@ -29,8 +29,8 @@ class TestSequenceSum(BaseDataProcessorTest):
 
 
 class TestSequenceMean(BaseDataProcessorTest):
-    processor_type = aggregation.SequenceMean
-    processor_config = aggregation.SequenceMeanConfig()
+    processor_type = reduce.SequenceMean
+    processor_config = reduce.SequenceMeanConfig()
 
     input_features = Features({"a": Sequence(Value("int32"))})
     input_data = {"a": [[1, 2, 3], [1, 2], [1]]}

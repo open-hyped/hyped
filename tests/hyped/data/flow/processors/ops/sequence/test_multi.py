@@ -1,12 +1,12 @@
 from datasets import Features, Sequence, Value
 
-from hyped.data.flow.processors.ops.sequence import multisequence
+from hyped.data.flow.processors.ops.sequence import multi
 from tests.hyped.data.flow.processors.base import BaseDataProcessorTest
 
 
 class TestSequenceChainInvalidTypes(BaseDataProcessorTest):
-    processor_type = multisequence.SequenceChain
-    processor_config = multisequence.SequenceChainConfig()
+    processor_type = multi.SequenceChain
+    processor_config = multi.SequenceChainConfig()
     input_features = Features(
         {
             "sequences": {
@@ -19,8 +19,8 @@ class TestSequenceChainInvalidTypes(BaseDataProcessorTest):
 
 
 class TestSequenceChainNonConsecutiveIntegerMultiIndex(BaseDataProcessorTest):
-    processor_type = multisequence.SequenceChain
-    processor_config = multisequence.SequenceChainConfig()
+    processor_type = multi.SequenceChain
+    processor_config = multi.SequenceChainConfig()
     input_features = Features(
         {
             "sequences": {
@@ -33,8 +33,8 @@ class TestSequenceChainNonConsecutiveIntegerMultiIndex(BaseDataProcessorTest):
 
 
 class TestSequenceChainNonIntegerMultiIndex(BaseDataProcessorTest):
-    processor_type = multisequence.SequenceChain
-    processor_config = multisequence.SequenceChainConfig()
+    processor_type = multi.SequenceChain
+    processor_config = multi.SequenceChainConfig()
     input_features = Features(
         {
             "sequences": {
@@ -47,8 +47,8 @@ class TestSequenceChainNonIntegerMultiIndex(BaseDataProcessorTest):
 
 
 class TestSequenceChain(BaseDataProcessorTest):
-    processor_type = multisequence.SequenceChain
-    processor_config = multisequence.SequenceChainConfig()
+    processor_type = multi.SequenceChain
+    processor_config = multi.SequenceChainConfig()
 
     input_features = Features(
         {
@@ -73,8 +73,8 @@ class TestSequenceChain(BaseDataProcessorTest):
 
 
 class TestSequenceChain_FixedLength(BaseDataProcessorTest):
-    processor_type = multisequence.SequenceChain
-    processor_config = multisequence.SequenceChainConfig()
+    processor_type = multi.SequenceChain
+    processor_config = multi.SequenceChainConfig()
 
     input_features = Features(
         {
@@ -101,8 +101,8 @@ class TestSequenceChain_FixedLength(BaseDataProcessorTest):
 
 
 class TestSequenceZip(BaseDataProcessorTest):
-    processor_type = multisequence.SequenceZip
-    processor_config = multisequence.SequenceZipConfig()
+    processor_type = multi.SequenceZip
+    processor_config = multi.SequenceZipConfig()
 
     input_features = Features(
         {

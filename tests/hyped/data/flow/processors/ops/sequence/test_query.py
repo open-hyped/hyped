@@ -1,12 +1,12 @@
 from datasets import Features, Sequence, Value
 
-from hyped.data.flow.processors.ops.sequence import seq_val
+from hyped.data.flow.processors.ops.sequence import query
 from tests.hyped.data.flow.processors.base import BaseDataProcessorTest
 
 
 class TestSequenceContains(BaseDataProcessorTest):
-    processor_type = seq_val.SequenceContains
-    processor_config = seq_val.SequenceContainsConfig()
+    processor_type = query.SequenceContains
+    processor_config = query.SequenceContainsConfig()
 
     input_features = Features(
         {"sequence": Sequence(Value("int32")), "value": Value("int32")}
@@ -17,13 +17,13 @@ class TestSequenceContains(BaseDataProcessorTest):
     }
     input_index = [0, 1, 2]
 
-    expected_output_features = Features({"contains": Value("bool")})
-    expected_output_data = {"contains": [True, True, False]}
+    expected_output_features = Features({"result": Value("bool")})
+    expected_output_data = {"result": [True, True, False]}
 
 
 class TestSequenceCountOf(BaseDataProcessorTest):
-    processor_type = seq_val.SequenceCountOf
-    processor_config = seq_val.SequenceCountOfConfig()
+    processor_type = query.SequenceCountOf
+    processor_config = query.SequenceCountOfConfig()
 
     input_features = Features(
         {"sequence": Sequence(Value("int32")), "value": Value("int32")}
@@ -34,13 +34,13 @@ class TestSequenceCountOf(BaseDataProcessorTest):
     }
     input_index = [0, 1, 2]
 
-    expected_output_features = Features({"count": Value("int64")})
-    expected_output_data = {"count": [1, 2, 3]}
+    expected_output_features = Features({"result": Value("int64")})
+    expected_output_data = {"result": [1, 2, 3]}
 
 
 class TestSequenceIndexOf(BaseDataProcessorTest):
-    processor_type = seq_val.SequenceIndexOf
-    processor_config = seq_val.SequenceIndexOfConfig()
+    processor_type = query.SequenceIndexOf
+    processor_config = query.SequenceIndexOfConfig()
 
     input_features = Features(
         {"sequence": Sequence(Value("int32")), "value": Value("int32")}
@@ -51,5 +51,5 @@ class TestSequenceIndexOf(BaseDataProcessorTest):
     }
     input_index = [0, 1, 2]
 
-    expected_output_features = Features({"index": Value("int64")})
-    expected_output_data = {"index": [0, 0, 1]}
+    expected_output_features = Features({"result": Value("int64")})
+    expected_output_data = {"result": [0, 0, 1]}

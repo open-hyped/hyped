@@ -1,4 +1,8 @@
-"""Module containing processor implementations for sequence item operators."""
+"""Module containing processor implementations for multi-sequence operations.
+
+This module provides data processors for operations on multiple sequence
+features, including chaining and zipping sequences into a single output.
+"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

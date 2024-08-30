@@ -1,4 +1,8 @@
-"""Module containing processor implementations for sequence item operators."""
+"""Module containing processor implementations for sequence access operations.
+
+This module provides data processors for operations on sequence features,
+including retrieving and setting items at specified indices.
+"""
 from __future__ import annotations
 
 from collections import deque
@@ -50,7 +54,7 @@ class SequenceGetItemInputRefs(InputRefs):
 class SequenceGetItemOutputRefs(OutputRefs):
     """Output references for the GetItem operation."""
 
-    gathered: Annotated[
+    result: Annotated[
         FeatureRef,
         LambdaOutputFeature(
             lambda _, i: (

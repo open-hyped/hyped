@@ -1,12 +1,12 @@
 from datasets import Features, Sequence, Value
 
-from hyped.data.flow.processors.ops.sequence import itemaccess
+from hyped.data.flow.processors.ops.sequence import access
 from tests.hyped.data.flow.processors.base import BaseDataProcessorTest
 
 
 class TestSequenceGetItem(BaseDataProcessorTest):
-    processor_type = itemaccess.SequenceGetItem
-    processor_config = itemaccess.SequenceGetItemConfig()
+    processor_type = access.SequenceGetItem
+    processor_config = access.SequenceGetItemConfig()
 
     input_features = Features(
         {"sequence": Sequence(Value("int32")), "index": Value("int32")}
@@ -17,13 +17,13 @@ class TestSequenceGetItem(BaseDataProcessorTest):
     }
     input_index = [0, 1, 2]
 
-    expected_output_features = Features({"gathered": Value("int32")})
-    expected_output_data = {"gathered": [1, 5, 9]}
+    expected_output_features = Features({"result": Value("int32")})
+    expected_output_data = {"result": [1, 5, 9]}
 
 
 class TestSequenceGetItem_MultiIndex(BaseDataProcessorTest):
-    processor_type = itemaccess.SequenceGetItem
-    processor_config = itemaccess.SequenceGetItemConfig()
+    processor_type = access.SequenceGetItem
+    processor_config = access.SequenceGetItemConfig()
 
     input_features = Features(
         {
@@ -37,13 +37,13 @@ class TestSequenceGetItem_MultiIndex(BaseDataProcessorTest):
     }
     input_index = [0, 1, 2]
 
-    expected_output_features = Features({"gathered": Sequence(Value("int32"))})
-    expected_output_data = {"gathered": [[1], [4, 5], [7, 8, 9]]}
+    expected_output_features = Features({"result": Sequence(Value("int32"))})
+    expected_output_data = {"result": [[1], [4, 5], [7, 8, 9]]}
 
 
 class TestSequenceGetItem_MultiIndex_FixedLength(BaseDataProcessorTest):
-    processor_type = itemaccess.SequenceGetItem
-    processor_config = itemaccess.SequenceGetItemConfig()
+    processor_type = access.SequenceGetItem
+    processor_config = access.SequenceGetItemConfig()
 
     input_features = Features(
         {
@@ -58,14 +58,14 @@ class TestSequenceGetItem_MultiIndex_FixedLength(BaseDataProcessorTest):
     input_index = [0, 1, 2]
 
     expected_output_features = Features(
-        {"gathered": Sequence(Value("int32"), length=2)}
+        {"result": Sequence(Value("int32"), length=2)}
     )
-    expected_output_data = {"gathered": [[1, 2], [5, 6], [7, 9]]}
+    expected_output_data = {"result": [[1, 2], [5, 6], [7, 9]]}
 
 
 class TestSequenceSetItem(BaseDataProcessorTest):
-    processor_type = itemaccess.SequenceSetItem
-    processor_config = itemaccess.SequenceSetItemConfig()
+    processor_type = access.SequenceSetItem
+    processor_config = access.SequenceSetItemConfig()
 
     input_features = Features(
         {
@@ -86,8 +86,8 @@ class TestSequenceSetItem(BaseDataProcessorTest):
 
 
 class TestSequenceSetItem_MultiIndex(BaseDataProcessorTest):
-    processor_type = itemaccess.SequenceSetItem
-    processor_config = itemaccess.SequenceSetItemConfig()
+    processor_type = access.SequenceSetItem
+    processor_config = access.SequenceSetItemConfig()
 
     input_features = Features(
         {
@@ -108,8 +108,8 @@ class TestSequenceSetItem_MultiIndex(BaseDataProcessorTest):
 
 
 class TestSequenceSetItem_MultiIndex_FixedLength(BaseDataProcessorTest):
-    processor_type = itemaccess.SequenceSetItem
-    processor_config = itemaccess.SequenceSetItemConfig()
+    processor_type = access.SequenceSetItem
+    processor_config = access.SequenceSetItemConfig()
 
     input_features = Features(
         {
