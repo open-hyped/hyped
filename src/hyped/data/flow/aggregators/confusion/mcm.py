@@ -69,10 +69,14 @@ def validate_input_sequences(
     y_pred_is_sequence = check_feature_is_sequence(y_pred)
 
     if y_true_is_sequence and y_pred_is_sequence:
-        assert get_sequence_length(y_true) != -1
-        assert get_sequence_length(y_pred) != -1
-        # TODO: use allow_arbitrary_lengths arg of `check_sequence_lengths_match` instead of asserts
-        if not check_sequence_lengths_match(y_true, y_pred):
+        is_dynamic_length = (
+            get_sequence_length(y_true) == -1
+            or get_sequence_length(y_pred) == -1
+        )
+
+        if not is_dynamic_length and not check_sequence_lengths_match(
+            y_true, y_pred
+        ):
             raise RuntimeError(
                 "Sequence length of y_true must match sequence length of y_pred "
                 f"Got y_true with len={get_sequence_length(y_true)} "
