@@ -119,7 +119,7 @@ def check_input_confusion_matrix(
     # check labels argument
     if config.labels is not None and len(config.labels) > shape[0]:
         raise RuntimeError(
-            "Labels in PrecisionRecallFScoreSupportConfig cannot longer than the number "
+            "Labels in `PrecisionRecallFScoreSupportConfig` cannot longer than the number "
             "of classes in the confusion matrix. Confusion matrix has shape "
             f"{shape}, but labels have length {len(config.labels)}."
         )
