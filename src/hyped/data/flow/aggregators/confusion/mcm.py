@@ -97,23 +97,24 @@ class MultiLabelConfusionMatrixInputRefs(
     Annotated[InputRefs, GlobalValidator(validate_input_sequences)]
 ):
     """Input Ref description for the :class:`MultiLabelConfusionMatrix` Aggregator.
-   
+
     The confusion matrix takes two inputs, namely :class:`y_true`and :class:`y_pred`, which can
     take on different forms indicating the assumed classification task:
-   
-    1. **Multi-label Classification:**
-       - If :class:`y_true`and :class:`y_pred` are a sequences of boolean values with shape
-       `(n_classes,)`,  then the task is interpreted as a multi-label classification problem. 
-       Here, each class label is represented as a boolean value, where `True` indicates the
-       presence of the class,  and `False` indicates its absence. Multiple classes can be
-       associated with a single instance.
-    
-    2. **Multi-class Classification:**
+
+    1. **Multi-class Classification:**
        - If :class:`y_true`and :class:`y_pred` is a single class label, the task is interpreted as
        a standard multi-class classification problem. In this setting, each instance is assigned
        exactly one class label out of the possible `n_classes` labels.
-    
-    Make sure to provide the appropriate format of `y_true` according to the classification task you intend to solve. 
+
+    2. **Multi-label Classification:**
+       - If :class:`y_true`and :class:`y_pred` are a sequences of boolean values with shape
+       `(n_classes,)`,  then the task is interpreted as a multi-label classification problem.
+       Here, each class label is represented as a boolean value, where `True` indicates the
+       presence of the class,  and `False` indicates its absence. Multiple classes can be
+       associated with a single instance.
+
+
+    Make sure to provide the appropriate format of `y_true` according to the classification task you intend to solve.
     """
 
     y_true: Annotated[
@@ -177,7 +178,7 @@ class MultiLabelConfusionMatrix(
 ):
     """The :class:`MultiLabelConfusionMatrix` Aggregator.
 
-    Implements sklearn's :code:`multilabel_confusion_matrix` as a hyped aggregator. 
+    Implements sklearn's :code:`multilabel_confusion_matrix` as a hyped aggregator.
     Despite the name, this aggregator is applicable to both multi-label and standard
     multi-class classification tasks. It computes a 2x2 confusion matrix for each label
     in the label space, allowing for detailed performance evaluation of each individual class.
@@ -185,7 +186,6 @@ class MultiLabelConfusionMatrix(
     The output is a nested structure with shape :code:`(n_classes, 2, 2)`, corresponding to
     the confusion matrix for each label.  This structure provides the true positives, false positives,
     true negatives, and false negatives for each class in the dataset.
-"""
     """
 
     def initialize(self, io: IOContext) -> tuple[dict[str, float], None]:

@@ -837,9 +837,28 @@ def precision_recall_fscore_support(
 ) -> PrecisionRecallFScoreSupportOutputRefs:
     """Compute precision, recall, f-score and support for given predictions and ground truths.
 
+    This function takes two inputs, namely :class:`y_true`and :class:`y_pred`, which can
+    take on different forms indicating the assumed classification task:
+
+    1. **Multi-class Classification:**
+       - If :class:`y_true`and :class:`y_pred` is a single class label, the task is interpreted as
+       a standard multi-class classification problem. In this setting, each instance is assigned
+       exactly one class label out of the possible `n_classes` labels.
+
+    2. **Multi-label Classification:**
+       - If :class:`y_true`and :class:`y_pred` are a sequences of boolean values with shape
+       `(n_classes,)`,  then the task is interpreted as a multi-label classification problem.
+       Here, each class label is represented as a boolean value, where `True` indicates the
+       presence of the class,  and `False` indicates its absence. Multiple classes can be
+       associated with a single instance.
+
     Args:
-        y_true (FeatureRef): The ground truths.
-        y_pred (FeatureRef): The predictions.
+        y_true (FeatureRef): The ground truths. Either a class label feature in case of
+            standard multi-class classification, or a sequence of boolean values in case
+            of multi-label classification.
+        y_pred (FeatureRef): The predictions. Either a class label feature in case of
+            standard multi-class classification, or a sequence of boolean values in case
+            of multi-label classification.
         labels (list): The set of labels to include and their order if average is None.
             Labels present in the data can be excluded, for example in multiclass classification
             to exclude a “negative class”. Labels not present in the data can be included and
