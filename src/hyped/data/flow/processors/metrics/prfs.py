@@ -139,18 +139,12 @@ class PrecisionRecallFScoreSupportInputRefs(InputRefs):
     # TODO: sample_weight
 
 
-def infer_prf_output_feature(
+def infer_prfs_output_feature(
     config: PrecisionRecallFScoreSupportConfig,
     inputs: PrecisionRecallFScoreSupportInputRefs,
     dtype: str,
 ) -> FeatureType:
-    """Infers the feature type for precision, recall, and F-score outputs.
-
-    This function determines the appropriate feature type for the precision, recall,
-    and F-score outputs of the processor. It returns a single float value if an averaging
-    method is specified in the configuration. Otherwise, it returns a sequence of integers
-    with the length determined by the labels in the configuration or the number of classes
-    in the confusion matrix.
+    """Infers the feature type for precision, recall, F-score and support outputs.
 
     Args:
         config (PrecisionRecallFScoreSupportConfig): Configuration parameters for the processor.
@@ -177,7 +171,7 @@ class PrecisionRecallFScoreSupportOutputRefs(OutputRefs):
     precision: Annotated[
         FeatureRef,
         LambdaOutputFeature(
-            lambda c, i: infer_prf_output_feature(c, i, "float32")
+            lambda c, i: infer_prfs_output_feature(c, i, "float32")
         ),
     ]
     """Precision score.
@@ -188,7 +182,7 @@ class PrecisionRecallFScoreSupportOutputRefs(OutputRefs):
     recall: Annotated[
         FeatureRef,
         LambdaOutputFeature(
-            lambda c, i: infer_prf_output_feature(c, i, "float32")
+            lambda c, i: infer_prfs_output_feature(c, i, "float32")
         ),
     ]
     """Recall score.
@@ -199,7 +193,7 @@ class PrecisionRecallFScoreSupportOutputRefs(OutputRefs):
     f_score: Annotated[
         FeatureRef,
         LambdaOutputFeature(
-            lambda c, i: infer_prf_output_feature(c, i, "float32")
+            lambda c, i: infer_prfs_output_feature(c, i, "float32")
         ),
     ]
     """F-beta score.
@@ -210,7 +204,7 @@ class PrecisionRecallFScoreSupportOutputRefs(OutputRefs):
     support: Annotated[
         FeatureRef,
         LambdaOutputFeature(
-            lambda c, i: infer_prf_output_feature(c, i, "int64")
+            lambda c, i: infer_prfs_output_feature(c, i, "int64")
         ),
     ]
     """The number of occurrences of each label in y_true. If average is not None, this
