@@ -175,11 +175,17 @@ class MultiLabelConfusionMatrix(
         MultiLabelConfusionMatrixOutputRefs,
     ]
 ):
-    """The MultiLabelConfusionMatrix Aggregator.
+    """The :class:`MultiLabelConfusionMatrix` Aggregator.
 
-    Implements sklearn's `multilabel_confusion_matrix` as a hyped aggregator.
-    The Output is a 3DArray, which corresponds to the aggregated output of
-    `multilabel_confusion_matrix` over the whole dataset.
+    Implements sklearn's :code:`multilabel_confusion_matrix` as a hyped aggregator. 
+    Despite the name, this aggregator is applicable to both multi-label and standard
+    multi-class classification tasks. It computes a 2x2 confusion matrix for each label
+    in the label space, allowing for detailed performance evaluation of each individual class.
+
+    The output is a nested structure with shape :code:`(n_classes, 2, 2)`, corresponding to
+    the confusion matrix for each label.  This structure provides the true positives, false positives,
+    true negatives, and false negatives for each class in the dataset.
+"""
     """
 
     def initialize(self, io: IOContext) -> tuple[dict[str, float], None]:
