@@ -144,10 +144,52 @@ class TestChunkSequenceDifferentChunkSizeStride(BaseDataAugmenterTest):
     }
 
 
-class TestChunkSequenceKeepLastFalse(BaseDataAugmenterTest):
+class TestChunkSequenceKeepLastTrueNoRemainder(BaseDataAugmenterTest):
     augmenter_type = ChunkSequence
     augmenter_config = ChunkSequence.Config(
-        chunk_size=3, stride=2, keep_last=False
+        chunk_size=3, stride=2, keep_last=True
+    )
+
+    input_features = Features(
+        {
+            "sequences": {
+                "a": Sequence(Value("int32"), length=5),
+                "b": Sequence(Value("int32"), length=5),
+            }
+        }
+    )
+    input_data = {
+        "sequences": [
+            {"a": [0, 1, 2, 3, 4], "b": [10, 11, 12, 13, 14]},
+            {"a": [5, 6, 7, 8, 9], "b": [15, 16, 17, 18, 19]},
+        ]
+    }
+    input_index = [0, 1]
+
+    expected_output_features = Features(
+        {
+            "chunks": {
+                "a": Sequence(Value("int32"), length=3),
+                "b": Sequence(Value("int32"), length=3),
+            }
+        }
+    )
+    expected_output_data = {
+        "chunks": [
+            # chunks of sample 1
+            {"a": [0, 1, 2], "b": [10, 11, 12]},
+            {"a": [2, 3, 4], "b": [12, 13, 14]},
+            # chunks of sample 2
+            {"a": [5, 6, 7], "b": [15, 16, 17]},
+            {"a": [7, 8, 9], "b": [17, 18, 19]},
+        ]
+    }
+
+
+class TestChunkSequenceKeepLastTrueWithRemainder(BaseDataAugmenterTest):
+    augmenter_type = ChunkSequence
+    augmenter_config = ChunkSequence.Config(
+        chunk_size=3, stride=2, keep_last=True
     )
 
     input_features = Features(
@@ -169,8 +211,8 @@ class TestChunkSequenceKeepLastFalse(BaseDataAugmenterTest):
     expected_output_features = Features(
         {
             "chunks": {
-                "a": Sequence(Value("int32"), length=3),
-                "b": Sequence(Value("int32"), length=3),
+                "a": Sequence(Value("int32"), length=-1),
+                "b": Sequence(Value("int32"), length=-1),
             }
         }
     )
@@ -179,12 +221,16 @@ class TestChunkSequenceKeepLastFalse(BaseDataAugmenterTest):
             # chunks of sample 1
             {"a": [0, 1, 2], "b": [10, 11, 12]},
             {"a": [2, 3, 4], "b": [12, 13, 14]},
-            # Chunks are not allowed to be shorter or include any trailing elements
-            # so the last chunk with only [4, 5] and [14, 15] is discarded
+            {
+                "a": [4, 5],
+                "b": [14, 15],
+            },  # Remaining chunk (shorter because it's the end of the sequence)
             # chunks of sample 2
             {"a": [5, 6, 7], "b": [15, 16, 17]},
             {"a": [7, 8, 9], "b": [17, 18, 19]},
-            # Chunks are not allowed to be shorter or include any trailing elements
-            # so the last chunk with only [9, 10] and [19, 20] is discarded
+            {
+                "a": [9, 10],
+                "b": [19, 20],
+            },  # Remaining chunk (shorter because it's the end of the sequence)
         ]
     }

@@ -146,7 +146,8 @@ def build_output_feature(
         # the output sequence length is the chunk size in case
         chunk_sequence_length = (
             -1
-            if (length == -1) or (length % config.chunk_size != 0)
+            if (length == -1)
+            or ((length - config.chunk_size) % config.stride != 0)
             else config.chunk_size
         )
 
