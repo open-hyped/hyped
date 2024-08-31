@@ -412,7 +412,7 @@ class DataFlowGraph(nx.MultiDiGraph):
 
     def add_source_node(
         self, features: datasets.Features, node_id: None | str = None
-    ) -> int:
+    ) -> str:
         """Add a the source node to the graph.
 
         This method adds a source node to the graph, which acts as the initial
@@ -423,7 +423,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             node_id (None | str): The id of the node, defaults to a random uuid.
 
         Returns:
-            FeatureRef: A reference to the input features.
+            str: The node id of the source node.
 
         Raises:
             AssertionError: If the graph already contains a source node

@@ -249,6 +249,7 @@ class InputRefsContainer(pydantic.BaseModel):
     """A dictionary mapping input reference field names to their
     corresponding instances."""
 
+    # TODO: rename to unique_refs
     @property
     def refs(self) -> list[FeatureRef]:
         """Get the input reference instances.
