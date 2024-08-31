@@ -329,7 +329,7 @@ def test_chain_op(op, proc_type):
         proc_mock().call.assert_called_once_with(sequences=collect_mock())
 
 
-def test_sequence_get_set_item():
+def test_sequence_access():
     flow = DataFlow(
         Features(
             {
@@ -356,6 +356,28 @@ def test_sequence_get_set_item():
             sequence=flow.src_features.seq,
             index=flow.src_features.idx,
             value=flow.src_features.val,
+        )
+
+
+def test_compress():
+    # Set up the data flow with features
+    flow = DataFlow(
+        Features(
+            {
+                "values": Sequence(Value("int32")),
+                "mask": Sequence(Value("bool")),
+            }
+        )
+    )
+
+    # Mock the BooleanIndexing processor
+    with patch("hyped.data.flow.ops.BooleanIndexing") as mock:
+        # Call the compress function
+        ops.compress(flow.src_features.values, flow.src_features.mask)
+
+        # Verify that the processor was called correctly
+        mock().call.assert_called_once_with(
+            values=flow.src_features.values, mask=flow.src_features.mask
         )
 
 
