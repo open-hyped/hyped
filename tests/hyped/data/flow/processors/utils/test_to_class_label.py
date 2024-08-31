@@ -1,6 +1,6 @@
 from datasets import ClassLabel, Features, Sequence, Value
 
-from hyped.data.flow.processors.to_class_label import ToClassLabel
+from hyped.data.flow.processors.utils.to_class_label import ToClassLabel
 from tests.hyped.data.flow.processors.base import BaseDataProcessorTest
 
 
