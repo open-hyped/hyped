@@ -232,6 +232,21 @@ class TestFeatureRef(object):
             # error on invalid feature type
             idx_ref[idx_ref]
 
+        # Create FeatureRef instances for boolean mask
+        mask_ref = FeatureRef(
+            key_=FeatureKey("mask"),
+            feature_=Sequence(Value("bool")),
+            node_id_="2",
+            flow_=object(),
+        )
+
+        # Test boolean indexing functionality
+        with patch("hyped.data.flow.ops.compress") as mock:
+            # Apply boolean indexing operator
+            seq_ref[mask_ref]
+            # Make sure the compress function was called correctly
+            mock.assert_called_with(seq_ref, mask_ref)
+
     def test_sequence_set_item(self):
         seq_ref = FeatureRef(
             key_=FeatureKey("seq"),

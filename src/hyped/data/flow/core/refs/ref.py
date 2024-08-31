@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from typing import Any, TypeAlias
 
-from datasets.features.features import Features, FeatureType, Value
+from datasets.features.features import Features, FeatureType, Sequence, Value
 from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
 from typing_extensions import Annotated
 
@@ -181,6 +181,12 @@ class FeatureRef(BaseModel):
                 raise TypeError(
                     f"'{self.feature_}' object is not subscriptable."
                 )
+
+            # if the key is a mask, apply boolean indexing operator
+            if check_feature_is_sequence(key.feature_, Value("bool")):
+                from hyped.data.flow.ops import compress
+
+                return compress(self, key)
 
             from hyped.data.flow.ops import get_item
 

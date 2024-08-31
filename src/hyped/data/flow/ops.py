@@ -64,7 +64,11 @@ from .processors.metrics.prfs import (
 )
 from .processors.ops import binary, unary
 from .processors.ops.collect import CollectFeatures, NestedContainer
-from .processors.ops.sequence.access import SequenceGetItem, SequenceSetItem
+from .processors.ops.sequence.access import (
+    BooleanIndexing,
+    SequenceGetItem,
+    SequenceSetItem,
+)
 from .processors.ops.sequence.multi import SequenceChain, SequenceZip
 from .processors.ops.sequence.query import (
     SequenceContains,
@@ -599,6 +603,24 @@ def set_item(
     return (
         SequenceSetItem().call(sequence=seq, index=index, value=value).result
     )
+
+
+@_handle_constant_inputs_for_binary_op
+def compress(values: FeatureRef, mask: FeatureRef) -> FeatureRef:
+    """Filter elements from a sequence based on a boolean mask.
+
+    This function applies a boolean mask to a sequence, returning a new sequence
+    that includes only the elements where the corresponding mask value is `True`.
+
+    Args:
+        values (FeatureRef): The sequence from which to filter elements.
+        mask (FeatureRef): A boolean mask indicating which elements to include
+            in the output sequence. The mask should be the same length as `values`.
+
+    Returns:
+        FeatureRef: The feature representing the filtered sequence.
+    """
+    return BooleanIndexing().call(values=values, mask=mask).indexed_values
 
 
 def contains(obj: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
