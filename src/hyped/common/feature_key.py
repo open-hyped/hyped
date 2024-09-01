@@ -19,11 +19,11 @@ from .feature_checks import (
     raise_feature_equals,
     raise_feature_is_sequence,
 )
-from .typing import Batch, Sample
+from .typing import Batch, FeatureKeyAlias, Sample
 from .utils import dict_of_lists_to_list_of_dicts
 
 
-class FeatureKey(tuple[str | int | slice]):
+class FeatureKey(FeatureKeyAlias):
     """Feature Key used to index features and examples.
 
     Arguments:
@@ -31,11 +31,11 @@ class FeatureKey(tuple[str | int | slice]):
     """
 
     @classmethod
-    def from_tuple(cls, key: tuple[str | int | slice]) -> FeatureKey:
+    def from_tuple(cls, key: FeatureKeyAlias) -> FeatureKey:
         """Generate a FeatureKey from a tuple.
 
         Arguments:
-            key (tuple[str | int | slice]): Key entries.
+            key (FeatureKeyAlias): Key entries.
 
         Returns:
             FeatureKey: Generated feature key.

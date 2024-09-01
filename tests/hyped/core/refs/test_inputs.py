@@ -5,6 +5,8 @@ import pytest
 from datasets import Features, Sequence, Value
 from typing_extensions import Annotated, NotRequired
 
+# import hyped.processors.base
+from hyped.common.typing import Pointer
 from hyped.core.refs.inputs import (
     CheckFeatureEquals,
     CheckFeatureIsSequence,
@@ -13,17 +15,15 @@ from hyped.core.refs.inputs import (
     InputRefs,
     InputRefsValidator,
 )
-
-# import hyped.processors.base
-from hyped.core.refs.ref import NONE_REF, FeaturePointer, FeatureRef
+from hyped.core.refs.ref import NONE_REF, FeatureRef
 from hyped.registry.config import BaseConfig
 
 
-def ptr_set(refs: Iterable[FeatureRef]) -> set[FeaturePointer]:
+def ptr_set(refs: Iterable[FeatureRef]) -> set[Pointer]:
     return {r.ptr for r in refs}
 
 
-def ptr_dict(d: dict[Hashable, FeatureRef]) -> dict[Hashable, FeaturePointer]:
+def ptr_dict(d: dict[Hashable, FeatureRef]) -> dict[Hashable, Pointer]:
     return {k: r.ptr for k, r in d.items()}
 
 

@@ -15,8 +15,6 @@ from typing import Any
 
 from typing_extensions import TypeAlias
 
-from .feature_key import FeatureKey
-
 Sample: TypeAlias = dict[str, Any]
 """A sample of the dataset.
 
@@ -101,19 +99,30 @@ augmentation processes, where new samples are generated or existing samples are 
 DataFlowGraphAlias: TypeAlias = object
 """Data Flow Graph Alias type.
 
+Alias for :class:`hyped.core.graph.DataFlowGraph`.
+
 Represents an alias or reference to the entire data flow graph. This can be used to refer to the graph
 in contexts where the actual structure of the graph is abstracted away. The type is generic (object) to 
 accommodate various possible representations of a data flow graph.
 """
 
-Pointer: TypeAlias = tuple[NodeId, FeatureKey, DataFlowGraphAlias]
+FeatureKeyAlias: TypeAlias = tuple[str | int | slice, ...]
+"""A key identifying specific features within a data flow graph node's outputs.
+
+Alias for :class:`hyped.common.feature_key.FeatureKey`.
+
+Represents a tuple that serves as a key for accessing specific features of a node's output within the
+data flow graph.
+"""
+
+Pointer: TypeAlias = tuple[NodeId, FeatureKeyAlias, DataFlowGraphAlias]
 """Pointer pointing to output features of a node in the data flow graph.
 
 Represents a tuple used to point to specific output features of a node within a data flow graph. The tuple
 consists of:
 - :class:`NodeId`: The identifier of the node.
-- :class:`FeatureKey`: The key identifying the specific feature within the node's outputs.
-- :class:`DataFlowGraphAlias`: An alias or reference to the data flow graph in which the node resides.
+- :class:`FeatureKeyAlias`: The key identifying the specific feature within the node's outputs.
+- :class:`DataFlowGraphAlias`: The data flow graph in which the node resides.
 
 This type alias is typically used in scenarios where specific outputs from a graph's node need to be tracked
 or referenced.
