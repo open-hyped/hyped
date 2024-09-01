@@ -28,11 +28,11 @@ from hyped.common.feature_checks import (
     get_sequence_length,
     raise_sequence_lengths_match,
 )
+from hyped.common.typing import Batch, IndexList, Rank
 from hyped.core.nodes.base import IOContext
 from hyped.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
-    Batch,
 )
 from hyped.core.refs.inputs import (
     CheckFeatureEquals,
@@ -264,14 +264,14 @@ class BaseBinaryOp(BaseDataProcessor[C, I, O], ABC):
         """The binary operation to apply."""
 
     async def batch_process(
-        self, inputs: Batch, index: list[int], rank: int, io: IOContext
+        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
     ) -> Batch:
         """Processes a batch of inputs, applying the binary operation.
 
         Args:
             inputs (Batch): The input batch containing sequence feature 'a'.
-            index (list[int]): The indices of the batch.
-            rank (int): The rank of the current process.
+            index (IndexList): The indices of the batch.
+            rank (Rank): The rank of the current process.
             io (IOContext): Context information for the data processors execution.
 
         Returns:

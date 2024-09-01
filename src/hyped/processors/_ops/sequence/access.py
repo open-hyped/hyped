@@ -22,10 +22,10 @@ from hyped.common.feature_checks import (
     get_sequence_feature,
     get_sequence_length,
 )
+from hyped.common.typing import Batch, IndexList, Rank
 from hyped.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
-    Batch,
     IOContext,
 )
 from hyped.core.refs.inputs import (
@@ -90,14 +90,14 @@ class SequenceGetItem(
     """
 
     async def batch_process(
-        self, inputs: Batch, index: list[int], rank: int, io: IOContext
+        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
     ) -> Batch:
         """Process a batch of data for the GetItem operation.
 
         Args:
             inputs (Batch): The input batch containing features 'a' and 'b'.
-            index (list[int]): The indices of the batch.
-            rank (int): The rank of the current process.
+            index (IndexList): The indices of the batch.
+            rank (Rank): The rank of the current process.
             io (IOContext): Context information for the data processors execution.
 
         Returns:
@@ -232,14 +232,14 @@ class SequenceSetItem(
     """
 
     async def batch_process(
-        self, inputs: Batch, index: list[int], rank: int, io: IOContext
+        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
     ) -> Batch:
         """Process a batch of data for the :code:`SetItem` operation.
 
         Args:
             inputs (Batch): The input batch containing features 'a' and 'b'.
-            index (list[int]): The indices of the batch.
-            rank (int): The rank of the current process.
+            index (IndexList): The indices of the batch.
+            rank (Rank): The rank of the current process.
             io (IOContext): Context information for the data processors execution.
 
         Returns:
@@ -397,7 +397,7 @@ class BooleanIndexing(
     """
 
     async def batch_process(
-        self, inputs: Batch, index: list[int], rank: int, io: IOContext
+        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
     ) -> Batch:
         """Process input batches to index sequences using the mask.
 
@@ -406,8 +406,8 @@ class BooleanIndexing(
 
         Args:
             inputs (Batch): The input batch containing the values and mask.
-            index (list[int]): The indices of the samples in the batch.
-            rank (int): The rank of the process.
+            index (IndexList): The indices of the samples in the batch.
+            rank (Rank): The rank of the process.
             io (IOContext): The input/output context.
 
         Returns:

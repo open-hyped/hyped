@@ -15,11 +15,11 @@ from hyped.common.feature_checks import (
     get_sequence_feature,
     get_sequence_length,
 )
+from hyped.common.typing import Index, Rank, Sample
 from hyped.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     IOContext,
-    Sample,
 )
 from hyped.core.refs.inputs import FeatureValidator, InputRefs
 from hyped.core.refs.outputs import LambdaOutputFeature, OutputRefs
@@ -88,14 +88,14 @@ class ResolveOverlaps(
     """
 
     def process(
-        self, inputs: Sample, index: int, rank: int, io: IOContext
+        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
     ) -> Sample:
         """Process the input sample to resolve overlapping spans.
 
         Args:
             inputs (Sample): The input sample containing spans.
-            index (int): The index of the current sample.
-            rank (int): The rank of the current process.
+            index (Index): The index of the current sample.
+            rank (Rank): The rank of the current process.
             io (IOContext): The IO context for managing input and output features.
 
         Returns:

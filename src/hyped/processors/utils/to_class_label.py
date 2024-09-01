@@ -13,11 +13,11 @@ from hyped.common.feature_checks import (
     get_sequence_feature,
     get_sequence_length,
 )
+from hyped.common.typing import Batch, IndexList, Rank
 from hyped.core.nodes.base import IOContext
 from hyped.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
-    Batch,
 )
 from hyped.core.refs.inputs import (
     CheckFeatureEquals,
@@ -92,7 +92,7 @@ class ToClassLabel(
     """
 
     async def batch_process(
-        self, inputs: Batch, index: list[int], rank: int, io: IOContext
+        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
     ) -> Batch:
         """Process input batches to convert labels to class labels.
 
@@ -101,8 +101,8 @@ class ToClassLabel(
 
         Args:
             inputs (Batch): The input batch containing the labels to convert.
-            index (list[int]): The indices of the samples in the batch.
-            rank (int): The rank of the process.
+            index (IndexList): The indices of the samples in the batch.
+            rank (Rank): The rank of the process.
             io (IOContext): The input/output context.
 
         Returns:

@@ -10,10 +10,10 @@ from typing import Annotated
 
 from typing_extensions import Unpack
 
+from hyped.common.typing import Batch, IndexList, Rank
 from hyped.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
-    Batch,
     IOContext,
 )
 from hyped.core.refs.inputs import FeatureValidator, InputRefs
@@ -53,7 +53,7 @@ class NoOp(BaseDataProcessor[NoOpConfig, NoOpInputRefs, NoOpOutputRefs]):
     """
 
     async def batch_process(
-        self, inputs: Batch, index: list[int], rank: int, io: IOContext
+        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
     ) -> Batch:
         """Processes a batch of inputs and returns the corresponding batch of outputs.
 
@@ -63,8 +63,8 @@ class NoOp(BaseDataProcessor[NoOpConfig, NoOpInputRefs, NoOpOutputRefs]):
 
         Args:
             inputs (Batch): The batch of input samples.
-            index (int): The index associated with the input samples.
-            rank (int): The rank of the processor in a distributed setting.
+            index (IndexList): The index associated with the input samples.
+            rank (Rank): The rank of the processor in a distributed setting.
             io (IOContext): Context information for the data processors execution.
 
         Returns:

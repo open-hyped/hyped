@@ -18,11 +18,11 @@ from hyped.common.feature_checks import (
     get_sequence_feature,
     get_sequence_length,
 )
+from hyped.common.typing import Index, Rank, Sample
 from hyped.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     IOContext,
-    Sample,
 )
 from hyped.core.refs.inputs import (
     CheckFeatureEquals,
@@ -175,14 +175,14 @@ class BioTags(
     """
 
     def process(
-        self, inputs: Sample, index: int, rank: int, io: IOContext
+        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
     ) -> Sample:
         """Processes the inputs to generate BIO tags.
 
         Args:
             inputs (Sample): The input sample containing spans and labels.
-            index (int): The index of the current sample.
-            rank (int): The rank of the current sample.
+            index (Index): The index of the current sample.
+            rank (Rank): The rank of the current sample.
             io (IOContext): The IO context for handling input and output features.
 
         Returns:

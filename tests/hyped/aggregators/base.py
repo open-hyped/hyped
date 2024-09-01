@@ -10,11 +10,11 @@ from hyped.common.feature_checks import (
     check_feature_equals,
     check_object_matches_feature,
 )
+from hyped.common.typing import Batch, IndexList, Rank
 from hyped.common.utils import deep_equal
 from hyped.core.nodes.aggregator import (
     BaseDataAggregator,
     BaseDataAggregatorConfig,
-    Batch,
     DataAggregationManager,
 )
 from hyped.core.nodes.base import IOContext
@@ -34,7 +34,7 @@ class BaseDataAggregatorTest:
     # input values
     input_features: Features
     input_data: Batch
-    input_index: None | list[int] = None
+    input_index: None | IndexList = None
 
     expected_value_feature: None | Features = None
     # expected initial state
@@ -47,7 +47,7 @@ class BaseDataAggregatorTest:
     expected_execution_error: None | type[Exception] = None
     expected_input_verification_error: None | type[Exception] = None
     # others
-    rank: int = 0
+    rank: Rank = 0
 
     node_id: str = "node_id"
 

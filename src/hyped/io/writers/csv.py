@@ -8,6 +8,7 @@ import datasets
 from torch.utils.data._utils.worker import get_worker_info
 
 from hyped.common.feature_checks import check_feature_equals
+from hyped.common.typing import Index, Rank, Sample
 
 from .base import BaseDatasetWriter
 
@@ -15,7 +16,7 @@ from .base import BaseDatasetWriter
 class CsvDatasetWriter(BaseDatasetWriter):
     """CSV Dataset Writer.
 
-    Implements the `BaseDatasetWriter` class to write a dataset
+    Implements the :class:`BaseDatasetWriter` class to write a dataset
     to the disk in csv format.
 
     Arguments:
@@ -34,13 +35,13 @@ class CsvDatasetWriter(BaseDatasetWriter):
     """
 
     def worker_shard_file_obj(
-        self, path: str, worker_id: int
+        self, path: str, worker_id: Rank
     ) -> _io.TextIOWrapper:
         """Worker Shard File Object.
 
         Arguments:
             path (str): path to store the file
-            worker_id (int): worker id
+            worker_id (Rank): worker id
 
         Returns:
             f (_io.TextIOWrapper): file object to write the dataset to
@@ -85,18 +86,16 @@ class CsvDatasetWriter(BaseDatasetWriter):
 
     def consume_example(
         self,
-        shard_id: int,
-        example_id: int,
-        example: dict[str, Any],
+        shard_id: Index,
+        example_id: Index,
+        example: Sample,
     ) -> None:
         """Encode an example in json and write it to the worker's save file.
 
         Arguments:
-            worker (mp.Process): worker process
-            worker_id (int): worker id
-            shard_id (int): dataset shard id
-            example_id (int): example id in the current dataset shard
-            example (dict[str, Any]): the example to consume
+            shard_id (Index): dataset shard id
+            example_id (Index): example id in the current dataset shard
+            example (Sample): the example to consume
         """
         # save example to file in json format
         worker_info = get_worker_info()

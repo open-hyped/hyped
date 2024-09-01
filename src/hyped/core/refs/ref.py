@@ -8,7 +8,7 @@ retrieve nested features within the data flow graph.
 from __future__ import annotations
 
 import json
-from typing import Any, TypeAlias
+from typing import Any
 
 from datasets.features.features import Features, FeatureType, Sequence, Value
 from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
@@ -16,8 +16,7 @@ from typing_extensions import Annotated
 
 from hyped.common.feature_checks import check_feature_is_sequence
 from hyped.common.feature_key import FeatureKey
-
-FeaturePointer: TypeAlias = tuple[int, FeatureKey, object]
+from hyped.common.typing import DataFlowGraphAlias, NodeId, Pointer
 
 
 class FeatureRef(BaseModel):
@@ -60,7 +59,7 @@ class FeatureRef(BaseModel):
     of a node in the data flow.
     """
 
-    node_id_: str
+    node_id_: NodeId
     """
     The identifier of the node within the data flow graph.
 
@@ -68,7 +67,7 @@ class FeatureRef(BaseModel):
     graph to which the referenced feature belongs.
     """
 
-    flow_: object
+    flow_: DataFlowGraphAlias
     """
     The data flow graph to which the feature reference belongs.
 
@@ -104,15 +103,15 @@ class FeatureRef(BaseModel):
     """
 
     @property
-    def ptr(self) -> FeaturePointer:
+    def ptr(self) -> Pointer:
         r"""Retrieve the pointer to the referenced feature.
 
         This property returns a pointer-tuple
         (:class:`node_id\_`, :class:`key\_`, :class:`flow\_`)
 
         Returns:
-            tuple[int, FeatureKey, object]: A ptr-tuple containing the node ID,
-            key, and flow.
+            Pointer: A ptr-tuple containing the node ID,
+            key, and flow graph object.
         """
         return (self.node_id_, self.key_, self.flow_)
 

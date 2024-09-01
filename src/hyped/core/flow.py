@@ -23,12 +23,12 @@ import pyarrow as pa
 from datasets.features.features import FeatureType
 from matplotlib import colormaps
 from torch.utils.data import get_worker_info
-from typing_extensions import TypeAlias
 
 from hyped.common.arrow import convert_features_to_arrow_schema
 from hyped.common.feature_checks import check_feature_equals
 from hyped.common.feature_key import FeatureKey
 from hyped.common.lazy_instance import LazyInstance
+from hyped.common.typing import Aggregate, Batch, IndexList, Rank
 
 from .executor import DataFlowExecutor
 from .graph import DataFlowGraph
@@ -39,7 +39,6 @@ from .nodes.const import Const
 from .optim import DataFlowGraphOptimizer
 from .refs.ref import FeatureRef
 
-Batch: TypeAlias = dict[str, list[Any]]
 D = TypeVar(
     "D",
     datasets.Dataset,
@@ -457,14 +456,14 @@ class DataFlow(object):
         return flow, flow.aggregates
 
     def batch_process(
-        self, batch: Batch, index: list[int], rank: None | int = None
+        self, batch: Batch, index: IndexList, rank: None | Rank = None
     ) -> Batch:
         """Process a batch of data.
 
         Args:
             batch (Batch): The batch of data to process.
-            index (list[int]): The index of the batch.
-            rank (None | int): The rank of the process in a distributed setting.
+            index (IndexList): The index of the batch.
+            rank (None | Rank): The rank of the process in a distributed setting.
 
         Returns:
             Batch: The processed batch of data.
@@ -492,15 +491,15 @@ class DataFlow(object):
     def _batch_process_to_pyarrow(
         self,
         batch: Batch,
-        index: list[int],
-        rank: None | int = None,
+        index: IndexList,
+        rank: None | Rank = None,
     ) -> pa.Table:
         """Process a batch of data and convert to a PyArrow table.
 
         Args:
             batch (Batch): The batch of data to process.
-            index (list[int]): The index of the batch.
-            rank (None | int): The rank of the process in a
+            index (IndexList): The index of the batch.
+            rank (None | Rank): The rank of the process in a
                 multiprocessing setting.
 
         Returns:
@@ -522,7 +521,7 @@ class DataFlow(object):
         collect: None | FeatureRef = None,
         aggregate: None | FeatureRef = None,
         **kwargs,
-    ) -> tuple[D, None | dict[str, Any] | MappingProxyType[str, Any]]:
+    ) -> tuple[D, None | Aggregate | MappingProxyType[str, Any]]:
         """Apply the data flow to a dataset.
 
         This method applies the data flow to the given dataset, processing the data according to the defined
@@ -537,7 +536,7 @@ class DataFlow(object):
                 :code:`Datasets.map` function for the respective dataset type.
 
         Returns:
-            tuple[D, None | dict[str, Any] | MappingProxyType[str, Any]]: The processed dataset and a snapshot
+            tuple[D, None | Aggregate | MappingProxyType[str, Any]]: The processed dataset and a snapshot
             of the aggregated values after processing the dataset. In case of iterable datasets, the aggregated
             values proxy object is returned instead of a snapshot.
 
@@ -657,6 +656,7 @@ class DataFlow(object):
             Literal[
                 DataFlowGraph.NodeType.SOURCE,
                 DataFlowGraph.NodeType.DATA_PROCESSOR,
+                DataFlowGraph.NodeType.DATA_AUGMENTER,
                 DataFlowGraph.NodeType.DATA_AGGREGATOR,
             ],
             str,
@@ -697,7 +697,8 @@ class DataFlow(object):
             DataFlowGraph.NodeType.SOURCE: cmap.colors[0],
             DataFlowGraph.NodeType.CONST: cmap.colors[1],
             DataFlowGraph.NodeType.DATA_PROCESSOR: cmap.colors[2],
-            DataFlowGraph.NodeType.DATA_AGGREGATOR: cmap.colors[3],
+            DataFlowGraph.NodeType.DATA_AUGMENTER: cmap.colors[3],
+            DataFlowGraph.NodeType.DATA_AGGREGATOR: cmap.colors[4],
         }
         color_map = default_color_map | color_map
 

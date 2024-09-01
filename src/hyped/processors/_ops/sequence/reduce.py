@@ -12,10 +12,10 @@ from datasets import Value
 from typing_extensions import Annotated, Unpack
 
 from hyped.common.feature_checks import SCALAR_TYPES, get_sequence_feature
+from hyped.common.typing import Batch, IndexList, Rank
 from hyped.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
-    Batch,
     IOContext,
 )
 from hyped.core.refs.inputs import CheckFeatureIsSequence, InputRefs
@@ -66,14 +66,14 @@ class BaseSequenceReduce(BaseDataProcessor[C, I, O], ABC):
         ...
 
     async def batch_process(
-        self, inputs: Batch, index: list[int], rank: int, io: IOContext
+        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
     ) -> Batch:
         """Processes a batch of inputs, applying the reduction operation.
 
         Args:
             inputs (Batch): The input batch containing sequence feature 'a'.
-            index (list[int]): The indices of the batch.
-            rank (int): The rank of the current process.
+            index (IndexList): The indices of the batch.
+            rank (Rank): The rank of the current process.
             io (IOContext): Context information for the data processors execution.
 
         Returns:

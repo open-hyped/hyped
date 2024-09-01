@@ -18,6 +18,7 @@ import datasets
 import networkx as nx
 from datasets.features.features import FeatureType
 
+from hyped.common.typing import NodeId, PartitionId
 from hyped.core.nodes.aggregator import BaseDataAggregator
 from hyped.core.nodes.augmenter import BaseDataAugmenter
 from hyped.core.nodes.base import BaseNode
@@ -233,7 +234,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         """
         Represents the partition to which the node belongs.
 
-        Type: :code:`str`
+        Type: :class:`PartitionId`
 
         This property indicates the specific partition of the data flow graph that
         the node is part of, which can be used to group nodes by different semantics.
@@ -296,14 +297,14 @@ class DataFlowGraph(nx.MultiDiGraph):
             self.graph[DataFlowGraph.GraphAttribute.SRC_NODE_ID] = None
 
     @property
-    def src_node_id(self) -> str:
+    def src_node_id(self) -> NodeId:
         """Get the source node ID of the data flow graph.
 
         This property returns the source node ID associated with the data flow graph.
         The source node is the entrypoint for inputs to the data flow.
 
         Returns:
-            str: The uuid of the source node.
+            NodeId: The uuid of the source node.
         """
         return self.graph[DataFlowGraph.GraphAttribute.SRC_NODE_ID]
 
@@ -412,7 +413,7 @@ class DataFlowGraph(nx.MultiDiGraph):
 
     def add_source_node(
         self, features: datasets.Features, node_id: None | str = None
-    ) -> str:
+    ) -> NodeId:
         """Add a the source node to the graph.
 
         This method adds a source node to the graph, which acts as the initial
@@ -423,7 +424,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             node_id (None | str): The id of the node, defaults to a random uuid.
 
         Returns:
-            str: The node id of the source node.
+            NodeId: The node id of the source node.
 
         Raises:
             AssertionError: If the graph already contains a source node
@@ -437,7 +438,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         # return the source node id
         return node_id
 
-    def get_node_output_partition(self, node_id: str) -> str:
+    def get_node_output_partition(self, node_id: NodeId) -> PartitionId:
         """Determine the output partition for a given node in the data flow graph.
 
         This method determines the partition that the output of a specified node
@@ -455,10 +456,10 @@ class DataFlowGraph(nx.MultiDiGraph):
           node's :code:`PARTITION` attribute.
 
         Args:
-            node_id (str): The ID of the node for which to determine the output partition.
+            node_id (NodeId): The ID of the node for which to determine the output partition.
 
         Returns:
-            str: The partition that the node's output will be directed to.
+            PartitionId: The partition that the node's output will be directed to.
         """
         input_node = self.nodes[node_id]
         input_node_type = input_node[DataFlowGraph.NodeAttribute.NODE_TYPE]
@@ -483,7 +484,7 @@ class DataFlowGraph(nx.MultiDiGraph):
 
     def infer_node_partition(
         self, node_type: DataFlowGraph.NodeType, refs: list[FeatureRef]
-    ) -> str:
+    ) -> PartitionId:
         """Infer the appropriate partition for a given node.
 
         This method determines the partition to which a node belongs, based on its
@@ -514,7 +515,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             refs (list[FeatureRef]): A list of input references associated with the node.
 
         Returns:
-            str: The inferred partition for the node.
+            PartitionId: The inferred partition for the node.
 
         Raises:
             AssertionError: If no input references are provided.
@@ -599,7 +600,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         inputs: None | InputRefsContainer,
         output_features: datasets.Features,
         node_id: None | str = None,
-    ) -> str:
+    ) -> NodeId:
         """Add a processor node to the data flow graph.
 
         This method adds a processor node to the data flow graph and creates the necessary edges
@@ -612,7 +613,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             node_id (None | str): The id of the node, defaults to a random uuid.
 
         Returns:
-            str: The uuid of the node within the data flow graph.
+            NodeId: The uuid of the node within the data flow graph.
 
         Raises:
             AssertionError: If the processor type is invalid.
@@ -722,7 +723,7 @@ class DataFlowGraph(nx.MultiDiGraph):
 
         return node_id
 
-    def get_node_output_ref(self, node_id: str) -> FeatureRef | OutputRefs:
+    def get_node_output_ref(self, node_id: NodeId) -> FeatureRef | OutputRefs:
         """Retrieves the output reference for a given node in the data flow graph.
 
         This method returns an appropriate output reference based on the type of the node specified by the
@@ -733,7 +734,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             - For data aggregator nodes, it builds a data aggregation reference using the node's value type.
 
         Args:
-            node_id (str): The ID of the node for which to retrieve the output reference.
+            node_id (NodeId): The ID of the node for which to retrieve the output reference.
 
         Returns:
             FeatureRef | OutputRefs: The output reference associated with the specified node.
@@ -764,28 +765,28 @@ class DataFlowGraph(nx.MultiDiGraph):
         assert isinstance(node_obj, BaseNode)
         return node_obj._out_refs_type(self, node_id, features)
 
-    def dependency_graph(self, nodes: set[str]) -> DataFlowGraph:
+    def dependency_graph(self, nodes: set[NodeId]) -> DataFlowGraph:
         """Generate the dependency subgraph for a given node.
 
         This method generates a subgraph containing all nodes that the given
         set of nodes depend on directly or indirectly.
 
         Args:
-            nodes (set[str]): The node IDs for which to generate the dependency graph.
+            nodes (set[NodeId]): The node IDs for which to generate the dependency graph.
 
         Returns:
             DataFlowGraph: A subgraph representing the dependencies.
         """
         return _build_dependency_graph(self, nodes)
 
-    def get_partition(self, partition: str) -> DataFlowGraph:
+    def get_partition(self, partition: PartitionId) -> DataFlowGraph:
         """Extract a subgraph containing only nodes from a specific partition.
 
         This method creates a subgraph from the current graph by selecting
         nodes that belong to a specified partition.
 
         Args:
-            partition (str): The partition identifier.
+            partition (PartitionId): The partition identifier.
 
         Returns:
             DataFlowGraph: The subgraph containing nodes of the specified partition.
@@ -799,14 +800,14 @@ class DataFlowGraph(nx.MultiDiGraph):
         # build the sub-graph of only the provided partition
         return self.subgraph(partition)
 
-    def drop_partition(self, partition: str) -> DataFlowGraph:
+    def drop_partition(self, partition: PartitionId) -> DataFlowGraph:
         """Drop a specified partition from the graph.
 
         This method creates a subgraph from the current graph by excluding
         nodes that belong to a specified partition.
 
         Args:
-            partition (str): The partition identifier.
+            partition (PartitionId): The partition identifier.
 
         Returns:
             DataFlowGraph: The subgraph excluding nodes of the specified partition.

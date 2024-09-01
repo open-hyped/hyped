@@ -19,10 +19,10 @@ from hyped.common.feature_checks import (
     get_sequence_length,
     get_sequence_shape,
 )
+from hyped.common.typing import Aggregate, Batch, IndexList, Rank
 from hyped.core.nodes.aggregator import (
     BaseDataAggregator,
     BaseDataAggregatorConfig,
-    Batch,
     IOContext,
 )
 from hyped.core.refs.inputs import (
@@ -192,7 +192,7 @@ class MultiLabelConfusionMatrix(
     true negatives, and false negatives for each class in the dataset.
     """
 
-    def initialize(self, io: IOContext) -> tuple[dict[str, float], None]:
+    def initialize(self, io: IOContext) -> tuple[Aggregate, None]:
         """Initialize the confusion matrix to zeros."""
         shape = get_sequence_shape(io.outputs["confusion_matrix"])
         return {
@@ -200,7 +200,7 @@ class MultiLabelConfusionMatrix(
         }, None
 
     async def extract(
-        self, inputs: Batch, index: list[int], rank: int, io: IOContext
+        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
     ) -> np.ndarray:
         """Computes the confusion matrix for the current batch."""
         return multilabel_confusion_matrix(
@@ -211,7 +211,7 @@ class MultiLabelConfusionMatrix(
 
     async def update(
         self, val: float, ctx: np.ndarray, state: None, io: IOContext
-    ) -> tuple[dict[str, float], None]:
+    ) -> tuple[Aggregate, None]:
         """Updates the confusion matrix by addition."""
         return {
             "confusion_matrix": (

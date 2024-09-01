@@ -151,10 +151,11 @@ Create a custom processor class (:code:`CustomProcessor`) inheriting from :class
 
 .. code-block:: python
 
-    from hyped.core.nodes.processors import Sample, IOContext, BaseDataProcessor
-    
+    from hyped.core.nodes.processors import IOContext, BaseDataProcessor
+    from hyped.common.typing import Sample, Index, Rank
+
     class CustomProcessor(BaseDataProcessor[CustomConfig, CustomInputRefs, CustomOutputRefs]):
-        def process(self, inputs: Sample, index: int, rank: int, io: IOContext) -> Sample:
+        def process(self, inputs: Sample, index: index, rank: Rank, io: IOContext) -> Sample:
             # Access configuration values
             val = self.config.val
             # Custom process function combining index and input feature
@@ -181,10 +182,11 @@ Hyped supports asynchronous processing, enabling seamless integration of asynchr
 .. code-block:: python
 
     from asyncio import sleep
-    from hyped.core.nodes.processors import Sample, IOContext, BaseDataProcessor
+    from hyped.core.nodes.processors import IOContext, BaseDataProcessor
+    from hyped.common.typing import Sample, Index, Rank
 
     class CustomAsyncProcessor(BaseDataProcessor[CustomConfig, CustomInputRefs, CustomOutputRefs]):
-        async def process(self, inputs: Sample, index: int, rank: int, io: IOContext) -> Sample:
+        async def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
             # Simulate asynchronous processing
             await sleep(1)
             return Sample(y=f"Index {index} has content {inputs['x']}")
@@ -195,16 +197,17 @@ By implementing the :code:`batch_process` function you can define custom batch p
 
 .. code-block:: python
     
-    from hyped.core.nodes.processors import Batch, IOContext, BaseDataProcessor
+    from hyped.core.nodes.processors import IOContext, BaseDataProcessor
+    from hyped.common.typing import Batch, IndexList, Rank
 
     class CustomBatchProcessor(BaseDataProcessor[CustomConfig, CustomInputRefs, CustomOutputRefs]):
-        async def batch_process(self, inputs: Batch, index: list[int], rank: int, io: IOContext) -> Batch:
+        async def batch_process(self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext) -> Batch:
             # Custom batch processing logic
             return Batch(
                 y=[f"Index {i} has content {value}" for value in inputs["x"]]
             )
 
-4. Instantiate and Apply the Custom Processor
+1. Instantiate and Apply the Custom Processor
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Instantiate the custom processor with optional configuration parameters. Use the :code:`call` method to apply the processor to input features and retrieve the processed output features for further analysis or processing.
 

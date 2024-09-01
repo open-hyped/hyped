@@ -8,42 +8,6 @@ Classes:
     - :class:`DataAggregationManager`: Manager for handling data aggregation operations.
     - :class:`BaseDataAggregatorConfig`: Base class for data aggregator configurations.
     - :class:`BaseDataAggregator`: Base class for data aggregators.
-
-Usage Example:
-    Define a custom data aggregator by subclassing :code:`BaseDataAggregator`:
-
-    .. code-block:: python
-
-        # Import necessary classes from the module
-        from hyped.core.nodes.aggregator import (
-            BaseDataAggregator, BaseDataAggregatorConfig
-        )
-        from hyped.core.refs.inputs import InputRefs
-        from datasets.features.features import Features
-        from typing import Annotated
-
-        class CustomInputRefs(InputRefs):
-            x: Annotated[FeatureRef, CheckFeatureEquals(Value("int32"))]
-
-        class CustomConfig(BaseDataAggregatorConfig):
-            threshold: int
-
-        class CustomAggregator(BaseDataAggregator[CustomConfig, CustomInputRefs, int]):
-            def initialize(self, features: Features) -> tuple[int, Any]:
-                # Define initialization logic here
-                return 0, {}
-
-            async def extract(self, inputs: Batch, index: list[int], rank: int) -> Any:
-                # Define extraction logic here
-                return sum(v for v in inputs["x"] if v >= self.config.treshold)
-
-            async def update(self, val: int, ctx: Any, state: Any) -> tuple[int, Any]:
-                # Define update logic here
-                return val + ctx, state
-
-    In this example, :class:`CustomAggregator` extends :class:`BaseDataAggregator` and
-    implements the :class:`BaseDataAggregator.initialize`, :class:`BaseDataAggregator.extract`,
-    and :class:`BaseDataAggregator.update` methods to define custom aggregation logic.
 """
 from __future__ import annotations
 
@@ -52,16 +16,15 @@ import multiprocessing as mp
 from abc import ABC, abstractmethod
 from multiprocessing.managers import SyncManager
 from types import MappingProxyType
-from typing import Any, TypeAlias, TypeVar
+from typing import Any, TypeVar
 
 from hyped.common.lazy_instance import LazyStaticInstance
+from hyped.common.typing import Aggregate, Batch, IndexList, Rank
 
 from ..refs.inputs import InputRefs
 from ..refs.outputs import OutputRefs
 from ..refs.ref import FeatureRef
 from .base import BaseNode, BaseNodeConfig, IOContext
-
-Batch: TypeAlias = dict[str, list[Any]]
 
 
 def _sync_manager_factory() -> SyncManager:
@@ -158,8 +121,8 @@ class DataAggregationManager(object):
         self,
         aggregator: BaseDataAggregator,
         inputs: Batch,
-        index: list[int],
-        rank: int,
+        index: IndexList,
+        rank: Rank,
         io: IOContext,
     ) -> None:
         """Perform aggregation for a batch of inputs.
@@ -167,8 +130,8 @@ class DataAggregationManager(object):
         Args:
             aggregator (BaseDataAggregator): The aggregator object.
             inputs (Batch): The batch of input samples.
-            index (list[int]): The indices associated with the input samples.
-            rank (int): The rank of the processor in a distributed setting.
+            index (IndexList): The indices associated with the input samples.
+            rank (Rank): The rank of the processor in a distributed setting.
             io (IOContext): Context information for the aggregator execution.
         """
         # extract values required for update from current input batch
@@ -203,7 +166,7 @@ class BaseDataAggregator(BaseNode[C, I, O], ABC):
     """
 
     @abstractmethod
-    def initialize(self, io: IOContext) -> tuple[O, Any]:
+    def initialize(self, io: IOContext) -> tuple[Aggregate, Any]:
         """Initialize the aggregator with the given features.
 
         Args:
@@ -211,20 +174,20 @@ class BaseDataAggregator(BaseNode[C, I, O], ABC):
                 input and output features.
 
         Returns:
-            tuple[O, Any]: The initial value and state for the aggregator.
+            tuple[Aggregate, Any]: The initial value and state for the aggregator.
         """
         ...
 
     @abstractmethod
     async def extract(
-        self, inputs: Batch, index: list[int], rank: int, io: IOContext
+        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
     ) -> Any:
         """Extract necessary values from the inputs for aggregation.
 
         Args:
             inputs (Batch): The batch of input samples.
-            index (list[int]): The indices associated with the input samples.
-            rank (int): The rank of the processor in a distributed setting.
+            index (IndexList): The indices associated with the input samples.
+            rank (Rank): The rank of the processor in a distributed setting.
             io (IOContext): Context information for the aggregator execution.
 
         Returns:
@@ -235,7 +198,7 @@ class BaseDataAggregator(BaseNode[C, I, O], ABC):
     @abstractmethod
     async def update(
         self, val: I, state: Any, ctx: Any, io: IOContext
-    ) -> tuple[O, Any]:
+    ) -> tuple[Aggregate, Any]:
         """Update the aggregation value and context.
 
         Args:
@@ -245,6 +208,6 @@ class BaseDataAggregator(BaseNode[C, I, O], ABC):
             io (IOContext): Context information for the aggregator execution.
 
         Returns:
-            tuple[O, Any]: The updated aggregation value and state.
+            tuple[Aggregate, Any]: The updated aggregation value and state.
         """
         ...

@@ -14,10 +14,10 @@ from datasets import Value
 from typing_extensions import Annotated, Unpack
 
 from hyped.common.feature_checks import check_feature_is_sequence
+from hyped.common.typing import Batch, IndexList, Rank
 from hyped.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
-    Batch,
     IOContext,
 )
 from hyped.core.refs.inputs import (
@@ -84,14 +84,14 @@ class BaseSequenceQueryOp(BaseDataProcessor[C, I, O], ABC):
         """The sequence-query operation to apply."""
 
     async def batch_process(
-        self, inputs: Batch, index: list[int], rank: int, io: IOContext
+        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
     ) -> Batch:
         """Processes a batch of inputs, applying the sequence-query operation.
 
         Args:
             inputs (Batch): The input batch containing features 'a' and 'b'.
-            index (list[int]): The indices of the batch.
-            rank (int): The rank of the current process.
+            index (IndexList): The indices of the batch.
+            rank (Rank): The rank of the current process.
             io (IOContext): Context information for the data processors execution.
 
         Returns:

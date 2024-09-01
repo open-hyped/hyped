@@ -16,11 +16,11 @@ from sklearn.utils.extmath import _nanaverage
 from typing_extensions import Unpack
 
 from hyped.common.feature_checks import get_sequence_length, get_sequence_shape
+from hyped.common.typing import Index, Rank, Sample
 from hyped.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     IOContext,
-    Sample,
 )
 from hyped.core.refs.inputs import FeatureValidator, InputRefs
 from hyped.core.refs.outputs import LambdaOutputFeature, OutputRefs
@@ -213,14 +213,14 @@ class PrecisionRecallFScoreSupport(
     """
 
     async def process(
-        self, inputs: Sample, index: int, rank: int, io: IOContext
+        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
     ) -> Sample:
         """Processes a single input sample and returns the corresponding output sample.
 
         Args:
             inputs (Sample): The input sample to be processed.
-            index (int): The index associated with the input sample.
-            rank (int): The rank of the processor in a distributed setting.
+            index (Index): The index associated with the input sample.
+            rank (Rank): The rank of the processor in a distributed setting.
             io (IOContext): Context information for the data processors execution.
 
         Returns:

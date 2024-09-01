@@ -76,11 +76,12 @@ Create a custom augmenter class (:code:`CustomAugmenter`) inheriting from :class
 
 .. code-block:: python
 
-    from hyped.core.nodes.augmenter import Sample, IOContext, BaseDataAugmenter
+    from hyped.core.nodes.augmenter import IOContext, BaseDataAugmenter
+    from hyped.common.typing import Sample, Index, Rank
     from typing import Iterable
 
     class CustomAugmenter(BaseDataAugmenter[CustomConfig, CustomInputRefs, CustomOutputRefs]):
-        def process(self, inputs: Sample, index: int, rank: int, io: IOContext) -> Iterable[Sample]:
+        def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Iterable[Sample]:
             # Access configuration values
             n = self.config.repeat
             # Yield generated samples
@@ -95,10 +96,11 @@ By implementing the :code:`batch_process` function you can define custom batch p
 
 .. code-block:: python
     
-    from hyped.processors.base import Batch, IOContext, BaseDataProcessor
+    from hyped.common.typing import Batch, IndexList, Rank, TraceIndexList
+    from hyped.processors.base import IOContext, BaseDataProcessor
 
     class CustomAugmenter(BaseDataAugmenter[CustomConfig, CustomInputRefs, CustomOutputRefs]):
-        async def batch_process(self, inputs: Batch, index: list[int], rank: int, io: IOContext) -> tuple[Batch, list[int]]:
+        async def batch_process(self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext) -> tuple[Batch, TraceIndexList]:
             # Access configuration values
             n = self.config.repeat
             

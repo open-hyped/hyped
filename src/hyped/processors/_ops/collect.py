@@ -29,10 +29,10 @@ from hyped.common.feature_checks import (
     check_feature_equals,
     get_sequence_length,
 )
+from hyped.common.typing import Batch, IndexList, Rank
 from hyped.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
-    Batch,
     IOContext,
 )
 from hyped.core.refs.inputs import InputRefsContainer
@@ -198,14 +198,14 @@ class CollectFeatures(
         return container
 
     async def batch_process(
-        self, inputs: Batch, index: list[int], rank: int, io: IOContext
+        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
     ) -> Batch:
         """Process batches of inputs.
 
         Args:
             inputs (Batch): The input batch.
-            index (list[int]): The index of the batch.
-            rank (int): The rank of the batch.
+            index (IndexList): The index of the batch.
+            rank (Rank): The rank of the batch.
             io (IOContext): The execution context.
 
         Returns:

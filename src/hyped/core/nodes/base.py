@@ -11,7 +11,7 @@ Classes:
     - :class:`IOContext`: Class providing context information for the I/O operations of data processors.
 """
 from dataclasses import dataclass
-from typing import Generic, TypeVar, overload
+from typing import Any, Generic, TypeVar, overload
 
 from datasets import Features
 
@@ -108,21 +108,21 @@ class BaseNode(BaseConfigurable[C], Generic[C, I, O]):
                 self.config, self._in_refs_type
             )
 
-    def __getstate__(self):
+    def __getstate__(self) -> dict[str, Any]:
         """Prepare the state for serialization.
 
         Returns:
-            dict: State dictionary containing only the config.
+            dict[str, Any]: State dictionary containing only the config.
         """
         return {"config": self.config}
 
-    def __setstate__(self, d):
+    def __setstate__(self, state: dict[str, Any]) -> None:
         """Restore the state after deserialization.
 
         Args:
-            d (dict): State dictionary.
+            state (dict): State dictionary.
         """
-        self.__init__(config=d["config"])
+        self.__init__(config=state["config"])
 
     @property
     def required_input_keys(self) -> set[str]:

@@ -20,11 +20,11 @@ from pydantic import Field
 from typing_extensions import TypedDict, Unpack
 
 from hyped.common.lazy_instance import LazyInstance
+from hyped.common.typing import Index, Rank, Sample
 from hyped.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     IOContext,
-    Sample,
 )
 from hyped.core.refs.inputs import CheckFeatureIsSequence, InputRefs
 from hyped.core.refs.outputs import (
@@ -390,14 +390,14 @@ class OpenAIChatCompletion(
         )
 
     async def api_call(
-        self, inputs: Sample, index: int, rank: int, io: IOContext
+        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
     ) -> Sample:
         """Make an API call to the OpenAI Chat Completion endpoint.
 
         Args:
             inputs (Sample): Input sample containing messages for chat completion.
-            index (int): Index of the sample in the dataset.
-            rank (int): Rank of the sample.
+            index (Index): Index of the sample in the dataset.
+            rank (Rank): Rank of the sample.
             io (IOContext): Context information for the data processors execution.
 
         Returns:
@@ -460,14 +460,14 @@ class OpenAIChatCompletion(
         }
 
     async def process(
-        self, inputs: Sample, index: int, rank: int, io: IOContext
+        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
     ) -> Sample:
         """Process the input sample using the OpenAI Chat Completion API.
 
         Args:
             inputs (Sample): Input sample containing messages for chat completion.
-            index (int): Index of the sample in the dataset.
-            rank (int): Rank of the sample.
+            index (Index): Index of the sample in the dataset.
+            rank (Rank): Rank of the sample.
             io (IOContext): Context information for the data processors execution.
 
         Returns:

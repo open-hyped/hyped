@@ -14,6 +14,8 @@ from torch.utils.data._utils.worker import WorkerInfo
 from tqdm.auto import tqdm
 from tqdm.std import EMA
 
+from .typing import Index, Sample
+
 
 class ConsumerProcessException(Exception):
     """Consumer Process Exception.
@@ -381,19 +383,17 @@ class BaseDatasetConsumer(ABC):
     @abstractmethod
     def consume_example(
         self,
-        shard_id: int,
-        example_id: int,
-        example: dict[str, Any],
+        shard_id: Index,
+        example_id: Index,
+        example: Sample,
     ) -> None:
         """Abstract function to consume a given example.
 
         This function implements the actual consume logic in subclasses.
 
         Arguments:
-            worker (mp.Process): worker process
-            worker_id (int): worker id
-            shard_id (int): dataset shard id
-            example_id (int): example id in the current dataset shard
-            example (dict[str, Any]): the example to consume
+            shard_id (Index): dataset shard id
+            example_id (Index): example id in the current dataset shard
+            example (Sample): the example to consume
         """
         ...

@@ -17,10 +17,10 @@ from hyped.common.feature_checks import (
     check_value_feature_is_castable,
     get_sequence_feature,
 )
+from hyped.common.typing import Batch, IndexList, Rank
 from hyped.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
-    Batch,
     IOContext,
 )
 from hyped.core.refs.inputs import FeatureValidator, InputRefs
@@ -136,14 +136,14 @@ class BaseMultiSequenceOp(BaseDataProcessor[C, I, O], ABC):
         """The operation to be performed on the sequences."""
 
     async def batch_process(
-        self, inputs: Batch, index: list[int], rank: int, io: IOContext
+        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
     ) -> Batch:
         """Process a batch of input sequences using the configured operation.
 
         Args:
             inputs (Batch): The input batch containing sequences.
-            index (list[int]): List of indices for the current batch.
-            rank (int): Rank of the process.
+            index (IndexList): List of indices for the current batch.
+            rank (Rank): Rank of the process.
             io (IOContext): IO context for processing.
 
         Returns:

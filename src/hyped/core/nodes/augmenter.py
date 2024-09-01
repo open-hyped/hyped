@@ -49,14 +49,18 @@ from abc import ABC
 from itertools import chain, repeat
 from typing import Any, Iterable, TypeVar
 
-from typing_extensions import TypeAlias
+from hyped.common.typing import (
+    Batch,
+    Index,
+    IndexList,
+    Rank,
+    Sample,
+    TraceIndexList,
+)
 
 from ..refs.inputs import InputRefs
 from ..refs.outputs import OutputRefs
 from .base import BaseNode, BaseNodeConfig, IOContext
-
-Batch: TypeAlias = dict[str, list[Any]]
-Sample: TypeAlias = dict[str, Any]
 
 
 class BaseDataAugmenterConfig(BaseNodeConfig):
@@ -84,8 +88,8 @@ class BaseDataAugmenter(BaseNode[C, I, O], ABC):
     """
 
     async def batch_process(
-        self, inputs: Batch, index: list[int], rank: int, io: IOContext
-    ) -> tuple[Batch, list[int]]:
+        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
+    ) -> tuple[Batch, TraceIndexList]:
         """Processes a batch of inputs and returns the batch of outputs along with trace indices.
 
         This method applies the augmentation process to each sample in the batch and tracks
@@ -94,14 +98,14 @@ class BaseDataAugmenter(BaseNode[C, I, O], ABC):
 
         Args:
             inputs (Batch): A batch of input samples.
-            index (list[int]): A list of indices associated with the input samples.
-            rank (int): The rank of the augmenter in a distributed processing setting.
+            index (IndexList): A list of indices associated with the input samples.
+            rank (Rank): The rank of the augmenter in a distributed processing setting.
             io (IOContext): Context information for the data augmenter's execution.
 
         Returns:
-            tuple[Batch, list[int]]:
+            tuple[Batch, IndexList]:
                 - Batch: A batch of augmented output samples.
-                - list[int]: A list of trace indices corresponding indicating the
+                - TraceIndexList: A list of trace indices corresponding indicating the
                   index of the source sample in the input batch that generated the
                   output sample. Specifically the i-th output sample is generated
                   from the trace_index[i]-th input example.
@@ -132,7 +136,7 @@ class BaseDataAugmenter(BaseNode[C, I, O], ABC):
 
     # TODO: support async process functions
     def process(
-        self, inputs: Sample, index: int, rank: int, io: IOContext
+        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
     ) -> Iterable[Sample]:
         """Defines the augmentation logic to be applied to individual samples.
 
@@ -140,8 +144,8 @@ class BaseDataAugmenter(BaseNode[C, I, O], ABC):
 
         Args:
             inputs (Sample): A single input sample.
-            index (int): The index associated with the input sample.
-            rank (int): The rank of the augmenter in a distributed setting.
+            index (Index): The index associated with the input sample.
+            rank (Rank): The rank of the augmenter in a distributed setting.
             io (IOContext): Context information for the data augmenter's execution.
 
         Returns:

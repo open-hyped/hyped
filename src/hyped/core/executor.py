@@ -16,14 +16,13 @@ import datasets
 import networkx as nx
 import numpy as np
 
+from hyped.common.typing import Batch, IndexList, NodeId, Rank, TraceIndexList
 from hyped.common.utils import list_of_dicts_to_dict_of_lists
 
 from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import IOContext
 from .refs.ref import FeatureRef
-
-Batch: TypeAlias = dict[str, list[Any]]
 
 
 def _gather(values: list[Any], pos: list[int]) -> list[Any]:
@@ -42,8 +41,8 @@ class ExecutionState(object):
         graph: DataFlowGraph,
         p_graph: nx.DiGraph,
         batch: Batch,
-        index: list[int],
-        rank: int,
+        index: IndexList,
+        rank: Rank,
     ):
         """Initialize the execution state.
 
@@ -51,8 +50,8 @@ class ExecutionState(object):
             graph (DataFlowGraph): The data flow graph being executed.
             p_graph (nx.DiGraph): The partition graph to the data flow graph.
             batch (Batch): The initial batch of data.
-            index (list[int]): The index of the batch.
-            rank (int): The rank of the process in a distributed setting.
+            index (IndexList): The index of the batch.
+            rank (Rank): The rank of the process in a distributed setting.
         """
         self.rank = rank
         self.graph = graph
@@ -137,7 +136,7 @@ class ExecutionState(object):
         return [_gather(vals, trace_index) for vals in values]
 
     def register_partition_trace(
-        self, node_id: str, trace_index: list[int], index: list[int]
+        self, node_id: NodeId, trace_index: TraceIndexList, index: IndexList
     ) -> None:
         """Register trace and index mappings for the transition between partitions.
 
@@ -146,10 +145,10 @@ class ExecutionState(object):
         and target partitions and then stores the trace and index information accordingly.
 
         Args:
-            node_id (str): The identifier of the node for which to register the partition trace.
-            trace_index (list[int]): The trace indices representing how to transition between the source
+            node_id (NodeId): The identifier of the node for which to register the partition trace.
+            trace_index (TraceIndexList): The trace indices representing how to transition between the source
                 and target partitions.
-            index (list[int]): The index values to be used for the output partition, which will be
+            index (IndexList): The index values to be used for the output partition, which will be
                 transformed according to the computed trace indices.
 
         Raises:
@@ -191,14 +190,14 @@ class ExecutionState(object):
             keys=ref.feature_.keys(),
         )
 
-    def collect_inputs(self, node_id: str) -> tuple[Batch, list[int]]:
+    def collect_inputs(self, node_id: NodeId) -> tuple[Batch, IndexList]:
         """Collect inputs for a given node.
 
         Args:
-            node_id (str): The ID of the node for which to collect inputs.
+            node_id (NodeId): The ID of the node for which to collect inputs.
 
         Returns:
-            tuple[Batch, list[int]]: The collected inputs to the processor
+            tuple[Batch, IndexList]: The collected inputs to the processor
                 and the corresponding index
 
         Raises:
@@ -249,11 +248,11 @@ class ExecutionState(object):
 
         return inputs, index
 
-    def capture_output(self, node_id: str, output: Batch) -> None:
+    def capture_output(self, node_id: NodeId, output: Batch) -> None:
         """Capture the output of a node.
 
         Args:
-            node_id (str): The ID of the node producing the output.
+            node_id (NodeId): The ID of the node producing the output.
             output (Batch): The output batch of data.
 
         Raises:
@@ -304,11 +303,13 @@ class DataFlowExecutor(object):
         self.collect = collect
         self.aggregation_manager = aggregation_manager
 
-    async def execute_node(self, node_id: str, state: ExecutionState) -> None:
+    async def execute_node(
+        self, node_id: NodeId, state: ExecutionState
+    ) -> None:
         """Execute a single node in the data flow graph.
 
         Args:
-            node_id (str): The ID of the node to execute.
+            node_id (NodeId): The ID of the node to execute.
             state (ExecutionState): The current execution state.
 
         Raises:
@@ -366,14 +367,14 @@ class DataFlowExecutor(object):
             )
 
     async def execute(
-        self, batch: Batch, index: list[int], rank: int
+        self, batch: Batch, index: IndexList, rank: Rank
     ) -> Batch:
         """Execute the entire data flow graph.
 
         Args:
             batch (Batch): The initial batch of data.
-            index (list[int]): The index of the batch.
-            rank (int): The rank of the process in a multiprocessing setting.
+            index (IndexList): The index of the batch.
+            rank (Rank): The rank of the process in a multiprocessing setting.
 
         Returns:
             Batch: The final collected batch of data.

@@ -30,6 +30,7 @@ from itertools import groupby
 from datasets import Features, Value
 
 from hyped.common.feature_key import FeatureKey
+from hyped.common.typing import NodeId
 from hyped.processors._ops.collect import CollectFeatures, NestedContainer
 
 from .executor import DataFlowExecutor
@@ -57,9 +58,7 @@ class DataFlowGraphOptimizer(object):
     both constant and non-constant values by precomputing the constant parts of these expressions.
     """
 
-    def cse(
-        self, graph: DataFlowGraph
-    ) -> tuple[DataFlowGraph, dict[int, int]]:
+    def cse(self, graph: DataFlowGraph) -> DataFlowGraph:
         """Performs Common Subexpression Elimination (CSE) on the data flow graph.
 
         This method performs Common Subexpression Elimination (CSE) on the given data flow graph.
@@ -89,7 +88,7 @@ class DataFlowGraphOptimizer(object):
             graph (DataFlowGraph): The data flow graph.
 
         Returns:
-            tuple[DataFlowGraph, dict[int, int]]: The optimized data flow graph and a mapping
+            DataFlowGraph, dict[NodeId, NodeId]]: The optimized data flow graph and a mapping
                 of node IDs before and after optimization.
         """
 
@@ -100,7 +99,7 @@ class DataFlowGraphOptimizer(object):
             node_type: DataFlowGraph.NodeType
             node_config: str
             in_edge_identifiers: list[tuple[int, str, FeatureKey]]
-            node_id: str = field(default=None, compare=False)
+            node_id: NodeId = field(default=None, compare=False)
 
         cse_graph = DataFlowGraph()
         # maps nodes of the original graph to the nodes in the cse-graph
@@ -328,13 +327,13 @@ class DataFlowGraphOptimizer(object):
         return graph
 
     def optimize(
-        self, graph: DataFlowGraph, leaf_nodes: set[str]
+        self, graph: DataFlowGraph, leaf_nodes: set[NodeId]
     ) -> DataFlowGraph:
         """Optimizes the data flow graph for a specified set of leaf nodes.
 
         Args:
             graph (DataFlowGraph): The data flow graph.
-            leaf_nodes (set[str]): Set of leaf node IDs.
+            leaf_nodes (set[NodeId]): Set of leaf node IDs.
 
         Returns:
             DataFlowGraph: The optimized data flow graph.

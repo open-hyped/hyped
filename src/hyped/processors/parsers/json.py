@@ -12,11 +12,11 @@ from pydantic_core import ValidationError
 from typing_extensions import Unpack
 
 from hyped.common.pydantic import pydantic_model_from_features
+from hyped.common.typing import Index, Rank, Sample
 from hyped.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     IOContext,
-    Sample,
 )
 from hyped.core.refs.inputs import CheckFeatureEquals, InputRefs
 from hyped.core.refs.outputs import (
@@ -129,7 +129,7 @@ class JsonParser(
         )
 
     def process(
-        self, inputs: Sample, index: int, rank: int, io: IOContext
+        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
     ) -> Sample:
         """Processes a single input sample synchronously and returns the corresponding output sample.
 
@@ -140,8 +140,8 @@ class JsonParser(
 
         Args:
             inputs (Sample): The input sample containing the JSON string to be processed.
-            index (int): The index associated with the input sample.
-            rank (int): The rank of the processor in a distributed setting.
+            index (Index): The index associated with the input sample.
+            rank (Rank): The rank of the processor in a distributed setting.
             io (IOContext): Context information for the data processors execution.
 
         Returns:

@@ -50,6 +50,7 @@ import hyped.aggregators
 import hyped.aggregators._ops
 import hyped.processors
 import hyped.processors._ops
+from hyped.common.container import NestedContainer
 from hyped.common.feature_checks import (
     STRING_LIKE_TYPES,
     check_feature_equals,
@@ -172,8 +173,7 @@ def collect(
 
     # create a nested container from the inputs
     # this collection might contain constants of any type
-    container_type = hyped.processors._ops.collect.NestedContainer
-    container = container_type[FeatureRef | Any](
+    container = NestedContainer[FeatureRef | Any](
         data=collection if collection is not None else kwargs
     )
 

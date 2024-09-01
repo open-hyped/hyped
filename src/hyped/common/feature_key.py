@@ -19,6 +19,7 @@ from .feature_checks import (
     raise_feature_equals,
     raise_feature_is_sequence,
 )
+from .typing import Batch, Sample
 from .utils import dict_of_lists_to_list_of_dicts
 
 
@@ -167,11 +168,11 @@ class FeatureKey(tuple[str | int | slice]):
 
         return features
 
-    def index_example(self, example: dict[str, Any]) -> Any:
+    def index_example(self, example: Sample) -> Any:
         """Index the example with the key and retrieve the value.
 
         Arguments:
-            example (dict[str, Any]): The example to index.
+            example (Sample): The example to index.
 
         Returns:
             Any: The value of the example at the given key.
@@ -191,11 +192,11 @@ class FeatureKey(tuple[str | int | slice]):
 
         return example
 
-    def index_batch(self, batch: dict[str, list[Any]]) -> list[Any]:
+    def index_batch(self, batch: Batch) -> list[Any]:
         """Index a batch of examples with the given key and retrieve the batch of values.
 
         Arguments:
-            batch (dict[str, list[Any]]): Batch of examples to index.
+            batch (Batch): Batch of examples to index.
 
         Returns:
             list[Any]: The batch of values of the examples at the given key.

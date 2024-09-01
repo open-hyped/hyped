@@ -55,13 +55,12 @@ from typing import Any, TypeVar, overload
 
 from typing_extensions import TypeAlias
 
+from hyped.common.typing import Batch, Index, IndexList, Rank, Sample
+
 from ..refs.inputs import InputRefs
 from ..refs.outputs import OutputRefs
 from ..refs.ref import FeatureRef
 from .base import BaseNode, BaseNodeConfig, IOContext
-
-Batch: TypeAlias = dict[str, list[Any]]
-Sample: TypeAlias = dict[str, Any]
 
 
 class BaseDataProcessorConfig(BaseNodeConfig):
@@ -108,14 +107,14 @@ class BaseDataProcessor(BaseNode[C, I, O], ABC):
         self._is_process_async = inspect.iscoroutinefunction(self.process)
 
     async def batch_process(
-        self, inputs: Batch, index: list[int], rank: int, io: IOContext
+        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
     ) -> Batch:
         """Processes a batch of inputs and returns the corresponding batch of outputs.
 
         Args:
             inputs (Batch): The batch of input samples.
-            index (list[int]): The indices associated with the input samples.
-            rank (int): The rank of the processor in a distributed setting.
+            index (IndexList): The indices associated with the input samples.
+            rank (Rank): The rank of the processor in a distributed setting.
             io (IOContext): Context information for the data processors execution.
 
         Returns:
@@ -137,12 +136,12 @@ class BaseDataProcessor(BaseNode[C, I, O], ABC):
 
     @overload
     async def process(
-        self, inputs: Sample, index: int, rank: int, io: IOContext
+        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
     ) -> Sample:
         ...
 
     def process(
-        self, inputs: Sample, index: int, rank: int, io: IOContext
+        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
     ) -> Sample:
         """Processes a single input sample synchronously and returns the corresponding output sample.
 
@@ -152,8 +151,8 @@ class BaseDataProcessor(BaseNode[C, I, O], ABC):
 
         Args:
             inputs (Sample): The input sample to be processed.
-            index (int): The index associated with the input sample.
-            rank (int): The rank of the processor in a distributed setting.
+            index (Index): The index associated with the input sample.
+            rank (Rank): The rank of the processor in a distributed setting.
             io (IOContext): Context information for the data processors execution.
 
         Returns:

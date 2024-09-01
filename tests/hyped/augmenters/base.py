@@ -9,11 +9,11 @@ from hyped.common.feature_checks import (
     check_feature_equals,
     check_object_matches_feature,
 )
+from hyped.common.typing import Batch, IndexList, Rank
 from hyped.common.utils import deep_equal
 from hyped.core.nodes.augmenter import (
     BaseDataAugmenter,
     BaseDataAugmenterConfig,
-    Batch,
     IOContext,
 )
 from hyped.core.refs.inputs import InputRefsContainer
@@ -28,16 +28,16 @@ class BaseDataAugmenterTest:
     # input values
     input_features: Features
     input_data: None | Batch = None
-    input_index: None | list[int] = None
+    input_index: None | IndexList = None
     # expected output
     expected_output_features: None | Features = None
     expected_output_data: None | Batch = None
-    expected_output_index: None | list[int] = None
+    expected_output_index: None | IndexList = None
     # expected errors
     expected_execution_error: None | type[Exception] = None
     expected_input_verification_error: None | type[Exception] = None
     # others
-    rank: int = 0
+    rank: Rank = 0
 
     node_id: str = "node_id"
 

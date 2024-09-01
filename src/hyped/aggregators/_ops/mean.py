@@ -13,10 +13,10 @@ from pydantic import Field
 from typing_extensions import Unpack
 
 from hyped.common.feature_checks import SCALAR_TYPES
+from hyped.common.typing import Aggregate, Batch, IndexList, Rank
 from hyped.core.nodes.aggregator import (
     BaseDataAggregator,
     BaseDataAggregatorConfig,
-    Batch,
     IOContext,
 )
 from hyped.core.refs.inputs import CheckFeatureEquals, InputRefs
@@ -79,26 +79,26 @@ class MeanAggregator(
     input feature :code:`x` over batches of data.
     """
 
-    def initialize(self, io: IOContext) -> tuple[dict[str, float], float]:
+    def initialize(self, io: IOContext) -> tuple[Aggregate, float]:
         """Initializes the aggregation with the starting value and a count of 0.
 
         Args:
             io (IOContext): Context information for the aggregator execution.
 
         Returns:
-            tuple[float, float]: A tuple containing the starting value and a count of 0.
+            tuple[Aggregate, float]: A tuple containing the starting value and a count of 0.
         """
         return {"value": self.config.start}, self.config.start_count
 
     async def extract(
-        self, inputs: Batch, index: list[int], rank: int, io: IOContext
+        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
     ) -> tuple[float, int]:
         """Extracts the sum of the input feature :code:`x` and the count of items in the batch.
 
         Args:
             inputs (Batch): The batch of input data.
-            index (list[int]): The indices of the current batch.
-            rank (int): The rank of the current process.
+            index (IndexList): The indices of the current batch.
+            rank (Rank): The rank of the current process.
             io (IOContext): Context information for the aggregator execution.
 
         Returns:
@@ -109,7 +109,7 @@ class MeanAggregator(
 
     async def update(
         self, val: float, ctx: tuple[float, int], state: float, io: IOContext
-    ) -> tuple[dict[str, float], float]:
+    ) -> tuple[Aggregate, float]:
         """Updates the running mean with the extracted value and count.
 
         Args:
@@ -119,7 +119,7 @@ class MeanAggregator(
             io (IOContext): Context information for the aggregator execution.
 
         Returns:
-            tuple[dict[str, float], float]: The updated running mean and the new count of items.
+            tuple[Aggregate, float]: The updated running mean and the new count of items.
         """
         ext_val, ext_count = ctx
         return {

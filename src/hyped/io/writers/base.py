@@ -8,12 +8,13 @@ import _io
 from torch.utils.data._utils.worker import get_worker_info
 
 from hyped.common.consumer import BaseDatasetConsumer
+from hyped.common.typing import Rank
 
 
 class BaseDatasetWriter(BaseDatasetConsumer, ABC):
     """Base Dataset Writer.
 
-    Implements the `BaseDatasetConsumer` class to write a dataset
+    Implements the :class:`BaseDatasetConsumer` class to write a dataset
     to the disk in json-line format.
     """
 
@@ -53,7 +54,7 @@ class BaseDatasetWriter(BaseDatasetConsumer, ABC):
 
     @abstractmethod
     def worker_shard_file_obj(
-        self, path: str, worker_id: int
+        self, path: str, worker_id: Rank
     ) -> _io.TextIOWrapper:
         """Worker Shard File Object.
 
@@ -62,7 +63,7 @@ class BaseDatasetWriter(BaseDatasetConsumer, ABC):
 
         Arguments:
             path (str): path to store the file in
-            worker_id (int): worker id
+            worker_id (Rank): worker id
 
         Returns:
             file (_io.TextIOWrapper): file used by the worker of the given id

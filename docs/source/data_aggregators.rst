@@ -255,6 +255,7 @@ Create a custom aggregator class (:code:`CustomAggregator`) inheriting from :cla
 
 .. code-block:: python
 
+    from hyped.common.typing import Batch, IndexList, Rank, Aggregate
     from hyped.core.nodes.aggregator import Batch, BaseDataAggregator, IOContext
 
     class CustomAggregator(
@@ -265,17 +266,17 @@ Create a custom aggregator class (:code:`CustomAggregator`) inheriting from :cla
         ]
     ):
 
-        def initialize(self, io: IOContext) -> tuple[dict[str, float], None]:
+        def initialize(self, io: IOContext) -> tuple[Aggregate, None]:
             return {"y": self.config.initial_value}, None
 
         async def extract(
-            self, inputs: Batch, index: list[int], rank: int, io: IOContext
+            self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
         ) -> float:
             return sum(inputs["x"])
 
         async def update(
             self, val: float, ctx: float, state: None, io: IOContext
-        ) -> tuple[dict[str, float], None]:
+        ) -> tuple[Aggregate, None]:
             return {"y": val["y"] + ctx}, None
 
 Here's a breakdown of each method:

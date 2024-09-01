@@ -18,10 +18,10 @@ from transformers.utils import PaddingStrategy
 from typing_extensions import Annotated, NotRequired, Unpack
 
 from hyped.common.feature_checks import raise_feature_equals
+from hyped.common.typing import Batch, IndexList, Rank
 from hyped.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
-    Batch,
     IOContext,
 )
 from hyped.core.refs.inputs import (
@@ -284,14 +284,14 @@ class TransformersTokenizer(
         )
 
     async def batch_process(
-        self, inputs: Batch, index: list[int], rank: 0, io: IOContext
+        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
     ) -> Batch:
         """Tokenize input batch.
 
         Args:
             inputs (Batch): Batch of input data.
-            index (list[int]): Batch index.
-            rank (int): Rank of the processor.
+            index (IndexList): Batch index.
+            rank (Rank): Rank of the processor.
             io (IOContext): Context information for the data processors execution.
 
         Returns:

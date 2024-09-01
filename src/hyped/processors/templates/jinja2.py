@@ -7,11 +7,11 @@ from jinja2 import Environment, Template
 from typing_extensions import Unpack
 
 from hyped.common.lazy_instance import LazyInstance
+from hyped.common.typing import Index, Rank, Sample
 from hyped.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,
     IOContext,
-    Sample,
 )
 from hyped.core.refs.inputs import CheckFeatureEquals, InputRefs
 from hyped.core.refs.outputs import OutputFeature, OutputRefs
@@ -85,7 +85,7 @@ class Jinja2(
         )
 
     async def process(
-        self, inputs: Sample, index: int, rank: int, io: IOContext
+        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
     ) -> Sample:
         """Process example.
 
@@ -94,8 +94,8 @@ class Jinja2(
 
         Args:
             inputs (Sample): Input sample containing features for template filling.
-            index (int): Index of the sample in the dataset.
-            rank (int): Rank of the sample.
+            index (Index): Index of the sample in the dataset.
+            rank (Rank): Rank of the sample.
             io (IOContext): Context information for the data processors execution.
 
         Returns:
