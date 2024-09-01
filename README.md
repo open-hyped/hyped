@@ -53,8 +53,8 @@ Now you're ready to start using Hyped for managing and executing your data pipel
 Start by importing the necessary modules and classes:
 ```python
 import datasets
-from hyped.data.flow import DataFlow
-from hyped.data.flow.processors.tokenizers.transformers import TransformersTokenizer
+from hyped import DataFlow
+from hyped.processors import TransformersTokenizer
 ```
 
 Next, load your dataset using the datasets library. In this example, we load the IMDb dataset:
@@ -116,7 +116,7 @@ ds, _ = pipe.apply(ds, num_proc=4, batch_size=32)
 Hyped supports streaming data directly from and to disk, enabling efficient processing of large datasets that may not fit into memory. You can stream datasets using lazy processing, where examples are only processed when accessed.
 
 ```python
-from hyped.data.io.writers.json import JsonDatasetWriter
+from hyped.io.writers.json import JsonDatasetWriter
 
 # Load dataset with streaming enabled
 ds = datasets.load_dataset("imdb", split="train", streaming=True)

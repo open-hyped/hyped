@@ -23,7 +23,7 @@ The figure below illustrates the workings of the extraction and update phase. It
 .. image:: _static/AggregationExecutionModel.svg
     :width: 600
 
-This logic is implemented by the :doc:`DataAggregationManager <api/data.flow.core.nodes.aggregator>`.
+This logic is implemented by the :doc:`DataAggregationManager <api/hyped.core.nodes.aggregator>`.
 
 Initialization Phase
 ~~~~~~~~~~~~~~~~~~~~
@@ -61,7 +61,7 @@ Let's consider the example of configuring a Sum Aggregator. This aggregator is r
 
 .. code-block:: python
 
-    from hyped.data.flow.aggregators.ops import SumAggregator
+    from hyped.aggregators._ops.sum import SumAggregator
 
     # Define the configuration for the Sum Aggregator
     sum_config = SumAggregator.Config(
@@ -114,9 +114,9 @@ In this example, we demonstrate how to invoke multiple aggregators within a data
 
 .. code-block:: python
 
-    from hyped.data.flow.ops import collect
-    from hyped.data.flow.aggregators.ops.sum import SumAggregator
-    from hyped.data.flow.aggregators.ops.mean import MeanAggregator
+    from hyped.ops import collect
+    from hyped.aggregators._ops.sum import SumAggregator
+    from hyped.aggregators._ops.mean import MeanAggregator
 
     # Capture total and average text length over the whole dataset
     total_text_length = SumAggregator().call(x=len(flow.src_features["text"]))
@@ -143,9 +143,9 @@ To illustrate how aggregated values computed within a data flow can undergo furt
 
 .. code-block:: python
 
-    from hyped.data.flow.ops import collect
-    from hyped.data.flow.aggregators.ops.sum import SumAggregator
-    from hyped.data.flow.aggregators.ops.mean import MeanAggregator
+    from hyped.ops import collect
+    from hyped.aggregators._ops.sum import SumAggregator
+    from hyped.aggregators._ops.mean import MeanAggregator
 
     double_total = total_text_length.value * 2
 
@@ -172,8 +172,8 @@ Let's illustrate this process with an example where we calculate the sum of a nu
 .. code-block:: python
 
     from datasets import load_dataset
-    from hyped.data.flow import DataFlow
-    from hyped.data.flow.aggregators.ops import SumAggregator
+    from hyped import DataFlow
+    from hyped.aggregators._ops import SumAggregator
 
     # Load multiple datasets
     ds1 = load_dataset("imdb", split="train[:10%]")
@@ -222,7 +222,7 @@ If your custom data aggregator requires configurable parameters, define a config
 
 .. code-block:: python
 
-    from hyped.data.flow.core.nodes.aggregator import BaseDataAggregatorConfig
+    from hyped.core.nodes.aggregator import BaseDataAggregatorConfig
 
     class CustomConfig(BaseDataAggregatorConfig):
         initial_value: float = 0.0
@@ -235,9 +235,9 @@ Define input and output reference classes (:code:`InputRefs` and :code:`OutputRe
 .. code-block:: python
 
     import datasets
-    from hyped.data.flow.refs.ref import FeatureRef
-    from hyped.data.flow.refs.inputs import InputRefs, CheckFeatureEquals
-    from hyped.data.flow.refs.outputs import OutputRefs, OutputFeature
+    from hyped.core.refs.ref import FeatureRef
+    from hyped.core.refs.inputs import InputRefs, CheckFeatureEquals
+    from hyped.core.refs.outputs import OutputRefs, OutputFeature
     from typing import Annotated
 
     class CustomAggregatorInputRefs(InputRefs):
@@ -246,16 +246,16 @@ Define input and output reference classes (:code:`InputRefs` and :code:`OutputRe
     class CustomAggregatorOutputRefs(OutputRefs):
         y: Annotated[FeatureRef, OutputFeature(datasets.Value("float32"))]
 
-For more information on specifying input and output references, please refer to the :doc:`InputRefs <api/data.flow.core.refs.inputs>` and :doc:`OutputRefs <api/data.flow.core.refs.outputs>` documentation.
+For more information on specifying input and output references, please refer to the :doc:`InputRefs <api/hyped.core.refs.inputs>` and :doc:`OutputRefs <api/hyped.core.refs.outputs>` documentation.
 
-3. Implement Custom Aggregator
+1. Implement Custom Aggregator
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Create a custom aggregator class (:code:`CustomAggregator`) inheriting from :class:`BaseDataAggregator`. Override the :code:`initialize`, :code:`extract`, and :code:`update` methods to define the aggregation logic. Access configuration values and input features within these methods to perform custom aggregations.
 
 .. code-block:: python
 
-    from hyped.data.flow.core.nodes.aggregator import Batch, BaseDataAggregator, IOContext
+    from hyped.core.nodes.aggregator import Batch, BaseDataAggregator, IOContext
 
     class CustomAggregator(
         BaseDataAggregator[

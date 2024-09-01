@@ -44,7 +44,7 @@ If your custom data augmenter requires configurable parameters, define a configu
 
 .. code-block:: python
 
-    from hyped.data.flow.core.nodes.augmenters import BaseDataAugmenterConfig
+    from hyped.core.nodes.augmenters import BaseDataAugmenterConfig
 
     class CustomConfig(BaseDataAugmenterConfig):
         repeat: int = 3
@@ -58,9 +58,9 @@ Define input and output reference classes (:code:`InputRefs` and :code:`OutputRe
 .. code-block:: python
 
     import datasets
-    from hyped.data.flow.refs.ref import FeatureRef
-    from hyped.data.flow.refs.inputs import InputRefs, CheckFeatureEquals
-    from hyped.data.flow.refs.outputs import OutputRefs, OutputFeature
+    from hyped.core.refs.ref import FeatureRef
+    from hyped.core.refs.inputs import InputRefs, CheckFeatureEquals
+    from hyped.core.refs.outputs import OutputRefs, OutputFeature
     from typing import Annotated
 
     class CustomAggregatorInputRefs(InputRefs):
@@ -76,7 +76,7 @@ Create a custom augmenter class (:code:`CustomAugmenter`) inheriting from :class
 
 .. code-block:: python
 
-    from hyped.data.flow.core.nodes.augmenter import Sample, IOContext, BaseDataAugmenter
+    from hyped.core.nodes.augmenter import Sample, IOContext, BaseDataAugmenter
     from typing import Iterable
 
     class CustomAugmenter(BaseDataAugmenter[CustomConfig, CustomInputRefs, CustomOutputRefs]):
@@ -95,7 +95,7 @@ By implementing the :code:`batch_process` function you can define custom batch p
 
 .. code-block:: python
     
-    from hyped.data.flow.processors.base import Batch, IOContext, BaseDataProcessor
+    from hyped.processors.base import Batch, IOContext, BaseDataProcessor
 
     class CustomAugmenter(BaseDataAugmenter[CustomConfig, CustomInputRefs, CustomOutputRefs]):
         async def batch_process(self, inputs: Batch, index: list[int], rank: int, io: IOContext) -> tuple[Batch, list[int]]:
