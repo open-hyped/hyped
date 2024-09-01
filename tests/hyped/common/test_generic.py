@@ -1,6 +1,6 @@
 from typing import Generic, TypeVar
 
-from hyped.common.generic import _get_typevar_index, solve_typevar
+from hyped.common._generic import _get_typevar_index, solve_typevar
 
 
 class TestResolveTypeVar:

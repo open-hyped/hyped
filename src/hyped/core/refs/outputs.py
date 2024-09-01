@@ -33,8 +33,8 @@ from typing import Any, Callable, ClassVar
 
 from datasets.features.features import Features, FeatureType
 
-from hyped.common.pydantic import BaseModelWithTypeValidation
-from hyped.registry.config import BaseConfig
+from hyped._registry.config import BaseConfig
+from hyped.common._pydantic import BaseModelWithTypeValidation
 
 from .inputs import InputRefs
 from .ref import NONE_REF, FeatureRef

@@ -10,7 +10,7 @@ from pydantic._internal._model_construction import ModelMetaclass
 from pydantic.fields import Field
 from typing_extensions import dataclass_transform
 
-from ..common.generic import solve_typevar
+from ..common._generic import solve_typevar
 from .auto import BaseAutoClass
 from .registry import RegisterTypes, Registrable, register_meta_mixin
 

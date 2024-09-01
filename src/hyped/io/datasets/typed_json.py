@@ -10,7 +10,7 @@ import pydantic
 from datasets.packaged_modules.json.json import Json, JsonConfig
 from datasets.utils.file_utils import readline
 
-from hyped.common.pydantic import pydantic_model_from_features
+from hyped.common._pydantic import pydantic_model_from_features
 
 
 @dataclass

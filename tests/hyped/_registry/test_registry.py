@@ -2,7 +2,7 @@ from copy import deepcopy
 
 import pytest
 
-from hyped.registry.registry import RegisterTypes, default_registry
+from hyped._registry.registry import RegisterTypes, default_registry
 
 
 @pytest.fixture(autouse=True)

@@ -61,12 +61,12 @@ import pydantic
 from datasets.features.features import Features, FeatureType
 from typing_extensions import NotRequired, Self
 
+from hyped._registry.config import BaseConfig
 from hyped.common.feature_checks import (
     get_sequence_length,
     raise_feature_equals,
     raise_feature_is_sequence,
 )
-from hyped.registry.config import BaseConfig
 
 from .ref import FeatureRef
 

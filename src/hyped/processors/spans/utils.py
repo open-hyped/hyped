@@ -8,13 +8,13 @@ from typing import Optional
 import numpy as np
 from datasets.features.features import FeatureType
 
+from hyped._registry.config import BaseConfig
 from hyped.common.feature_checks import (
     INDEX_TYPES,
     get_sequence_feature,
     raise_feature_is_sequence,
 )
 from hyped.core.refs.ref import FeatureRef
-from hyped.registry.config import BaseConfig
 
 
 def compute_spans_overlap_matrix(

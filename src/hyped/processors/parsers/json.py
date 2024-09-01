@@ -11,7 +11,7 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
 from pydantic_core import ValidationError
 from typing_extensions import Unpack
 
-from hyped.common.pydantic import pydantic_model_from_features
+from hyped.common._pydantic import pydantic_model_from_features
 from hyped.common.typing import Index, Rank, Sample
 from hyped.core.nodes.processor import (
     BaseDataProcessor,

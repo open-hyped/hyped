@@ -24,7 +24,7 @@ from typing import Any, Hashable
 from datasets.features.features import Features, FeatureType, Sequence
 from typing_extensions import Annotated
 
-from hyped.common.container import NestedContainer
+from hyped.common._container import NestedContainer
 from hyped.common.feature_checks import (
     check_feature_equals,
     get_sequence_length,

@@ -5,6 +5,8 @@ import pytest
 from datasets import Features, Sequence, Value
 from typing_extensions import Annotated, NotRequired
 
+from hyped._registry.config import BaseConfig
+
 # import hyped.processors.base
 from hyped.common.typing import Pointer
 from hyped.core.refs.inputs import (
@@ -16,7 +18,6 @@ from hyped.core.refs.inputs import (
     InputRefsValidator,
 )
 from hyped.core.refs.ref import NONE_REF, FeatureRef
-from hyped.registry.config import BaseConfig
 
 
 def ptr_set(refs: Iterable[FeatureRef]) -> set[Pointer]:

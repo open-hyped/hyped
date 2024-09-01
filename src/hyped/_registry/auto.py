@@ -1,7 +1,7 @@
 """Base Auto Class."""
 from typing import Generic, TypeVar
 
-from ..common.generic import solve_typevar
+from ..common._generic import solve_typevar
 from .registry import (
     Registrable,
     RootedTypeRegistryView,

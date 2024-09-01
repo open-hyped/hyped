@@ -24,7 +24,7 @@ from datasets.features.features import FeatureType
 from matplotlib import colormaps
 from torch.utils.data import get_worker_info
 
-from hyped.common.arrow import convert_features_to_arrow_schema
+from hyped.common._arrow import convert_features_to_arrow_schema
 from hyped.common.feature_checks import check_feature_equals
 from hyped.common.feature_key import FeatureKey
 from hyped.common.lazy_instance import LazyInstance

@@ -15,8 +15,8 @@ from typing import Any, Generic, TypeVar, overload
 
 from datasets import Features
 
-from hyped.common.generic import solve_typevar
-from hyped.registry.config import BaseConfig, BaseConfigurable
+from hyped._registry.config import BaseConfig, BaseConfigurable
+from hyped.common._generic import solve_typevar
 
 from ..refs.inputs import InputRefs, InputRefsContainer, InputRefsValidator
 from ..refs.outputs import OutputRefs

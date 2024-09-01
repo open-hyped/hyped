@@ -3,7 +3,7 @@ from typing import Tuple, Union
 import pytest
 from pydantic import ValidationError
 
-from hyped.common.container import NestedContainer
+from hyped.common._container import NestedContainer
 
 
 @pytest.fixture

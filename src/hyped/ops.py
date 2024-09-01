@@ -50,7 +50,7 @@ import hyped.aggregators
 import hyped.aggregators._ops
 import hyped.processors
 import hyped.processors._ops
-from hyped.common.container import NestedContainer
+from hyped.common._container import NestedContainer
 from hyped.common.feature_checks import (
     STRING_LIKE_TYPES,
     check_feature_equals,
