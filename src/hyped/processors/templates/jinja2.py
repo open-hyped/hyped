@@ -6,7 +6,7 @@ from datasets import Features, Value
 from jinja2 import Environment, Template
 from typing_extensions import Unpack
 
-from hyped.common.lazy import LazyInstance
+from hyped.common.lazy_instance import LazyInstance
 from hyped.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,

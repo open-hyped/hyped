@@ -19,7 +19,7 @@ from openai._constants import DEFAULT_MAX_RETRIES
 from pydantic import Field
 from typing_extensions import TypedDict, Unpack
 
-from hyped.common.lazy import LazyInstance
+from hyped.common.lazy_instance import LazyInstance
 from hyped.core.nodes.processor import (
     BaseDataProcessor,
     BaseDataProcessorConfig,

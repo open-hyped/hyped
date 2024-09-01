@@ -28,7 +28,7 @@ from typing_extensions import TypeAlias
 from hyped.common.arrow import convert_features_to_arrow_schema
 from hyped.common.feature_checks import check_feature_equals
 from hyped.common.feature_key import FeatureKey
-from hyped.common.lazy import LazyInstance
+from hyped.common.lazy_instance import LazyInstance
 
 from .executor import DataFlowExecutor
 from .graph import DataFlowGraph

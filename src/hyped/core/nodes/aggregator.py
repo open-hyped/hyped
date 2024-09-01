@@ -54,7 +54,7 @@ from multiprocessing.managers import SyncManager
 from types import MappingProxyType
 from typing import Any, TypeAlias, TypeVar
 
-from hyped.common.lazy import LazyStaticInstance
+from hyped.common.lazy_instance import LazyStaticInstance
 
 from ..refs.inputs import InputRefs
 from ..refs.outputs import OutputRefs

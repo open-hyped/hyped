@@ -6,7 +6,7 @@ from contextlib import nullcontext
 
 import pytest
 
-from hyped.common.lazy import (
+from hyped.common.lazy_instance import (
     LazyInstance,
     LazySharedInstance,
     LazyStaticInstance,
