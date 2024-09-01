@@ -46,38 +46,19 @@ from typing import Any, Callable, Literal
 
 from datasets import Value
 
+import hyped.aggregators
+import hyped.aggregators._ops
+import hyped.processors
+import hyped.processors._ops
 from hyped.common.feature_checks import (
     STRING_LIKE_TYPES,
     check_feature_equals,
     check_feature_is_sequence,
     get_sequence_length,
 )
-
-from .aggregators._ops.mean import MeanAggregator
-from .aggregators._ops.sum import SumAggregator
-from .aggregators.confusion.mcm import MultiLabelConfusionMatrix
-from .core.nodes.const import Const
-from .core.refs.ref import FeatureRef
-from .processors._ops import binary, unary
-from .processors._ops.collect import CollectFeatures, NestedContainer
-from .processors._ops.sequence.access import (
-    BooleanIndexing,
-    SequenceGetItem,
-    SequenceSetItem,
-)
-from .processors._ops.sequence.multi import SequenceChain, SequenceZip
-from .processors._ops.sequence.query import (
-    SequenceContains,
-    SequenceCountOf,
-    SequenceIndexOf,
-)
-from .processors._ops.sequence.reduce import (
-    SequenceLength,
-    SequenceMean,
-    SequenceSum,
-)
-from .processors.metrics.prfs import (
-    PrecisionRecallFScoreSupport,
+from hyped.core.nodes.const import Const
+from hyped.core.refs.ref import FeatureRef
+from hyped.processors.metrics.prfs import (
     PrecisionRecallFScoreSupportOutputRefs,
 )
 
@@ -191,7 +172,8 @@ def collect(
 
     # create a nested container from the inputs
     # this collection might contain constants of any type
-    container = NestedContainer[FeatureRef | Any](
+    container_type = hyped.processors._ops.collect.NestedContainer
+    container = container_type[FeatureRef | Any](
         data=collection if collection is not None else kwargs
     )
 
@@ -219,7 +201,11 @@ def collect(
     # add all constants in the collection to the flow
     container = container.map(_add_const, FeatureRef)
 
-    return CollectFeatures().call(collection=container).collected
+    return (
+        hyped.processors._ops.collect.CollectFeatures()
+        .call(collection=container)
+        .collected
+    )
 
 
 def sum_(a: FeatureRef) -> FeatureRef:
@@ -232,9 +218,13 @@ def sum_(a: FeatureRef) -> FeatureRef:
         FeatureRef: A reference to the result of the sum operation.
     """
     if check_feature_is_sequence(a.feature_):
-        return SequenceSum().call(a=a).result
+        return (
+            hyped.processors._ops.sequence.reduce.SequenceSum()
+            .call(a=a)
+            .result
+        )
     else:
-        return SumAggregator().call(x=a).value
+        return hyped.aggregators._ops.sum.SumAggregator().call(x=a).value
 
 
 def mean(a: FeatureRef) -> FeatureRef:
@@ -247,9 +237,13 @@ def mean(a: FeatureRef) -> FeatureRef:
         FeatureRef: A reference to the result of the mean operation.
     """
     if check_feature_is_sequence(a.feature_):
-        return SequenceMean().call(a=a).result
+        return (
+            hyped.processors._ops.sequence.reduce.SequenceMean()
+            .call(a=a)
+            .result
+        )
     else:
-        return MeanAggregator().call(x=a).value
+        return hyped.aggregators._ops.mean.MeanAggregator().call(x=a).value
 
 
 @_handle_constant_inputs_for_binary_op
@@ -263,7 +257,7 @@ def add(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the addition.
     """
-    return binary.Add().call(a=a, b=b).result
+    return hyped.processors._ops.binary.Add().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -277,7 +271,7 @@ def sub(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the subtraction.
     """
-    return binary.Sub().call(a=a, b=b).result
+    return hyped.processors._ops.binary.Sub().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -291,7 +285,7 @@ def mul(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the multiplication.
     """
-    return binary.Mul().call(a=a, b=b).result
+    return hyped.processors._ops.binary.Mul().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -305,7 +299,7 @@ def truediv(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the division.
     """
-    return binary.TrueDiv().call(a=a, b=b).result
+    return hyped.processors._ops.binary.TrueDiv().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -319,7 +313,7 @@ def floordiv(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the integer division.
     """
-    return binary.FloorDiv().call(a=a, b=b).result
+    return hyped.processors._ops.binary.FloorDiv().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -333,7 +327,7 @@ def pow(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the exponentiation.
     """
-    return binary.Pow().call(a=a, b=b).result
+    return hyped.processors._ops.binary.Pow().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -347,7 +341,7 @@ def mod(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the modulo operation.
     """
-    return binary.Mod().call(a=a, b=b).result
+    return hyped.processors._ops.binary.Mod().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -361,7 +355,7 @@ def eq(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the equality comparison.
     """
-    return binary.Equals().call(a=a, b=b).result
+    return hyped.processors._ops.binary.Equals().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -375,7 +369,7 @@ def ne(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the inequality comparison.
     """
-    return binary.NotEquals().call(a=a, b=b).result
+    return hyped.processors._ops.binary.NotEquals().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -389,7 +383,7 @@ def lt(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the less-than comparison.
     """
-    return binary.LessThan().call(a=a, b=b).result
+    return hyped.processors._ops.binary.LessThan().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -404,7 +398,7 @@ def le(a: FeatureRef, b: FeatureRef) -> FeatureRef:
         FeatureRef: A FeatureRef instance representing the result of the
             less-than-or-equal-to comparison.
     """
-    return binary.LessThanOrEqual().call(a=a, b=b).result
+    return hyped.processors._ops.binary.LessThanOrEqual().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -418,7 +412,7 @@ def gt(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the greater-than comparison.
     """
-    return binary.GreaterThan().call(a=a, b=b).result
+    return hyped.processors._ops.binary.GreaterThan().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -433,7 +427,9 @@ def ge(a: FeatureRef, b: FeatureRef) -> FeatureRef:
         FeatureRef: A FeatureRef instance representing the result of the
             greater-than-or-equal-to comparison.
     """
-    return binary.GreaterThanOrEqual().call(a=a, b=b).result
+    return (
+        hyped.processors._ops.binary.GreaterThanOrEqual().call(a=a, b=b).result
+    )
 
 
 @_handle_constant_inputs_for_binary_op
@@ -447,7 +443,7 @@ def and_(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the and operation.
     """
-    return binary.LogicalAnd().call(a=a, b=b).result
+    return hyped.processors._ops.binary.LogicalAnd().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -461,7 +457,7 @@ def or_(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the or operation.
     """
-    return binary.LogicalOr().call(a=a, b=b).result
+    return hyped.processors._ops.binary.LogicalOr().call(a=a, b=b).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -475,7 +471,7 @@ def xor_(a: FeatureRef, b: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the result of the xor operation.
     """
-    return binary.LogicalXOr().call(a=a, b=b).result
+    return hyped.processors._ops.binary.LogicalXOr().call(a=a, b=b).result
 
 
 def neg(a: FeatureRef) -> FeatureRef:
@@ -487,7 +483,7 @@ def neg(a: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the negated value of the input feature.
     """
-    return unary.Neg().call(a=a).result
+    return hyped.processors._ops.unary.Neg().call(a=a).result
 
 
 def abs_(a: FeatureRef) -> FeatureRef:
@@ -499,7 +495,7 @@ def abs_(a: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the absolute value of the input feature.
     """
-    return unary.Abs().call(a=a).result
+    return hyped.processors._ops.unary.Abs().call(a=a).result
 
 
 def invert(a: FeatureRef) -> FeatureRef:
@@ -515,9 +511,9 @@ def invert(a: FeatureRef) -> FeatureRef:
     if check_feature_equals(
         a.feature_, Value("bool")
     ) or check_feature_is_sequence(a.feature_, Value("bool")):
-        return unary.BooleanInvert().call(a=a).result
+        return hyped.processors._ops.unary.BooleanInvert().call(a=a).result
     else:
-        return unary.Invert().call(a=a).result
+        return hyped.processors._ops.unary.Invert().call(a=a).result
 
 
 def len_(a: FeatureRef) -> FeatureRef | int:
@@ -545,7 +541,15 @@ def len_(a: FeatureRef) -> FeatureRef | int:
         # return constant in case length if fixed and a
         # feature reference to the length feature otherwise
         length = get_sequence_length(a.feature_)
-        return length if length != -1 else SequenceLength().call(a=a).result
+        return (
+            length
+            if length != -1
+            else (
+                hyped.processors._ops.sequence.reduce.SequenceLength()
+                .call(a=a)
+                .result
+            )
+        )
 
     elif check_feature_equals(a.feature_, STRING_LIKE_TYPES):
         # implement length operation for string-like features
@@ -573,7 +577,11 @@ def get_item(seq: FeatureRef | Any, index: FeatureRef | Any) -> FeatureRef:
     # check arguments
     seq, index = _check_args(seq, index)
     # add the getitem processor
-    return SequenceGetItem().call(sequence=seq, index=index).result
+    return (
+        hyped.processors._ops.sequence.access.SequenceGetItem()
+        .call(sequence=seq, index=index)
+        .result
+    )
 
 
 def set_item(
@@ -601,7 +609,9 @@ def set_item(
     seq, index, value = _check_args(seq, index, value)
     # add the setitem processor
     return (
-        SequenceSetItem().call(sequence=seq, index=index, value=value).result
+        hyped.processors._ops.sequence.access.SequenceSetItem()
+        .call(sequence=seq, index=index, value=value)
+        .result
     )
 
 
@@ -620,7 +630,11 @@ def compress(values: FeatureRef, mask: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: The feature representing the filtered sequence.
     """
-    return BooleanIndexing().call(values=values, mask=mask).indexed_values
+    return (
+        hyped.processors._ops.sequence.access.BooleanIndexing()
+        .call(values=values, mask=mask)
+        .indexed_values
+    )
 
 
 def contains(obj: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
@@ -640,7 +654,11 @@ def contains(obj: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
     obj, value = _check_args(obj, value)
 
     if check_feature_is_sequence(obj.feature_):
-        return SequenceContains().call(sequence=obj, value=value).result
+        return (
+            hyped.processors._ops.sequence.query.SequenceContains()
+            .call(sequence=obj, value=value)
+            .result
+        )
 
     elif check_feature_equals(obj.feature_, STRING_LIKE_TYPES):
         # implement contains operation for string-like features
@@ -669,7 +687,11 @@ def count_of(obj: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
     obj, value = _check_args(obj, value)
 
     if check_feature_is_sequence(obj.feature_):
-        return SequenceCountOf().call(sequence=obj, value=value).result
+        return (
+            hyped.processors._ops.sequence.query.SequenceCountOf()
+            .call(sequence=obj, value=value)
+            .result
+        )
 
     elif check_feature_equals(obj.feature_, STRING_LIKE_TYPES):
         # implement contains operation for string-like features
@@ -698,7 +720,11 @@ def index_of(obj: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
     obj, value = _check_args(obj, value)
 
     if check_feature_is_sequence(obj.feature_):
-        return SequenceIndexOf().call(sequence=obj, value=value).result
+        return (
+            hyped.processors._ops.sequence.query.SequenceIndexOf()
+            .call(sequence=obj, value=value)
+            .result
+        )
 
     elif check_feature_equals(obj.feature_, STRING_LIKE_TYPES):
         # implement contains operation for string-like features
@@ -726,7 +752,11 @@ def chain(*sequences: FeatureRef) -> FeatureRef:
     sequences = _check_args(*sequences)
     seq_container = collect({str(i): seq for i, seq in enumerate(sequences)})
     # return chained sequence feature
-    return SequenceChain().call(sequences=seq_container).result
+    return (
+        hyped.processors._ops.sequence.multi.SequenceChain()
+        .call(sequences=seq_container)
+        .result
+    )
 
 
 def zip_(*sequences: FeatureRef) -> FeatureRef:
@@ -744,7 +774,11 @@ def zip_(*sequences: FeatureRef) -> FeatureRef:
     sequences = _check_args(*sequences)
     seq_container = collect({str(i): seq for i, seq in enumerate(sequences)})
     # zip collected sequences
-    return SequenceZip().call(sequences=seq_container).result
+    return (
+        hyped.processors._ops.sequence.multi.SequenceZip()
+        .call(sequences=seq_container)
+        .result
+    )
 
 
 def precision_recall_fscore_support(
@@ -821,7 +855,7 @@ def precision_recall_fscore_support(
         TypeError: If the features are of unexpected types.
     """
     multilabel_confusion_matrix = (
-        MultiLabelConfusionMatrix()
+        hyped.aggregators.MultiLabelConfusionMatrix()
         .call(
             y_true=y_true,
             y_pred=y_pred,
@@ -829,7 +863,7 @@ def precision_recall_fscore_support(
         .confusion_matrix
     )
 
-    return PrecisionRecallFScoreSupport(
+    return hyped.processors.PrecisionRecallFScoreSupport(
         labels=labels,
         beta=beta,
         average=average,

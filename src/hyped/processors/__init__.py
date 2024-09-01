@@ -19,10 +19,14 @@ Key Features of Data Processors in This Module:
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from .api.openai_chat import OpenAIChatCompletion
+    from .metrics.prfs import PrecisionRecallFScoreSupport
+    from .parsers.json import JsonParser
     from .spans.bio_tags import BioTags
     from .spans.chr_to_tok import ChrToTokSpans
     from .spans.overlaps import ResolveOverlaps
     from .spans.utils import ResolveOverlapsStrategy
+    from .templates.jinja2 import Jinja2
     from .tokenizers.transformers import TransformersTokenizer
 
 else:

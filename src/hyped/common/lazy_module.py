@@ -67,7 +67,8 @@ class LazyModule(ModuleType):
         doc: str,
         module_file: str,
         module_spec: str,
-        lazy_imports: dict[str, str],
+        lazy_imports: dict[str, str] = {},
+        lazy_modules: dict[str, str] = {},
     ) -> None:
         """Initialize a LazyModule instance.
 
@@ -78,13 +79,21 @@ class LazyModule(ModuleType):
             module_spec (str): The module specification.
             lazy_imports (dict[str, str]): A dictionary mapping attribute names
                 to module paths for lazy imports.
+            lazy_modules (dict[str, str]): A dictionary mapping sub-module names
+                to module paths for lazy imports.
         """
         super(LazyModule, self).__init__(name, doc=doc)
 
         self._lazy_imports = lazy_imports
+        self._lazy_modules = lazy_modules
         self.__file__ = module_file
         self.__spec__ = module_spec
         self.__path__ = [os.path.dirname(module_file)]
+
+        shared_keys = set(lazy_imports.keys()) & set(lazy_modules.keys())
+        assert (
+            len(shared_keys) == 0
+        ), f"Overlapping keys in 'lazy_imports' and 'lazy_modules': {shared_keys}"
 
     @property
     def __all__(self) -> list[str]:
@@ -93,7 +102,9 @@ class LazyModule(ModuleType):
         Returns:
             list[str]: A list of attribute names defined in the lazy imports.
         """
-        return list(self._lazy_imports.keys())
+        return list(self._lazy_imports.keys()) + list(
+            self._lazy_modules.keys()
+        )
 
     def __dir__(self) -> list[str]:
         """Return a list of attributes available in this module.
@@ -123,10 +134,15 @@ class LazyModule(ModuleType):
         Raises:
             AttributeError: If the attribute is not found in the lazy imports.
         """
-        if name not in self._lazy_imports:
-            raise AttributeError(
-                f"module '{self.__name__}' has no attribute '{name}'"
-            )
-        module = self._lazy_imports[name]
-        module = importlib.import_module(module, self.__name__)
-        return getattr(module, name)
+        if name in self._lazy_imports:
+            module = self._lazy_imports[name]
+            module = importlib.import_module(module, self.__name__)
+            return getattr(module, name)
+
+        if name in self._lazy_modules:
+            module = self._lazy_modules[name]
+            return importlib.import_module(module, self.__name__)
+
+        raise AttributeError(
+            f"module '{self.__name__}' has no attribute '{name}'"
+        )

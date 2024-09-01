@@ -94,8 +94,8 @@ def test_collect():
 @pytest.mark.parametrize(
     "op, agg_type",
     [
-        (ops.sum_, "hyped.ops.SumAggregator"),
-        (ops.mean, "hyped.ops.MeanAggregator"),
+        (ops.sum_, "hyped.aggregators._ops.sum.SumAggregator"),
+        (ops.mean, "hyped.aggregators._ops.mean.MeanAggregator"),
     ],
 )
 def test_simple_aggregators(op, agg_type):
@@ -111,8 +111,8 @@ def test_simple_aggregators(op, agg_type):
 @pytest.mark.parametrize(
     "op, agg_type",
     [
-        (ops.sum_, "hyped.ops.SequenceSum"),
-        (ops.mean, "hyped.ops.SequenceMean"),
+        (ops.sum_, "hyped.processors._ops.sequence.reduce.SequenceSum"),
+        (ops.mean, "hyped.processors._ops.sequence.reduce.SequenceMean"),
     ],
 )
 def test_sequence_aggregators(op, agg_type):
@@ -130,82 +130,82 @@ def test_sequence_aggregators(op, agg_type):
     [
         (
             ops.add,
-            "hyped.ops.binary.Add",
+            "hyped.processors._ops.binary.Add",
             "int32",
         ),
         (
             ops.sub,
-            "hyped.ops.binary.Sub",
+            "hyped.processors._ops.binary.Sub",
             "int32",
         ),
         (
             ops.mul,
-            "hyped.ops.binary.Mul",
+            "hyped.processors._ops.binary.Mul",
             "int32",
         ),
         (
             ops.pow,
-            "hyped.ops.binary.Pow",
+            "hyped.processors._ops.binary.Pow",
             "int32",
         ),
         (
             ops.mod,
-            "hyped.ops.binary.Mod",
+            "hyped.processors._ops.binary.Mod",
             "int32",
         ),
         (
             ops.truediv,
-            "hyped.ops.binary.TrueDiv",
+            "hyped.processors._ops.binary.TrueDiv",
             "int32",
         ),
         (
             ops.floordiv,
-            "hyped.ops.binary.FloorDiv",
+            "hyped.processors._ops.binary.FloorDiv",
             "int32",
         ),
         (
             ops.eq,
-            "hyped.ops.binary.Equals",
+            "hyped.processors._ops.binary.Equals",
             "int32",
         ),
         (
             ops.ne,
-            "hyped.ops.binary.NotEquals",
+            "hyped.processors._ops.binary.NotEquals",
             "int32",
         ),
         (
             ops.lt,
-            "hyped.ops.binary.LessThan",
+            "hyped.processors._ops.binary.LessThan",
             "int32",
         ),
         (
             ops.le,
-            "hyped.ops.binary.LessThanOrEqual",
+            "hyped.processors._ops.binary.LessThanOrEqual",
             "int32",
         ),
         (
             ops.gt,
-            "hyped.ops.binary.GreaterThan",
+            "hyped.processors._ops.binary.GreaterThan",
             "int32",
         ),
         (
             ops.ge,
-            "hyped.ops.binary.GreaterThanOrEqual",
+            "hyped.processors._ops.binary.GreaterThanOrEqual",
             "int32",
         ),
         (
             ops.and_,
-            "hyped.ops.binary.LogicalAnd",
+            "hyped.processors._ops.binary.LogicalAnd",
             "bool",
         ),
         (
             ops.or_,
-            "hyped.ops.binary.LogicalOr",
+            "hyped.processors._ops.binary.LogicalOr",
             "bool",
         ),
         (
             ops.xor_,
-            "hyped.ops.binary.LogicalXOr",
+            "hyped.processors._ops.binary.LogicalXOr",
             "bool",
         ),
     ],
@@ -232,9 +232,9 @@ def test_binary_op(op, proc_type, dtype):
 @pytest.mark.parametrize(
     "op, proc_type, dtype",
     [
-        (ops.neg, "hyped.ops.unary.Neg", "int32"),
-        (ops.abs_, "hyped.ops.unary.Abs", "int32"),
-        (ops.invert, "hyped.ops.unary.Invert", "int32"),
+        (ops.neg, "hyped.processors._ops.unary.Neg", "int32"),
+        (ops.abs_, "hyped.processors._ops.unary.Abs", "int32"),
+        (ops.invert, "hyped.processors._ops.unary.Invert", "int32"),
     ],
 )
 def test_unary_op(op, proc_type, dtype):
@@ -267,14 +267,14 @@ def test_len_op():
         )
     )
 
-    with patch("hyped.ops.SequenceLength") as mock:
+    with patch("hyped.processors._ops.sequence.reduce.SequenceLength") as mock:
         # test constant length sequence
         out = flow.src_features.constant_seq.length_()
         # make sure the processor was not called and check the output
         assert not mock().call.called
         assert out == 5
 
-    with patch("hyped.ops.SequenceLength") as mock:
+    with patch("hyped.processors._ops.sequence.reduce.SequenceLength") as mock:
         # test dynamic length sequence
         out = flow.src_features.dynamic_seq.length_()
         # make sure processor was called correctly
@@ -291,7 +291,7 @@ def test_len_op():
 
 @pytest.mark.parametrize(
     "op, proc_type",
-    [(ops.chain, "hyped.ops.SequenceChain")],
+    [(ops.chain, "hyped.processors._ops.sequence.multi.SequenceChain")],
 )
 def test_chain_op(op, proc_type):
     flow = DataFlow(
@@ -340,14 +340,18 @@ def test_sequence_access():
         )
     )
 
-    with patch("hyped.ops.SequenceGetItem") as mock:
+    with patch(
+        "hyped.processors._ops.sequence.access.SequenceGetItem"
+    ) as mock:
         ops.get_item(flow.src_features.seq, flow.src_features.idx)
         # make sure processor was called correctly
         mock().call.assert_called_once_with(
             sequence=flow.src_features.seq, index=flow.src_features.idx
         )
 
-    with patch("hyped.ops.SequenceSetItem") as mock:
+    with patch(
+        "hyped.processors._ops.sequence.access.SequenceSetItem"
+    ) as mock:
         ops.set_item(
             flow.src_features.seq, flow.src_features.idx, flow.src_features.val
         )
@@ -371,7 +375,9 @@ def test_compress():
     )
 
     # Mock the BooleanIndexing processor
-    with patch("hyped.ops.BooleanIndexing") as mock:
+    with patch(
+        "hyped.processors._ops.sequence.access.BooleanIndexing"
+    ) as mock:
         # Call the compress function
         ops.compress(flow.src_features.values, flow.src_features.mask)
 
@@ -386,15 +392,15 @@ def test_compress():
     [
         (
             FeatureRef.contains_,
-            "hyped.ops.SequenceContains",
+            "hyped.processors._ops.sequence.query.SequenceContains",
         ),
         (
             ops.count_of,
-            "hyped.ops.SequenceCountOf",
+            "hyped.processors._ops.sequence.query.SequenceCountOf",
         ),
         (
             ops.index_of,
-            "hyped.ops.SequenceIndexOf",
+            "hyped.processors._ops.sequence.query.SequenceIndexOf",
         ),
     ],
 )
@@ -430,7 +436,7 @@ def test_value_lookup_op(op, seq_proc_type):
 
 @pytest.mark.parametrize(
     "op, proc_type",
-    [(ops.zip_, "hyped.ops.SequenceZip")],
+    [(ops.zip_, "hyped.processors._ops.sequence.multi.SequenceZip")],
 )
 def test_multi_sequence_op(op, proc_type):
     flow = DataFlow(
@@ -476,8 +482,8 @@ def test_prfs():
     )
 
     with (
-        patch("hyped.ops.MultiLabelConfusionMatrix") as mcm_mock,
-        patch("hyped.ops.PrecisionRecallFScoreSupport") as prfs_mock,
+        patch("hyped.aggregators.MultiLabelConfusionMatrix") as mcm_mock,
+        patch("hyped.processors.PrecisionRecallFScoreSupport") as prfs_mock,
     ):
         # call the operator
         ops.precision_recall_fscore_support(
