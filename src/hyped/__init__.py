@@ -29,5 +29,14 @@ Example:
 
 from hyped.__version__ import __version__, __version_tuple__
 
+__all__ = [
+    "DataFlow",
+    "aggregators",
+    "augmenters",
+    "io",
+    "ops",
+    "processors",
+]
+
 from . import aggregators, augmenters, io, ops, processors
 from .core.flow import DataFlow

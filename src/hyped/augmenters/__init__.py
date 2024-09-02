@@ -9,6 +9,10 @@ into the workflow to support a wide range of data augmentation operations.
 
 from typing import TYPE_CHECKING
 
+__all__ = [
+    "ChunkSequence",
+]
+
 if TYPE_CHECKING:
     from .chunk import ChunkSequence
 

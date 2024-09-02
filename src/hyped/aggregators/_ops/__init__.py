@@ -9,6 +9,11 @@ and updating the aggregated results.
 
 from typing import TYPE_CHECKING
 
+__all__ = [
+    "MeanAggregator",
+    "SumAggregator",
+]
+
 if TYPE_CHECKING:
     from .mean import MeanAggregator
     from .sum import SumAggregator

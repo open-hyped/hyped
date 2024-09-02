@@ -43,6 +43,41 @@ Usage Example:
 
 from typing import TYPE_CHECKING
 
+__all__ = [
+    "add",
+    "sub",
+    "mul",
+    "truediv",
+    "floordiv",
+    "mod",
+    "eq",
+    "pow_",
+    "ne",
+    "lt",
+    "le",
+    "gt",
+    "ge",
+    "and_",
+    "or_",
+    "xor_",
+    "precision_recall_fscore_support",
+    "chain",
+    "compress",
+    "contains",
+    "count_of",
+    "get_item",
+    "index_of",
+    "len_",
+    "set_item",
+    "zip_",
+    "sum_",
+    "mean",
+    "neg",
+    "abs_",
+    "invert",
+    "collect",
+]
+
 if TYPE_CHECKING:
     from .binary import (
         add,

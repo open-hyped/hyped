@@ -18,6 +18,27 @@ direct use by end users interacting with the high-level data flow interface.
 
 from typing import TYPE_CHECKING
 
+__all__ = [
+    "DataFlow",
+    "BaseDataAggregator",
+    "BaseDataAggregatorConfig",
+    "BaseDataAugmenter",
+    "BaseDataAugmenterConfig",
+    "BaseDataProcessor",
+    "BaseDataProcessorConfig",
+    "InputRefs",
+    "GlobalValidator",
+    "FeatureValidator",
+    "CheckFeatureEquals",
+    "CheckFeatureIsSequence",
+    "OutputRefs",
+    "OutputFeature",
+    "LambdaOutputFeature",
+    "ConditionalOutputFeature",
+    "FeatureRef",
+    "NONE_REF",
+]
+
 if TYPE_CHECKING:
     from .flow import DataFlow
     from .nodes.aggregator import BaseDataAggregator, BaseDataAggregatorConfig

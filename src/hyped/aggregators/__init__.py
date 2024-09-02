@@ -8,6 +8,10 @@ graph, acting as nodes that implement specific, modular aggregation logic.
 
 from typing import TYPE_CHECKING
 
+__all__ = [
+    "MultiLabelConfusionMatrix",
+]
+
 if TYPE_CHECKING:
     from .confusion.mcm import MultiLabelConfusionMatrix
 
