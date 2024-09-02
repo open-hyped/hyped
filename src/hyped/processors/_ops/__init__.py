@@ -65,17 +65,9 @@ if TYPE_CHECKING:
     )
     from .collect import CollectFeatures
     from .noop import NoOp
-    from .sequence.access import (
-        BooleanIndexing,
-        SequenceGetItem,
-        SequenceSetItem,
-    )
+    from .sequence.access import BooleanIndexing, SequenceGetItem, SequenceSetItem
     from .sequence.multi import SequenceChain, SequenceZip
-    from .sequence.query import (
-        SequenceContains,
-        SequenceCountOf,
-        SequenceIndexOf,
-    )
+    from .sequence.query import SequenceContains, SequenceCountOf, SequenceIndexOf
     from .sequence.reduce import SequenceLength, SequenceMean, SequenceSum
     from .unary import Abs, BooleanInvert, Invert, Neg
 

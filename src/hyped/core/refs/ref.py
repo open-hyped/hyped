@@ -7,10 +7,11 @@ retrieve nested features within the data flow graph.
 
 from __future__ import annotations
 
-import json
+import json  # noqa: F401
 from typing import Any
 
-from datasets.features.features import Features, FeatureType, Sequence, Value
+from datasets import Sequence  # noqa: F401
+from datasets.features.features import Features, FeatureType, Value
 from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
 from typing_extensions import Annotated
 
@@ -79,9 +80,7 @@ class FeatureRef(BaseModel):
         Features | FeatureType,
         # custom serialization
         PlainSerializer(
-            lambda f: json.dumps(
-                Features({"feature": f}).to_dict()["feature"]
-            ),
+            lambda f: json.dumps(Features({"feature": f}).to_dict()["feature"]),
             return_type=str,
             when_used="unless-none",
         ),
@@ -154,13 +153,9 @@ class FeatureRef(BaseModel):
             return self.__getitem__(key)
         except (KeyError, TypeError) as e:
             # raise attribute error
-            raise AttributeError(
-                f"'FeatureRef' object has no attribute '{key}'"
-            ) from e
+            raise AttributeError(f"'FeatureRef' object has no attribute '{key}'") from e
 
-    def __getitem__(
-        self, key: str | int | slice | FeatureKey | FeatureRef
-    ) -> FeatureRef:
+    def __getitem__(self, key: str | int | slice | FeatureKey | FeatureRef) -> FeatureRef:
         """Access a sub-feature within the FeatureRef instance via index-style access.
 
         Args:
@@ -177,9 +172,7 @@ class FeatureRef(BaseModel):
         if isinstance(key, FeatureRef):
             # make sure the feature is a sequence
             if not check_feature_is_sequence(self.feature_):
-                raise TypeError(
-                    f"'{self.feature_}' object is not subscriptable."
-                )
+                raise TypeError(f"'{self.feature_}' object is not subscriptable.")
 
             # if the key is a mask, apply boolean indexing operator
             if check_feature_is_sequence(key.feature_, Value("bool")):
@@ -245,9 +238,7 @@ class FeatureRef(BaseModel):
 
             # collect all the features in the current collection and
             # additionally the requested feature
-            out = collect(
-                {k: self[k] for k in self.feature_.keys()} | {key: value}
-            )
+            out = collect({k: self[k] for k in self.feature_.keys()} | {key: value})
             # update reference to the output reference
             return self._update(out)
 
@@ -261,9 +252,7 @@ class FeatureRef(BaseModel):
 
         else:
             # setitem not supported
-            raise TypeError(
-                f"'{self.feature_}' object does not support item assignment."
-            )
+            raise TypeError(f"'{self.feature_}' object does not support item assignment.")
 
     def __add__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform addition with another feature.

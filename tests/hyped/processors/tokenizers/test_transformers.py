@@ -23,9 +23,7 @@ class TestTransformersTokenizer(BaseDataProcessorTest):
     }
     input_index = [0, 1]
     # expected outputs
-    expected_output_features = Features(
-        {"input_ids": Sequence(Value("int32"))}
-    )
+    expected_output_features = Features({"input_ids": Sequence(Value("int32"))})
     expected_output_data = {
         "input_ids": [
             [
@@ -95,9 +93,7 @@ class TestTransformersTokenizer_WithPair(BaseDataProcessorTest):
     }
     input_index = [0, 1]
     # expected output
-    expected_output_features = Features(
-        {"input_ids": Sequence(Value("int32"))}
-    )
+    expected_output_features = Features({"input_ids": Sequence(Value("int32"))})
     expected_output_data = {
         "input_ids": [
             [
@@ -210,9 +206,7 @@ class TestTransformersTokenizer_WithPairAndTarget(BaseDataProcessorTest):
     }
     input_index = [0, 1]
     # expected output
-    expected_output_features = Features(
-        {"input_ids": Sequence(Value("int32"))}
-    )
+    expected_output_features = Features({"input_ids": Sequence(Value("int32"))})
     expected_output_data = {
         "input_ids": [
             [
@@ -316,12 +310,8 @@ class TestTransformersTokenizerWithPaddingAndTruncation(BaseDataProcessorTest):
     }
     input_index = [0, 1]
     # expected outputs
-    expected_output_features = Features(
-        {"input_ids": Sequence(Value("int32"), length=4)}
-    )
-    expected_output_data = {
-        "input_ids": [[101, 19544, 2213, 102], [101, 20022, 7606, 102]]
-    }
+    expected_output_features = Features({"input_ids": Sequence(Value("int32"), length=4)})
+    expected_output_data = {"input_ids": [[101, 19544, 2213, 102], [101, 20022, 7606, 102]]}
 
 
 class TestTransformersTokenizerReturnAll(BaseDataProcessorTest):
@@ -644,9 +634,7 @@ class TestTransformersTokenizerPretokenized(BaseDataProcessorTest):
     }
     input_index = [0, 1]
     # expected outputs
-    expected_output_features = Features(
-        {"input_ids": Sequence(Value("int32"))}
-    )
+    expected_output_features = Features({"input_ids": Sequence(Value("int32"))})
     expected_output_data = {
         "input_ids": [
             [

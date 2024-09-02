@@ -10,7 +10,6 @@ from hyped.core.refs.ref import FeatureRef
 from hyped.processors._ops.collect import (
     CollectFeatures,
     CollectFeaturesConfig,
-    CollectFeaturesOutputRefs,
     NestedContainer,
     _path_to_str,
 )
@@ -58,9 +57,7 @@ class TestNestedContainer:
             ]
         )
         # check output
-        assert mapped_container == NestedContainer[str](
-            data={"a": ["x", "x"], "b": "x"}
-        )
+        assert mapped_container == NestedContainer[str](data={"a": ["x", "x"], "b": "x"})
 
     def test_flatten(self):
         container = NestedContainer[int](data={"a": [1, 2], "b": 3})
@@ -74,12 +71,8 @@ class TestNestedContainer:
 mock_flow = MagicMock()
 mock_flow.add_processor_node = MagicMock(return_value="node_id")
 
-int_ref = FeatureRef(
-    key_="int", feature_=Value("int32"), node_id_="0", flow_=mock_flow
-)
-str_ref = FeatureRef(
-    key_="str", feature_=Value("string"), node_id_="1", flow_=mock_flow
-)
+int_ref = FeatureRef(key_="int", feature_=Value("int32"), node_id_="0", flow_=mock_flow)
+str_ref = FeatureRef(key_="str", feature_=Value("string"), node_id_="1", flow_=mock_flow)
 dct_ref = FeatureRef(
     key_="dct",
     feature_=Features({"val": Value("int32")}),
@@ -96,9 +89,7 @@ lst_ref = FeatureRef(
 
 def test_invalid_sequence():
     with pytest.raises(TypeError):
-        CollectFeatures().call(
-            collection=NestedContainer[FeatureRef](data=[int_ref, str_ref])
-        )
+        CollectFeatures().call(collection=NestedContainer[FeatureRef](data=[int_ref, str_ref]))
 
 
 class BaseCollectFeaturesTest(BaseDataProcessorTest):
@@ -115,10 +106,7 @@ class BaseCollectFeaturesTest(BaseDataProcessorTest):
 
     @pytest.fixture
     def input_refs(self, nested_collection, flow) -> InputRefs:
-        named_refs = {
-            _path_to_str(key): ref
-            for key, ref in nested_collection.flatten().items()
-        }
+        named_refs = {_path_to_str(key): ref for key, ref in nested_collection.flatten().items()}
         return InputRefsContainer(named_refs=named_refs, flow=flow)
 
     @pytest.fixture
@@ -149,12 +137,8 @@ class TestCollectFeatures_mapping(BaseCollectFeaturesTest):
     }
     input_index = list(range(100))
     # expected outputs
-    expected_output_features = {
-        "collected": {"a": int_ref.feature_, "b": str_ref.feature_}
-    }
-    expected_output_data = {
-        "collected": [{"a": i, "b": str(100 + i)} for i in range(100)]
-    }
+    expected_output_features = {"collected": {"a": int_ref.feature_, "b": str_ref.feature_}}
+    expected_output_data = {"collected": [{"a": i, "b": str(100 + i)} for i in range(100)]}
 
 
 class TestCollectFeatures_sequence(BaseCollectFeaturesTest):
@@ -172,9 +156,7 @@ class TestCollectFeatures_sequence(BaseCollectFeaturesTest):
     }
     input_index = list(range(100))
     # expected outputs
-    expected_output_features = {
-        "collected": Sequence(int_ref.feature_, length=3)
-    }
+    expected_output_features = {"collected": Sequence(int_ref.feature_, length=3)}
     expected_output_data = {"collected": [[i, i, i] for i in range(100)]}
 
 
@@ -232,12 +214,8 @@ class TestCollectFeatures_nested_dict(BaseCollectFeaturesTest):
     }
     input_index = list(range(100))
     # expected outputs
-    expected_output_features = {
-        "collected": {"a": dct_ref.feature_, "b": str_ref.feature_}
-    }
-    expected_output_data = {
-        "collected": [{"a": {"val": i}, "b": str(100 + i)} for i in range(100)]
-    }
+    expected_output_features = {"collected": {"a": dct_ref.feature_, "b": str_ref.feature_}}
+    expected_output_data = {"collected": [{"a": {"val": i}, "b": str(100 + i)} for i in range(100)]}
 
 
 class TestCollectFeatures_nested_list(BaseCollectFeaturesTest):
@@ -250,9 +228,5 @@ class TestCollectFeatures_nested_list(BaseCollectFeaturesTest):
     }
     input_index = list(range(100))
     # expected outputs
-    expected_output_features = {
-        "collected": {"a": lst_ref.feature_, "b": str_ref.feature_}
-    }
-    expected_output_data = {
-        "collected": [{"a": [i], "b": str(100 + i)} for i in range(100)]
-    }
+    expected_output_features = {"collected": {"a": lst_ref.feature_, "b": str_ref.feature_}}
+    expected_output_data = {"collected": [{"a": [i], "b": str(100 + i)} for i in range(100)]}

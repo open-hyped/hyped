@@ -20,9 +20,7 @@ else:
 
     from hyped.common.lazy_module import LazyModule
 
-    _lazy_imports = {
-        "MultiLabelConfusionMatrix": "hyped.aggregators.confusion.mcm"
-    }
+    _lazy_imports = {"MultiLabelConfusionMatrix": "hyped.aggregators.confusion.mcm"}
 
     sys.modules[__name__] = LazyModule(
         __name__, __doc__, globals()["__file__"], __spec__, _lazy_imports

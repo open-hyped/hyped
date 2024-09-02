@@ -66,9 +66,7 @@ class TypeRegistry(object):
         """
         # check type
         if not issubclass(T, Registrable):
-            raise TypeError(
-                "Registrable types must inherit from `%s`" % str(Registrable)
-            )
+            raise TypeError("Registrable types must inherit from `%s`" % str(Registrable))
 
         h = T.type_hash
         # update registers
@@ -114,14 +112,11 @@ class TypeRegistry(object):
                 types that inherit the root type
         """
         # build inverted hash register mapping hash to type-id
-        inv_hash_register = {
-            h: t for t, h in self.global_hash_register.items()
-        }
+        inv_hash_register = {h: t for t, h in self.global_hash_register.items()}
         # build up-to-date sub-tree hash register
         subtree = list(self.hash_tree_bfs(root=root.type_hash))
         return {self.global_type_register[h].type_id: h for h in subtree} | {
-            inv_hash_register[h]: h
-            for h in filter(inv_hash_register.__contains__, subtree)
+            inv_hash_register[h]: h for h in filter(inv_hash_register.__contains__, subtree)
         }
 
     def get_type_register(self, root: type) -> dict[str, type]:
@@ -135,10 +130,7 @@ class TypeRegistry(object):
                 the type register mapping type hashes to types for
                 types that inherit the root type
         """
-        return {
-            h: self.global_type_register[h]
-            for h in self.hash_tree_bfs(root=root.type_hash)
-        }
+        return {h: self.global_type_register[h] for h in self.hash_tree_bfs(root=root.type_hash)}
 
 
 class RootedTypeRegistryView(object):

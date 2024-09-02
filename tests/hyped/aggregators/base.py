@@ -6,10 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from datasets import Features, Sequence
 
-from hyped.common.feature_checks import (
-    check_feature_equals,
-    check_object_matches_feature,
-)
+from hyped.common.feature_checks import check_feature_equals, check_object_matches_feature
 from hyped.common.typing import Batch, IndexList, Rank
 from hyped.common.utils import deep_equal
 from hyped.core.nodes.aggregator import (
@@ -82,9 +79,7 @@ class BaseDataAggregatorTest:
         return mock_flow
 
     @pytest.fixture
-    def input_refs(
-        self, aggregator, input_verification_error_handler, flow
-    ) -> InputRefs:
+    def input_refs(self, aggregator, input_verification_error_handler, flow) -> InputRefs:
         cls = type(self)
         input_refs = {
             k: FeatureRef(key_=k, feature_=v, node_id_=cls.node_id, flow_=flow)
@@ -101,9 +96,7 @@ class BaseDataAggregatorTest:
         return aggregator._out_refs_type(
             flow,
             "out",
-            aggregator._out_refs_type.build_features(
-                aggregator.config, input_refs.named_refs
-            ),
+            aggregator._out_refs_type.build_features(aggregator.config, input_refs.named_refs),
         )
 
     @pytest.fixture
@@ -115,17 +108,13 @@ class BaseDataAggregatorTest:
         return IOContext(
             node_id=cls.node_id,
             inputs=cls.input_features,
-            outputs=output_refs.build_features(
-                cls.aggregator_config, input_refs.named_refs
-            ),
+            outputs=output_refs.build_features(cls.aggregator_config, input_refs.named_refs),
         )
 
     @pytest.fixture
     @patch("hyped.core.nodes.aggregator._manager")
-    def manager(
-        self, mock_manager, aggregator, io_context
-    ) -> DataAggregationManager:
-        cls = type(self)
+    def manager(self, mock_manager, aggregator, io_context) -> DataAggregationManager:
+        type(self)
         # error catched in input verification
         if io_context is None:
             return None
@@ -133,10 +122,8 @@ class BaseDataAggregatorTest:
         mock_manager.dict = MagicMock(side_effect=lambda x: dict(x))
         mock_manager.Lock = MagicMock(return_value=MagicMock())
         # create aggregation manager
-        cls = type(self)
-        return DataAggregationManager(
-            aggregators=[aggregator], io_contexts=[io_context]
-        )
+        type(self)
+        return DataAggregationManager(aggregators=[aggregator], io_contexts=[io_context])
 
     def test_call(self, aggregator, input_refs):
         cls = type(self)
@@ -146,9 +133,7 @@ class BaseDataAggregatorTest:
             out = aggregator.call(**input_refs.named_refs)
             # check the output features
             if cls.expected_value_feature is not None:
-                assert check_feature_equals(
-                    out.feature_, cls.expected_value_feature
-                )
+                assert check_feature_equals(out.feature_, cls.expected_value_feature)
 
     @pytest.mark.asyncio
     async def test_pickle(
@@ -230,9 +215,7 @@ class BaseDataAggregatorTest:
             )
 
             if cls.expected_value_feature is not None:
-                assert check_feature_equals(
-                    output_refs.feature_, cls.expected_value_feature
-                )
+                assert check_feature_equals(output_refs.feature_, cls.expected_value_feature)
                 assert check_object_matches_feature(
                     manager._value_buffer[cls.node_id],
                     cls.expected_value_feature,
@@ -240,9 +223,7 @@ class BaseDataAggregatorTest:
 
         with exec_error_handler:
             # run aggregation
-            await manager.aggregate(
-                aggregator, cls.input_data, input_index, cls.rank, io_context
-            )
+            await manager.aggregate(aggregator, cls.input_data, input_index, cls.rank, io_context)
 
         # check aggregation value matches output features
         assert check_object_matches_feature(
@@ -251,16 +232,12 @@ class BaseDataAggregatorTest:
 
         # check aggregation state after execution
         if cls.expected_output_value != UNSET:
-            assert deep_equal(
-                manager._value_buffer[cls.node_id], cls.expected_output_value
-            ), (
+            assert deep_equal(manager._value_buffer[cls.node_id], cls.expected_output_value), (
                 f"Expected {cls.expected_output_value}, "
                 f"got {manager._value_buffer[cls.node_id]}"
             )
         if cls.expected_output_state != UNSET:
-            assert deep_equal(
-                manager._state_buffer[cls.node_id], cls.expected_output_state
-            ), (
+            assert deep_equal(manager._state_buffer[cls.node_id], cls.expected_output_state), (
                 f"Expected {cls.expected_output_state}, "
                 f"got {manager._state_buffer[cls.node_id]}"
             )

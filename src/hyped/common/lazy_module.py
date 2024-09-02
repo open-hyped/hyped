@@ -96,8 +96,7 @@ class LazyModule(ModuleType):
         ), f"Overlapping keys in 'lazy_imports' and 'lazy_modules': {shared_keys}"
 
         assert all(
-            key != module.split(".")[-1]
-            for key, module in self._lazy_imports.items()
+            key != module.split(".")[-1] for key, module in self._lazy_imports.items()
         ), "Attribute name conflicts with the name of the module it is importing."
 
     @property
@@ -107,9 +106,7 @@ class LazyModule(ModuleType):
         Returns:
             list[str]: A list of attribute names defined in the lazy imports.
         """
-        return list(self._lazy_imports.keys()) + list(
-            self._lazy_modules.keys()
-        )
+        return list(self._lazy_imports.keys()) + list(self._lazy_modules.keys())
 
     def __dir__(self) -> list[str]:
         """Return a list of attributes available in this module.
@@ -148,6 +145,4 @@ class LazyModule(ModuleType):
             module = self._lazy_modules[name]
             return importlib.import_module(module, self.__name__)
 
-        raise AttributeError(
-            f"module '{self.__name__}' has no attribute '{name}'"
-        )
+        raise AttributeError(f"module '{self.__name__}' has no attribute '{name}'")

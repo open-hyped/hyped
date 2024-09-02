@@ -23,7 +23,6 @@ from hyped.common.typing import Aggregate, Batch, IndexList, Rank
 
 from ..refs.inputs import InputRefs
 from ..refs.outputs import OutputRefs
-from ..refs.ref import FeatureRef
 from .base import BaseNode, BaseNodeConfig, IOContext
 
 
@@ -91,9 +90,7 @@ class DataAggregationManager(object):
         """
         return MappingProxyType(self._value_buffer)
 
-    async def _safe_update(
-        self, io: IOContext, aggregator: BaseDataAggregator, ctx: Any
-    ) -> None:
+    async def _safe_update(self, io: IOContext, aggregator: BaseDataAggregator, ctx: Any) -> None:
         """Safely update an aggregation value.
 
         Args:
@@ -179,9 +176,7 @@ class BaseDataAggregator(BaseNode[C, I, O], ABC):
         ...
 
     @abstractmethod
-    async def extract(
-        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
-    ) -> Any:
+    async def extract(self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext) -> Any:
         """Extract necessary values from the inputs for aggregation.
 
         Args:
@@ -196,9 +191,7 @@ class BaseDataAggregator(BaseNode[C, I, O], ABC):
         ...
 
     @abstractmethod
-    async def update(
-        self, val: I, state: Any, ctx: Any, io: IOContext
-    ) -> tuple[Aggregate, Any]:
+    async def update(self, val: I, state: Any, ctx: Any, io: IOContext) -> tuple[Aggregate, Any]:
         """Update the aggregation value and context.
 
         Args:

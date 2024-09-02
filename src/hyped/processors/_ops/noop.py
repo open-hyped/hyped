@@ -11,11 +11,7 @@ from typing import Annotated
 from typing_extensions import Unpack
 
 from hyped.common.typing import Batch, IndexList, Rank
-from hyped.core.nodes.processor import (
-    BaseDataProcessor,
-    BaseDataProcessorConfig,
-    IOContext,
-)
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, IOContext
 from hyped.core.refs.inputs import FeatureValidator, InputRefs
 from hyped.core.refs.outputs import LambdaOutputFeature, OutputRefs
 from hyped.core.refs.ref import FeatureRef

@@ -6,11 +6,7 @@ from contextlib import nullcontext
 
 import pytest
 
-from hyped.common.lazy_instance import (
-    LazyInstance,
-    LazySharedInstance,
-    LazyStaticInstance,
-)
+from hyped.common.lazy_instance import LazyInstance, LazySharedInstance, LazyStaticInstance
 
 
 def factory(pid=None):

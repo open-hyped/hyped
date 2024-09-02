@@ -8,16 +8,8 @@ from datasets.features.features import Sequence, Value
 from typing_extensions import Annotated, NotRequired, Unpack
 
 from hyped.common.typing import Index, Rank, Sample
-from hyped.core.nodes.processor import (
-    BaseDataProcessor,
-    BaseDataProcessorConfig,
-    IOContext,
-)
-from hyped.core.refs.inputs import (
-    CheckFeatureEquals,
-    FeatureValidator,
-    InputRefs,
-)
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, IOContext
+from hyped.core.refs.inputs import CheckFeatureEquals, FeatureValidator, InputRefs
 from hyped.core.refs.outputs import LambdaOutputFeature, OutputRefs
 from hyped.core.refs.ref import FeatureRef
 
@@ -30,9 +22,7 @@ class ChrToTokSpansInputRefs(InputRefs):
     chr_spans: Annotated[FeatureRef, FeatureValidator(validate_spans_feature)]
     """Character spans feature reference."""
 
-    query_spans: Annotated[
-        FeatureRef, FeatureValidator(validate_spans_feature)
-    ]
+    query_spans: Annotated[FeatureRef, FeatureValidator(validate_spans_feature)]
     """Query spans feature reference."""
 
     special_tokens_mask: NotRequired[
@@ -61,9 +51,7 @@ class ChrToTokSpansConfig(BaseDataProcessorConfig):
 
 
 class ChrToTokSpans(
-    BaseDataProcessor[
-        ChrToTokSpansConfig, ChrToTokSpansInputRefs, ChrToTokSpansOutputRefs
-    ]
+    BaseDataProcessor[ChrToTokSpansConfig, ChrToTokSpansInputRefs, ChrToTokSpansOutputRefs]
 ):
     """Processor to convert character spans to token spans.
 
@@ -71,9 +59,7 @@ class ChrToTokSpans(
     and then converts the overlapping spans into token spans.
     """
 
-    def process(
-        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
-    ) -> Sample:
+    def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
         """Process input samples to compute token spans.
 
         Args:
@@ -99,9 +85,7 @@ class ChrToTokSpans(
         tok_spans = list(zip(tok_spans_begin, tok_spans_end))
         return Sample(tok_spans=tok_spans)
 
-    def call(
-        self, **kwargs: Unpack[ChrToTokSpansInputRefs]
-    ) -> ChrToTokSpansOutputRefs:
+    def call(self, **kwargs: Unpack[ChrToTokSpansInputRefs]) -> ChrToTokSpansOutputRefs:
         """Execute the ChrToTokSpans processor.
 
         Processes the input references to convert character spans ('chr_spans')

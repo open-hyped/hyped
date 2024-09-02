@@ -13,17 +13,9 @@ from typing_extensions import Unpack
 
 from hyped.common._pydantic import pydantic_model_from_features
 from hyped.common.typing import Index, Rank, Sample
-from hyped.core.nodes.processor import (
-    BaseDataProcessor,
-    BaseDataProcessorConfig,
-    IOContext,
-)
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, IOContext
 from hyped.core.refs.inputs import CheckFeatureEquals, InputRefs
-from hyped.core.refs.outputs import (
-    ConditionalOutputFeature,
-    LambdaOutputFeature,
-    OutputRefs,
-)
+from hyped.core.refs.outputs import ConditionalOutputFeature, LambdaOutputFeature, OutputRefs
 from hyped.core.refs.ref import FeatureRef
 
 
@@ -43,9 +35,7 @@ class JsonParserOutputRefs(OutputRefs):
     """The output parsed feature."""
     error: Annotated[
         FeatureRef,
-        ConditionalOutputFeature(
-            Value("string"), lambda c, _: c.catch_validation_errors
-        ),
+        ConditionalOutputFeature(Value("string"), lambda c, _: c.catch_validation_errors),
     ]
     """Feature that is true if the parsing resulted in an error."""
 
@@ -59,9 +49,7 @@ class JsonParserConfig(BaseDataProcessorConfig):
         Features | FeatureType,
         # custom serialization
         PlainSerializer(
-            lambda f: json.dumps(
-                Features({"feature": f}).to_dict()["feature"]
-            ),
+            lambda f: json.dumps(Features({"feature": f}).to_dict()["feature"]),
             return_type=str,
             when_used="unless-none",
         ),
@@ -87,11 +75,7 @@ class JsonParserConfig(BaseDataProcessorConfig):
     """
 
 
-class JsonParser(
-    BaseDataProcessor[
-        JsonParserConfig, JsonParserInputRefs, JsonParserOutputRefs
-    ]
-):
+class JsonParser(BaseDataProcessor[JsonParserConfig, JsonParserInputRefs, JsonParserOutputRefs]):
     """The JSON parser data processor.
 
     This processor is designed to take a JSON string as input and parse it into
@@ -105,9 +89,7 @@ class JsonParser(
     validated in a single operation, improving efficiency and performance.
     """
 
-    def __init__(
-        self, config: None | JsonParserConfig = None, **kwargs
-    ) -> None:
+    def __init__(self, config: None | JsonParserConfig = None, **kwargs) -> None:
         """Initialize the JsonParser with the given configuration.
 
         Args:
@@ -124,14 +106,10 @@ class JsonParser(
         Returns:
             BaseModel: Pydantic model for the features.
         """
-        return pydantic_model_from_features(
-            features={"parsed": self.config.scheme}
-        )
+        return pydantic_model_from_features(features={"parsed": self.config.scheme})
 
-    def process(
-        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
-    ) -> Sample:
-        """Processes a single input sample synchronously and returns the corresponding output sample.
+    def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
+        """Parse a single JSON-string to a dictionary object.
 
         This method parses a JSON string contained within the input sample and validates it
         against a predefined model. If the configuration is set to catch validation errors,
@@ -145,12 +123,13 @@ class JsonParser(
             io (IOContext): Context information for the data processors execution.
 
         Returns:
-            Sample: The processed output sample. If :code:`config.catch_validation_errors` is True, the output
-                    includes the parsed data or a default model and an error message. If not,
-                    the output only includes the parsed data.
+            Sample: The processed output sample. If :code:`config.catch_validation_errors` is
+            :code:`True`, the output includes the parsed data or a default model and an error
+            message. If not, the output only includes the parsed data.
 
         Raises:
-            ValidationError: If validation of the JSON string fails and :code:`config.catch_validation_errors` is False.
+            ValidationError: If validation of the JSON string fails and
+                :code:`config.catch_validation_errors` is False.
         """
         json_string = f"""{{"parsed": {inputs["json_str"]}}}"""
         if self.config.catch_validation_errors:
@@ -175,9 +154,7 @@ class JsonParser(
                 parsed=parsed.model_dump()["parsed"],
             )
 
-    def call(
-        self, **kwargs: Unpack[JsonParserInputRefs]
-    ) -> JsonParserOutputRefs:
+    def call(self, **kwargs: Unpack[JsonParserInputRefs]) -> JsonParserOutputRefs:
         """Add the JsonParser node to the data flow.
 
         This method processes the input references for the JsonParser operation, adds

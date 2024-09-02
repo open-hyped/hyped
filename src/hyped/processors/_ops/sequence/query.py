@@ -15,11 +15,7 @@ from typing_extensions import Annotated, Unpack
 
 from hyped.common.feature_checks import check_feature_is_sequence
 from hyped.common.typing import Batch, IndexList, Rank
-from hyped.core.nodes.processor import (
-    BaseDataProcessor,
-    BaseDataProcessorConfig,
-    IOContext,
-)
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, IOContext
 from hyped.core.refs.inputs import (
     AnyFeatureType,
     CheckFeatureIsSequence,
@@ -34,9 +30,7 @@ class BaseSequenceQueryOpConfig(BaseDataProcessorConfig):
     """Base Configuration class for sequence-query operations."""
 
 
-def validate_input_refs(
-    config: BaseSequenceQueryOpConfig, refs: SequenceQueryOpInputRefs
-) -> None:
+def validate_input_refs(config: BaseSequenceQueryOpConfig, refs: SequenceQueryOpInputRefs) -> None:
     """Post-initialization check to ensure value matches the feature type of the sequence values.
 
     Args:
@@ -47,17 +41,11 @@ def validate_input_refs(
         TypeError: If the value feature does not match the feature type of the sequence values.
     """
     # make sure the value matches the feature type of the sequence values
-    if not check_feature_is_sequence(
-        refs["sequence"].feature_, refs["value"].feature_
-    ):
-        raise TypeError(
-            "Value feature type does not match the sequence feature type."
-        )
+    if not check_feature_is_sequence(refs["sequence"].feature_, refs["value"].feature_):
+        raise TypeError("Value feature type does not match the sequence feature type.")
 
 
-class SequenceQueryOpInputRefs(
-    Annotated[InputRefs, GlobalValidator(validate_input_refs)]
-):
+class SequenceQueryOpInputRefs(Annotated[InputRefs, GlobalValidator(validate_input_refs)]):
     """Input references for sequence query operations."""
 
     sequence: Annotated[FeatureRef, CheckFeatureIsSequence()]
@@ -97,12 +85,7 @@ class BaseSequenceQueryOp(BaseDataProcessor[C, I, O], ABC):
         Returns:
             Batch: The batch containing the result of the sequence-query operation.
         """
-        return {
-            "result": [
-                self.op(a, b)
-                for a, b in zip(inputs["sequence"], inputs["value"])
-            ]
-        }
+        return {"result": [self.op(a, b) for a, b in zip(inputs["sequence"], inputs["value"])]}
 
     def call(self, **kwargs: Unpack[SequenceQueryOpInputRefs]) -> O:
         """Add the sequence-query operation node to the data flow.

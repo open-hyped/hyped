@@ -47,16 +47,9 @@ from __future__ import annotations
 
 from abc import ABC
 from itertools import chain, repeat
-from typing import Any, Iterable, TypeVar
+from typing import Iterable, TypeVar
 
-from hyped.common.typing import (
-    Batch,
-    Index,
-    IndexList,
-    Rank,
-    Sample,
-    TraceIndexList,
-)
+from hyped.common.typing import Batch, Index, IndexList, Rank, Sample, TraceIndexList
 
 from ..refs.inputs import InputRefs
 from ..refs.outputs import OutputRefs
@@ -135,9 +128,7 @@ class BaseDataAugmenter(BaseNode[C, I, O], ABC):
         return batch, list(trace_index)
 
     # TODO: support async process functions
-    def process(
-        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
-    ) -> Iterable[Sample]:
+    def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Iterable[Sample]:
         """Defines the augmentation logic to be applied to individual samples.
 
         This method should be overridden by subclasses to define the augmentation logic.

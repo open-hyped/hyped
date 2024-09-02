@@ -21,9 +21,7 @@ class TestTypedJsonDataset(object):
                 "class": ClassLabel(names=list("ABC")),
                 "sequence": Sequence(Value("int32")),
                 "date": Value("date32"),
-                "mapping": Features(
-                    {"a": Value("int32"), "b": Value("int32")}
-                ),
+                "mapping": Features({"a": Value("int32"), "b": Value("int32")}),
             }
         )
 
@@ -95,9 +93,7 @@ class TestTypedJsonDataset(object):
             [{"int": n, "mapping": {"b": n}} for n in range(10)],
         ],
     )
-    def test_partial_fill_with_defaults(
-        self, partial_data, features, data_file, tmpdir
-    ):
+    def test_partial_fill_with_defaults(self, partial_data, features, data_file, tmpdir):
         aug_data_file = os.path.join(tmpdir, "aug_data.json")
         with open(aug_data_file, "wb+") as f, open(data_file, "rb") as f_in:
             f.write(f_in.read())

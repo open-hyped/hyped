@@ -1,21 +1,14 @@
 import pickle
 from contextlib import nullcontext
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from datasets import Features, Sequence
 
-from hyped.common.feature_checks import (
-    check_feature_equals,
-    check_object_matches_feature,
-)
+from hyped.common.feature_checks import check_feature_equals, check_object_matches_feature
 from hyped.common.typing import Batch, IndexList, Rank
 from hyped.common.utils import deep_equal
-from hyped.core.nodes.processor import (
-    BaseDataProcessor,
-    BaseDataProcessorConfig,
-    IOContext,
-)
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, IOContext
 from hyped.core.refs.inputs import InputRefsContainer
 from hyped.core.refs.outputs import OutputRefs
 from hyped.core.refs.ref import FeatureRef
@@ -93,9 +86,7 @@ class BaseDataProcessorTest:
         return processor._out_refs_type(
             flow,
             "out",
-            processor._out_refs_type.build_features(
-                processor.config, input_refs.named_refs
-            ),
+            processor._out_refs_type.build_features(processor.config, input_refs.named_refs),
         )
 
     def test_call(self, processor, input_refs):
@@ -106,27 +97,19 @@ class BaseDataProcessorTest:
             out = processor.call(**input_refs.named_refs)
             # check the output features
             if cls.expected_output_features is not None:
-                assert check_feature_equals(
-                    out.feature_, cls.expected_output_features
-                )
+                assert check_feature_equals(out.feature_, cls.expected_output_features)
 
     @pytest.mark.asyncio
-    async def test_pickle(
-        self, processor, input_refs, output_refs, exec_error_handler
-    ):
+    async def test_pickle(self, processor, input_refs, output_refs, exec_error_handler):
         # pickle and unpickle processor
         serialized = pickle.dumps(processor)
         reconstructed = pickle.loads(serialized)
         # run the test case on the reconstructed processor
         # make sure the underlying feature model is the same
-        await self.test_case(
-            reconstructed, input_refs, output_refs, exec_error_handler
-        )
+        await self.test_case(reconstructed, input_refs, output_refs, exec_error_handler)
 
     @pytest.mark.asyncio
-    async def test_case(
-        self, processor, input_refs, output_refs, exec_error_handler
-    ):
+    async def test_case(self, processor, input_refs, output_refs, exec_error_handler):
         cls = type(self)
 
         if input_refs is None:
@@ -140,9 +123,7 @@ class BaseDataProcessorTest:
 
         # check output features
         if cls.expected_output_features is not None:
-            assert check_feature_equals(
-                output_refs.feature_, cls.expected_output_features
-            )
+            assert check_feature_equals(output_refs.feature_, cls.expected_output_features)
 
         # only test the feature management, don't run the processor
         if cls.input_data is None:
@@ -166,15 +147,11 @@ class BaseDataProcessorTest:
             assert len(input_index) == len(next(iter(cls.input_data.values())))
 
         # build the io context
-        io = IOContext(
-            node_id=-1, inputs=cls.input_features, outputs=output_refs.feature_
-        )
+        io = IOContext(node_id=-1, inputs=cls.input_features, outputs=output_refs.feature_)
 
         with exec_error_handler:
             # apply processor
-            output = await processor.batch_process(
-                cls.input_data, input_index, cls.rank, io
-            )
+            output = await processor.batch_process(cls.input_data, input_index, cls.rank, io)
 
         # expected error was catched, cutoff test here
         if cls.expected_execution_error is not None:

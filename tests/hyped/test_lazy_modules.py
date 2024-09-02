@@ -25,6 +25,4 @@ def test_lazy_imports(lazy_module):
         try:
             getattr(lazy_module, name)
         except (ImportError, AttributeError):
-            pytest.fail(
-                f"Cannot import '{name}' from lazy module '{lazy_module}'."
-            )
+            pytest.fail(f"Cannot import '{name}' from lazy module '{lazy_module}'.")

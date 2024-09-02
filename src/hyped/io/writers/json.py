@@ -1,6 +1,5 @@
 """Json Data Writer."""
 import os
-from typing import Any
 
 import _io
 import orjson
@@ -32,9 +31,7 @@ class JsonDatasetWriter(BaseDatasetWriter):
             is updated
     """
 
-    def worker_shard_file_obj(
-        self, path: str, worker_id: Rank
-    ) -> _io.TextIOWrapper:
+    def worker_shard_file_obj(self, path: str, worker_id: Rank) -> _io.TextIOWrapper:
         """Worker Shard File Object.
 
         Arguments:
@@ -44,9 +41,7 @@ class JsonDatasetWriter(BaseDatasetWriter):
         Returns:
             f (_io.TextIOWrapper): file object to write the dataset to
         """
-        return open(
-            os.path.join(path, "data_shard_%i.jsonl" % worker_id), "wb+"
-        )
+        return open(os.path.join(path, "data_shard_%i.jsonl" % worker_id), "wb+")
 
     def finalize_worker(self) -> None:
         """Cleanup and close the save file."""

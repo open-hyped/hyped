@@ -1,4 +1,4 @@
-from typing import Any, Hashable, Iterable
+from typing import Hashable, Iterable
 from unittest.mock import MagicMock
 
 import pytest
@@ -17,7 +17,7 @@ from hyped.core.refs.inputs import (
     InputRefs,
     InputRefsValidator,
 )
-from hyped.core.refs.ref import NONE_REF, FeatureRef
+from hyped.core.refs.ref import FeatureRef
 
 
 def ptr_set(refs: Iterable[FeatureRef]) -> set[Pointer]:
@@ -70,9 +70,7 @@ def test_global_validator():
     # create mock validator
     mock_validator = MagicMock()
 
-    class CustomInputRefs(
-        Annotated[InputRefs, GlobalValidator(mock_validator)]
-    ):
+    class CustomInputRefs(Annotated[InputRefs, GlobalValidator(mock_validator)]):
         ...
 
     # create validator instance from custom input refs type
@@ -142,8 +140,7 @@ def test_check_or_feature_validator():
     class CustomInputRefs(InputRefs):
         x: Annotated[
             FeatureRef,
-            CheckFeatureEquals(Value("int32"))
-            | CheckFeatureEquals(Value("string")),
+            CheckFeatureEquals(Value("int32")) | CheckFeatureEquals(Value("string")),
         ]
 
     # create validator instance from custom input refs type
@@ -178,9 +175,7 @@ def test_check_feature_is_sequence():
 
     k, n, f = tuple(), "", None
     # create dummy input refs
-    x_ref = FeatureRef(
-        key_=k, node_id_=n, flow_=f, feature_=Sequence(Value("int32"))
-    )
+    x_ref = FeatureRef(key_=k, node_id_=n, flow_=f, feature_=Sequence(Value("int32")))
     y_ref = FeatureRef(
         key_=k,
         node_id_=n,
@@ -205,9 +200,7 @@ def test_check_feature_is_sequence():
     # test with specified length
     class CustomInputRefs(InputRefs):
         x: Annotated[FeatureRef, CheckFeatureIsSequence(Value("int32"))]
-        y: Annotated[
-            FeatureRef, CheckFeatureIsSequence(Value("string"), length=2)
-        ]
+        y: Annotated[FeatureRef, CheckFeatureIsSequence(Value("string"), length=2)]
 
     # create validator instance from custom input refs type
     validator = InputRefsValidator(BaseConfig(), CustomInputRefs)
@@ -245,12 +238,8 @@ def test_required_input_refs():
 
     # check properties
     assert ptr_set(input_refs.refs) == ptr_set([x_ref, y_ref])
-    assert ptr_dict(input_refs.named_refs) == ptr_dict(
-        {"x": x_ref, "y": y_ref}
-    )
-    assert input_refs.features_ == Features(
-        {"x": x_ref.feature_, "y": y_ref.feature_}
-    )
+    assert ptr_dict(input_refs.named_refs) == ptr_dict({"x": x_ref, "y": y_ref})
+    assert input_refs.features_ == Features({"x": x_ref.feature_, "y": y_ref.feature_})
 
 
 def test_optional_input_refs():
@@ -274,9 +263,7 @@ def test_optional_input_refs():
     input_refs = validator.validate(**input_refs)
     # check properties
     assert ptr_set(input_refs.refs) == ptr_set([x_ref, y_ref])
-    assert ptr_dict(input_refs.named_refs) == ptr_dict(
-        {"x": x_ref, "y": y_ref}
-    )
+    assert ptr_dict(input_refs.named_refs) == ptr_dict({"x": x_ref, "y": y_ref})
 
     # create input refs instance
     input_refs = CustomInputRefs(x=x_ref)
@@ -307,9 +294,7 @@ def test_optional_input_refs():
     input_refs = validator.validate(**input_refs)
     # check properties
     assert ptr_set(input_refs.refs) == ptr_set([x_ref, y_ref])
-    assert ptr_dict(input_refs.named_refs) == ptr_dict(
-        {"x": x_ref, "y": y_ref}
-    )
+    assert ptr_dict(input_refs.named_refs) == ptr_dict({"x": x_ref, "y": y_ref})
 
     # create input refs instance
     input_refs = CustomInputRefs(x=x_ref)
@@ -327,9 +312,7 @@ def test_missing_and_unexpected_input_arguments():
     # create validator instance from custom input refs type
     validator = InputRefsValidator(BaseConfig(), CustomInputRefs)
     # create dummy input ref
-    x_ref = FeatureRef(
-        key_=tuple(), node_id_="", flow_=MagicMock(), feature_=Value("int32")
-    )
+    x_ref = FeatureRef(key_=tuple(), node_id_="", flow_=MagicMock(), feature_=Value("int32"))
     # no inputs provided
     with pytest.raises(TypeError):
         validator.validate(x=x_ref)
@@ -360,6 +343,4 @@ def test_collect_validators():
         "x": tuple((x_validator_1, x_validator_2)),
         "y": tuple((y_validator,)),
     }
-    assert validator.global_validators == tuple(
-        (global_validator_2, global_validator_1)
-    )
+    assert validator.global_validators == tuple((global_validator_2, global_validator_1))

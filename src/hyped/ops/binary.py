@@ -10,8 +10,6 @@ and logical AND (:func:`and_`), is implemented as a function that can be directl
 applied to features in the data flow. These functions are decorated to support 
 constant values, converting them into feature references when necessary.
 """
-from functools import wraps
-from typing import Any, Callable
 
 import hyped.processors._ops as ops
 from hyped.core.refs.ref import FeatureRef

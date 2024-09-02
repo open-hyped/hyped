@@ -13,17 +13,9 @@ from typing_extensions import Annotated, Unpack
 
 from hyped.common.feature_checks import SCALAR_TYPES, get_sequence_feature
 from hyped.common.typing import Batch, IndexList, Rank
-from hyped.core.nodes.processor import (
-    BaseDataProcessor,
-    BaseDataProcessorConfig,
-    IOContext,
-)
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, IOContext
 from hyped.core.refs.inputs import CheckFeatureIsSequence, InputRefs
-from hyped.core.refs.outputs import (
-    LambdaOutputFeature,
-    OutputFeature,
-    OutputRefs,
-)
+from hyped.core.refs.outputs import LambdaOutputFeature, OutputFeature, OutputRefs
 from hyped.core.refs.ref import FeatureRef
 
 
@@ -167,9 +159,7 @@ class SequenceSumOutputRefs(BaseSequenceReduceOutputRefs):
 
     result: Annotated[
         FeatureRef,
-        LambdaOutputFeature(
-            lambda _, i: scalar_seq_reduce_infer_dtype(i, "int64")
-        ),
+        LambdaOutputFeature(lambda _, i: scalar_seq_reduce_infer_dtype(i, "int64")),
     ]
     """The feature reference to the sum of the sequence."""
 
@@ -198,9 +188,7 @@ class SequenceMeanOutputRefs(BaseSequenceReduceOutputRefs):
 
     result: Annotated[
         FeatureRef,
-        LambdaOutputFeature(
-            lambda _, i: scalar_seq_reduce_infer_dtype(i, "float32")
-        ),
+        LambdaOutputFeature(lambda _, i: scalar_seq_reduce_infer_dtype(i, "float32")),
     ]
     """The feature reference to the mean of the sequence."""
 

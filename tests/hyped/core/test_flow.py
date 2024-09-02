@@ -27,9 +27,7 @@ class TestDataFlow:
     @pytest.fixture(autouse=True)
     def mock_lazy_flow_output(self):
         with patch("hyped.core.flow.LazyFlowOutput") as mock_lazy_vals:
-            mock_lazy_vals.return_value = {
-                "y": 0
-            }  # matches the output of the mock aggregator
+            mock_lazy_vals.return_value = {"y": 0}  # matches the output of the mock aggregator
             yield mock_lazy_vals
 
     @pytest.fixture
@@ -74,21 +72,13 @@ class TestDataFlow:
         return [
             IOContext(
                 node_id=proc_node,
-                inputs=graph.nodes[proc_node][
-                    DataFlowGraph.NodeAttribute.IN_FEATURES
-                ],
-                outputs=graph.nodes[proc_node][
-                    DataFlowGraph.NodeAttribute.OUT_FEATURES
-                ],
+                inputs=graph.nodes[proc_node][DataFlowGraph.NodeAttribute.IN_FEATURES],
+                outputs=graph.nodes[proc_node][DataFlowGraph.NodeAttribute.OUT_FEATURES],
             ),
             IOContext(
                 node_id=agg_node,
-                inputs=graph.nodes[agg_node][
-                    DataFlowGraph.NodeAttribute.IN_FEATURES
-                ],
-                outputs=graph.nodes[agg_node][
-                    DataFlowGraph.NodeAttribute.OUT_FEATURES
-                ],
+                inputs=graph.nodes[agg_node][DataFlowGraph.NodeAttribute.IN_FEATURES],
+                outputs=graph.nodes[agg_node][DataFlowGraph.NodeAttribute.OUT_FEATURES],
             ),
         ]
 
@@ -96,7 +86,7 @@ class TestDataFlow:
         flow, graph, const_node, proc_node, agg_node = setup_flow
 
         src_ref = graph.get_node_output_ref(graph.src_node_id)
-        cst_ref = graph.get_node_output_ref(const_node)
+        graph.get_node_output_ref(const_node)
         out_ref = graph.get_node_output_ref(proc_node)
         agg_ref = graph.get_node_output_ref(agg_node)
 
@@ -125,9 +115,7 @@ class TestDataFlow:
         assert subflow.out_features.key_ is src_ref.key_
         assert subflow.out_features.feature_ is src_ref.feature_
 
-    def test_extract_lazy_flow(
-        self, setup_flow, mock_manager, mock_lazy_flow_output
-    ):
+    def test_extract_lazy_flow(self, setup_flow, mock_manager, mock_lazy_flow_output):
         flow, graph, const_node, proc_node, agg_node = setup_flow
 
         cst_ref = graph.get_node_output_ref(const_node)
@@ -150,9 +138,7 @@ class TestDataFlow:
 
         def get_feature(graph, ref):
             return ref.key_.index_features(
-                graph.nodes[ref.node_id_][
-                    DataFlowGraph.NodeAttribute.OUT_FEATURES
-                ]
+                graph.nodes[ref.node_id_][DataFlowGraph.NodeAttribute.OUT_FEATURES]
             )
 
         mock_lazy_flow_output.reset_mock()
@@ -160,10 +146,7 @@ class TestDataFlow:
         flow.build(collect=out_ref, aggregate=agg_ref)
         # make sure the lazy flow output object is created correctly
         mock_lazy_flow_output.assert_called_once()
-        assert (
-            mock_lazy_flow_output.call_args.kwargs["input_proxy"]
-            is mock_manager.values_proxy
-        )
+        assert mock_lazy_flow_output.call_args.kwargs["input_proxy"] is mock_manager.values_proxy
         assert get_feature(graph, agg_ref) == get_feature(
             mock_lazy_flow_output.call_args.kwargs["executor"].graph,
             mock_lazy_flow_output.call_args.kwargs["executor"].collect,
@@ -175,9 +158,7 @@ class TestDataFlow:
         # make sure the source node contains the output of the aggregator node
         assert (
             agg_ref.node_id_
-            in lazy_graph.nodes[lazy_graph.src_node_id][
-                DataFlowGraph.NodeAttribute.OUT_FEATURES
-            ]
+            in lazy_graph.nodes[lazy_graph.src_node_id][DataFlowGraph.NodeAttribute.OUT_FEATURES]
         )
 
         mock_lazy_flow_output.reset_mock()
@@ -185,10 +166,7 @@ class TestDataFlow:
         flow.build(collect=out_ref, aggregate=val_ref)
         # make sure the lazy flow output object is created correctly
         mock_lazy_flow_output.assert_called_once()
-        assert (
-            mock_lazy_flow_output.call_args.kwargs["input_proxy"]
-            is mock_manager.values_proxy
-        )
+        assert mock_lazy_flow_output.call_args.kwargs["input_proxy"] is mock_manager.values_proxy
         assert get_feature(graph, val_ref) == get_feature(
             mock_lazy_flow_output.call_args.kwargs["executor"].graph,
             mock_lazy_flow_output.call_args.kwargs["executor"].collect,
@@ -199,18 +177,12 @@ class TestDataFlow:
         assert val_ref.node_id_ in lazy_graph
         assert len(lazy_graph.nodes) == 2
         # make sure the two nodes are connected correctly
-        assert lazy_graph.has_edge(
-            lazy_graph.src_node_id, val_ref.node_id_, key="a"
-        )
-        assert lazy_graph.has_edge(
-            lazy_graph.src_node_id, val_ref.node_id_, key="b"
-        )
+        assert lazy_graph.has_edge(lazy_graph.src_node_id, val_ref.node_id_, key="a")
+        assert lazy_graph.has_edge(lazy_graph.src_node_id, val_ref.node_id_, key="b")
         # make sure the source node contains the output of the aggregator node
         assert (
             agg_ref.node_id_
-            in lazy_graph.nodes[lazy_graph.src_node_id][
-                DataFlowGraph.NodeAttribute.OUT_FEATURES
-            ]
+            in lazy_graph.nodes[lazy_graph.src_node_id][DataFlowGraph.NodeAttribute.OUT_FEATURES]
         )
 
         mock_lazy_flow_output.reset_mock()
@@ -218,33 +190,25 @@ class TestDataFlow:
         flow.build(collect=out_ref, aggregate=val_ref_w_const)
         # make sure the lazy flow output object is created correctly
         mock_lazy_flow_output.assert_called_once()
-        assert (
-            mock_lazy_flow_output.call_args.kwargs["input_proxy"]
-            is mock_manager.values_proxy
-        )
+        assert mock_lazy_flow_output.call_args.kwargs["input_proxy"] is mock_manager.values_proxy
         assert get_feature(graph, val_ref_w_const) == get_feature(
             mock_lazy_flow_output.call_args.kwargs["executor"].graph,
             mock_lazy_flow_output.call_args.kwargs["executor"].collect,
         )
-        # make sure the lazy graph contains only the source node, the constant and the processor node
+        # make sure the lazy graph contains only the source node, the constant and the
+        # processor node
         lazy_graph = mock_lazy_flow_output.call_args.kwargs["executor"].graph
         assert lazy_graph.src_node_id in lazy_graph
         assert cst_ref.node_id_ in lazy_graph
         assert val_ref_w_const.node_id_ in lazy_graph
         assert len(lazy_graph.nodes) == 3
         # make sure the two nodes are connected correctly
-        assert lazy_graph.has_edge(
-            lazy_graph.src_node_id, val_ref_w_const.node_id_, key="a"
-        )
-        assert lazy_graph.has_edge(
-            cst_ref.node_id_, val_ref_w_const.node_id_, key="b"
-        )
+        assert lazy_graph.has_edge(lazy_graph.src_node_id, val_ref_w_const.node_id_, key="a")
+        assert lazy_graph.has_edge(cst_ref.node_id_, val_ref_w_const.node_id_, key="b")
         # make sure the source node contains the output of the aggregator node
         assert (
             agg_ref.node_id_
-            in lazy_graph.nodes[lazy_graph.src_node_id][
-                DataFlowGraph.NodeAttribute.OUT_FEATURES
-            ]
+            in lazy_graph.nodes[lazy_graph.src_node_id][DataFlowGraph.NodeAttribute.OUT_FEATURES]
         )
 
     def test_batch_process(self, setup_flow, io_contexts, mock_manager):
@@ -260,7 +224,7 @@ class TestDataFlow:
 
         # run batch process
         batch, index, rank = {"x": [1, 2, 3]}, [0, 1, 2], 0
-        out = flow.batch_process(batch, index, rank)
+        flow.batch_process(batch, index, rank)
 
         # make sure the processor is called correctly
         p = graph.nodes[proc_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
@@ -284,9 +248,7 @@ class TestDataFlow:
         agg_ref = graph.get_node_output_ref(agg_node)
 
         # create dummy dataset
-        ds = datasets.Dataset.from_dict(
-            {"x": []}, features=flow.src_features.feature_
-        )
+        ds = datasets.Dataset.from_dict({"x": []}, features=flow.src_features.feature_)
 
         # no output features specified
         with pytest.raises(RuntimeError):
@@ -322,9 +284,7 @@ class TestDataFlow:
         assert isinstance(out_ds, datasets.Dataset)
         assert vals == MappingProxyType(mock_lazy_flow_output())
 
-    def test_apply_to_dataset(
-        self, setup_flow, io_contexts, mock_manager, mock_lazy_flow_output
-    ):
+    def test_apply_to_dataset(self, setup_flow, io_contexts, mock_manager, mock_lazy_flow_output):
         flow, graph, const_node, proc_node, agg_node = setup_flow
         proc_io_ctx, agg_io_ctx = io_contexts
         # get references
@@ -340,17 +300,13 @@ class TestDataFlow:
         )
 
         # apply flow to dataset
-        out_ds, vals = flow.apply(
-            ds, collect=out_ref, aggregate=agg_ref, batch_size=10
-        )
+        out_ds, vals = flow.apply(ds, collect=out_ref, aggregate=agg_ref, batch_size=10)
         # check output types
         assert isinstance(out_ds, datasets.Dataset)
         assert vals == mock_lazy_flow_output()
 
         # make sure processor is called for all samples in the dataset
-        p.process.assert_has_calls(
-            [call({"a": i, "b": 0}, i, 0, proc_io_ctx) for i in range(100)]
-        )
+        p.process.assert_has_calls([call({"a": i, "b": 0}, i, 0, proc_io_ctx) for i in range(100)])
         # make sure the aggregator is called for all batches
         mock_manager.aggregate.assert_has_calls(
             [
@@ -394,9 +350,7 @@ class TestDataFlow:
         )
 
         # apply flow to dataset
-        out_ds, vals = flow.apply(
-            ds, collect=out_ref, aggregate=agg_ref, batch_size=10
-        )
+        out_ds, vals = flow.apply(ds, collect=out_ref, aggregate=agg_ref, batch_size=10)
         # check output types
         assert isinstance(out_ds, datasets.DatasetDict)
         assert out_ds.keys() == ds.keys()
@@ -404,10 +358,7 @@ class TestDataFlow:
 
         # make sure processor is called for all samples in the dataset
         p.process.assert_has_calls(
-            [
-                call({"a": i, "b": 0}, i % 50, 0, proc_io_ctx)
-                for i in range(100)
-            ]
+            [call({"a": i, "b": 0}, i % 50, 0, proc_io_ctx) for i in range(100)]
         )
         # make sure the aggregator is called for all batches
         mock_manager.aggregate.assert_has_calls(
@@ -446,9 +397,7 @@ class TestDataFlow:
         ).to_iterable_dataset(num_shards=5)
 
         # apply flow to dataset
-        out_ds, vals = flow.apply(
-            ds, collect=out_ref, aggregate=agg_ref, batch_size=10
-        )
+        out_ds, vals = flow.apply(ds, collect=out_ref, aggregate=agg_ref, batch_size=10)
         # check output types
         assert isinstance(out_ds, datasets.IterableDataset)
         assert vals == mock_lazy_flow_output()
@@ -462,9 +411,7 @@ class TestDataFlow:
             pass
 
         # make sure processor is called for all samples in the dataset
-        p.process.assert_has_calls(
-            [call({"a": i, "b": 0}, i, 0, proc_io_ctx) for i in range(100)]
-        )
+        p.process.assert_has_calls([call({"a": i, "b": 0}, i, 0, proc_io_ctx) for i in range(100)])
         # make sure the aggregator is called for all batches
         mock_manager.aggregate.assert_has_calls(
             [
@@ -508,9 +455,7 @@ class TestDataFlow:
         )
 
         # apply flow to dataset
-        out_ds, vals = flow.apply(
-            ds, collect=out_ref, aggregate=agg_ref, batch_size=10
-        )
+        out_ds, vals = flow.apply(ds, collect=out_ref, aggregate=agg_ref, batch_size=10)
         # check output types
         assert isinstance(out_ds, datasets.IterableDatasetDict)
         assert vals == mock_lazy_flow_output()

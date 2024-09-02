@@ -196,9 +196,7 @@ class LazyInstance(LazyStaticInstance[T]):
 T = TypeVar("T")
 
 
-def _load_from_shared_factory(
-    tmp_file_name: str, factory: Callable[[], T]
-) -> T:
+def _load_from_shared_factory(tmp_file_name: str, factory: Callable[[], T]) -> T:
     """Create or load an instance from a shared factory.
 
     This function handles the creation and sharing of an instance

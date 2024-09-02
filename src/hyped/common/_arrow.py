@@ -59,6 +59,4 @@ def convert_features_to_arrow_schema(features: Features) -> pa.Schema:
     """
     dtype = get_nested_type(features)
     hf_metadata = {"info": {"features": features.to_dict()}}
-    return pa.schema(dtype).with_metadata(
-        {"huggingface": json.dumps(hf_metadata)}
-    )
+    return pa.schema(dtype).with_metadata({"huggingface": json.dumps(hf_metadata)})

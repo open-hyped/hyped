@@ -6,11 +6,12 @@ are executed in the correct order, and collects the results.
 
 Classes:
     - :class:`ExecutionState`: Tracks the state during the execution of a data flow graph.
-    - :class:`DataFlowExecutor`: Executes a data flow graph, managing the execution of each node and collecting results.
+    - :class:`DataFlowExecutor`: Executes a data flow graph, managing the execution of each node
+      and collecting results.
 """
 import asyncio
 from collections import defaultdict
-from typing import Any, TypeAlias
+from typing import Any
 
 import datasets
 import networkx as nx
@@ -114,12 +115,8 @@ class ExecutionState(object):
                 match the length of the index associated with the source partition.
         """
         # make sure the partitions are valid nodes in the partition graph
-        assert (
-            src in self.p_graph
-        ), f"Source partition '{src}' not included in partition graph."
-        assert (
-            tgt in self.p_graph
-        ), f"Target partition '{tgt}' not included in partition graph."
+        assert src in self.p_graph, f"Source partition '{src}' not included in partition graph."
+        assert tgt in self.p_graph, f"Target partition '{tgt}' not included in partition graph."
         # get the index to the source partition
         index = self.index[src]
         assert all(len(vals) == len(index) for vals in values)
@@ -146,14 +143,14 @@ class ExecutionState(object):
 
         Args:
             node_id (NodeId): The identifier of the node for which to register the partition trace.
-            trace_index (TraceIndexList): The trace indices representing how to transition between the source
-                and target partitions.
+            trace_index (TraceIndexList): The trace indices representing how to transition between
+                the source and target partitions.
             index (IndexList): The index values to be used for the output partition, which will be
                 transformed according to the computed trace indices.
 
         Raises:
-            AssertionError: If there is no edge between the source and target partitions in the partition
-                graph
+            AssertionError: If there is no edge between the source and target partitions in the
+                partition graph.
         """
         u = self.graph.nodes[node_id][DataFlowGraph.NodeAttribute.PARTITION]
         v = self.graph.get_node_output_partition(node_id)
@@ -163,9 +160,7 @@ class ExecutionState(object):
         ), f"No edge between partitions '{u}' and '{v}' in the partition graph."
         # register trace and index
         self.traces[(u, v)] = np.asarray(trace_index)
-        self.index[v] = self.trace_through_partition_path(
-            [index], src=u, tgt=v
-        )[0]
+        self.index[v] = self.trace_through_partition_path([index], src=u, tgt=v)[0]
 
     def collect_value(self, ref: FeatureRef) -> Batch:
         """Collect the values requested by the feature reference.
@@ -182,8 +177,7 @@ class ExecutionState(object):
                 expected feature types.
         """
         assert isinstance(ref.feature_, (datasets.Features, dict)), (
-            f"Expected features of type datasets.Features or dict, "
-            f"but got {type(ref.feature_)}"
+            f"Expected features of type datasets.Features or dict, " f"but got {type(ref.feature_)}"
         )
         return list_of_dicts_to_dict_of_lists(
             ref.key_.index_batch(self.outputs[ref.node_id_]),
@@ -208,9 +202,7 @@ class ExecutionState(object):
         src_partitions = defaultdict(list)
         # TODO: first group edges by reference to the same feature
         #       then collect the feature only once
-        for u, _, name, data in self.graph.in_edges(
-            node_id, keys=True, data=True
-        ):
+        for u, _, name, data in self.graph.in_edges(node_id, keys=True, data=True):
             assert (u == self.graph.src_node_id) or self.ready[
                 u
             ].is_set(), f"Node {u} is not ready."
@@ -224,25 +216,19 @@ class ExecutionState(object):
             src_partitions[partition].append(name)
 
         # get the node partition and the partition info
-        tgt_partition = self.graph.nodes[node_id][
-            DataFlowGraph.NodeAttribute.PARTITION
-        ]
+        tgt_partition = self.graph.nodes[node_id][DataFlowGraph.NodeAttribute.PARTITION]
         index = self.index[tgt_partition]
 
         # we dont need to trace the values of the target partition
         src_partitions.pop(tgt_partition, None)
         # handle the constant partition as an edge case
-        for name in src_partitions.pop(
-            DataFlowGraph.PredefinedPartition.CONST, []
-        ):
+        for name in src_partitions.pop(DataFlowGraph.PredefinedPartition.CONST, []):
             inputs[name] = inputs[name] * len(index)
 
         for src, names in src_partitions.items():
             # trace values from their origin partition to the target partition
             values = [inputs[name] for name in names]
-            values = self.trace_through_partition_path(
-                values, src=src, tgt=tgt_partition
-            )
+            values = self.trace_through_partition_path(values, src=src, tgt=tgt_partition)
             # update the values in the inputs
             inputs.update(dict(zip(names, values)))
 
@@ -258,9 +244,7 @@ class ExecutionState(object):
         Raises:
             AssertionError: If the node is already set
         """
-        assert not self.ready[
-            node_id
-        ].is_set(), f"Node {node_id} is already set."
+        assert not self.ready[node_id].is_set(), f"Node {node_id} is already set."
 
         self.outputs[node_id] = output
         self.ready[node_id].set()
@@ -303,9 +287,7 @@ class DataFlowExecutor(object):
         self.collect = collect
         self.aggregation_manager = aggregation_manager
 
-    async def execute_node(
-        self, node_id: NodeId, state: ExecutionState
-    ) -> None:
+    async def execute_node(self, node_id: NodeId, state: ExecutionState) -> None:
         """Execute a single node in the data flow graph.
 
         Args:
@@ -353,22 +335,16 @@ class DataFlowExecutor(object):
 
         elif node_type == DataFlowGraph.NodeType.DATA_AUGMENTER:
             # run processor and check the output batch size
-            out, trace_index = await node_obj.batch_process(
-                inputs, index, state.rank, io
-            )
+            out, trace_index = await node_obj.batch_process(inputs, index, state.rank, io)
             # register output partition and capture output in execution state
             state.register_partition_trace(node_id, trace_index, index)
             state.capture_output(node_id, out)
 
         elif node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
             # run aggregator
-            await self.aggregation_manager.aggregate(
-                node_obj, inputs, index, state.rank, io
-            )
+            await self.aggregation_manager.aggregate(node_obj, inputs, index, state.rank, io)
 
-    async def execute(
-        self, batch: Batch, index: IndexList, rank: Rank
-    ) -> Batch:
+    async def execute(self, batch: Batch, index: IndexList, rank: Rank) -> Batch:
         """Execute the entire data flow graph.
 
         Args:

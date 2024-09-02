@@ -2,18 +2,18 @@
 
 This module provides a set of operations specifically designed for handling
 sequence-based features within a data flow. Sequences are features that 
-contain ordered collections of elements (e.g. :code:`Sequence` or :code:`Value("string")`), and the operations in this module 
-allow for manipulation and querying of these sequences.
+contain ordered collections of elements (e.g. :code:`Sequence` or :code:`Value("string")`), and
+the operations in this module allow for manipulation and querying of these sequences.
 
 Key functionalities include:
 
-- **Length Calculation** (`len_`): Determine the length of a sequence or 
+- **Length Calculation** (:func:`len_`): Determine the length of a sequence or 
   string-like feature.
-- **Element Access and Mutation** (`get_item`, `set_item`): Retrieve or set 
+- **Element Access and Mutation** (:func:`get_item`, :func:`set_item`): Retrieve or set 
   elements at specific indices within a sequence.
-- **Filtering and Searching** (`compress`, `contains`, `count_of`, `index_of`): 
-  Apply masks to sequences, or search for specific elements within them.
-- **Sequence Manipulation** (`chain`, `zip_`): Combine multiple sequences 
+- **Filtering and Searching** (:func:`compress`, :func:`contains`, :func:`count_of`,
+  :func:`index_of`): Apply masks to sequences, or search for specific elements within them.
+- **Sequence Manipulation** (:func:`chain`, :func:`zip_`): Combine multiple sequences 
   together through concatenation or zipping.
 """
 from typing import Any
@@ -26,11 +26,7 @@ from hyped.common.feature_checks import (
     get_sequence_length,
 )
 from hyped.core.refs.ref import FeatureRef
-from hyped.ops.utils import (
-    _check_args,
-    _handle_constant_inputs_for_binary_op,
-    collect,
-)
+from hyped.ops.utils import _check_args, _handle_constant_inputs_for_binary_op, collect
 
 
 def len_(seq: FeatureRef) -> FeatureRef | int:
@@ -58,11 +54,7 @@ def len_(seq: FeatureRef) -> FeatureRef | int:
         # return constant in case length if fixed and a
         # feature reference to the length feature otherwise
         length = get_sequence_length(seq.feature_)
-        return (
-            length
-            if length != -1
-            else (ops.SequenceLength().call(a=seq).result)
-        )
+        return length if length != -1 else (ops.SequenceLength().call(a=seq).result)
 
     elif check_feature_equals(seq.feature_, STRING_LIKE_TYPES):
         # implement length operation for string-like features
@@ -70,10 +62,7 @@ def len_(seq: FeatureRef) -> FeatureRef | int:
 
     else:
         # unexpected feature type
-        raise TypeError(
-            "Unexpected feature type for length operation, "
-            "got `{a.feature_}`."
-        )
+        raise TypeError("Unexpected feature type for length operation, " "got `{a.feature_}`.")
 
 
 def get_item(seq: FeatureRef | Any, index: FeatureRef | Any) -> FeatureRef:
@@ -117,11 +106,7 @@ def set_item(
     # check arguments
     seq, index, value = _check_args(seq, index, value)
     # add the setitem processor
-    return (
-        ops.SequenceSetItem()
-        .call(sequence=seq, index=index, value=value)
-        .result
-    )
+    return ops.SequenceSetItem().call(sequence=seq, index=index, value=value).result
 
 
 @_handle_constant_inputs_for_binary_op
@@ -166,10 +151,7 @@ def contains(seq: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
         raise NotImplementedError()
 
     else:
-        raise TypeError(
-            "Unexpected feature type for contains operation, "
-            "got `{obj.feature_}`."
-        )
+        raise TypeError("Unexpected feature type for contains operation, " "got `{obj.feature_}`.")
 
 
 def count_of(seq: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
@@ -195,10 +177,7 @@ def count_of(seq: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
         raise NotImplementedError()
 
     else:
-        raise TypeError(
-            "Unexpected feature type for countOf operation, "
-            "got `{obj.feature_}`."
-        )
+        raise TypeError("Unexpected feature type for countOf operation, " "got `{obj.feature_}`.")
 
 
 def index_of(seq: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
@@ -224,10 +203,7 @@ def index_of(seq: FeatureRef | Any, value: FeatureRef | Any) -> FeatureRef:
         raise NotImplementedError()
 
     else:
-        raise TypeError(
-            "Unexpected feature type for indexOf operation, "
-            "got `{obj.feature_}`."
-        )
+        raise TypeError("Unexpected feature type for indexOf operation, " "got `{obj.feature_}`.")
 
 
 def chain(*sequences: FeatureRef) -> FeatureRef:

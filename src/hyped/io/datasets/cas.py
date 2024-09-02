@@ -45,9 +45,7 @@ def _get_types_from_typesystem(
     # ensure that all requested types are present in the typesystem
     for type_name in type_names:
         if not typesystem.contains_type(type_name):
-            raise TypeError(
-                "Annotation Type `%s` not found in typesystem" % type_name
-            )
+            raise TypeError("Annotation Type `%s` not found in typesystem" % type_name)
 
     # get requested types from typesystem
     return list(map(typesystem.get_type, type_names))
@@ -102,9 +100,7 @@ def _worker(fpath: str) -> None | dict[str, Any]:
         return None
 
     annotation_types = list(
-        _get_types_from_typesystem(
-            proc.typesystem, proc.config.annotation_types
-        )
+        _get_types_from_typesystem(proc.typesystem, proc.config.annotation_types)
     )
     # collect all annotations and create a fixed ordering over
     # the annotations of each type
@@ -113,10 +109,7 @@ def _worker(fpath: str) -> None | dict[str, Any]:
         for annotation_type in annotation_types
     }
     # check ids
-    assert all(
-        xmi_id is not None
-        for xmi_id in chain.from_iterable(annotations.values())
-    )
+    assert all(xmi_id is not None for xmi_id in chain.from_iterable(annotations.values()))
 
     # create features dictionary
     # use default dict to avoid key-errors for features that are
@@ -129,14 +122,10 @@ def _worker(fpath: str) -> None | dict[str, Any]:
     for annotation_type in annotation_types:
         # get all features of interest for the annotation type
         primitive_feature_types = [
-            f
-            for f in annotation_type.all_features
-            if proc.typesystem.is_primitive(f.rangeType)
+            f for f in annotation_type.all_features if proc.typesystem.is_primitive(f.rangeType)
         ]
         nested_feature_types = [
-            f
-            for f in annotation_type.all_features
-            if f.rangeType.name in annotations.keys()
+            f for f in annotation_type.all_features if f.rangeType.name in annotations.keys()
         ]
 
         # iterate over all annotations of the current type
@@ -200,11 +189,7 @@ class CasDataset(datasets.GeneratorBasedBuilder):
 
         # get all requested types
         all_types = typesystem.get_types()
-        req_types = list(
-            _get_types_from_typesystem(
-                typesystem, self.config.annotation_types
-            )
-        )
+        req_types = list(_get_types_from_typesystem(typesystem, self.config.annotation_types))
 
         all_type_names = {_type.name for _type in all_types}
         req_type_names = {_type.name for _type in req_types}
@@ -217,27 +202,20 @@ class CasDataset(datasets.GeneratorBasedBuilder):
                     f.rangeType.name not in req_type_names
                 ):
                     raise RuntimeError(
-                        "Annotation type `%s` requires type `%s`"
-                        % (t.name, f.rangeType.name)
+                        "Annotation type `%s` requires type `%s`" % (t.name, f.rangeType.name)
                     )
 
         primitive_features = {
             # all primitive features of all requested types
-            "%s:%s"
-            % (t.name, f.name): datasets.Sequence(
-                _PRIMITIVE_TYPE_MAP[f.rangeType.name]
-            )
-            for t in _get_types_from_typesystem(
-                typesystem, self.config.annotation_types
-            )
+            "%s:%s" % (t.name, f.name): datasets.Sequence(_PRIMITIVE_TYPE_MAP[f.rangeType.name])
+            for t in _get_types_from_typesystem(typesystem, self.config.annotation_types)
             for f in t.all_features
             if typesystem.is_primitive(f.rangeType)
         }
 
         nested_features = {
             # all nested features that point to other annotations
-            "%s:%s"
-            % (t.name, f.name): datasets.Sequence(datasets.Value("int32"))
+            "%s:%s" % (t.name, f.name): datasets.Sequence(datasets.Value("int32"))
             for t in req_types
             for f in t.all_features
             if f.rangeType.name in req_type_names
@@ -247,9 +225,7 @@ class CasDataset(datasets.GeneratorBasedBuilder):
         return datasets.Features(
             {
                 "sofa": datasets.Value("string"),
-                "meta": datasets.Features(
-                    {"file_path": datasets.Value("string")}
-                ),
+                "meta": datasets.Features({"file_path": datasets.Value("string")}),
             }
             | primitive_features
             | nested_features
@@ -257,14 +233,10 @@ class CasDataset(datasets.GeneratorBasedBuilder):
 
     def _info(self):
         # make sure the typesystem exists
-        if (self.config.typesystem is not None) and not os.path.isfile(
-            self.config.typesystem
-        ):
+        if (self.config.typesystem is not None) and not os.path.isfile(self.config.typesystem):
             raise FileNotFoundError(self.config.typesystem)
 
-        return datasets.DatasetInfo(
-            description="", features=self.features, supervised_keys=None
-        )
+        return datasets.DatasetInfo(description="", features=self.features, supervised_keys=None)
 
     def _split_generators(self, dl_manager):
         # check data files argument
@@ -304,9 +276,7 @@ class CasDataset(datasets.GeneratorBasedBuilder):
         # clamp number of processes between 1 and cpu-count
         num_processes = min(max(self.config.num_processes, 1), mp.cpu_count())
         # create worker pool with access to cas typesystem
-        with mp.Pool(
-            num_processes, initializer=_init_process, initargs=(self.config,)
-        ) as pool:
+        with mp.Pool(num_processes, initializer=_init_process, initargs=(self.config,)) as pool:
             # process all files
             yield from enumerate(
                 filter(

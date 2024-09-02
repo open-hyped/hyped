@@ -4,11 +4,7 @@ import networkx as nx
 import pytest
 from datasets import Features, Value
 
-from hyped.core.graph import (
-    DataFlowGraph,
-    _build_dependency_graph,
-    _compute_node_depth,
-)
+from hyped.core.graph import DataFlowGraph, _build_dependency_graph, _compute_node_depth
 from hyped.core.nodes.const import Const
 from hyped.core.refs.ref import FeatureRef
 
@@ -182,9 +178,7 @@ class TestBuildDependencyGraph:
         G = nx.DiGraph()
         G.add_node("A")
         nodes = {"B"}
-        with pytest.raises(
-            AssertionError, match="All nodes must be present in the graph 'G'."
-        ):
+        with pytest.raises(AssertionError, match="All nodes must be present in the graph 'G'."):
             _build_dependency_graph(G, nodes)
 
     def test_disconnected_graph(self):
@@ -266,10 +260,7 @@ class TestDataFlowGraph:
         # check node properties
         node = graph.nodes[src_node_id]
         assert node[DataFlowGraph.NodeAttribute.NODE_OBJ] is None
-        assert (
-            node[DataFlowGraph.NodeAttribute.NODE_TYPE]
-            == DataFlowGraph.NodeType.SOURCE
-        )
+        assert node[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.SOURCE
         assert node[DataFlowGraph.NodeAttribute.IN_FEATURES] is None
         assert node[DataFlowGraph.NodeAttribute.OUT_FEATURES] == src_features
 
@@ -314,10 +305,7 @@ class TestDataFlowGraph:
         assert graph.has_edge(src_node_id, node_id)
         for n, r in i.named_refs.items():
             assert n in graph[src_node_id][node_id]
-            assert (
-                graph[src_node_id][node_id][n][DataFlowGraph.EdgeAttribute.KEY]
-                == r.key_
-            )
+            assert graph[src_node_id][node_id][n][DataFlowGraph.EdgeAttribute.KEY] == r.key_
 
     def test_depth_and_width(self):
         # create graph
@@ -363,7 +351,7 @@ class TestDataFlowGraph:
         )
         o = p._out_refs_type.build_features(p.config, i3)
         # add third level processor
-        node_id_3 = graph.add_processor_node(p, i3, o)
+        graph.add_processor_node(p, i3, o)
         # check graph properties
         assert graph.depth == 3
         assert graph.width == 2
@@ -375,29 +363,21 @@ class TestDataFlowGraph:
         )
         o = p._out_refs_type.build_features(p.config, i4)
         # add third level processor
-        node_id_4 = graph.add_processor_node(p, i4, o)
+        graph.add_processor_node(p, i4, o)
         # check graph properties
         assert graph.depth == 4
         assert graph.width == 2
 
         # get all depths
-        depths = nx.get_node_attributes(
-            graph, DataFlowGraph.NodeAttribute.DEPTH
-        )
+        depths = nx.get_node_attributes(graph, DataFlowGraph.NodeAttribute.DEPTH)
         # manually set all depths to -1
         nx.set_node_attributes(graph, -1, DataFlowGraph.NodeAttribute.DEPTH)
-        assert (
-            nx.get_node_attributes(graph, DataFlowGraph.NodeAttribute.DEPTH)
-            != depths
-        )
+        assert nx.get_node_attributes(graph, DataFlowGraph.NodeAttribute.DEPTH) != depths
         # recompute the depth values
         graph.recompute_depths()
 
         # check if depths are recomputed correctly
-        assert (
-            nx.get_node_attributes(graph, DataFlowGraph.NodeAttribute.DEPTH)
-            == depths
-        )
+        assert nx.get_node_attributes(graph, DataFlowGraph.NodeAttribute.DEPTH) == depths
 
     def test_error_on_mixing_flows(self):
         g1 = DataFlowGraph()
@@ -470,9 +450,7 @@ class TestDataFlowGraph:
         # test feature reference to processor output
         ref = graph.get_node_output_ref(node_id)
         assert isinstance(ref, MockOutputRefs)
-        assert (
-            ref.model_dump() == MockOutputRefs(graph, node_id, o).model_dump()
-        )
+        assert ref.model_dump() == MockOutputRefs(graph, node_id, o).model_dump()
 
         # test invalid node id
         with pytest.raises(KeyError):
@@ -502,18 +480,14 @@ class TestDataFlowGraph:
         const_node_id = graph.add_processor_node(c, None, co)
 
         # get constant partition
-        const_graph = graph.get_partition(
-            DataFlowGraph.PredefinedPartition.CONST
-        )
+        const_graph = graph.get_partition(DataFlowGraph.PredefinedPartition.CONST)
         # check nodes in constant partition
         assert const_node_id in const_graph
         assert proc_node_id not in const_graph
         assert src_node_id not in const_graph
 
         # get default partition
-        default_graph = graph.get_partition(
-            DataFlowGraph.PredefinedPartition.DEFAULT
-        )
+        default_graph = graph.get_partition(DataFlowGraph.PredefinedPartition.DEFAULT)
         # check nodes in default partition
         assert const_node_id not in default_graph
         assert proc_node_id in default_graph
@@ -543,18 +517,14 @@ class TestDataFlowGraph:
         const_node_id = graph.add_processor_node(c, None, co)
 
         # drop constant partition
-        non_const_graph = graph.drop_partition(
-            DataFlowGraph.PredefinedPartition.CONST
-        )
+        non_const_graph = graph.drop_partition(DataFlowGraph.PredefinedPartition.CONST)
         # check nodes in default partition
         assert const_node_id not in non_const_graph
         assert proc_node_id in non_const_graph
         assert src_node_id in non_const_graph
 
         # drop default partition
-        non_default_graph = graph.drop_partition(
-            DataFlowGraph.PredefinedPartition.DEFAULT
-        )
+        non_default_graph = graph.drop_partition(DataFlowGraph.PredefinedPartition.DEFAULT)
         # check nodes in constant partition
         assert const_node_id in non_default_graph
         assert proc_node_id not in non_default_graph
@@ -590,13 +560,9 @@ class TestDataFlowGraph:
         # check trivial cases
         edges = graph.subgraph_in_edges(graph.subgraph([src_node_id]))
         assert edges == []
-        edges = graph.subgraph_in_edges(
-            graph.subgraph([src_node_id, node_id_1])
-        )
+        edges = graph.subgraph_in_edges(graph.subgraph([src_node_id, node_id_1]))
         assert edges == []
-        edges = graph.subgraph_in_edges(
-            graph.subgraph([src_node_id, node_id_1, node_id_2])
-        )
+        edges = graph.subgraph_in_edges(graph.subgraph([src_node_id, node_id_1, node_id_2]))
         assert edges == []
 
         # check non-trivial cases
@@ -639,13 +605,9 @@ class TestDataFlowGraph:
         node_id_2 = graph.add_processor_node(p, i, o)
 
         # check trivial cases
-        edges = graph.subgraph_out_edges(
-            graph.subgraph([src_node_id, node_id_1, node_id_2])
-        )
+        edges = graph.subgraph_out_edges(graph.subgraph([src_node_id, node_id_1, node_id_2]))
         assert edges == []
-        edges = graph.subgraph_out_edges(
-            graph.subgraph([node_id_1, node_id_2])
-        )
+        edges = graph.subgraph_out_edges(graph.subgraph([node_id_1, node_id_2]))
         assert edges == []
         edges = graph.subgraph_out_edges(graph.subgraph([node_id_2]))
         assert edges == []
@@ -656,9 +618,7 @@ class TestDataFlowGraph:
             (src_node_id, node_id_1, "a"),
             (src_node_id, node_id_1, "b"),
         ]
-        edges = graph.subgraph_out_edges(
-            graph.subgraph([src_node_id, node_id_1])
-        )
+        edges = graph.subgraph_out_edges(graph.subgraph([src_node_id, node_id_1]))
         assert edges == [
             (node_id_1, node_id_2, "a"),
             (node_id_1, node_id_2, "b"),
@@ -698,10 +658,7 @@ class TestDataFlowGraph:
 
         # Test that an augmenter node returns its own node_id as the partition.
         node_id = "augmenter_node"
-        assert (
-            graph.get_node_output_partition("augmenter_node")
-            == "augmenter_node"
-        )
+        assert graph.get_node_output_partition("augmenter_node") == "augmenter_node"
 
         # Test that a non-aggregator/augmenter node returns its own partition.
         for node_id, expected_partition in [
@@ -709,9 +666,7 @@ class TestDataFlowGraph:
             ("source_node", "partition_4"),
             ("const_node", "partition_5"),
         ]:
-            assert (
-                graph.get_node_output_partition(node_id) == expected_partition
-            )
+            assert graph.get_node_output_partition(node_id) == expected_partition
 
         # Test that an invalid node raises a KeyError.
         with pytest.raises(KeyError):
@@ -832,9 +787,7 @@ class TestDataFlowGraph:
 
         # cannot infer node partition without valid inputs
         with pytest.raises(AssertionError):
-            graph.infer_node_partition(
-                DataFlowGraph.NodeType.DATA_PROCESSOR, []
-            )
+            graph.infer_node_partition(DataFlowGraph.NodeType.DATA_PROCESSOR, [])
 
     @pytest.mark.parametrize(
         "input_partitions,expected_partition",
@@ -876,13 +829,10 @@ class TestDataFlowGraph:
             ),
         ],
     )
-    def test_infer_node_partition_simple(
-        self, input_partitions, expected_partition
-    ):
+    def test_infer_node_partition_simple(self, input_partitions, expected_partition):
         mock_input_refs = [MagicMock() for _ in range(len(input_partitions))]
         mock_input_refs_partitions = {
-            mock.node_id_: part
-            for mock, part in zip(mock_input_refs, input_partitions)
+            mock.node_id_: part for mock, part in zip(mock_input_refs, input_partitions)
         }
 
         mock_node_output_partition = MagicMock()
@@ -943,6 +893,4 @@ class TestDataFlowGraph:
             mock_input_refs_partitions.get,
         ):
             with pytest.raises(RuntimeError):
-                graph.infer_node_partition(
-                    DataFlowGraph.NodeType.DATA_PROCESSOR, mock_input_refs
-                )
+                graph.infer_node_partition(DataFlowGraph.NodeType.DATA_PROCESSOR, mock_input_refs)

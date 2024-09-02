@@ -7,9 +7,7 @@ import datasets
 load_dataset = datasets.load_dataset
 
 _hash_python_lines = datasets.packaged_modules._hash_python_lines
-_PACKAGED_DATASETS_MODULES = (
-    datasets.packaged_modules._PACKAGED_DATASETS_MODULES
-)
+_PACKAGED_DATASETS_MODULES = datasets.packaged_modules._PACKAGED_DATASETS_MODULES
 
 
 def _register_from_file_name(dataset_id: str, file_name: str) -> None:

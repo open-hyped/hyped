@@ -1,4 +1,3 @@
-from typing import Annotated
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
@@ -42,9 +41,7 @@ class TestDataAggregationManager:
         ]
 
     @patch("hyped.core.nodes.aggregator._manager")
-    def test_initialization(
-        self, mock_manager, node_ids, aggregators, io_contexts
-    ):
+    def test_initialization(self, mock_manager, node_ids, aggregators, io_contexts):
         # Mock the _manager object
         mock_manager.dict = MagicMock(side_effect=lambda x: dict(x))
         mock_manager.Lock = MagicMock(return_value=MagicMock())
@@ -82,9 +79,7 @@ class TestDataAggregationManager:
             assert mock_lock.acquire.called
             assert mock_lock.release.called
             # make sure update is called with the expected arguments
-            aggregator.update.assert_called_with(
-                mock_init_value, mock_ctx, mock_init_state, io_ctx
-            )
+            aggregator.update.assert_called_with(mock_init_value, mock_ctx, mock_init_state, io_ctx)
             # check updated values
             assert manager._value_buffer[io_ctx.node_id] == mock_value
             assert manager._state_buffer[io_ctx.node_id] == mock_state
@@ -92,9 +87,7 @@ class TestDataAggregationManager:
             # call update
             await manager._safe_update(io_ctx, aggregator, mock_ctx)
             # make sure update is called with the expected arguments
-            aggregator.update.assert_called_with(
-                mock_value, mock_ctx, mock_state, io_ctx
-            )
+            aggregator.update.assert_called_with(mock_value, mock_ctx, mock_state, io_ctx)
 
     @pytest.mark.asyncio
     @patch("hyped.core.nodes.aggregator._manager")
@@ -112,16 +105,10 @@ class TestDataAggregationManager:
 
         for io_ctx, aggregator in zip(io_contexts, aggregators):
             # aggregate
-            await manager.aggregate(
-                aggregator, mock_input, mock_index, mock_rank, io_ctx
-            )
+            await manager.aggregate(aggregator, mock_input, mock_index, mock_rank, io_ctx)
             # check aggregator calls
-            aggregator.extract.assert_called_once_with(
-                mock_input, mock_index, mock_rank, io_ctx
-            )
-            manager._safe_update.assert_called_once_with(
-                io_ctx, aggregator, mock_ctx
-            )
+            aggregator.extract.assert_called_once_with(mock_input, mock_index, mock_rank, io_ctx)
+            manager._safe_update.assert_called_once_with(io_ctx, aggregator, mock_ctx)
 
 
 class TestDataAggregator:

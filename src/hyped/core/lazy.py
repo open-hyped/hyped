@@ -59,9 +59,7 @@ class LazyFlowOutput(Mapping):
         """
         proxy_snapshot = dict(self._proxy)
 
-        if (self._proxy_snapshot is None) or not deep_equal(
-            proxy_snapshot, self._proxy_snapshot
-        ):
+        if (self._proxy_snapshot is None) or not deep_equal(proxy_snapshot, self._proxy_snapshot):
             # build batch of inputs
             inputs = {k: [v] for k, v in proxy_snapshot.items()}
             # execute the flow executor on the inputs

@@ -19,11 +19,7 @@ class TestPRFS(BaseDataProcessorTest):
             )
         }
     )
-    input_data = {
-        "confusion_matrix": [
-            [[[3, 0], [0, 1]], [[3, 0], [0, 1]], [[2, 0], [0, 2]]]
-        ]
-    }
+    input_data = {"confusion_matrix": [[[[3, 0], [0, 1]], [[3, 0], [0, 1]], [[2, 0], [0, 2]]]]}
     input_index = [0]
 
     expected_output_features = Features(
@@ -54,11 +50,7 @@ class TestPRFSMicro(BaseDataProcessorTest):
             )
         }
     )
-    input_data = {
-        "confusion_matrix": [
-            [[[3, 0], [0, 1]], [[3, 0], [0, 1]], [[2, 0], [0, 2]]]
-        ]
-    }
+    input_data = {"confusion_matrix": [[[[3, 0], [0, 1]], [[3, 0], [0, 1]], [[2, 0], [0, 2]]]]}
     input_index = [0]
 
     expected_output_features = Features(
@@ -89,11 +81,7 @@ class TestPRFSMacro(BaseDataProcessorTest):
             )
         }
     )
-    input_data = {
-        "confusion_matrix": [
-            [[[3, 0], [0, 1]], [[3, 0], [0, 1]], [[2, 0], [0, 2]]]
-        ]
-    }
+    input_data = {"confusion_matrix": [[[[3, 0], [0, 1]], [[3, 0], [0, 1]], [[2, 0], [0, 2]]]]}
     input_index = [0]
 
     expected_output_features = Features(
@@ -124,11 +112,7 @@ class TestPRFSWeighted(BaseDataProcessorTest):
             )
         }
     )
-    input_data = {
-        "confusion_matrix": [
-            [[[3, 0], [0, 1]], [[3, 0], [0, 1]], [[2, 0], [0, 2]]]
-        ]
-    }
+    input_data = {"confusion_matrix": [[[[3, 0], [0, 1]], [[3, 0], [0, 1]], [[2, 0], [0, 2]]]]}
     input_index = [0]
 
     expected_output_features = Features(
@@ -159,11 +143,7 @@ class TestPRFSBetaZero(BaseDataProcessorTest):
             )
         }
     )
-    input_data = {
-        "confusion_matrix": [
-            [[[3, 0], [0, 1]], [[3, 0], [0, 1]], [[2, 0], [0, 2]]]
-        ]
-    }
+    input_data = {"confusion_matrix": [[[[3, 0], [0, 1]], [[3, 0], [0, 1]], [[2, 0], [0, 2]]]]}
     input_index = [0]
 
     expected_output_features = Features(
@@ -194,11 +174,7 @@ class TestPRFSWithLabels(BaseDataProcessorTest):
             )
         }
     )
-    input_data = {
-        "confusion_matrix": [
-            [[[3, 0], [0, 1]], [[3, 0], [0, 1]], [[2, 0], [0, 2]]]
-        ]
-    }
+    input_data = {"confusion_matrix": [[[[3, 0], [0, 1]], [[3, 0], [0, 1]], [[2, 0], [0, 2]]]]}
     input_index = [0]
 
     expected_output_features = Features(

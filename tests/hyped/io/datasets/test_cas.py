@@ -12,27 +12,15 @@ def build_typesystem(path):
     # create sample typesystem
     typesystem = cassis.TypeSystem(add_document_annotation_type=False)
     # add label annotation
-    label = typesystem.create_type(
-        name="cassis.Label", supertypeName="uima.cas.TOP"
-    )
-    typesystem.create_feature(
-        domainType=label, name="label", rangeType=TYPE_NAME_STRING
-    )
+    label = typesystem.create_type(name="cassis.Label", supertypeName="uima.cas.TOP")
+    typesystem.create_feature(domainType=label, name="label", rangeType=TYPE_NAME_STRING)
     # add entity annotation
     entity = typesystem.create_type(name="cassis.Entity")
-    typesystem.create_feature(
-        domainType=entity, name="entityType", rangeType=TYPE_NAME_STRING
-    )
+    typesystem.create_feature(domainType=entity, name="entityType", rangeType=TYPE_NAME_STRING)
     # add bi-relation entity
-    relation = typesystem.create_type(
-        name="cassis.Relation", supertypeName="uima.cas.TOP"
-    )
-    typesystem.create_feature(
-        domainType=relation, name="source", rangeType=entity
-    )
-    typesystem.create_feature(
-        domainType=relation, name="target", rangeType=entity
-    )
+    relation = typesystem.create_type(name="cassis.Relation", supertypeName="uima.cas.TOP")
+    typesystem.create_feature(domainType=relation, name="source", rangeType=entity)
+    typesystem.create_feature(domainType=relation, name="target", rangeType=entity)
     # save typesystem
     typesystem.to_xml(os.path.join(path, "typesystem.test.xml"))
 
@@ -52,9 +40,7 @@ def build_examples(path):
     org = Entity(begin=0, end=4, entityType="ORG")
     loc = Entity(begin=30, end=37, entityType="LOC")
     # add annotations
-    cas.add_all(
-        [org, loc, Relation(source=org, target=loc), Label(label="Document")]
-    )
+    cas.add_all([org, loc, Relation(source=org, target=loc), Label(label="Document")])
     # save in json and xmi format
     cas.to_json(os.path.join(path, "cas.test.json"))
     cas.to_xmi(os.path.join(path, "cas.test.xmi"))
@@ -100,17 +86,11 @@ class TestCasDataset:
             assert example["cassis.Label:label"] == ["Document"]
             # test entity annotation features
             assert len(example["cassis.Entity:entityType"]) == 2
-            assert len(example["cassis.Entity:entityType"]) == len(
-                example["cassis.Entity:begin"]
-            )
-            assert len(example["cassis.Entity:entityType"]) == len(
-                example["cassis.Entity:end"]
-            )
+            assert len(example["cassis.Entity:entityType"]) == len(example["cassis.Entity:begin"])
+            assert len(example["cassis.Entity:entityType"]) == len(example["cassis.Entity:end"])
             # test relation annotation features
             assert len(example["cassis.Relation:source"]) == 1
-            assert len(example["cassis.Relation:source"]) == len(
-                example["cassis.Relation:target"]
-            )
+            assert len(example["cassis.Relation:source"]) == len(example["cassis.Relation:target"])
 
             # test entity content
             for eType, begin, end in zip(

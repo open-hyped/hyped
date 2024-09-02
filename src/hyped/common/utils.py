@@ -41,8 +41,7 @@ def dict_of_lists_to_list_of_dicts(
 
     # make sure all lists are of the same size
     assert all(
-        len(vals) == len(dict_of_lists[next(iter(keys))])
-        for vals in dict_of_lists.values()
+        len(vals) == len(dict_of_lists[next(iter(keys))]) for vals in dict_of_lists.values()
     ), "All lists must have the same length."
 
     return [dict(zip(keys, vals)) for vals in zip(*dict_of_lists.values())]

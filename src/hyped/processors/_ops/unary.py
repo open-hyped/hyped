@@ -33,15 +33,8 @@ from hyped.common.feature_checks import (
 )
 from hyped.common.typing import Batch, IndexList, Rank
 from hyped.core.nodes.base import IOContext
-from hyped.core.nodes.processor import (
-    BaseDataProcessor,
-    BaseDataProcessorConfig,
-)
-from hyped.core.refs.inputs import (
-    CheckFeatureEquals,
-    CheckFeatureIsSequence,
-    InputRefs,
-)
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig
+from hyped.core.refs.inputs import CheckFeatureEquals, CheckFeatureIsSequence, InputRefs
 from hyped.core.refs.outputs import LambdaOutputFeature, OutputRefs
 from hyped.core.refs.ref import FeatureRef
 
@@ -53,9 +46,7 @@ class BaseUnaryOpConfig(BaseDataProcessorConfig):
 class UnaryOpInputRefs(InputRefs):
     """Input references for unary operations."""
 
-    a: Annotated[
-        FeatureRef, CheckFeatureIsSequence(Value) | CheckFeatureEquals(Value)
-    ]
+    a: Annotated[FeatureRef, CheckFeatureIsSequence(Value) | CheckFeatureEquals(Value)]
     """The input feature. Must be a sequence or value."""
 
 
@@ -97,8 +88,7 @@ class UnaryOpNumericInputRefs(UnaryOpInputRefs):
 
     a: Annotated[
         FeatureRef,
-        CheckFeatureIsSequence(NUMERIC_TYPES)
-        | CheckFeatureEquals(NUMERIC_TYPES),
+        CheckFeatureIsSequence(NUMERIC_TYPES) | CheckFeatureEquals(NUMERIC_TYPES),
     ]
     """The input feature. Must be a sequence or value of numeric type."""
 
@@ -118,8 +108,7 @@ class UnaryOpBooleanInputRefs(UnaryOpInputRefs):
 
     a: Annotated[
         FeatureRef,
-        CheckFeatureIsSequence(Value("bool"))
-        | CheckFeatureEquals(Value("bool")),
+        CheckFeatureIsSequence(Value("bool")) | CheckFeatureEquals(Value("bool")),
     ]
     """The input feature. Must be a sequence or value of boolean type."""
 
@@ -127,9 +116,7 @@ class UnaryOpBooleanInputRefs(UnaryOpInputRefs):
 class UnaryOpOutputRefs(OutputRefs):
     """Defines output references for unary operations."""
 
-    result: Annotated[
-        FeatureRef, LambdaOutputFeature(unary_op_infer_output_feature)
-    ]
+    result: Annotated[FeatureRef, LambdaOutputFeature(unary_op_infer_output_feature)]
     """The result of the operation. Type is inferred from the input feature."""
 
 
@@ -139,9 +126,7 @@ class UnaryOpBooleanOutputRefs(UnaryOpOutputRefs):
     result: Annotated[
         FeatureRef,
         LambdaOutputFeature(
-            lambda c, i: unary_op_infer_output_feature(
-                c, i, override=Value("bool")
-            )
+            lambda c, i: unary_op_infer_output_feature(c, i, override=Value("bool"))
         ),
     ]
     """The boolean result of the operation. If sequence inputs, this will
@@ -176,9 +161,7 @@ class BaseUnaryOp(BaseDataProcessor[C, I, O], ABC):
             batch (Batch): The batch containing the result of the unary operation.
         """
         if check_feature_is_sequence(io.inputs["a"]):
-            return {
-                "result": [[self.op(a) for a in seq] for seq in inputs["a"]]
-            }
+            return {"result": [[self.op(a) for a in seq] for seq in inputs["a"]]}
         else:
             return {"result": [self.op(a) for a in inputs["a"]]}
 

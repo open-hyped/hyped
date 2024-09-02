@@ -15,9 +15,7 @@ def test_binary_op_constant_inputs_handler():
     # wrap mock binary operator
     wrapped_binary_op = _handle_constant_inputs_for_binary_op(mock_binary_op)
     # create a feature reference instance
-    ref = FeatureRef(
-        node_id_="", key_=tuple(), flow_=mock_flow, feature_=Value("int32")
-    )
+    ref = FeatureRef(node_id_="", key_=tuple(), flow_=mock_flow, feature_=Value("int32"))
 
     # expected error on only constant inputs
     with pytest.raises(RuntimeError):
@@ -32,16 +30,12 @@ def test_binary_op_constant_inputs_handler():
         wrapped_binary_op(0, ref)
         mock_const.assert_called_with(value=0)
         mock_const(value=0).call.assert_called_with(mock_flow)
-        mock_binary_op.assert_called_with(
-            mock_const(value=0).call(mock_flow).value, ref
-        )
+        mock_binary_op.assert_called_with(mock_const(value=0).call(mock_flow).value, ref)
         # first reference then constant
         wrapped_binary_op(ref, 1)
         mock_const.assert_called_with(value=1)
         mock_const(value=1).call.assert_called_with(mock_flow)
-        mock_binary_op.assert_called_with(
-            ref, mock_const(value=1).call(mock_flow).value
-        )
+        mock_binary_op.assert_called_with(ref, mock_const(value=1).call(mock_flow).value)
 
 
 @pytest.mark.parametrize(
@@ -143,6 +137,4 @@ def test_binary_op(op, proc_type, dtype):
         # run operator
         op(flow.src_features.a, flow.src_features.b)
         # make sure the operator was called correctly
-        mock().call.assert_called_once_with(
-            a=flow.src_features.a, b=flow.src_features.b
-        )
+        mock().call.assert_called_once_with(a=flow.src_features.a, b=flow.src_features.b)

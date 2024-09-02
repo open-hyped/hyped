@@ -18,9 +18,7 @@ def test_compute_spans_overlap_matrix():
     # expected overlap mask
     expected_mask = np.asarray([[True, True], [False, True], [False, False]])
     # test
-    assert (
-        compute_spans_overlap_matrix(src_spans, tgt_spans) == expected_mask
-    ).all()
+    assert (compute_spans_overlap_matrix(src_spans, tgt_spans) == expected_mask).all()
 
 
 class TestResolveOverlaps:
@@ -33,9 +31,7 @@ class TestResolveOverlaps:
         [[[(2, 4), (5, 9)], None], [[(2, 7), (5, 9)], ValueError]],
     )
     def test_raise(self, spans, expected_err):
-        with nullcontext() if expected_err is None else pytest.raises(
-            expected_err
-        ):
+        with nullcontext() if expected_err is None else pytest.raises(expected_err):
             self.resolve(spans, ResolveOverlapsStrategy.RAISE)
 
     @pytest.mark.parametrize(
@@ -76,10 +72,7 @@ class TestResolveOverlaps:
         ],
     )
     def test_keep_first(self, spans, expected_spans):
-        assert (
-            self.resolve(spans, ResolveOverlapsStrategy.KEEP_FIRST)
-            == expected_spans
-        )
+        assert self.resolve(spans, ResolveOverlapsStrategy.KEEP_FIRST) == expected_spans
 
     @pytest.mark.parametrize(
         "spans, expected_spans",
@@ -119,10 +112,7 @@ class TestResolveOverlaps:
         ],
     )
     def test_keep_last(self, spans, expected_spans):
-        assert (
-            self.resolve(spans, ResolveOverlapsStrategy.KEEP_LAST)
-            == expected_spans
-        )
+        assert self.resolve(spans, ResolveOverlapsStrategy.KEEP_LAST) == expected_spans
 
     @pytest.mark.parametrize(
         "spans, expected_spans",
@@ -162,10 +152,7 @@ class TestResolveOverlaps:
         ],
     )
     def test_keep_largest(self, spans, expected_spans):
-        assert (
-            self.resolve(spans, ResolveOverlapsStrategy.KEEP_LARGEST)
-            == expected_spans
-        )
+        assert self.resolve(spans, ResolveOverlapsStrategy.KEEP_LARGEST) == expected_spans
 
     @pytest.mark.parametrize(
         "spans, expected_spans",
@@ -205,7 +192,4 @@ class TestResolveOverlaps:
         ],
     )
     def test_keep_smallest(self, spans, expected_spans):
-        assert (
-            self.resolve(spans, ResolveOverlapsStrategy.KEEP_SMALLEST)
-            == expected_spans
-        )
+        assert self.resolve(spans, ResolveOverlapsStrategy.KEEP_SMALLEST) == expected_spans

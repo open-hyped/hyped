@@ -1,6 +1,7 @@
 """Module implementing the :class:`PrecisionRecallFScoreSupport` processor.
 
-This can be used for computing precision, recall, F-score and support metrics for classification tasks.
+This can be used for computing precision, recall, F-score and support metrics for classification
+tasks.
 
 This module contains classes and functions to calculate precision, recall, F-score, and
 support metrics from a given confusion matrix. It leverages scikit-learn's underlying functions
@@ -17,11 +18,7 @@ from typing_extensions import Unpack
 
 from hyped.common.feature_checks import get_sequence_length, get_sequence_shape
 from hyped.common.typing import Index, Rank, Sample
-from hyped.core.nodes.processor import (
-    BaseDataProcessor,
-    BaseDataProcessorConfig,
-    IOContext,
-)
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, IOContext
 from hyped.core.refs.inputs import FeatureValidator, InputRefs
 from hyped.core.refs.outputs import LambdaOutputFeature, OutputRefs
 from hyped.core.refs.ref import FeatureRef
@@ -113,9 +110,7 @@ def check_input_confusion_matrix(
 class PrecisionRecallFScoreSupportInputRefs(InputRefs):
     """Input ref description for the PrecisionRecallFScoreSupport Processor."""
 
-    confusion_matrix: Annotated[
-        FeatureRef, FeatureValidator(check_input_confusion_matrix)
-    ]
+    confusion_matrix: Annotated[FeatureRef, FeatureValidator(check_input_confusion_matrix)]
     """Confusion matrix to compute scores from.
     
     Must be a nested Sequence of shape (n_classes, 2, 2)
@@ -155,9 +150,7 @@ class PrecisionRecallFScoreSupportOutputRefs(OutputRefs):
 
     precision: Annotated[
         FeatureRef,
-        LambdaOutputFeature(
-            lambda c, i: infer_prfs_output_feature(c, i, "float32")
-        ),
+        LambdaOutputFeature(lambda c, i: infer_prfs_output_feature(c, i, "float32")),
     ]
     """Precision score.
     
@@ -166,9 +159,7 @@ class PrecisionRecallFScoreSupportOutputRefs(OutputRefs):
 
     recall: Annotated[
         FeatureRef,
-        LambdaOutputFeature(
-            lambda c, i: infer_prfs_output_feature(c, i, "float32")
-        ),
+        LambdaOutputFeature(lambda c, i: infer_prfs_output_feature(c, i, "float32")),
     ]
     """Recall score.
 
@@ -177,9 +168,7 @@ class PrecisionRecallFScoreSupportOutputRefs(OutputRefs):
 
     f_score: Annotated[
         FeatureRef,
-        LambdaOutputFeature(
-            lambda c, i: infer_prfs_output_feature(c, i, "float32")
-        ),
+        LambdaOutputFeature(lambda c, i: infer_prfs_output_feature(c, i, "float32")),
     ]
     """F-beta score.
     
@@ -188,9 +177,7 @@ class PrecisionRecallFScoreSupportOutputRefs(OutputRefs):
 
     support: Annotated[
         FeatureRef,
-        LambdaOutputFeature(
-            lambda c, i: infer_prfs_output_feature(c, i, "int64")
-        ),
+        LambdaOutputFeature(lambda c, i: infer_prfs_output_feature(c, i, "int64")),
     ]
     """The number of occurrences of each label in y_true. If average is not None, this
     will be computed as the sum of each label occurences in y_true.
@@ -212,9 +199,7 @@ class PrecisionRecallFScoreSupport(
     but takes the confusion matrix as an input.
     """
 
-    async def process(
-        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
-    ) -> Sample:
+    async def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
         """Processes a single input sample and returns the corresponding output sample.
 
         Args:

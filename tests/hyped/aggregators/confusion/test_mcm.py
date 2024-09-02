@@ -43,9 +43,7 @@ class TestMultiLabelConfusionMatrix(BaseDataAggregatorTest):
     )
 
     # expected initial value
-    expected_initial_value = {
-        "confusion_matrix": np.zeros((3, 2, 2), dtype=np.int64).tolist()
-    }
+    expected_initial_value = {"confusion_matrix": np.zeros((3, 2, 2), dtype=np.int64).tolist()}
 
     # expected output
     expected_output_value = {
@@ -93,9 +91,7 @@ class TestMultiLabelConfusionMatrixWithLabel(BaseDataAggregatorTest):
     )
 
     # expected initial value
-    expected_initial_value = {
-        "confusion_matrix": np.zeros((2, 2, 2), dtype=np.int64).tolist()
-    }
+    expected_initial_value = {"confusion_matrix": np.zeros((2, 2, 2), dtype=np.int64).tolist()}
 
     # expected output
     expected_output_value = {
@@ -136,9 +132,7 @@ class TestMultiLabelConfusionMatrixWithClassLabel(BaseDataAggregatorTest):
     )
 
     # expected initial value
-    expected_initial_value = {
-        "confusion_matrix": np.zeros((3, 2, 2), dtype=np.int64).tolist()
-    }
+    expected_initial_value = {"confusion_matrix": np.zeros((3, 2, 2), dtype=np.int64).tolist()}
 
     # expected output
     expected_output_value = {

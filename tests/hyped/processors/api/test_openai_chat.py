@@ -10,10 +10,7 @@ from openai.types.chat.chat_completion import (
     CompletionUsage,
 )
 
-from hyped.processors.api.openai_chat import (
-    OpenAIChatCompletion,
-    OpenAIChatCompletionConfig,
-)
+from hyped.processors.api.openai_chat import OpenAIChatCompletion, OpenAIChatCompletionConfig
 from tests.hyped.processors.base import BaseDataProcessorTest
 
 
@@ -49,9 +46,7 @@ class dummy_chat_completion_with_rate_limit(object):
         cls.NUM_CALLS += 1
 
         if cls.NUM_CALLS < 2:
-            raise RateLimitError(
-                "Dummy Rate Limit Error", response=MagicMock(), body=None
-            )
+            raise RateLimitError("Dummy Rate Limit Error", response=MagicMock(), body=None)
 
         return await dummy_chat_completion(*args, **kwargs)
 

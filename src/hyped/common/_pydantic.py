@@ -53,9 +53,7 @@ def _class_label_validator(
     if isinstance(v, str):
         return feature.str2int(v)
 
-    raise TypeError(
-        "Invalid type for class label feature, expected str or int, got %s" % v
-    )
+    raise TypeError("Invalid type for class label feature, expected str or int, got %s" % v)
 
 
 def pydantic_model_from_features(
@@ -87,9 +85,7 @@ def pydantic_model_from_features(
             fields[k] = (
                 Annotated[
                     int,
-                    pydantic.BeforeValidator(
-                        partial(_class_label_validator, feature=field_type)
-                    ),
+                    pydantic.BeforeValidator(partial(_class_label_validator, feature=field_type)),
                 ]
                 | None,
                 None,
@@ -117,9 +113,7 @@ def pydantic_model_from_features(
     return pydantic.create_model(
         "Model",
         **fields,
-        __config__=pydantic.ConfigDict(
-            arbitrary_types_allowed=True, validate_assignment=True
-        ),
+        __config__=pydantic.ConfigDict(arbitrary_types_allowed=True, validate_assignment=True),
     )
 
 
@@ -134,9 +128,7 @@ class validate_type_meta(ModelMetaclass):
         return T
 
 
-class BaseModelWithTypeValidation(
-    pydantic.BaseModel, metaclass=validate_type_meta
-):
+class BaseModelWithTypeValidation(pydantic.BaseModel, metaclass=validate_type_meta):
     """BaseModel that validates type annotations before creation of the class."""
 
     @classmethod

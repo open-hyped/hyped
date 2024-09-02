@@ -146,9 +146,7 @@ class TestChunkSequenceDifferentChunkSizeStride(BaseDataAugmenterTest):
 
 class TestChunkSequenceKeepLastTrueNoRemainder(BaseDataAugmenterTest):
     augmenter_type = ChunkSequence
-    augmenter_config = ChunkSequence.Config(
-        chunk_size=3, stride=2, keep_last=True
-    )
+    augmenter_config = ChunkSequence.Config(chunk_size=3, stride=2, keep_last=True)
 
     input_features = Features(
         {
@@ -188,9 +186,7 @@ class TestChunkSequenceKeepLastTrueNoRemainder(BaseDataAugmenterTest):
 
 class TestChunkSequenceKeepLastTrueWithRemainder(BaseDataAugmenterTest):
     augmenter_type = ChunkSequence
-    augmenter_config = ChunkSequence.Config(
-        chunk_size=3, stride=2, keep_last=True
-    )
+    augmenter_config = ChunkSequence.Config(chunk_size=3, stride=2, keep_last=True)
 
     input_features = Features(
         {

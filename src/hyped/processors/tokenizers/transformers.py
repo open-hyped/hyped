@@ -9,8 +9,6 @@ the output features generated during tokenization.
 """
 from __future__ import annotations
 
-from typing import Literal
-
 from datasets import Sequence, Value
 from transformers import AutoTokenizer
 from transformers.tokenization_utils_base import TruncationStrategy
@@ -19,30 +17,16 @@ from typing_extensions import Annotated, NotRequired, Unpack
 
 from hyped.common.feature_checks import raise_feature_equals
 from hyped.common.typing import Batch, IndexList, Rank
-from hyped.core.nodes.processor import (
-    BaseDataProcessor,
-    BaseDataProcessorConfig,
-    IOContext,
-)
-from hyped.core.refs.inputs import (
-    CheckFeatureEquals,
-    FeatureValidator,
-    InputRefs,
-)
-from hyped.core.refs.outputs import (
-    ConditionalOutputFeature,
-    LambdaOutputFeature,
-    OutputRefs,
-)
-from hyped.core.refs.ref import NONE_REF, FeatureRef
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, IOContext
+from hyped.core.refs.inputs import FeatureValidator, InputRefs
+from hyped.core.refs.outputs import ConditionalOutputFeature, LambdaOutputFeature, OutputRefs
+from hyped.core.refs.ref import FeatureRef
 
 
 def _validate_text_type(config: TransformersTokenizerConfig, ref: FeatureRef):
     if config.is_split_into_words:
         try:
-            raise_feature_equals(
-                ref.key_, ref.feature_, Sequence(Value("string"))
-            )
+            raise_feature_equals(ref.key_, ref.feature_, Sequence(Value("string")))
         except TypeError as e:
             raise TypeError(
                 f"{str(e)}\nExpects a list of pre-tokenized words "
@@ -59,10 +43,7 @@ def _get_output_sequence_length(config: TransformersTokenizerConfig) -> int:
     is_constant = (
         (config.max_length is not None)
         and (config.padding == "max_length")
-        and (
-            config.truncation
-            in (True, "longest_first", "only_first", "only_second")
-        )
+        and (config.truncation in (True, "longest_first", "only_first", "only_second"))
     )
     # get sequence length in case it's constant
     return config.max_length if is_constant else -1
@@ -76,19 +57,13 @@ class TransformersTokenizerInputRefs(InputRefs):
     """Input feature representing the input text."""
 
     # optional input features
-    text_pair: NotRequired[
-        Annotated[FeatureRef, FeatureValidator(_validate_text_type)]
-    ]
+    text_pair: NotRequired[Annotated[FeatureRef, FeatureValidator(_validate_text_type)]]
     """Optional input feature representing the paired text."""
 
-    text_target: NotRequired[
-        Annotated[FeatureRef, FeatureValidator(_validate_text_type)]
-    ]
+    text_target: NotRequired[Annotated[FeatureRef, FeatureValidator(_validate_text_type)]]
     """Optional input feature representing the target text."""
 
-    text_pair_target: NotRequired[
-        Annotated[FeatureRef, FeatureValidator(_validate_text_type)]
-    ]
+    text_pair_target: NotRequired[Annotated[FeatureRef, FeatureValidator(_validate_text_type)]]
     """Optional input feature representing the paired target text."""
 
 
@@ -98,9 +73,7 @@ class TransformersTokenizerOutputRefs(OutputRefs):
     input_ids: Annotated[
         FeatureRef,
         LambdaOutputFeature(
-            lambda c, _: Sequence(
-                Value("int32"), length=_get_output_sequence_length(c)
-            )
+            lambda c, _: Sequence(Value("int32"), length=_get_output_sequence_length(c))
         ),
     ]
     """Output feature representing the input IDs."""
@@ -108,9 +81,7 @@ class TransformersTokenizerOutputRefs(OutputRefs):
     tokens: Annotated[
         FeatureRef,
         LambdaOutputFeature(
-            lambda c, _: Sequence(
-                Value("string"), length=_get_output_sequence_length(c)
-            )
+            lambda c, _: Sequence(Value("string"), length=_get_output_sequence_length(c))
             if c.return_tokens
             else None
         ),
@@ -123,9 +94,7 @@ class TransformersTokenizerOutputRefs(OutputRefs):
     token_type_ids: Annotated[
         FeatureRef,
         LambdaOutputFeature(
-            lambda c, _: Sequence(
-                Value("int32"), length=_get_output_sequence_length(c)
-            )
+            lambda c, _: Sequence(Value("int32"), length=_get_output_sequence_length(c))
             if c.return_token_type_ids
             else None
         ),
@@ -138,9 +107,7 @@ class TransformersTokenizerOutputRefs(OutputRefs):
     attention_mask: Annotated[
         FeatureRef,
         LambdaOutputFeature(
-            lambda c, _: Sequence(
-                Value("int32"), length=_get_output_sequence_length(c)
-            )
+            lambda c, _: Sequence(Value("int32"), length=_get_output_sequence_length(c))
             if c.return_attention_mask
             else None
         ),
@@ -153,9 +120,7 @@ class TransformersTokenizerOutputRefs(OutputRefs):
     special_tokens_mask: Annotated[
         FeatureRef,
         LambdaOutputFeature(
-            lambda c, _: Sequence(
-                Value("int32"), length=_get_output_sequence_length(c)
-            )
+            lambda c, _: Sequence(Value("int32"), length=_get_output_sequence_length(c))
             if c.return_special_tokens_mask
             else None
         ),
@@ -168,9 +133,7 @@ class TransformersTokenizerOutputRefs(OutputRefs):
     word_ids: Annotated[
         FeatureRef,
         LambdaOutputFeature(
-            lambda c, _: Sequence(
-                Value("int32"), length=_get_output_sequence_length(c)
-            )
+            lambda c, _: Sequence(Value("int32"), length=_get_output_sequence_length(c))
             if c.return_word_ids
             else None
         ),
@@ -267,9 +230,7 @@ class TransformersTokenizer(
     This processor tokenizes input text using a specified tokenizer.
     """
 
-    def __init__(
-        self, config: None | TransformersTokenizerConfig = None, **kwargs
-    ) -> None:
+    def __init__(self, config: None | TransformersTokenizerConfig = None, **kwargs) -> None:
         """Initialize the Transformers Tokenizer processor.
 
         Args:
@@ -322,9 +283,7 @@ class TransformersTokenizer(
 
         # add all features
         if self.config.return_tokens:
-            out["tokens"] = list(
-                map(self.tokenizer.convert_ids_to_tokens, enc.input_ids)
-            )
+            out["tokens"] = list(map(self.tokenizer.convert_ids_to_tokens, enc.input_ids))
 
         if self.config.return_token_type_ids:
             out["token_type_ids"] = enc.token_type_ids
@@ -337,14 +296,11 @@ class TransformersTokenizer(
 
         if self.config.return_word_ids:
             out["word_ids"] = [
-                [(i if i is not None else -1) for i in enc.word_ids(j)]
-                for j in range(len(index))
+                [(i if i is not None else -1) for i in enc.word_ids(j)] for j in range(len(index))
             ]
 
         if self.config.return_offsets_mapping:
-            out["offset_mapping"] = [
-                list(map(list, item)) for item in enc["offset_mapping"]
-            ]
+            out["offset_mapping"] = [list(map(list, item)) for item in enc["offset_mapping"]]
 
         if self.config.return_length:
             out["length"] = enc["length"]
@@ -357,8 +313,8 @@ class TransformersTokenizer(
     ) -> TransformersTokenizerOutputRefs:
         """Execute the Transformers Tokenizer processor.
 
-        Processes the input references to tokenize text using the specified Transformer-based tokenizer.
-        Outputs various tokenization results based on the configuration settings.
+        Processes the input references to tokenize text using the specified Transformer-based
+        tokenizer. Outputs various tokenization results based on the configuration settings.
 
         Args:
             text (FeatureRef): Input feature representing the input text.

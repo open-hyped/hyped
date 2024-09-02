@@ -1,9 +1,6 @@
 from datasets import Features, Sequence, Value
 
-from hyped.processors.spans.chr_to_tok import (
-    ChrToTokSpans,
-    ChrToTokSpansConfig,
-)
+from hyped.processors.spans.chr_to_tok import ChrToTokSpans, ChrToTokSpansConfig
 from tests.hyped.processors.base import BaseDataProcessorTest
 
 
@@ -34,9 +31,7 @@ class TestChrToTokSpans(BaseDataProcessorTest):
     }
     input_index = [0, 1, 2, 3]
     # expected output specification
-    expected_output_feature = Features(
-        {"tok_spans": Sequence(Sequence(Value("int32"), length=2))}
-    )
+    expected_output_feature = Features({"tok_spans": Sequence(Sequence(Value("int32"), length=2))})
     expected_output_data = {
         "tok_spans": [
             [],
@@ -105,9 +100,7 @@ class TestChrToTokSpans_Masked(BaseDataProcessorTest):
     }
     input_index = list(range(12))
     # expected output specification
-    expected_output_feature = Features(
-        {"tok_spans": Sequence(Sequence(Value("int32"), length=2))}
-    )
+    expected_output_feature = Features({"tok_spans": Sequence(Sequence(Value("int32"), length=2))})
     expected_output_data = {
         "tok_spans": [
             [],

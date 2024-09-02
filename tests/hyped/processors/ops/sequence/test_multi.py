@@ -94,9 +94,7 @@ class TestSequenceChain_FixedLength(BaseDataProcessorTest):
     }
     input_index = [0]
 
-    expected_output_features = Features(
-        {"result": Sequence(Value("int32"), length=6)}
-    )
+    expected_output_features = Features({"result": Sequence(Value("int32"), length=6)})
     expected_output_data = {"result": [[1, 2, 3, 4, 5, 6]]}
 
 

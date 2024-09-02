@@ -97,6 +97,4 @@ class TestElementWiseBooleanInvert(BaseDataProcessorTest):
     input_index = [0, 1]
 
     expected_output_features = Features({"result": Sequence(Value("bool"))})
-    expected_output_data = {
-        "result": [[False, True, True], [True, False, True]]
-    }
+    expected_output_data = {"result": [[False, True, True], [True, False, True]]}

@@ -34,8 +34,7 @@ def _check_args(*args: FeatureRef | Any) -> tuple[FeatureRef]:
     """
     if not any(isinstance(a, FeatureRef) for a in args):
         raise RuntimeError(
-            "All inputs are constants. At least one input must "
-            "be a FeatureRef instance."
+            "All inputs are constants. At least one input must " "be a FeatureRef instance."
         )
 
     # get the flow from the argument sequence
@@ -43,12 +42,7 @@ def _check_args(*args: FeatureRef | Any) -> tuple[FeatureRef]:
 
     # add all constants in the argument sequence to the flow
     return tuple(
-        (
-            arg
-            if isinstance(arg, FeatureRef)
-            else Const(value=arg).call(flow).value
-        )
-        for arg in args
+        (arg if isinstance(arg, FeatureRef) else Const(value=arg).call(flow).value) for arg in args
     )
 
 
@@ -75,9 +69,7 @@ def _handle_constant_inputs_for_binary_op(
     """
 
     @wraps(binary_op)
-    def wrapped_binary_op(
-        a: FeatureRef | Any, b: FeatureRef | Any
-    ) -> FeatureRef:
+    def wrapped_binary_op(a: FeatureRef | Any, b: FeatureRef | Any) -> FeatureRef:
         # add constant arguments to the data flow
         a, b = _check_args(a, b)
         # apply binary operation on feature refs
@@ -116,8 +108,7 @@ def collect(
     """
     if (collection is not None) and len(kwargs) > 0:
         raise ValueError(
-            "Both `collection` and keyword arguments provided. "
-            "Please provide only one."
+            "Both `collection` and keyword arguments provided. " "Please provide only one."
         )
 
     # create a nested container from the inputs
@@ -143,9 +134,7 @@ def collect(
         flow = next(iter(vals)).flow_
 
     def _add_const(p: tuple[str, int], v: FeatureRef | Any) -> FeatureRef:
-        return (
-            v if isinstance(v, FeatureRef) else Const(value=v).call(flow).value
-        )
+        return v if isinstance(v, FeatureRef) else Const(value=v).call(flow).value
 
     # add all constants in the collection to the flow
     container = container.map(_add_const, FeatureRef)

@@ -15,15 +15,8 @@ from hyped.common.feature_checks import (
 )
 from hyped.common.typing import Batch, IndexList, Rank
 from hyped.core.nodes.base import IOContext
-from hyped.core.nodes.processor import (
-    BaseDataProcessor,
-    BaseDataProcessorConfig,
-)
-from hyped.core.refs.inputs import (
-    CheckFeatureEquals,
-    CheckFeatureIsSequence,
-    InputRefs,
-)
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig
+from hyped.core.refs.inputs import CheckFeatureEquals, CheckFeatureIsSequence, InputRefs
 from hyped.core.refs.outputs import LambdaOutputFeature, OutputRefs
 from hyped.core.refs.ref import FeatureRef
 
@@ -40,15 +33,12 @@ class ToClassLabelInputRefs(InputRefs):
 
     label: Annotated[
         FeatureRef,
-        CheckFeatureEquals(Value("string"))
-        | CheckFeatureIsSequence(Value("string")),
+        CheckFeatureEquals(Value("string")) | CheckFeatureIsSequence(Value("string")),
     ]
     """The feature reference to the sequence or single value of string labels to convert."""
 
 
-def get_output_feature(
-    config: ToClassLabelConfig, inputs: ToClassLabelInputRefs
-) -> FeatureType:
+def get_output_feature(config: ToClassLabelConfig, inputs: ToClassLabelInputRefs) -> FeatureType:
     """Generate the output feature for class labels.
 
     Based on the configuration and input features, this function constructs the appropriate
@@ -66,9 +56,7 @@ def get_output_feature(
     class_label = ClassLabel(names=config.class_labels)
     # handel sequence inputs
     if check_feature_is_sequence(input_feature):
-        class_label = Sequence(
-            class_label, length=get_sequence_length(input_feature)
-        )
+        class_label = Sequence(class_label, length=get_sequence_length(input_feature))
     # return the final class label feature
     return class_label
 
@@ -81,9 +69,7 @@ class ToClassLabelOutputRefs(OutputRefs):
 
 
 class ToClassLabel(
-    BaseDataProcessor[
-        ToClassLabelConfig, ToClassLabelInputRefs, ToClassLabelOutputRefs
-    ]
+    BaseDataProcessor[ToClassLabelConfig, ToClassLabelInputRefs, ToClassLabelOutputRefs]
 ):
     """Processor to convert string labels to class labels.
 
@@ -117,6 +103,4 @@ class ToClassLabel(
         )
         assert isinstance(class_label, ClassLabel)  # TODO: write error message
         # convert each item in the input to a class label
-        return Batch(
-            class_label=list(map(class_label.str2int, inputs["label"]))
-        )
+        return Batch(class_label=list(map(class_label.str2int, inputs["label"])))

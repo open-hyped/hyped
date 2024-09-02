@@ -23,11 +23,7 @@ from hyped.common.feature_checks import (
     get_sequence_length,
 )
 from hyped.common.typing import Batch, IndexList, Rank
-from hyped.core.nodes.processor import (
-    BaseDataProcessor,
-    BaseDataProcessorConfig,
-    IOContext,
-)
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, IOContext
 from hyped.core.refs.inputs import (
     AnyFeatureType,
     CheckFeatureEquals,
@@ -109,15 +105,9 @@ class SequenceGetItem(
             else (lambda s, i: s[i])
         )
 
-        return {
-            "result": list(
-                starmap(op, zip(inputs["sequence"], inputs["index"]))
-            )
-        }
+        return {"result": list(starmap(op, zip(inputs["sequence"], inputs["index"])))}
 
-    def call(
-        self, **kwargs: Unpack[SequenceGetItemInputRefs]
-    ) -> SequenceGetItemOutputRefs:
+    def call(self, **kwargs: Unpack[SequenceGetItemInputRefs]) -> SequenceGetItemOutputRefs:
         """Add the GetItem node to the data flow.
 
         This method processes the input references for the GetItem operation, adds
@@ -183,9 +173,7 @@ def validate_setitem_input_refs(
             raise TypeError("Value must match the sequence type.")
 
 
-class SequenceSetItemInputRefs(
-    Annotated[InputRefs, GlobalValidator(validate_setitem_input_refs)]
-):
+class SequenceSetItemInputRefs(Annotated[InputRefs, GlobalValidator(validate_setitem_input_refs)]):
     """Input references for the :code:`SetItem` operation."""
 
     sequence: Annotated[FeatureRef, CheckFeatureIsSequence()]
@@ -205,9 +193,7 @@ class SequenceSetItemInputRefs(
 class SequenceSetItemOutputRefs(OutputRefs):
     """Output references for the :code:`SetItem` operation."""
 
-    result: Annotated[
-        FeatureRef, LambdaOutputFeature(lambda _, i: i["sequence"].feature_)
-    ]
+    result: Annotated[FeatureRef, LambdaOutputFeature(lambda _, i: i["sequence"].feature_)]
     """The feature reference to the result of the :code:`SetItem` operation."""
 
 
@@ -260,28 +246,19 @@ class SequenceSetItem(
             )
         ):
             # make sure the length of the value and index list match
-            if any(
-                len(vals) != len(idx)
-                for vals, idx in zip(inputs["value"], inputs["index"])
-            ):
+            if any(len(vals) != len(idx) for vals, idx in zip(inputs["value"], inputs["index"])):
                 raise RuntimeError()  # TODO: write error message
 
         # convert sequences to numpy arrays and create all put operations
-        sequences = list(
-            map(partial(np.asarray, dtype=object), inputs["sequence"])
-        )
-        operations = starmap(
-            np.put, zip(sequences, inputs["index"], inputs["value"])
-        )
+        sequences = list(map(partial(np.asarray, dtype=object), inputs["sequence"]))
+        operations = starmap(np.put, zip(sequences, inputs["index"], inputs["value"]))
         # efficiently exhaust operations iterator, basically run all operations
         deque(operations, maxlen=0)
 
         # convert arrays with new values back to python lists
         return {"result": list(map(np.ndarray.tolist, sequences))}
 
-    def call(
-        self, **kwargs: Unpack[SequenceSetItemInputRefs]
-    ) -> SequenceSetItemOutputRefs:
+    def call(self, **kwargs: Unpack[SequenceSetItemInputRefs]) -> SequenceSetItemOutputRefs:
         """Add the :code:`SetItem` node to the data flow.
 
         This method processes the input references for the :code:`SetItem` operation, adds
@@ -295,7 +272,8 @@ class SequenceSetItem(
             **kwargs (FeatureRef): Keyword arguments passed to call method.
 
         Returns:
-            SequenceSetItemOutputRefs: The output references produced by the :code:`SetItem` data processor.
+            SequenceSetItemOutputRefs: The output references produced by the :code:`SetItem` data
+            processor.
         """
         return super(SequenceSetItem, self).call(**kwargs)
 
@@ -304,9 +282,7 @@ class BooleanIndexingConfig(BaseDataProcessorConfig):
     """Configuration to the :code:`BooleanIndexing` processor."""
 
 
-def validate_input_refs(
-    config: BooleanIndexingConfig, inputs: BooleanIndexingInputRefs
-) -> None:
+def validate_input_refs(config: BooleanIndexingConfig, inputs: BooleanIndexingInputRefs) -> None:
     """Validates that the input sequences for values and mask have matching lengths.
 
     This function ensures that the sequences referenced by :code:`values` and :code:`mask`
@@ -315,7 +291,8 @@ def validate_input_refs(
     in the :code:`values` sequence.
 
     Args:
-        config (BooleanIndexingConfig): The configuration for the :class:`BooleanIndexing` processor.
+        config (BooleanIndexingConfig): The configuration for the :class:`BooleanIndexing`
+            processor.
         inputs (BooleanIndexingInputRefs): The input references containing the values and mask.
 
     Raises:
@@ -325,14 +302,10 @@ def validate_input_refs(
     mask = inputs["mask"].feature_
 
     if not check_sequence_lengths_match(values, mask):
-        raise RuntimeError(
-            "The lengths of the 'values' and 'mask' sequences do not match. "
-        )
+        raise RuntimeError("The lengths of the 'values' and 'mask' sequences do not match. ")
 
 
-class BooleanIndexingInputRefs(
-    Annotated[InputRefs, GlobalValidator(validate_input_refs)]
-):
+class BooleanIndexingInputRefs(Annotated[InputRefs, GlobalValidator(validate_input_refs)]):
     """Input references to the :code:`BooleanIndexing` processor."""
 
     values: Annotated[
@@ -365,9 +338,7 @@ def get_output_feature(
     """
     # Get the input feature to determine the value type
     input_feature = inputs["values"].feature_
-    assert check_feature_is_sequence(
-        input_feature
-    ), "Input values must be a sequence."
+    assert check_feature_is_sequence(input_feature), "Input values must be a sequence."
 
     # Create the output sequence feature with the same value type but undefined length
     value_type = get_sequence_feature(input_feature)
@@ -377,9 +348,7 @@ def get_output_feature(
 class BooleanIndexingOutputRefs(OutputRefs):
     """Output references to :code:`BooleanIndexing` processor."""
 
-    indexed_values: Annotated[
-        FeatureRef, LambdaOutputFeature(get_output_feature)
-    ]
+    indexed_values: Annotated[FeatureRef, LambdaOutputFeature(get_output_feature)]
     """The feature reference to the indexed sequence of values."""
 
 
@@ -419,16 +388,13 @@ class BooleanIndexing(
 
         # Apply the mask to the values
         indexed_values = [
-            list(compress(value_seq, mask_seq))
-            for value_seq, mask_seq in zip(values, mask)
+            list(compress(value_seq, mask_seq)) for value_seq, mask_seq in zip(values, mask)
         ]
 
         # Return the indexed values as a new Batch
         return Batch(indexed_values=indexed_values)
 
-    def call(
-        self, **kwargs: Unpack[BooleanIndexingInputRefs]
-    ) -> BooleanIndexingOutputRefs:
+    def call(self, **kwargs: Unpack[BooleanIndexingInputRefs]) -> BooleanIndexingOutputRefs:
         """Add the :code:`BooleanIndexing` node to the data flow.
 
         This method processes the input references for the :code:`BooleanIndexing` operation, adds
@@ -437,10 +403,12 @@ class BooleanIndexing(
 
         Args:
             values (FeatureRef): The input sequence from which items will be selected.
-            mask (FeatureRef): The boolean mask indicating which items to select from the input sequence.
+            mask (FeatureRef): The boolean mask indicating which items to select from the input
+                sequence.
             **kwargs (FeatureRef): Keyword arguments passed to call method.
 
         Returns:
-            BooleanIndexingOutputRefs: The output references produced by the :code:`BooleanIndexing` data processor.
+            BooleanIndexingOutputRefs: The output references produced by the :code:`BooleanIndexing`
+            data processor.
         """
         return super(BooleanIndexing, self).call(**kwargs)

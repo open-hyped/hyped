@@ -19,11 +19,7 @@ from hyped.common.feature_checks import (
     get_sequence_length,
 )
 from hyped.common.typing import Index, Rank, Sample
-from hyped.core.nodes.processor import (
-    BaseDataProcessor,
-    BaseDataProcessorConfig,
-    IOContext,
-)
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, IOContext
 from hyped.core.refs.inputs import (
     CheckFeatureEquals,
     CheckFeatureIsSequence,
@@ -52,10 +48,7 @@ def validate_bio_tag_input_refs(refs: BioTagsInputRefs) -> None:
     if (
         (get_sequence_length(refs.spans.feature_) != -1)
         and (get_sequence_length(refs.labels.feature_) != -1)
-    ) and (
-        get_sequence_length(refs.spans.feature_)
-        != get_sequence_length(refs.labels.feature_)
-    ):
+    ) and (get_sequence_length(refs.spans.feature_) != get_sequence_length(refs.labels.feature_)):
         raise RuntimeError(
             f"Mismatch in sequence lengths: 'spans' and 'labels' "
             f"must have the same length, got {get_sequence_length(refs.spans.feature_)} "
@@ -80,27 +73,19 @@ def check_input_lengths(config: BioTagsConfig, refs: BioTagsInputRefs) -> None:
     spans_length = get_sequence_length(refs["spans"].feature_)
     labels_length = get_sequence_length(refs["labels"].feature_)
 
-    if (
-        (spans_length != -1)
-        and (labels_length != -1)
-        and (spans_length != labels_length)
-    ):
+    if (spans_length != -1) and (labels_length != -1) and (spans_length != labels_length):
         raise RuntimeError(
             f"Span and label sequence length don't match, got {spans_length} != {labels_length}."
         )
 
 
-class BioTagsInputRefs(
-    Annotated[InputRefs, GlobalValidator(check_input_lengths)]
-):
+class BioTagsInputRefs(Annotated[InputRefs, GlobalValidator(check_input_lengths)]):
     """Input references for the BioTags processor."""
 
     spans: Annotated[FeatureRef, FeatureValidator(validate_spans_feature)]
     """The feature reference to the span annotations. Must be a sequence of spans."""
 
-    labels: Annotated[
-        FeatureRef, CheckFeatureIsSequence([Value("string"), ClassLabel])
-    ]
+    labels: Annotated[FeatureRef, CheckFeatureIsSequence([Value("string"), ClassLabel])]
     """The feature reference for the label annotations, which should be a sequence
     of :code:`strings` or :class:`ClassLabels`.
     """
@@ -111,9 +96,7 @@ class BioTagsInputRefs(
     """
 
 
-def build_bio_tags_feature(
-    config: BioTagsConfig, inputs: BioTagsInputRefs
-) -> Sequence:
+def build_bio_tags_feature(config: BioTagsConfig, inputs: BioTagsInputRefs) -> Sequence:
     """Builds the BIO tags feature from the input spans and labels.
 
     Args:
@@ -166,17 +149,13 @@ class BioTagsConfig(BaseDataProcessorConfig):
     """The tag for outside spans. Defaults to "O"."""
 
 
-class BioTags(
-    BaseDataProcessor[BioTagsConfig, BioTagsInputRefs, BioTagsOutputRefs]
-):
+class BioTags(BaseDataProcessor[BioTagsConfig, BioTagsInputRefs, BioTagsOutputRefs]):
     """Processor for generating BIO tags from spans and labels.
 
     This processor takes spans and labels as input and generates BIO tags,
     """
 
-    def process(
-        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
-    ) -> Sample:
+    def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
         """Processes the inputs to generate BIO tags.
 
         Args:
@@ -209,17 +188,16 @@ class BioTags(
                 # get the overlapping entity types
                 overlap_types = [label] + [
                     (
-                        tag.removeprefix(
-                            self.config.begin_tag_prefix
-                        ).removeprefix(self.config.in_tag_prefix)
+                        tag.removeprefix(self.config.begin_tag_prefix).removeprefix(
+                            self.config.in_tag_prefix
+                        )
                     )
                     for tag in tags[b:e]
                     if tag != self.config.out_tag
                 ]
                 # raise error on overlap
                 raise ValueError(
-                    "Detected overlap between entities of types %s"
-                    % ", ".join(overlap_types)
+                    "Detected overlap between entities of types %s" % ", ".join(overlap_types)
                 )
 
             # add entity to tag sequence
@@ -237,16 +215,17 @@ class BioTags(
     def call(self, **kwargs: Unpack[BioTagsInputRefs]) -> BioTagsOutputRefs:
         """Execute the BioTags processor.
 
-        Processes the input references to generate BIO tags based on the spans and labels provided.
-        This method validates the input lengths and builds the BIO tags sequence accordingly,
-        ensuring that the sequence conforms to the specified configuration.
+        Processes the input references to generate BIO tags based on the spans and labels
+        provided. This method validates the input lengths and builds the BIO tags sequence
+        accordingly, ensuring that the sequence conforms to the specified configuration.
 
         Args:
-            spans (FeatureRef): The feature reference to the span annotations. Must be a sequence of spans.
-            labels (FeatureRef): The feature reference for the label annotations, which should be a sequence
-                of :code:`strings` or :class:`ClassLabels`.
-            length (FeatureRef): The feature reference to the length, which should be of integer type
-                indicating the target length of the tags sequence.
+            spans (FeatureRef): The feature reference to the span annotations. Must be a sequence
+                of spans.
+            labels (FeatureRef): The feature reference for the label annotations, which should be
+                a sequence of :code:`strings` or :class:`ClassLabels`.
+            length (FeatureRef): The feature reference to the length, which should be of integer
+                type indicating the target length of the tags sequence.
             **kwargs (FeatureRef): Keyword arguments passed to call method.
 
         Returns:

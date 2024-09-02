@@ -11,25 +11,14 @@ from itertools import compress
 from datasets import Sequence, Value
 from typing_extensions import Annotated, Unpack
 
-from hyped.common.feature_checks import (
-    get_sequence_feature,
-    get_sequence_length,
-)
+from hyped.common.feature_checks import get_sequence_feature, get_sequence_length
 from hyped.common.typing import Index, Rank, Sample
-from hyped.core.nodes.processor import (
-    BaseDataProcessor,
-    BaseDataProcessorConfig,
-    IOContext,
-)
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, IOContext
 from hyped.core.refs.inputs import FeatureValidator, InputRefs
 from hyped.core.refs.outputs import LambdaOutputFeature, OutputRefs
 from hyped.core.refs.ref import FeatureRef
 
-from .utils import (
-    ResolveOverlapsStrategy,
-    resolve_overlaps,
-    validate_spans_feature,
-)
+from .utils import ResolveOverlapsStrategy, resolve_overlaps, validate_spans_feature
 
 
 class ResolveOverlapsInputRefs(InputRefs):
@@ -57,9 +46,7 @@ class ResolveOverlapsOutputRefs(OutputRefs):
     mask: Annotated[
         FeatureRef,
         LambdaOutputFeature(
-            lambda _, i: Sequence(
-                Value("bool"), length=get_sequence_length(i["spans"].feature_)
-            )
+            lambda _, i: Sequence(Value("bool"), length=get_sequence_length(i["spans"].feature_))
         ),
     ]
     """Reference to the output mask feature, indicating which spans were retained
@@ -87,9 +74,7 @@ class ResolveOverlaps(
     a mask indicating which spans were retained.
     """
 
-    def process(
-        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
-    ) -> Sample:
+    def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
         """Process the input sample to resolve overlapping spans.
 
         Args:
@@ -112,13 +97,12 @@ class ResolveOverlaps(
         # return output features
         return Sample(spans=spans, mask=mask)
 
-    def call(
-        self, **kwargs: Unpack[ResolveOverlapsInputRefs]
-    ) -> ResolveOverlapsOutputRefs:
+    def call(self, **kwargs: Unpack[ResolveOverlapsInputRefs]) -> ResolveOverlapsOutputRefs:
         """Execute the ResolveOverlaps processor.
 
-        Processes the input references to resolve overlapping spans ('spans') using the specified strategy
-        defined in the configuration. Outputs include resolved spans and a mask indicating which spans were retained.
+        Processes the input references to resolve overlapping spans ('spans') using the specified
+        strategy defined in the configuration. Outputs include resolved spans and a mask indicating
+        which spans were retained.
 
         Args:
             spans (FeatureRef): Reference to the sequence of spans to check for overlaps.

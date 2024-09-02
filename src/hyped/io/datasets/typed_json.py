@@ -79,9 +79,9 @@ class TypedJsonDataset(Json):
                     data = orjson.loads(f.read())
                 # get field of interest and parse as pydantic
                 data = data[self.config.field]
-                data = self.config._batch_feature_model.model_validate(
-                    {"data": data}
-                ).model_dump()["data"]
+                data = self.config._batch_feature_model.model_validate({"data": data}).model_dump()[
+                    "data"
+                ]
                 # convert to pyarrow table
                 yield fidx, pa.Table.from_pylist(data)
 
@@ -114,9 +114,7 @@ class TypedJsonDataset(Json):
                         chunk = chunk.strip()
                         # build json seralized string matching format expected
                         # by the batch feature model
-                        serialized_chunk = '{"data": [%s]}' % chunk.replace(
-                            "\n", ","
-                        )
+                        serialized_chunk = '{"data": [%s]}' % chunk.replace("\n", ",")
                         # parse the serialized object
                         data = self.config._batch_feature_model.model_validate_json(  # noqa: E501
                             serialized_chunk

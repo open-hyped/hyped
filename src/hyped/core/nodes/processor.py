@@ -51,15 +51,12 @@ from __future__ import annotations
 import asyncio
 import inspect
 from abc import ABC
-from typing import Any, TypeVar, overload
-
-from typing_extensions import TypeAlias
+from typing import TypeVar, overload
 
 from hyped.common.typing import Batch, Index, IndexList, Rank, Sample
 
 from ..refs.inputs import InputRefs
 from ..refs.outputs import OutputRefs
-from ..refs.ref import FeatureRef
 from .base import BaseNode, BaseNodeConfig, IOContext
 
 
@@ -93,8 +90,8 @@ class BaseDataProcessor(BaseNode[C, I, O], ABC):
     def __init__(self, config: None | C = None, **kwargs) -> None:
         """Initialize the data processor.
 
-        Initializes the data processor with the given configuration. If no configuration is provided,
-        a new configuration is created using the provided keyword arguments.
+        Initializes the data processor with the given configuration. If no configuration is
+        provided, a new configuration is created using the provided keyword arguments.
 
         Args:
             config (C, optional): The configuration object for the data processor. If not provided,
@@ -135,17 +132,13 @@ class BaseDataProcessor(BaseNode[C, I, O], ABC):
         return {key: [d[key] for d in outputs] for key in io.outputs.keys()}
 
     @overload
-    async def process(
-        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
-    ) -> Sample:
+    async def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
         ...
 
-    def process(
-        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
-    ) -> Sample:
-        """Processes a single input sample synchronously and returns the corresponding output sample.
+    def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
+        """Processes a single input sample synchronously.
 
-        Asynchronous processing is also supported by defining this function as :class:`async`.
+        Asynchronous processing is also supported by defining this function as :code:`async`.
 
         This method should be overridden by subclasses to define the processing logic.
 

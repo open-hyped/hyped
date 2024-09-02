@@ -76,7 +76,7 @@ def test_output_refs():
             x: Annotated[FeatureRef, y_feature]
             y: FeatureRef  # invalid type annotation
 
-    class CustomOutputRefs(OutputRefs):
+    class CustomOutputRefs(OutputRefs):  # noqa: F811
         x: Annotated[FeatureRef, x_feature]
         y: Annotated[FeatureRef, y_feature]
 
@@ -94,9 +94,7 @@ def test_output_refs():
     # check feature type
     assert inst.x.feature_ == Value("int32")
     assert inst.y.feature_ == Value("string")
-    assert inst.feature_ == Features(
-        {"x": Value("int32"), "y": Value("string")}
-    )
+    assert inst.feature_ == Features({"x": Value("int32"), "y": Value("string")})
 
     # check refs
     assert inst.refs == {inst.x, inst.y}

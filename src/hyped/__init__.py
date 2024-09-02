@@ -1,4 +1,4 @@
-"""A comprehensive framework for constructing, managing, and executing complex data processing pipelines.
+"""A comprehensive framework for complex data processing pipelines.
 
 This package provides a comprehensive framework for constructing, managing,
 and executing complex data processing pipelines. The framework is designed
@@ -27,7 +27,6 @@ Example:
         processed_dataset, _ = flow.apply(dataset)
 """
 
-from hyped.__version__ import __version__, __version_tuple__
 
 __all__ = [
     "DataFlow",

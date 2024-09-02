@@ -299,9 +299,7 @@ class TestFeatureRef(object):
             # Apply operator
             src_ref.model_copy()["new"] = val_ref
 
-            mock.assert_called_with(
-                {"a": src_ref.a, "b": src_ref.b, "new": val_ref}
-            )
+            mock.assert_called_with({"a": src_ref.a, "b": src_ref.b, "new": val_ref})
 
     @pytest.mark.parametrize(
         "op, op_fn, dtype",
@@ -314,9 +312,7 @@ class TestFeatureRef(object):
     )
     def test_unary_ops(self, op, op_fn, dtype):
         # Create feature ref
-        ref = FeatureRef(
-            key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype)
-        )
+        ref = FeatureRef(key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype))
         # Patch operator function
         with patch(op_fn) as mock:
             # Apply operator
@@ -350,12 +346,8 @@ class TestFeatureRef(object):
     )
     def test_binary_ops(self, op, op_fn, dtype):
         # create feature refs
-        refA = FeatureRef(
-            key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype)
-        )
-        refB = FeatureRef(
-            key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype)
-        )
+        refA = FeatureRef(key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype))
+        refB = FeatureRef(key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype))
         # patch operator function
         with patch(op_fn) as mock:
             # apply operator
@@ -381,9 +373,7 @@ class TestFeatureRef(object):
     )
     def test_reflected_binary_ops(self, op, op_fn, dtype):
         # create feature ref
-        ref = FeatureRef(
-            key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype)
-        )
+        ref = FeatureRef(key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype))
         # create mock value for binary operation
         val = object()
         # patch operator function
@@ -411,17 +401,16 @@ class TestFeatureRef(object):
     )
     def test_inplace_binary_ops(self, iop, op_fn, dtype):
         # create feature refs
-        refA = FeatureRef(
-            key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype)
-        )
-        refB = FeatureRef(
-            key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype)
-        )
+        refA = FeatureRef(key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype))
+        refB = FeatureRef(key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype))
 
         # inplace operators change the first argument in execution
         # we copy the first argument before for the actual operator call
         mock = MagicMock()
-        patched_op_fn = lambda a, b: mock(a.model_copy(), b)
+
+        def patched_op_fn(a, b):
+            return mock(a.model_copy(), b)
+
         # patch operator function and since we copied the first argument
         # the objects will be compared using the eq operator in assert_called_with
         # so we have to patch that to not use the overloaded operator here
@@ -442,9 +431,7 @@ class TestFeatureRef(object):
     )
     def test_aggregator_ops(self, agg, agg_fn, dtype):
         # create a feature reference
-        ref = FeatureRef(
-            key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype)
-        )
+        ref = FeatureRef(key_=FeatureKey(), node_id_="", flow_=None, feature_=Value(dtype))
         # patch aggregator function
         with patch(agg_fn) as mock:
             # apply operator

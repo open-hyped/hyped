@@ -3,12 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from datasets import Features, Value
 
-from hyped.core.nodes.base import (
-    BaseNode,
-    BaseNodeConfig,
-    InputRefs,
-    OutputRefs,
-)
+from hyped.core.nodes.base import BaseNode, BaseNodeConfig
 
 from ..mock import MockInputRefs, MockOutputRefs
 
@@ -74,9 +69,7 @@ def test_call():
         # make sure the validator was called correctly
         mock_validator().validate.asser_called_once_with(flow=None, a=x, b=x)
         # make sure the node was added to the flow
-        mock_flow.add_processor_node.assert_called_once_with(
-            inst, mock_inputs, out_features
-        )
+        mock_flow.add_processor_node.assert_called_once_with(inst, mock_inputs, out_features)
 
 
 def test_call_infer_flow_from_inputs():
@@ -106,9 +99,7 @@ def test_call_infer_flow_from_inputs():
         # make sure the validator was called correctly
         mock_validator().validate.asser_called_once_with(flow=None, a=a, b=b)
         # make sure the node was added to the flow
-        mock_flow.add_processor_node.assert_called_once_with(
-            inst, mock_inputs, out_features
-        )
+        mock_flow.add_processor_node.assert_called_once_with(inst, mock_inputs, out_features)
 
 
 def test_call_no_inputs():
@@ -135,9 +126,7 @@ def test_call_no_inputs():
         # no validator for nodes without inputs
         assert not mock_validator().validate.called
         # make sure the node was added to the flow
-        mock_flow.add_processor_node.assert_called_once_with(
-            inst, None, out_features
-        )
+        mock_flow.add_processor_node.assert_called_once_with(inst, None, out_features)
 
     with pytest.raises(RuntimeError):
         # create mock instance and call it without specifying the flow

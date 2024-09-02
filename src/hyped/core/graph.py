@@ -16,7 +16,6 @@ from typing import Any, Hashable
 
 import datasets
 import networkx as nx
-from datasets.features.features import FeatureType
 
 from hyped.common.typing import NodeId, PartitionId
 from hyped.core.nodes.aggregator import BaseDataAggregator
@@ -51,10 +50,7 @@ def _compute_node_depth(G: nx.DiGraph) -> dict[Hashable, int]:
     # trafers graph in topological order and compute the node depth
     for partition_node in nx.topological_sort(G):
         node_depths[partition_node] = max(
-            (
-                node_depths[parent] + 1
-                for parent in G.predecessors(partition_node)
-            ),
+            (node_depths[parent] + 1 for parent in G.predecessors(partition_node)),
             default=0,
         )
 
@@ -79,9 +75,7 @@ def _build_dependency_graph(G: nx.DiGraph, nodes: set[Hashable]) -> nx.DiGraph:
     Raises:
         AssertionError: If any node in :code:`nodes` is not present in :code:`G`.
     """
-    assert all(
-        node in G for node in nodes
-    ), "All nodes must be present in the graph 'G'."
+    assert all(node in G for node in nodes), "All nodes must be present in the graph 'G'."
 
     visited = set()
     nodes = nodes.copy()
@@ -319,14 +313,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         Returns:
             int: The total depth of the graph.
         """
-        return (
-            max(
-                nx.get_node_attributes(
-                    self, DataFlowGraph.NodeAttribute.DEPTH
-                ).values()
-            )
-            + 1
-        )
+        return max(nx.get_node_attributes(self, DataFlowGraph.NodeAttribute.DEPTH).values()) + 1
 
     @property
     def width(self) -> int:
@@ -340,9 +327,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             int: The maximum width of the graph.
         """
         # group nodes by their layer
-        depths = nx.get_node_attributes(
-            self, DataFlowGraph.NodeAttribute.DEPTH
-        )
+        depths = nx.get_node_attributes(self, DataFlowGraph.NodeAttribute.DEPTH)
         layers = groupby(sorted(self, key=depths.get), key=depths.get)
         # find larges layer in graph
         return max(len(list(layer)) for _, layer in layers)
@@ -411,9 +396,7 @@ class DataFlowGraph(nx.MultiDiGraph):
 
         return G
 
-    def add_source_node(
-        self, features: datasets.Features, node_id: None | str = None
-    ) -> NodeId:
+    def add_source_node(self, features: datasets.Features, node_id: None | str = None) -> NodeId:
         """Add a the source node to the graph.
 
         This method adds a source node to the graph, which acts as the initial
@@ -511,7 +494,8 @@ class DataFlowGraph(nx.MultiDiGraph):
         cycles or disjoint components.
 
         Args:
-            node_type (DataFlowGraph.NodeType): The type of the node for which to infer the partition.
+            node_type (DataFlowGraph.NodeType): The type of the node for which to infer
+                the partition.
             refs (list[FeatureRef]): A list of input references associated with the node.
 
         Returns:
@@ -530,24 +514,17 @@ class DataFlowGraph(nx.MultiDiGraph):
             return DataFlowGraph.PredefinedPartition.CONST.value
 
         # partition could not be inferred
-        assert (
-            len(refs) > 0
-        ), "Partition cannot be inferred for nodes without any input references."
+        assert len(refs) > 0, "Partition cannot be inferred for nodes without any input references."
 
         # get the input partitions
-        candidate_partitions = {
-            self.get_node_output_partition(ref.node_id_) for ref in refs
-        }
+        candidate_partitions = {self.get_node_output_partition(ref.node_id_) for ref in refs}
 
         if candidate_partitions == {DataFlowGraph.PredefinedPartition.CONST}:
             # if all inputs come from the constant partition, then this node
             # is also part of the constant partition
             return DataFlowGraph.PredefinedPartition.CONST.value
 
-        if (
-            DataFlowGraph.PredefinedPartition.AGGREGATED
-            in candidate_partitions
-        ):
+        if DataFlowGraph.PredefinedPartition.AGGREGATED in candidate_partitions:
             # if the inputs come directly from an aggregator or from the
             # aggregated partition, then stay in the aggregated partition
 
@@ -561,9 +538,7 @@ class DataFlowGraph(nx.MultiDiGraph):
                 )
                 != 0
             ):
-                raise RuntimeError(
-                    "Cannot mix aggregated and non-aggregated features."
-                )
+                raise RuntimeError("Cannot mix aggregated and non-aggregated features.")
 
             return DataFlowGraph.PredefinedPartition.AGGREGATED.value
 
@@ -603,12 +578,13 @@ class DataFlowGraph(nx.MultiDiGraph):
     ) -> NodeId:
         """Add a processor node to the data flow graph.
 
-        This method adds a processor node to the data flow graph and creates the necessary edges
-        to define the data flow from input nodes to this processor.
+        This method adds a processor node to the data flow graph and creates the
+        necessary edges to define the data flow from input nodes to this processor.
 
         Args:
             obj (BaseNode): The node object.
-            inputs (None | InputRefs): The input references to the node. If None, the node will be a source node.
+            inputs (None | InputRefs): The input references to the node. If None, the node will
+                be a source node.
             output_features (datasets.Features): The output features generated by the node.
             node_id (None | str): The id of the node, defaults to a random uuid.
 
@@ -620,8 +596,10 @@ class DataFlowGraph(nx.MultiDiGraph):
             AssertionError: If the graph is cyclic after adding the new node.
             AssertionError: If the partition cannot be inferred.
             RuntimeError: If any input reference do not belong to this data flow.
-            RuntimeError: If the input references are a mix of aggregated and non-aggregated features.
-            NotImplementedError: If the input to a non-data-processor node is an aggregated feature.
+            RuntimeError: If the input references are a mix of aggregated and non-aggregated
+                features.
+            NotImplementedError: If the input to a non-data-processor node is an aggregated
+                feature.
         """
         # get processor type
         node_type = (
@@ -641,12 +619,8 @@ class DataFlowGraph(nx.MultiDiGraph):
         assert node_type is not None, f"Invalid processor type {type(obj)}."
 
         # make sure all input references belong to this graph
-        if (inputs is not None) and any(
-            ref.flow_ is not self for ref in inputs.refs
-        ):
-            raise RuntimeError(
-                "Input reference does not belong to this data flow."
-            )
+        if (inputs is not None) and any(ref.flow_ is not self for ref in inputs.refs):
+            raise RuntimeError("Input reference does not belong to this data flow.")
 
         # compute the depth of the node in the graph based
         # on it's input references
@@ -655,8 +629,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             if inputs is None
             else max(
                 (
-                    self.nodes[ref.node_id_][DataFlowGraph.NodeAttribute.DEPTH]
-                    + 1
+                    self.nodes[ref.node_id_][DataFlowGraph.NodeAttribute.DEPTH] + 1
                     for ref in inputs.refs
                 ),
                 default=0,
@@ -701,9 +674,7 @@ class DataFlowGraph(nx.MultiDiGraph):
                 assert ref.node_id_ in self
                 assert (
                     ref.key_.index_features(
-                        self.nodes[ref.node_id_][
-                            DataFlowGraph.NodeAttribute.OUT_FEATURES
-                        ]
+                        self.nodes[ref.node_id_][DataFlowGraph.NodeAttribute.OUT_FEATURES]
                     )
                     is not None
                 )
@@ -726,12 +697,16 @@ class DataFlowGraph(nx.MultiDiGraph):
     def get_node_output_ref(self, node_id: NodeId) -> FeatureRef | OutputRefs:
         """Retrieves the output reference for a given node in the data flow graph.
 
-        This method returns an appropriate output reference based on the type of the node specified by the
-        given node ID. The method constructs the appropriate reference object based on the node type:
+        This method returns an appropriate output reference based on the type of the node specified
+        by the given node ID. The method constructs the appropriate reference object based on the
+        node type:
 
-            - For source nodes, this method builds a feature reference using the output features of the node.
-            - For data processor nodes, it retrieves the processor's output references type and constructs the full output reference.
-            - For data aggregator nodes, it builds a data aggregation reference using the node's value type.
+            - For source nodes, this method builds a feature reference using the output features
+              of the node.
+            - For data processor nodes, it retrieves the processor's output references type and
+              constructs the full output reference.
+            - For data aggregator nodes, it builds a data aggregation reference using the node's
+              value type.
 
         Args:
             node_id (NodeId): The ID of the node for which to retrieve the output reference.
@@ -744,9 +719,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             TypeError: If the node type is not recognized.
         """
         if node_id not in self:
-            raise KeyError(
-                f"Node ID {node_id} does not exist in the data flow graph."
-            )
+            raise KeyError(f"Node ID {node_id} does not exist in the data flow graph.")
 
         # get node properties
         node = self.nodes[node_id]
@@ -757,9 +730,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         if node_type == DataFlowGraph.NodeType.SOURCE:
             # build a feature reference to the source features of the graph
             features = node[DataFlowGraph.NodeAttribute.OUT_FEATURES]
-            return FeatureRef(
-                key_=tuple(), node_id_=node_id, flow_=self, feature_=features
-            )
+            return FeatureRef(key_=tuple(), node_id_=node_id, flow_=self, feature_=features)
 
         # build the output references object
         assert isinstance(node_obj, BaseNode)
@@ -838,11 +809,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             list[tuple[int, int, str] | tuple[int, int, str, Any]]: The incoming edges
             to the subgraph.
         """
-        return [
-            e
-            for e in self.in_edges(subgraph, keys=True, data=data)
-            if e[0] not in subgraph
-        ]
+        return [e for e in self.in_edges(subgraph, keys=True, data=data) if e[0] not in subgraph]
 
     def subgraph_out_edges(
         self, subgraph: DataFlowGraph, data: bool | EdgeAttribute = False
@@ -861,11 +828,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             list[tuple[int, int, str] | tuple[int, int, str, Any]]: The outgoing edges
             from the subgraph.
         """
-        return [
-            e
-            for e in self.out_edges(subgraph, keys=True, data=data)
-            if e[1] not in subgraph
-        ]
+        return [e for e in self.out_edges(subgraph, keys=True, data=data) if e[1] not in subgraph]
 
     def recompute_depths(self) -> None:
         """Recompute the depth of all nodes in the data flow graph.
@@ -875,6 +838,4 @@ class DataFlowGraph(nx.MultiDiGraph):
         longest path from the source node to the node.
         """
         node_depths = _compute_node_depth(self)
-        nx.set_node_attributes(
-            self, node_depths, DataFlowGraph.NodeAttribute.DEPTH
-        )
+        nx.set_node_attributes(self, node_depths, DataFlowGraph.NodeAttribute.DEPTH)

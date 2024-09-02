@@ -20,11 +20,7 @@ from hyped.common.feature_checks import (
     get_sequence_shape,
 )
 from hyped.common.typing import Aggregate, Batch, IndexList, Rank
-from hyped.core.nodes.aggregator import (
-    BaseDataAggregator,
-    BaseDataAggregatorConfig,
-    IOContext,
-)
+from hyped.core.nodes.aggregator import BaseDataAggregator, BaseDataAggregatorConfig, IOContext
 from hyped.core.refs.inputs import (
     CheckFeatureEquals,
     CheckFeatureIsSequence,
@@ -50,17 +46,19 @@ def validate_input_sequences(
     config: MultiLabelConfusionMatrixConfig,
     input_refs: MultiLabelConfusionMatrixInputRefs,
 ) -> None:
-    """Validates that the input sequences for the :class:`MultiLabelConfusionMatrix` aggregator are compatible.
+    """Validate input references to the :class:`MultiLabelConfusionMatrix`.
 
-    This function checks the compatibility of the :code:`y_true` and :code:`y_pred` input features to ensure
-    they are appropriate for multi-label classification.
+    This function ensures that the :code:`y_true` and :code:`y_pred` input features
+    are suitable for multi-label classification.
 
     Args:
-        config (MultiLabelConfusionMatrixConfig): Configuration object for the MultiLabelConfusionMatrix.
-        input_refs (MultiLabelConfusionMatrixInputRefs): A reference to the input features (y_true, y_pred) to validate.
+        config (MultiLabelConfusionMatrixConfig): Configuration object for
+            MultiLabelConfusionMatrix.
+        input_refs (MultiLabelConfusionMatrixInputRefs): Reference to input features
+            :code:`(y_true, y_pred)` to validate.
 
     Raises:
-        RuntimeError: If the input features do not meet the required compatibility criteria.
+        RuntimeError: If input features do not meet compatibility criteria.
     """
     y_true = input_refs["y_true"].feature_
     y_pred = input_refs["y_pred"].feature_
@@ -69,14 +67,9 @@ def validate_input_sequences(
     y_pred_is_sequence = check_feature_is_sequence(y_pred)
 
     if y_true_is_sequence and y_pred_is_sequence:
-        is_dynamic_length = (
-            get_sequence_length(y_true) == -1
-            or get_sequence_length(y_pred) == -1
-        )
+        is_dynamic_length = get_sequence_length(y_true) == -1 or get_sequence_length(y_pred) == -1
 
-        if not is_dynamic_length and not check_sequence_lengths_match(
-            y_true, y_pred
-        ):
+        if not is_dynamic_length and not check_sequence_lengths_match(y_true, y_pred):
             raise RuntimeError(
                 "Sequence length of y_true must match sequence length of y_pred "
                 f"Got y_true with len={get_sequence_length(y_true)} "
@@ -118,7 +111,8 @@ class MultiLabelConfusionMatrixInputRefs(
        associated with a single instance.
 
 
-    Make sure to provide the appropriate format of `y_true` according to the classification task you intend to solve.
+    Make sure to provide the appropriate format of `y_true` according to the classification task you
+    intend to solve.
     """
 
     y_true: Annotated[
@@ -188,16 +182,14 @@ class MultiLabelConfusionMatrix(
     in the label space, allowing for detailed performance evaluation of each individual class.
 
     The output is a nested structure with shape :code:`(n_classes, 2, 2)`, corresponding to
-    the confusion matrix for each label.  This structure provides the true positives, false positives,
-    true negatives, and false negatives for each class in the dataset.
+    the confusion matrix for each label.  This structure provides the true positives, false
+    positives, true negatives, and false negatives for each class in the dataset.
     """
 
     def initialize(self, io: IOContext) -> tuple[Aggregate, None]:
         """Initialize the confusion matrix to zeros."""
         shape = get_sequence_shape(io.outputs["confusion_matrix"])
-        return {
-            "confusion_matrix": np.zeros(shape=shape, dtype=np.int64).tolist()
-        }, None
+        return {"confusion_matrix": np.zeros(shape=shape, dtype=np.int64).tolist()}, None
 
     async def extract(
         self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
@@ -213,11 +205,7 @@ class MultiLabelConfusionMatrix(
         self, val: float, ctx: np.ndarray, state: None, io: IOContext
     ) -> tuple[Aggregate, None]:
         """Updates the confusion matrix by addition."""
-        return {
-            "confusion_matrix": (
-                np.array(val["confusion_matrix"]) + ctx
-            ).tolist()
-        }, None
+        return {"confusion_matrix": (np.array(val["confusion_matrix"]) + ctx).tolist()}, None
 
     def call(
         self, **kwargs: Unpack[MultiLabelConfusionMatrixInputRefs]

@@ -43,9 +43,7 @@ def test_lazy_flow_getitem(mock_executor):
     # request a value
     assert obj["y"] == 1
 
-    mock_executor.execute.assert_called_once_with(
-        {"x": [input_dict["x"]]}, index=[0], rank=0
-    )
+    mock_executor.execute.assert_called_once_with({"x": [input_dict["x"]]}, index=[0], rank=0)
     assert obj._out_snapshot == {"y": 1}
     assert not deep_equal(obj._proxy_snapshot, prev_snapshot)
 
@@ -63,9 +61,7 @@ def test_lazy_flow_getitem(mock_executor):
     # request a value
     assert obj["y"] == 1
 
-    mock_executor.execute.assert_called_once_with(
-        {"x": [input_dict["x"]]}, index=[0], rank=0
-    )
+    mock_executor.execute.assert_called_once_with({"x": [input_dict["x"]]}, index=[0], rank=0)
     assert obj._proxy_snapshot != prev_snapshot
 
 
@@ -105,7 +101,4 @@ def test_lazy_flow_repr(mock_executor):
     input_proxy = MappingProxyType({"x": 0})
     obj = LazyFlowOutput(input_proxy, mock_executor)
 
-    assert (
-        repr(obj)
-        == f"LazyFlowOutput(input_proxy={input_proxy}, executor={mock_executor})"
-    )
+    assert repr(obj) == f"LazyFlowOutput(input_proxy={input_proxy}, executor={mock_executor})"

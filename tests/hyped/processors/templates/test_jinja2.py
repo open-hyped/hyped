@@ -8,9 +8,7 @@ class TestJinja2(BaseDataProcessorTest):
     # processor type
     processor_type = Jinja2
     # processor config
-    processor_config = Jinja2Config(
-        template="""A is {{ inputs.A }}, B is {{ inputs.B }}"""
-    )
+    processor_config = Jinja2Config(template="""A is {{ inputs.A }}, B is {{ inputs.B }}""")
     # input
     input_features = Features(
         {

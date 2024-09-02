@@ -8,7 +8,8 @@ configurable input and output types.
 Classes:
     - :class:`BaseNodeConfig`: Base configuration class for nodes in a data flow graph.
     - :class:`BaseNode`: Base class for nodes in a data flow graph.
-    - :class:`IOContext`: Class providing context information for the I/O operations of data processors.
+    - :class:`IOContext`: Class providing context information for the I/O operations of
+      data processors.
 """
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar, overload
@@ -104,9 +105,7 @@ class BaseNode(BaseConfigurable[C], Generic[C, I, O]):
         self._in_refs_validator: None | InputRefsValidator = None
         if self._in_refs_type is not type(None):
             # create input ref validator instance
-            self._in_refs_validator = InputRefsValidator(
-                self.config, self._in_refs_type
-            )
+            self._in_refs_validator = InputRefsValidator(self.config, self._in_refs_type)
 
     def __getstate__(self) -> dict[str, Any]:
         """Prepare the state for serialization.
@@ -132,9 +131,7 @@ class BaseNode(BaseConfigurable[C], Generic[C, I, O]):
             set[str]: The set of input keys.
         """
         return (
-            self._in_refs_validator.required_keys
-            if self._in_refs_validator is not None
-            else set()
+            self._in_refs_validator.required_keys if self._in_refs_validator is not None else set()
         )
 
     @overload
@@ -161,7 +158,8 @@ class BaseNode(BaseConfigurable[C], Generic[C, I, O]):
             O: The output references produced by the processor.
 
         Raises:
-            RuntimeError: If the flow cannot be inferred from the inputs and is not explicitly provided.
+            RuntimeError: If the flow cannot be inferred from the inputs and is not explicitly
+                provided.
         """
         if (flow is None) and (len(kwargs) == 0):
             raise RuntimeError(

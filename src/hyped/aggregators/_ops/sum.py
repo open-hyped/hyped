@@ -12,11 +12,7 @@ from typing_extensions import Unpack
 
 from hyped.common.feature_checks import SCALAR_TYPES
 from hyped.common.typing import Aggregate, Batch, IndexList, Rank
-from hyped.core.nodes.aggregator import (
-    BaseDataAggregator,
-    BaseDataAggregatorConfig,
-    IOContext,
-)
+from hyped.core.nodes.aggregator import BaseDataAggregator, BaseDataAggregatorConfig, IOContext
 from hyped.core.refs.inputs import CheckFeatureEquals, InputRefs
 from hyped.core.refs.outputs import OutputFeature, OutputRefs
 from hyped.core.refs.ref import FeatureRef
@@ -64,9 +60,7 @@ class SumAggregatorConfig(BaseDataAggregatorConfig):
 
 
 class SumAggregator(
-    BaseDataAggregator[
-        SumAggregatorConfig, SumAggregatorInputRefs, SumAggregatorOutputRefs
-    ]
+    BaseDataAggregator[SumAggregatorConfig, SumAggregatorInputRefs, SumAggregatorOutputRefs]
 ):
     """A data aggregator that computes the sum of input features.
 
@@ -85,9 +79,7 @@ class SumAggregator(
         """
         return {"value": self.config.start}, None
 
-    async def extract(
-        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
-    ) -> float:
+    async def extract(self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext) -> float:
         """Extracts the sum of the input feature :code:`x` from the batch of data.
 
         Args:
@@ -117,9 +109,7 @@ class SumAggregator(
         """
         return {"value": val["value"] + ctx}, None
 
-    def call(
-        self, **kwargs: Unpack[SumAggregatorInputRefs]
-    ) -> SumAggregatorOutputRefs:
+    def call(self, **kwargs: Unpack[SumAggregatorInputRefs]) -> SumAggregatorOutputRefs:
         """Execute the SumAggregator to compute the mean value.
 
         Args:

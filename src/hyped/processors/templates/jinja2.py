@@ -8,11 +8,7 @@ from typing_extensions import Unpack
 
 from hyped.common.lazy_instance import LazyInstance
 from hyped.common.typing import Index, Rank, Sample
-from hyped.core.nodes.processor import (
-    BaseDataProcessor,
-    BaseDataProcessorConfig,
-    IOContext,
-)
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, IOContext
 from hyped.core.refs.inputs import CheckFeatureEquals, InputRefs
 from hyped.core.refs.outputs import OutputFeature, OutputRefs
 from hyped.core.refs.ref import FeatureRef
@@ -21,8 +17,8 @@ from hyped.core.refs.ref import FeatureRef
 class Jinja2InputRefs(InputRefs):
     """Input features for the Jinja2 Processor.
 
-    In your template, access to the specific input feature values through the `values` variable. Specifically see
-    the following example on how to access the respective values:
+    In your template, access to the specific input feature values through the :code:`values`
+    variable. Specifically see the following example on how to access the respective values:
 
     .. code-block:: python
 
@@ -80,13 +76,9 @@ class Jinja2(
                 or create a new configuration if none is provided.
         """
         super(Jinja2, self).__init__(config, **kwargs)
-        self.template = LazyInstance(
-            partial(_setup_jinja_env, self.config.template)
-        )
+        self.template = LazyInstance(partial(_setup_jinja_env, self.config.template))
 
-    async def process(
-        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
-    ) -> Sample:
+    async def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
         """Process example.
 
         Renders the template based on the given example and it's
@@ -101,17 +93,13 @@ class Jinja2(
         Returns:
             Sample: Output sample containing the rendered template string.
         """
-        return Sample(
-            rendered=await self.template.render_async(
-                inputs=inputs["features"]
-            )
-        )
+        return Sample(rendered=await self.template.render_async(inputs=inputs["features"]))
 
     def call(self, **kwargs: Unpack[Jinja2InputRefs]) -> Jinja2OutputRefs:
         """Execute the Jinja2 processor.
 
-        Processes the input references to render a Jinja2 template based on the provided configuration
-        and input features. Outputs the rendered template as a string.
+        Processes the input references to render a Jinja2 template based on the provided
+        configuration and input features. Outputs the rendered template as a string.
 
         Args:
             features (FeatureRef): The features that are accessable in the template.

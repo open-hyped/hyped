@@ -6,10 +6,11 @@ for validating input features, inferring output features, and processing binary
 operations on sequences or single values.
 
 Key components include:
-- :class:`BaseBinaryOp` and derived classes for specific operations (e.g., :class:`Add`, :class:`Equals`).
+- :class:`BaseBinaryOp` and derived classes for specific operations (e.g., :class:`Add`,
+  :class:`Equals`).
 - Configuration classes for setting up operations (e.g., :class:`BaseBinaryOpConfig`).
-- Input and output reference classes (e.g., :class:`BinaryOpInputRefs`, :class:`BinaryOpOutputRefs`) 
-  to handle feature types and enforce constraints.
+- Input and output reference classes (e.g., :class:`BinaryOpInputRefs`,
+  :class:`BinaryOpOutputRefs`) to handle feature types and enforce constraints.
 """
 from __future__ import annotations
 
@@ -30,10 +31,7 @@ from hyped.common.feature_checks import (
 )
 from hyped.common.typing import Batch, IndexList, Rank
 from hyped.core.nodes.base import IOContext
-from hyped.core.nodes.processor import (
-    BaseDataProcessor,
-    BaseDataProcessorConfig,
-)
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig
 from hyped.core.refs.inputs import (
     CheckFeatureEquals,
     CheckFeatureIsSequence,
@@ -48,9 +46,7 @@ class BaseBinaryOpConfig(BaseDataProcessorConfig):
     """Configuration class for binary operations."""
 
 
-def validate_binary_inputs(
-    config: BaseBinaryOpConfig, refs: BinaryOpInputRefs
-) -> None:
+def validate_binary_inputs(config: BaseBinaryOpConfig, refs: BinaryOpInputRefs) -> None:
     """Validate the input features for binary operations.
 
     Ensures that if both inputs are sequences of fixed length, the lengths should match.
@@ -82,19 +78,13 @@ def validate_binary_inputs(
             raise_sequence_lengths_match(a_key, b_key, a_feat, b_feat)
 
 
-class BinaryOpInputRefs(
-    Annotated[InputRefs, GlobalValidator(validate_binary_inputs)]
-):
+class BinaryOpInputRefs(Annotated[InputRefs, GlobalValidator(validate_binary_inputs)]):
     """Input references for binary operations."""
 
-    a: Annotated[
-        FeatureRef, CheckFeatureIsSequence(Value) | CheckFeatureEquals(Value)
-    ]
+    a: Annotated[FeatureRef, CheckFeatureIsSequence(Value) | CheckFeatureEquals(Value)]
     """The first input feature. Must be a sequence or value."""
 
-    b: Annotated[
-        FeatureRef, CheckFeatureIsSequence(Value) | CheckFeatureEquals(Value)
-    ]
+    b: Annotated[FeatureRef, CheckFeatureIsSequence(Value) | CheckFeatureEquals(Value)]
     """The second input feature. Must be a sequence or value."""
 
 
@@ -103,15 +93,13 @@ class BinaryOpNumericInputRefs(BinaryOpInputRefs):
 
     a: Annotated[
         FeatureRef,
-        CheckFeatureIsSequence(NUMERIC_TYPES)
-        | CheckFeatureEquals(NUMERIC_TYPES),
+        CheckFeatureIsSequence(NUMERIC_TYPES) | CheckFeatureEquals(NUMERIC_TYPES),
     ]
     """The first input feature. Must be a sequence or value of numeric type."""
 
     b: Annotated[
         FeatureRef,
-        CheckFeatureIsSequence(NUMERIC_TYPES)
-        | CheckFeatureEquals(NUMERIC_TYPES),
+        CheckFeatureIsSequence(NUMERIC_TYPES) | CheckFeatureEquals(NUMERIC_TYPES),
     ]
     """The second input feature. Must be a sequence or value of numeric type."""
 
@@ -121,15 +109,13 @@ class BinaryOpBooleanInputRefs(BinaryOpInputRefs):
 
     a: Annotated[
         FeatureRef,
-        CheckFeatureIsSequence(Value("bool"))
-        | CheckFeatureEquals(Value("bool")),
+        CheckFeatureIsSequence(Value("bool")) | CheckFeatureEquals(Value("bool")),
     ]
     """The first input feature. Must be a sequence or value of boolean type."""
 
     b: Annotated[
         FeatureRef,
-        CheckFeatureIsSequence(Value("bool"))
-        | CheckFeatureEquals(Value("bool")),
+        CheckFeatureIsSequence(Value("bool")) | CheckFeatureEquals(Value("bool")),
     ]
     """The second input feature. Must be a sequence or value of boolean type."""
 
@@ -171,15 +157,9 @@ def binary_op_infer_output_feature(
     a_is_sequence = check_feature_is_sequence(a_feat)
     b_is_sequence = check_feature_is_sequence(b_feat)
 
-    a_value_type = (
-        get_sequence_feature(a_feat).dtype if a_is_sequence else a_feat.dtype
-    )
-    b_value_type = (
-        get_sequence_feature(b_feat).dtype if b_is_sequence else b_feat.dtype
-    )
-    result_type = override or Value(
-        max(a_value_type, b_value_type, key=NUMERIC_TYPE_NAMES.index)
-    )
+    a_value_type = get_sequence_feature(a_feat).dtype if a_is_sequence else a_feat.dtype
+    b_value_type = get_sequence_feature(b_feat).dtype if b_is_sequence else b_feat.dtype
+    result_type = override or Value(max(a_value_type, b_value_type, key=NUMERIC_TYPE_NAMES.index))
 
     if a_is_sequence and b_is_sequence:
         # if one of a, b has length -1,
@@ -200,9 +180,7 @@ def binary_op_infer_output_feature(
 class BinaryOpOutputRefs(OutputRefs):
     """Defines output references for binary operations."""
 
-    result: Annotated[
-        FeatureRef, LambdaOutputFeature(binary_op_infer_output_feature)
-    ]
+    result: Annotated[FeatureRef, LambdaOutputFeature(binary_op_infer_output_feature)]
     """The result of the operation. Type is inferred from the input features."""
 
 
@@ -212,9 +190,7 @@ class BinaryOpIntOutputRefs(BinaryOpOutputRefs):
     result: Annotated[
         FeatureRef,
         LambdaOutputFeature(
-            lambda c, i: binary_op_infer_output_feature(
-                c, i, override=Value("int64")
-            )
+            lambda c, i: binary_op_infer_output_feature(c, i, override=Value("int64"))
         ),
     ]
     """The integer result of the operation. If sequence inputs, this will
@@ -227,9 +203,7 @@ class BinaryOpFloatOutputRefs(BinaryOpOutputRefs):
     result: Annotated[
         FeatureRef,
         LambdaOutputFeature(
-            lambda c, i: binary_op_infer_output_feature(
-                c, i, override=Value("float64")
-            )
+            lambda c, i: binary_op_infer_output_feature(c, i, override=Value("float64"))
         ),
     ]
     """The float result of the operation. If sequence inputs, this will
@@ -242,9 +216,7 @@ class BinaryOpBooleanOutputRefs(BinaryOpOutputRefs):
     result: Annotated[
         FeatureRef,
         LambdaOutputFeature(
-            lambda c, i: binary_op_infer_output_feature(
-                c, i, override=Value("bool")
-            )
+            lambda c, i: binary_op_infer_output_feature(c, i, override=Value("bool"))
         ),
     ]
     """The boolean result of the operation. If sequence inputs, this will
@@ -289,18 +261,14 @@ class BaseBinaryOp(BaseDataProcessor[C, I, O], ABC):
             )
         elif a_is_sequence and (not b_is_sequence):
             iterator = (
-                [self.op(a, b) for a in seq_a]
-                for seq_a, b in zip(inputs["a"], inputs["b"])
+                [self.op(a, b) for a in seq_a] for seq_a, b in zip(inputs["a"], inputs["b"])
             )
         elif (not a_is_sequence) and b_is_sequence:
             iterator = (
-                [self.op(a, b) for b in seq_b]
-                for a, seq_b in zip(inputs["a"], inputs["b"])
+                [self.op(a, b) for b in seq_b] for a, seq_b in zip(inputs["a"], inputs["b"])
             )
         else:
-            iterator = (
-                self.op(a, b) for a, b in zip(inputs["a"], inputs["b"])
-            )
+            iterator = (self.op(a, b) for a, b in zip(inputs["a"], inputs["b"]))
 
         return {"result": list(iterator)}
 
@@ -376,9 +344,7 @@ class LessThanOrEqualConfig(BaseComparatorConfig):
     """Configuration class for the less-than-or-equal operation."""
 
 
-class LessThanOrEqual(
-    BaseComparator[LessThanOrEqualConfig, BinaryOpNumericInputRefs]
-):
+class LessThanOrEqual(BaseComparator[LessThanOrEqualConfig, BinaryOpNumericInputRefs]):
     """Processor for the less-than-or-equal operation."""
 
     op = operator.le
@@ -398,9 +364,7 @@ class GreaterThanOrEqualConfig(BaseComparatorConfig):
     """Configuration class for the greater-than-or-equal operation."""
 
 
-class GreaterThanOrEqual(
-    BaseComparator[GreaterThanOrEqualConfig, BinaryOpNumericInputRefs]
-):
+class GreaterThanOrEqual(BaseComparator[GreaterThanOrEqualConfig, BinaryOpNumericInputRefs]):
     """Processor for the greater-than-or-equal operation."""
 
     op = operator.ge
@@ -483,9 +447,7 @@ class AddConfig(BaseClosedOpConfig):
     """Configuration class for the addition operation."""
 
 
-class Add(
-    BaseClosedOp[AddConfig, BinaryOpNumericInputRefs, BinaryOpOutputRefs]
-):
+class Add(BaseClosedOp[AddConfig, BinaryOpNumericInputRefs, BinaryOpOutputRefs]):
     """Processor for the addition operation."""
 
     op = operator.add
@@ -495,9 +457,7 @@ class SubConfig(BaseClosedOpConfig):
     """Configuration class for the subtraction operation."""
 
 
-class Sub(
-    BaseClosedOp[SubConfig, BinaryOpNumericInputRefs, BinaryOpOutputRefs]
-):
+class Sub(BaseClosedOp[SubConfig, BinaryOpNumericInputRefs, BinaryOpOutputRefs]):
     """Processor for the subtraction operation."""
 
     op = operator.sub
@@ -507,9 +467,7 @@ class MulConfig(BaseClosedOpConfig):
     """Configuration class for the multiplication operation."""
 
 
-class Mul(
-    BaseClosedOp[MulConfig, BinaryOpNumericInputRefs, BinaryOpOutputRefs]
-):
+class Mul(BaseClosedOp[MulConfig, BinaryOpNumericInputRefs, BinaryOpOutputRefs]):
     """Processor for the multiplication operation."""
 
     op = operator.mul
@@ -519,9 +477,7 @@ class PowConfig(BaseClosedOpConfig):
     """Configuration class for the power operation."""
 
 
-class Pow(
-    BaseClosedOp[PowConfig, BinaryOpNumericInputRefs, BinaryOpOutputRefs]
-):
+class Pow(BaseClosedOp[PowConfig, BinaryOpNumericInputRefs, BinaryOpOutputRefs]):
     """Processor for the power operation."""
 
     op = operator.pow
@@ -531,9 +487,7 @@ class ModConfig(BaseClosedOpConfig):
     """Configuration class for the modulus operation."""
 
 
-class Mod(
-    BaseClosedOp[ModConfig, BinaryOpNumericInputRefs, BinaryOpOutputRefs]
-):
+class Mod(BaseClosedOp[ModConfig, BinaryOpNumericInputRefs, BinaryOpOutputRefs]):
     """Processor for the modulus operation."""
 
     op = operator.mod
@@ -543,11 +497,7 @@ class FloorDivConfig(BaseClosedOpConfig):
     """Configuration class for the floor division operation."""
 
 
-class FloorDiv(
-    BaseClosedOp[
-        FloorDivConfig, BinaryOpNumericInputRefs, BinaryOpIntOutputRefs
-    ]
-):
+class FloorDiv(BaseClosedOp[FloorDivConfig, BinaryOpNumericInputRefs, BinaryOpIntOutputRefs]):
     """Processor for the floor division operation."""
 
     op = operator.floordiv
@@ -557,11 +507,7 @@ class TrueDivConfig(BaseClosedOpConfig):
     """Configuration class for the true division operation."""
 
 
-class TrueDiv(
-    BaseClosedOp[
-        TrueDivConfig, BinaryOpNumericInputRefs, BinaryOpFloatOutputRefs
-    ]
-):
+class TrueDiv(BaseClosedOp[TrueDivConfig, BinaryOpNumericInputRefs, BinaryOpFloatOutputRefs]):
     """Processor for the true division operation."""
 
     op = operator.truediv

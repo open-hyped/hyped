@@ -29,10 +29,7 @@ from hyped.common.feature_checks import (
     raise_feature_is_sequence,
 )
 from hyped.common.typing import Index, Rank, Sample
-from hyped.core.nodes.augmenter import (
-    BaseDataAugmenter,
-    BaseDataAugmenterConfig,
-)
+from hyped.core.nodes.augmenter import BaseDataAugmenter, BaseDataAugmenterConfig
 from hyped.core.nodes.base import IOContext
 from hyped.core.refs.inputs import FeatureValidator, InputRefs
 from hyped.core.refs.outputs import LambdaOutputFeature, OutputRefs
@@ -61,9 +58,7 @@ class ChunkSequenceConfig(BaseDataAugmenterConfig):
     """
 
 
-def chunk_sequence_feature_validator(
-    config: ChunkSequenceConfig, ref: FeatureRef
-) -> None:
+def chunk_sequence_feature_validator(config: ChunkSequenceConfig, ref: FeatureRef) -> None:
     """Validate the input feature for chunking.
 
     This validator ensures that the input feature is a mapping (dictionary) where
@@ -80,8 +75,7 @@ def chunk_sequence_feature_validator(
     # input feature must be a mapping
     if not isinstance(ref.feature_, (Features, dict)):
         raise TypeError(
-            "Expected feature `%s` to be of dict type, got %s "
-            % (ref.key_, type(ref.feature_))
+            "Expected feature `%s` to be of dict type, got %s " % (ref.key_, type(ref.feature_))
         )
 
     # make sure there are any inputs
@@ -100,10 +94,7 @@ def chunk_sequence_feature_validator(
     target_length = next((x for x in lengths if x != -1), -1)
     # make sure all sequences are of the same length
     if any(length not in {-1, target_length} for length in lengths):
-        raise TypeError(
-            "All sequences in feature `%s` must have the same length."
-            % ref.key_
-        )
+        raise TypeError("All sequences in feature `%s` must have the same length." % ref.key_)
 
 
 class ChunkSequenceInputRefs(InputRefs):
@@ -113,9 +104,7 @@ class ChunkSequenceInputRefs(InputRefs):
     augmenter, specifically a dictionary of sequences.
     """
 
-    sequences: Annotated[
-        FeatureRef, FeatureValidator(chunk_sequence_feature_validator)
-    ]
+    sequences: Annotated[FeatureRef, FeatureValidator(chunk_sequence_feature_validator)]
     """A reference to the input sequences. The sequences must be of the same length
     and stored in a dictionary format."""
 
@@ -138,16 +127,13 @@ def build_output_feature(
     """
     if config.keep_last:
         # get the length of the input sequences
-        lengths = map(
-            get_sequence_length, inputs["sequences"].feature_.values()
-        )
+        lengths = map(get_sequence_length, inputs["sequences"].feature_.values())
         length = next((x for x in lengths if x != -1), -1)
 
         # the output sequence length is the chunk size in case
         chunk_sequence_length = (
             -1
-            if (length == -1)
-            or ((length - config.chunk_size) % config.stride != 0)
+            if (length == -1) or ((length - config.chunk_size) % config.stride != 0)
             else config.chunk_size
         )
 
@@ -159,9 +145,7 @@ def build_output_feature(
     # build the output features
     return Features(
         {
-            key: Sequence(
-                get_sequence_feature(feature), length=chunk_sequence_length
-            )
+            key: Sequence(get_sequence_feature(feature), length=chunk_sequence_length)
             for key, feature in inputs["sequences"].feature_.items()
         }
     )
@@ -179,9 +163,7 @@ class ChunkSequenceOutputRefs(OutputRefs):
 
 
 class ChunkSequence(
-    BaseDataAugmenter[
-        ChunkSequenceConfig, ChunkSequenceInputRefs, ChunkSequenceOutputRefs
-    ]
+    BaseDataAugmenter[ChunkSequenceConfig, ChunkSequenceInputRefs, ChunkSequenceOutputRefs]
 ):
     """The :code:`ChunkSequence` data augmenter.
 
@@ -194,9 +176,7 @@ class ChunkSequence(
     or discarded based on the configuration.
     """
 
-    def process(
-        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
-    ) -> Iterable[Sample]:
+    def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Iterable[Sample]:
         """Process a single input sample and return the corresponding chunks.
 
         This method divides the input sequences into chunks as specified by the
@@ -237,16 +217,13 @@ class ChunkSequence(
             yield {
                 "chunks": {
                     key: seq[
-                        i * self.config.stride : i * self.config.stride
-                        + self.config.chunk_size
+                        i * self.config.stride : i * self.config.stride + self.config.chunk_size
                     ]
                     for key, seq in sequences.items()
                 }
             }
 
-    def call(
-        self, **kwargs: Unpack[ChunkSequenceInputRefs]
-    ) -> ChunkSequenceOutputRefs:
+    def call(self, **kwargs: Unpack[ChunkSequenceInputRefs]) -> ChunkSequenceOutputRefs:
         """Add the :code:`ChunkSequence` node to the data flow.
 
         This method processes the input references for the :code:`ChunkSequence` operation,

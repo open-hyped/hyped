@@ -34,9 +34,7 @@ class TestExecutionState:
                 DataFlowGraph.NodeAttribute.NODE_OBJ: None,  # no node object for source nodes
                 DataFlowGraph.NodeAttribute.PARTITION: DataFlowGraph.PredefinedPartition.DEFAULT,
                 DataFlowGraph.NodeAttribute.IN_FEATURES: None,
-                DataFlowGraph.NodeAttribute.OUT_FEATURES: Features(
-                    {"x": Value("int64")}
-                ),
+                DataFlowGraph.NodeAttribute.OUT_FEATURES: Features({"x": Value("int64")}),
             },
         )
 
@@ -49,9 +47,7 @@ class TestExecutionState:
                 DataFlowGraph.NodeAttribute.NODE_OBJ: MagicMock(),
                 DataFlowGraph.NodeAttribute.PARTITION: DataFlowGraph.PredefinedPartition.CONST,
                 DataFlowGraph.NodeAttribute.IN_FEATURES: None,
-                DataFlowGraph.NodeAttribute.OUT_FEATURES: Features(
-                    {"value": Value("int64")}
-                ),
+                DataFlowGraph.NodeAttribute.OUT_FEATURES: Features({"value": Value("int64")}),
             },
         )
 
@@ -61,7 +57,9 @@ class TestExecutionState:
             **{
                 DataFlowGraph.NodeAttribute.NODE_TYPE: DataFlowGraph.NodeType.DATA_PROCESSOR,
                 DataFlowGraph.NodeAttribute.NODE_OBJ: MagicMock(),
-                DataFlowGraph.NodeAttribute.PARTITION: DataFlowGraph.PredefinedPartition.DEFAULT.value,
+                DataFlowGraph.NodeAttribute.PARTITION: (
+                    DataFlowGraph.PredefinedPartition.DEFAULT.value
+                ),
                 DataFlowGraph.NodeAttribute.IN_FEATURES: mock_in_features,
                 DataFlowGraph.NodeAttribute.OUT_FEATURES: mock_out_features,
             },
@@ -83,7 +81,9 @@ class TestExecutionState:
             **{
                 DataFlowGraph.NodeAttribute.NODE_TYPE: DataFlowGraph.NodeType.DATA_AUGMENTER,
                 DataFlowGraph.NodeAttribute.NODE_OBJ: MagicMock(),
-                DataFlowGraph.NodeAttribute.PARTITION: DataFlowGraph.PredefinedPartition.DEFAULT.value,
+                DataFlowGraph.NodeAttribute.PARTITION: (
+                    DataFlowGraph.PredefinedPartition.DEFAULT.value
+                ),
                 DataFlowGraph.NodeAttribute.IN_FEATURES: mock_in_features,
                 DataFlowGraph.NodeAttribute.OUT_FEATURES: mock_out_features,
             },
@@ -165,9 +165,7 @@ class TestExecutionState:
                 },
             )
 
-        mock_G = MagicMock(
-            wraps=G, nodes=G.nodes, edges=G.edges, src_node_id="SOURCE_NODE"
-        )
+        mock_G = MagicMock(wraps=G, nodes=G.nodes, edges=G.edges, src_node_id="SOURCE_NODE")
         mock_G.src_node_id = "SOURCE_NODE"
         mock_G.get_node_output_partition = {
             "CONST_NODE": DataFlowGraph.PredefinedPartition.CONST,
@@ -202,9 +200,7 @@ class TestExecutionState:
     def mock_batch(self, mock_index) -> MagicMock:
         mock_batch = MagicMock()
         # items in batch must have the same length as the index
-        mock_batch.__getitem__().__len__ = MagicMock(
-            return_value=mock_index.__len__()
-        )
+        mock_batch.__getitem__().__len__ = MagicMock(return_value=mock_index.__len__())
         return mock_batch
 
     @pytest.fixture
@@ -215,9 +211,7 @@ class TestExecutionState:
         mock_batch: MagicMock,
         mock_index: MagicMock,
     ) -> ExecutionState:
-        return ExecutionState(
-            mock_graph, mock_p_graph, mock_batch, mock_index, rank=0
-        )
+        return ExecutionState(mock_graph, mock_p_graph, mock_batch, mock_index, rank=0)
 
     def test_initial_state(self, mock_state: ExecutionState):
         assert set(mock_state.outputs.keys()) == {"SOURCE_NODE"}
@@ -259,9 +253,7 @@ class TestExecutionState:
             trace_index = list(range(10))
 
             # register the partition trace
-            mock_state.register_partition_trace(
-                "AUGMENTER_NODE", trace_index, index=index
-            )
+            mock_state.register_partition_trace("AUGMENTER_NODE", trace_index, index=index)
 
             # check the stored trace index for the transition between the two partitions
             assert (
@@ -307,9 +299,9 @@ class TestExecutionState:
         }
 
         # patch the conversion from list to numpy array
-        with patch(
-            "hyped.core.executor.np.arange", lambda _: mock_index
-        ), patch("hyped.core.executor._gather", lambda v, p: (v, p)):
+        with patch("hyped.core.executor.np.arange", lambda _: mock_index), patch(
+            "hyped.core.executor._gather", lambda v, p: (v, p)
+        ):
             # apply the function to test
             mock_output = mock_state.trace_through_partition_path(
                 [mock_value],
@@ -342,10 +334,7 @@ class TestExecutionState:
             assert len(mock_output) == 1
             src_values, applied_index = mock_output[0]
             assert src_values == mock_value
-            assert (
-                applied_index
-                == mock_index[mock_trace_index_2][mock_trace_index_1]
-            )
+            assert applied_index == mock_index[mock_trace_index_2][mock_trace_index_1]
 
     def test_collect_value(self, mock_state: ExecutionState):
         # create mock objects
@@ -359,9 +348,7 @@ class TestExecutionState:
         # add mock output to state
         mock_state.outputs[mock_node_id] = mock_node_output
 
-        with patch(
-            "hyped.core.executor.list_of_dicts_to_dict_of_lists"
-        ) as mock_convert:
+        with patch("hyped.core.executor.list_of_dicts_to_dict_of_lists") as mock_convert:
             # collect mock output and check return value
             out = mock_state.collect_value(mock_feature_ref)
             assert out == mock_convert(
@@ -384,12 +371,8 @@ class TestExecutionState:
 
         # get the feature keys from the edges
         key_attr = DataFlowGraph.EdgeAttribute.KEY
-        key_a = mock_graph.edges[("SOURCE_NODE", "PROCESSOR_NODE", "a")][
-            key_attr
-        ]
-        key_b = mock_graph.edges[("SOURCE_NODE", "PROCESSOR_NODE", "b")][
-            key_attr
-        ]
+        key_a = mock_graph.edges[("SOURCE_NODE", "PROCESSOR_NODE", "a")][key_attr]
+        key_b = mock_graph.edges[("SOURCE_NODE", "PROCESSOR_NODE", "b")][key_attr]
 
         # collect the inputs to the processor node
         out_batch, out_index = mock_state.collect_inputs("PROCESSOR_NODE")
@@ -432,9 +415,7 @@ class TestExecutionState:
         mock_graph.add_edge("CONST_NODE", "PROCESSOR_NODE", key="a", **attrs)
 
         # create a mock execution state with the augmented graph
-        mock_state = ExecutionState(
-            mock_graph, mock_p_graph, mock_batch, mock_index, rank=0
-        )
+        mock_state = ExecutionState(mock_graph, mock_p_graph, mock_batch, mock_index, rank=0)
 
         # prepare constant node
         const_value = MagicMock()
@@ -449,12 +430,8 @@ class TestExecutionState:
 
         # get the feature keys from the edges
         key_attr = DataFlowGraph.EdgeAttribute.KEY
-        key_a = mock_graph.edges[("CONST_NODE", "PROCESSOR_NODE", "a")][
-            key_attr
-        ]
-        key_b = mock_graph.edges[("SOURCE_NODE", "PROCESSOR_NODE", "b")][
-            key_attr
-        ]
+        key_a = mock_graph.edges[("CONST_NODE", "PROCESSOR_NODE", "a")][key_attr]
+        key_b = mock_graph.edges[("SOURCE_NODE", "PROCESSOR_NODE", "b")][key_attr]
 
         # collect the inputs to the processor node
         out_batch, out_index = mock_state.collect_inputs("PROCESSOR_NODE")
@@ -477,9 +454,7 @@ class TestExecutionState:
         }
         # overwrite one of the edges going into the processor
         # node to connect to the constant node
-        mock_graph.remove_edge(
-            "AUGMENTER_NODE", "PROCESSOR_NODE_IN_AUGMENTER_PARTITION", key="a"
-        )
+        mock_graph.remove_edge("AUGMENTER_NODE", "PROCESSOR_NODE_IN_AUGMENTER_PARTITION", key="a")
         mock_graph.add_edge(
             "SOURCE_NODE",
             "PROCESSOR_NODE_IN_AUGMENTER_PARTITION",
@@ -488,9 +463,7 @@ class TestExecutionState:
         )
 
         # create a mock execution state with the augmented graph
-        mock_state = ExecutionState(
-            mock_graph, mock_p_graph, mock_batch, mock_index, rank=0
-        )
+        mock_state = ExecutionState(mock_graph, mock_p_graph, mock_batch, mock_index, rank=0)
 
         # prepare augmenter node
         output_value = MagicMock()
@@ -508,12 +481,12 @@ class TestExecutionState:
 
         # get the feature keys from the edges
         key_attr = DataFlowGraph.EdgeAttribute.KEY
-        key_a = mock_graph.edges[
-            ("SOURCE_NODE", "PROCESSOR_NODE_IN_AUGMENTER_PARTITION", "a")
-        ][key_attr]
-        key_b = mock_graph.edges[
-            ("AUGMENTER_NODE", "PROCESSOR_NODE_IN_AUGMENTER_PARTITION", "b")
-        ][key_attr]
+        key_a = mock_graph.edges[("SOURCE_NODE", "PROCESSOR_NODE_IN_AUGMENTER_PARTITION", "a")][
+            key_attr
+        ]
+        key_b = mock_graph.edges[("AUGMENTER_NODE", "PROCESSOR_NODE_IN_AUGMENTER_PARTITION", "b")][
+            key_attr
+        ]
 
         mock_traced_value = MagicMock()
         with patch(
@@ -560,9 +533,7 @@ class TestDataFlowExecutor:
     def mock_execution_state(self) -> MagicMock:
         mock_state = MagicMock()
         mock_state.wait_for = AsyncMock()
-        mock_state.collect_inputs = MagicMock(
-            return_value=(MagicMock(), MagicMock())
-        )
+        mock_state.collect_inputs = MagicMock(return_value=(MagicMock(), MagicMock()))
         return mock_state
 
     @pytest.fixture
@@ -616,7 +587,7 @@ class TestDataFlowExecutor:
 
         with pytest.raises(TypeError):
             # initialize with invalud arguments
-            executor = DataFlowExecutor(
+            DataFlowExecutor(
                 graph=MagicMock(),
                 collect=mock_collect_ref,
                 aggregation_manager=None,
@@ -638,9 +609,7 @@ class TestDataFlowExecutor:
 
         # update the mock graph to include the dependencies
         mock_executor.graph.in_degree = MagicMock(return_value=2)
-        mock_executor.graph.predecessors = MagicMock(
-            return_value=mock_dependencies
-        )
+        mock_executor.graph.predecessors = MagicMock(return_value=mock_dependencies)
 
         # execute the constant node
         await mock_executor.execute_node("NODE_ID", mock_execution_state)
@@ -671,9 +640,7 @@ class TestDataFlowExecutor:
 
         # check if the const node output is captured correctly
         mock_node_obj.get_const_batch.assert_called_once_with(batch_size=1)
-        mock_execution_state.capture_output.assert_called_once_with(
-            "NODE_ID", expected_output
-        )
+        mock_execution_state.capture_output.assert_called_once_with("NODE_ID", expected_output)
 
     @pytest.mark.asyncio
     async def test_execute_processor_node(
@@ -684,9 +651,7 @@ class TestDataFlowExecutor:
     ):
         # set node type
         node_attrs = mock_executor.graph.nodes["NODE_ID"]
-        node_attrs[
-            DataFlowGraph.NodeAttribute.NODE_TYPE
-        ] = DataFlowGraph.NodeType.DATA_PROCESSOR
+        node_attrs[DataFlowGraph.NodeAttribute.NODE_TYPE] = DataFlowGraph.NodeType.DATA_PROCESSOR
 
         # define mock processor object
         expected_output = MagicMock()
@@ -707,9 +672,7 @@ class TestDataFlowExecutor:
                 outputs=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURES],
             ),
         )
-        mock_execution_state.capture_output.assert_called_once_with(
-            "NODE_ID", expected_output
-        )
+        mock_execution_state.capture_output.assert_called_once_with("NODE_ID", expected_output)
 
     @pytest.mark.asyncio
     async def test_execute_augmenter_node(
@@ -720,9 +683,7 @@ class TestDataFlowExecutor:
     ):
         # set node type
         node_attrs = mock_executor.graph.nodes["NODE_ID"]
-        node_attrs[
-            DataFlowGraph.NodeAttribute.NODE_TYPE
-        ] = DataFlowGraph.NodeType.DATA_AUGMENTER
+        node_attrs[DataFlowGraph.NodeAttribute.NODE_TYPE] = DataFlowGraph.NodeType.DATA_AUGMENTER
 
         # define mock processor object
         expected_output = MagicMock()
@@ -746,15 +707,11 @@ class TestDataFlowExecutor:
                 outputs=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURES],
             ),
         )
-        mock_execution_state.capture_output.assert_called_once_with(
-            "NODE_ID", expected_output
-        )
+        mock_execution_state.capture_output.assert_called_once_with("NODE_ID", expected_output)
         mock_execution_state.register_partition_trace.assert_called_once_with(
             "NODE_ID", expected_trace_index, mock_index
         )
-        mock_execution_state.capture_output.assert_called_once_with(
-            "NODE_ID", expected_output
-        )
+        mock_execution_state.capture_output.assert_called_once_with("NODE_ID", expected_output)
 
     @pytest.mark.asyncio
     async def test_execute_aggregater_node(
@@ -765,9 +722,7 @@ class TestDataFlowExecutor:
     ):
         # set node type
         node_attrs = mock_executor.graph.nodes["NODE_ID"]
-        node_attrs[
-            DataFlowGraph.NodeAttribute.NODE_TYPE
-        ] = DataFlowGraph.NodeType.DATA_AGGREGATOR
+        node_attrs[DataFlowGraph.NodeAttribute.NODE_TYPE] = DataFlowGraph.NodeType.DATA_AGGREGATOR
 
         # execute the constant node
         await mock_executor.execute_node("NODE_ID", mock_execution_state)
@@ -787,9 +742,7 @@ class TestDataFlowExecutor:
         )
 
     @pytest.mark.asyncio
-    async def test_execute(
-        self, mock_executor: DataFlowExecutor, mock_collect_ref: MagicMock
-    ):
+    async def test_execute(self, mock_executor: DataFlowExecutor, mock_collect_ref: MagicMock):
         nodes = [
             MagicMock(),
             MagicMock(),
@@ -801,18 +754,12 @@ class TestDataFlowExecutor:
         mock_executor.graph.nodes = MagicMock(return_value=nodes)
         mock_executor.execute_node = AsyncMock()
 
-        with patch(
-            "hyped.core.executor.ExecutionState"
-        ) as mock_execution_state:
-            output = await mock_executor.execute(
-                MagicMock(), MagicMock(), MagicMock()
-            )
+        with patch("hyped.core.executor.ExecutionState") as mock_execution_state:
+            output = await mock_executor.execute(MagicMock(), MagicMock(), MagicMock())
             # make sure all nodes were awaited
             mock_executor.execute_node.assert_has_calls(
                 [call(node, mock_execution_state()) for node in nodes[1:]],
                 any_order=True,
             )
             # check the output
-            assert output == mock_execution_state().collect_value(
-                mock_collect_ref
-            )
+            assert output == mock_execution_state().collect_value(mock_collect_ref)

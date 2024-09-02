@@ -4,12 +4,7 @@ from typing import TypeVar
 
 import pytest
 
-from hyped._registry.config import (
-    AutoConfig,
-    BaseAutoConfigurable,
-    BaseConfig,
-    BaseConfigurable,
-)
+from hyped._registry.config import AutoConfig, BaseAutoConfigurable, BaseConfig, BaseConfigurable
 from hyped._registry.registry import default_registry
 
 T = TypeVar("T")

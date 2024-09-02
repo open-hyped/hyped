@@ -33,9 +33,7 @@ class TestNoOp_Features(BaseDataProcessorTest):
     processor_type = NoOp
     processor_config = NoOpConfig()
     # input
-    input_features = Features(
-        {"x": {"a": Value("int32"), "b": Value("string")}}
-    )
+    input_features = Features({"x": {"a": Value("int32"), "b": Value("string")}})
     input_data = {"x": [{"a": i, "b": str(i)} for i in range(100)]}
     input_index = list(range(100))
     # expected output

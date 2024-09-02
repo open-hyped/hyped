@@ -8,9 +8,7 @@ from hyped.core.nodes.const import Const, ConstConfig
 def test_const_config():
     # test infer feature type
     config = ConstConfig(value=5)
-    assert isinstance(
-        config.feature, Value
-    ) and config.feature.dtype.startswith("int")
+    assert isinstance(config.feature, Value) and config.feature.dtype.startswith("int")
     # test infer sequence feature
     config = ConstConfig(value=[4, 5, 6])
     assert (

@@ -53,9 +53,7 @@ class BaseDatasetWriter(BaseDatasetConsumer, ABC):
         os.makedirs(self.save_dir, exist_ok=exist_ok)
 
     @abstractmethod
-    def worker_shard_file_obj(
-        self, path: str, worker_id: Rank
-    ) -> _io.TextIOWrapper:
+    def worker_shard_file_obj(self, path: str, worker_id: Rank) -> _io.TextIOWrapper:
         """Worker Shard File Object.
 
         Return the file object used to store the data consumed by the
@@ -74,14 +72,10 @@ class BaseDatasetWriter(BaseDatasetConsumer, ABC):
         """Open the save file for the worker."""
         worker_info = get_worker_info()
         # open data save file
-        worker_info.args.save_file = self.worker_shard_file_obj(
-            self.save_dir, worker_info.id
-        )
+        worker_info.args.save_file = self.worker_shard_file_obj(self.save_dir, worker_info.id)
         # store file paths
         worker_info.args.save_file_path = worker_info.args.save_file.name
-        worker_info.args.features_file_path = os.path.join(
-            self.save_dir, "features.json"
-        )
+        worker_info.args.features_file_path = os.path.join(self.save_dir, "features.json")
 
         if worker_info.id == 0:
             # save the datasets features

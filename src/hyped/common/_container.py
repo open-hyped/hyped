@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from functools import cache
 from typing import Any, Callable, Generic, Hashable, Mapping, TypeVar
 
 from pydantic import BaseModel, field_validator
@@ -35,15 +34,9 @@ class NestedContainer(BaseModel, Generic[T]):
             The parsed nested data structure.
         """
         return (
-            {
-                k: v if isinstance(v, NestedContainer) else cls(data=v)
-                for k, v in data.items()
-            }
+            {k: v if isinstance(v, NestedContainer) else cls(data=v) for k, v in data.items()}
             if isinstance(data, Mapping)
-            else [
-                v if isinstance(v, NestedContainer) else cls(data=v)
-                for v in data
-            ]
+            else [v if isinstance(v, NestedContainer) else cls(data=v) for v in data]
             if isinstance(data, list)
             else data
         )
@@ -67,18 +60,12 @@ class NestedContainer(BaseModel, Generic[T]):
         """
         if isinstance(self.data, dict):
             return NestedContainer[target_type](
-                data={
-                    k: v.map(f, target_type, _path=_path + (k,))
-                    for k, v in self.data.items()
-                }
+                data={k: v.map(f, target_type, _path=_path + (k,)) for k, v in self.data.items()}
             )
 
         if isinstance(self.data, list):
             return NestedContainer[target_type](
-                data=[
-                    v.map(f, target_type, _path=_path + (i,))
-                    for i, v in enumerate(self.data)
-                ]
+                data=[v.map(f, target_type, _path=_path + (i,)) for i, v in enumerate(self.data)]
             )
 
         return NestedContainer[target_type](data=f(_path, self.data))

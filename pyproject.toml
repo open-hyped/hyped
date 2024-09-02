@@ -75,18 +75,16 @@ version_file = "src/hyped/__version__.py"
 
 [tool.black]
 target-version = ["py311"]
-line-length = 79
+line-length = 100
 docstring-style = "google"
 
 [tool.isort]
 profile = "black"
-line_length = 79
+line_length = 100
 skip = ["docs/source/conf.py"]
 
 [tool.ruff]
-line-length = 79
-# check docstrings
-select = ["D"]
+line-length = 100
 ignore = ["E741"]
 
 [tool.ruff.pydocstyle]

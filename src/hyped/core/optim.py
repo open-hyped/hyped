@@ -8,9 +8,9 @@ The optimizer module includes methods for optimizing data flow graphs, such as:
 1. **Prune Redundant Nodes**: The optimizer prunes the data flow graph, removing nodes that
    do not contribute to producing the desired output.
 
-2. **Constant Expression Evaluation**: Pre-computes the constant partition of the graph, which consists
-   solely of constant values and has no dependencies on other parts of the graph, and replaces
-   these constants with their computed values.
+2. **Constant Expression Evaluation**: Pre-computes the constant partition of the graph, which
+   consists solely of constant values and has no dependencies on other parts of the graph, and
+   replaces these constants with their computed values.
 
 3. **Common Subexpression Elimination (CSE)**: Identifies and eliminates redundant computations
    by recognizing and reusing common subexpressions in the data flow graph.
@@ -36,7 +36,7 @@ from hyped.processors._ops.collect import CollectFeatures, NestedContainer
 from .executor import DataFlowExecutor
 from .graph import DataFlowGraph
 from .nodes.const import Const
-from .refs.inputs import InputRefs, InputRefsContainer
+from .refs.inputs import InputRefsContainer
 from .refs.ref import FeatureRef
 
 
@@ -52,10 +52,11 @@ class DataFlowGraphOptimizer(object):
     3. Common Subexpression Elimination (CSE)
     4. Constant Folding/Propagation
 
-    Note the difference between constant expression evaluation and constant folding. Constant expression evaluation
-    focuses on evaluating the constant partition of the graph, which consists solely of constant values and has no
-    dependencies on other parts of the graph. In contrast, constant folding aims to simplify expressions that include
-    both constant and non-constant values by precomputing the constant parts of these expressions.
+    Note the difference between constant expression evaluation and constant folding. Constant
+    expression evaluation focuses on evaluating the constant partition of the graph, which
+    consists solely of constant values and has no dependencies on other parts of the graph.
+    In contrast, constant folding aims to simplify expressions that include both constant
+    and non-constant values by precomputing the constant parts of these expressions.
     """
 
     def cse(self, graph: DataFlowGraph) -> DataFlowGraph:
@@ -107,7 +108,9 @@ class DataFlowGraphOptimizer(object):
         # graph can be mapped to the same target node during optimization
         node_mapping = dict()
 
-        key = lambda n: graph.nodes[n][DataFlowGraph.NodeAttribute.DEPTH]
+        def key(n):
+            return graph.nodes[n][DataFlowGraph.NodeAttribute.DEPTH]
+
         for _, layer in groupby(sorted(graph, key=key), key=key):
             cse_layer = []
 
@@ -120,9 +123,7 @@ class DataFlowGraphOptimizer(object):
                         edge_data[DataFlowGraph.EdgeAttribute.NAME],
                         edge_data[DataFlowGraph.EdgeAttribute.KEY],
                     )
-                    for src_node_id, _, edge_data in graph.in_edges(
-                        node_id, data=True
-                    )
+                    for src_node_id, _, edge_data in graph.in_edges(node_id, data=True)
                 ]
 
                 node_data = graph.nodes[node_id]
@@ -141,12 +142,8 @@ class DataFlowGraphOptimizer(object):
 
                 else:
                     # read node feature properties
-                    in_features = node_data[
-                        DataFlowGraph.NodeAttribute.IN_FEATURES
-                    ]
-                    out_features = node_data[
-                        DataFlowGraph.NodeAttribute.OUT_FEATURES
-                    ]
+                    in_features = node_data[DataFlowGraph.NodeAttribute.IN_FEATURES]
+                    out_features = node_data[DataFlowGraph.NodeAttribute.OUT_FEATURES]
 
                     if obj is None:
                         # add source node to optimized graph
@@ -159,15 +156,11 @@ class DataFlowGraphOptimizer(object):
                         # build input references object if expected
                         if in_features is not None:
                             named_refs = {
-                                name: cse_graph.get_node_output_ref(
-                                    src_node_id
-                                )[key]
+                                name: cse_graph.get_node_output_ref(src_node_id)[key]
                                 for src_node_id, name, key in in_edge_identifiers
                             }
                             # create input reference container from edge data
-                            inputs = InputRefsContainer(
-                                named_refs=named_refs, flow=cse_graph
-                            )
+                            inputs = InputRefsContainer(named_refs=named_refs, flow=cse_graph)
 
                         else:
                             # the node doesn't expect any inputs, i.e. it is a source node
@@ -215,9 +208,7 @@ class DataFlowGraphOptimizer(object):
         """
         # get the constant partition of the graph and make sure
         # the sub-flow is self-contained, i.e. has no outside dependencies
-        const_graph = graph.get_partition(
-            DataFlowGraph.PredefinedPartition.CONST
-        )
+        const_graph = graph.get_partition(DataFlowGraph.PredefinedPartition.CONST)
         assert len(graph.subgraph_in_edges(const_graph)) == 0
 
         # check if there is anything to optimize in the constant partition
@@ -233,10 +224,7 @@ class DataFlowGraphOptimizer(object):
 
             # collect the outputs of all nodes
             collect = NestedContainer[FeatureRef](
-                data={
-                    i: const_graph.get_node_output_ref(i)
-                    for i in const_graph.nodes()
-                }
+                data={i: const_graph.get_node_output_ref(i) for i in const_graph.nodes()}
             )
             collect = CollectFeatures().call(collection=collect)
 
@@ -256,9 +244,7 @@ class DataFlowGraphOptimizer(object):
             const_edges = graph.subgraph_out_edges(const_graph, data=True)
 
             # drop the constant partition in the original graph
-            graph = graph.drop_partition(
-                DataFlowGraph.PredefinedPartition.CONST
-            )
+            graph = graph.drop_partition(DataFlowGraph.PredefinedPartition.CONST)
             graph = DataFlowGraph(graph)
 
             const_lookup = dict()
@@ -288,9 +274,7 @@ class DataFlowGraphOptimizer(object):
                     tgt_node_id,
                     key=key,
                     **{
-                        DataFlowGraph.EdgeAttribute.NAME: data[
-                            DataFlowGraph.EdgeAttribute.NAME
-                        ],
+                        DataFlowGraph.EdgeAttribute.NAME: data[DataFlowGraph.EdgeAttribute.NAME],
                         DataFlowGraph.EdgeAttribute.KEY: ref.key_,
                     },
                 )
@@ -326,9 +310,7 @@ class DataFlowGraphOptimizer(object):
         """
         return graph
 
-    def optimize(
-        self, graph: DataFlowGraph, leaf_nodes: set[NodeId]
-    ) -> DataFlowGraph:
+    def optimize(self, graph: DataFlowGraph, leaf_nodes: set[NodeId]) -> DataFlowGraph:
         """Optimizes the data flow graph for a specified set of leaf nodes.
 
         Args:

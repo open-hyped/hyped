@@ -5,10 +5,7 @@ import datasets
 import pytest
 from torch.utils.data import get_worker_info
 
-from hyped.common.consumer import (
-    BaseDatasetConsumer,
-    ConsumerProcessExceptionGroup,
-)
+from hyped.common.consumer import BaseDatasetConsumer, ConsumerProcessExceptionGroup
 
 
 def filter_false(e):
@@ -41,9 +38,7 @@ class RaiseExceptionConsumer(BaseDatasetConsumer):
 
 class TestBaseDatasetConsumer(object):
     @pytest.mark.parametrize("num_samples", [1024, 2048, 10000])
-    @pytest.mark.parametrize(
-        "num_proc, num_shards", product([2, 4, 8, 16], repeat=2)
-    )
+    @pytest.mark.parametrize("num_proc, num_shards", product([2, 4, 8, 16], repeat=2))
     def test(self, num_samples, num_proc, num_shards):
         # create dummy dataset
         ds = datasets.Dataset.from_dict({"a": range(num_samples)})

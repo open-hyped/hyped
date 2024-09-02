@@ -14,10 +14,7 @@ from datasets import Value
 
 import hyped.aggregators._ops as agg_ops
 import hyped.processors._ops as proc_ops
-from hyped.common.feature_checks import (
-    check_feature_equals,
-    check_feature_is_sequence,
-)
+from hyped.common.feature_checks import check_feature_equals, check_feature_is_sequence
 from hyped.core.refs.ref import FeatureRef
 
 
@@ -85,9 +82,9 @@ def invert(a: FeatureRef) -> FeatureRef:
         FeatureRef: A FeatureRef instance representing the bitwise inverted
             value of the input feature.
     """
-    if check_feature_equals(
+    if check_feature_equals(a.feature_, Value("bool")) or check_feature_is_sequence(
         a.feature_, Value("bool")
-    ) or check_feature_is_sequence(a.feature_, Value("bool")):
+    ):
         return proc_ops.BooleanInvert().call(a=a).result
     else:
         return proc_ops.Invert().call(a=a).result

@@ -31,9 +31,7 @@ class TestTypeRegistry:
 
         # check simple case
         assert {A} == set(RegisterTypes.type_registry.types) - types
-        assert {A.type_id} == set(
-            RegisterTypes.type_registry.type_ids
-        ) - type_ids
+        assert {A.type_id} == set(RegisterTypes.type_registry.type_ids) - type_ids
 
         # set up complex case
         class B(RegisterTypes):
@@ -56,9 +54,7 @@ class TestTypeRegistry:
             pass
 
         # should have a new type but the type id is overwritten
-        assert {A, B, C, D, C} == set(
-            RegisterTypes.type_registry.types
-        ) - types
+        assert {A, B, C, D, C} == set(RegisterTypes.type_registry.types) - types
         assert {A.type_id, B.type_id, C.type_id, D.type_id} == set(
             RegisterTypes.type_registry.type_ids
         ) - type_ids
@@ -83,9 +79,7 @@ class TestTypeRegistry:
             pass
 
         # check types
-        assert {A, B, C, D, D2} == set(
-            RegisterTypes.type_registry.types
-        ) - types
+        assert {A, B, C, D, D2} == set(RegisterTypes.type_registry.types) - types
         assert {A, B, C, D, D2} == set(A.type_registry.types)
         assert {B, D} == set(B.type_registry.types)
         assert {C, D2} == set(C.type_registry.types)

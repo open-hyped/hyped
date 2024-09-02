@@ -21,17 +21,9 @@ from typing_extensions import TypedDict, Unpack
 
 from hyped.common.lazy_instance import LazyInstance
 from hyped.common.typing import Index, Rank, Sample
-from hyped.core.nodes.processor import (
-    BaseDataProcessor,
-    BaseDataProcessorConfig,
-    IOContext,
-)
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, IOContext
 from hyped.core.refs.inputs import CheckFeatureIsSequence, InputRefs
-from hyped.core.refs.outputs import (
-    LambdaOutputFeature,
-    OutputFeature,
-    OutputRefs,
-)
+from hyped.core.refs.outputs import LambdaOutputFeature, OutputFeature, OutputRefs
 from hyped.core.refs.ref import FeatureRef
 
 
@@ -61,9 +53,7 @@ class OpenAIChatCompletionInputRefs(InputRefs):
     messages: Annotated[
         FeatureRef,
         CheckFeatureIsSequence(
-            value_type=Features(
-                {"role": Value("string"), "content": Value("string")}
-            )
+            value_type=Features({"role": Value("string"), "content": Value("string")})
         ),
     ]
     """
@@ -105,9 +95,7 @@ class OpenAIChatCompletionOutputRefs(OutputRefs):
                             "token": Value("string"),
                             "logprob": Value("float32"),
                         },
-                        length=(
-                            0 if (c.top_logprobs is None) else c.top_logprobs
-                        ),
+                        length=(0 if (c.top_logprobs is None) else c.top_logprobs),
                     ),
                 }
             )
@@ -211,10 +199,16 @@ class OpenAIChatCompletionConfig(BaseDataProcessorConfig):
     """
 
     rate_limit_max_retries: int = 10
-    """Maximum number of retries in case of rate limit error. Defaults to 10."""
+    """Maximum number of retries in case of rate limit error.
+    
+    Defaults to 10.
+    """
 
     rate_limit_exp_backoff: int = 2
-    """Exponential backoff factor (i.e., the base of the exponent) for rate limit error handling. Defaults to 2."""
+    """Exponential backoff factor (i.e., the base of the exponent) for rate limit error handling.
+    
+    Defaults to 2.
+    """
 
     api_key: str | None = None
     """API key for authenticating with the OpenAI service.
@@ -350,9 +344,7 @@ class OpenAIChatCompletion(
     This processor handles interactions with the OpenAI Chat Completion API.
     """
 
-    def __init__(
-        self, config: None | OpenAIChatCompletionConfig = None, **kwargs
-    ) -> None:
+    def __init__(self, config: None | OpenAIChatCompletionConfig = None, **kwargs) -> None:
         """Initialize the OpenAIChatCompletion processor.
 
         Args:
@@ -364,11 +356,7 @@ class OpenAIChatCompletion(
         # create semaphore object to control the maximum
         # number of concurrent calls to the api
         self.sem = (
-            LazyInstance(
-                partial(
-                    asyncio.Semaphore, value=self.config.max_concurrent_calls
-                )
-            )
+            LazyInstance(partial(asyncio.Semaphore, value=self.config.max_concurrent_calls))
             if self.config.max_concurrent_calls is not None
             else nullcontext()
         )
@@ -383,15 +371,12 @@ class OpenAIChatCompletion(
                 timeout=self.config.timeout,
                 max_retries=self.config.max_retries,
                 # temporary fix: see https://github.com/encode/httpx/discussions/2959
-                default_headers=(self.config.default_headers or {})
-                | {"Connection": "close"},
+                default_headers=(self.config.default_headers or {}) | {"Connection": "close"},
                 default_query=self.config.default_query,
             )
         )
 
-    async def api_call(
-        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
-    ) -> Sample:
+    async def api_call(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
         """Make an API call to the OpenAI Chat Completion endpoint.
 
         Args:
@@ -459,9 +444,7 @@ class OpenAIChatCompletion(
             },
         }
 
-    async def process(
-        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
-    ) -> Sample:
+    async def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
         """Process the input sample using the OpenAI Chat Completion API.
 
         Args:
@@ -483,12 +466,9 @@ class OpenAIChatCompletion(
                     return await self.api_call(inputs, index, rank, io)
                 except RateLimitError:
                     # Increment the delay
-                    delay = self.config.rate_limit_exp_backoff ** (
-                        1 + i + random.random()
-                    )
+                    delay = self.config.rate_limit_exp_backoff ** (1 + i + random.random())
                     warnings.warn(
-                        "API rate limit exceeded. Retrying in %.01f seconds."
-                        % delay,
+                        "API rate limit exceeded. Retrying in %.01f seconds." % delay,
                         UserWarning,
                     )
                     await asyncio.sleep(delay)

@@ -53,8 +53,7 @@ class FeatureKey(FeatureKeyAlias):
 
         if len(key) > 0 and not isinstance(key[0], str):
             raise ValueError(
-                "First entry of a feature key must be a string, got %s."
-                % repr(key[0])
+                "First entry of a feature key must be a string, got %s." % repr(key[0])
             )
 
         for key_entry in key:
@@ -75,9 +74,7 @@ class FeatureKey(FeatureKeyAlias):
         Returns:
             FeatureKey | str | int | slice: The retrieved key entry or a new FeatureKey.
         """
-        if isinstance(idx, slice) and (
-            (idx.start == 0) or (idx.start is None)
-        ):
+        if isinstance(idx, slice) and ((idx.start == 0) or (idx.start is None)):
             return FeatureKey(*super(FeatureKey, self).__getitem__(idx))
         return super(FeatureKey, self).__getitem__(idx)
 
@@ -110,9 +107,7 @@ class FeatureKey(FeatureKeyAlias):
         Returns:
             CoreSchema: The integrated pydantic core schema.
         """
-        return core_schema.no_info_after_validator_function(
-            cls, handler(str | tuple)
-        )
+        return core_schema.no_info_after_validator_function(cls, handler(str | tuple))
 
     def index_features(self, features: Features) -> FeatureType:
         """Get the feature type of the feature indexed by the key.
@@ -131,8 +126,7 @@ class FeatureKey(FeatureKeyAlias):
                 if key_entry not in features.keys():
                     raise KeyError(
                         "Key `%s` not present in features at `%s`, "
-                        "valid keys are %s"
-                        % (key_entry, self[:i], list(features.keys()))
+                        "valid keys are %s" % (key_entry, self[:i], list(features.keys()))
                     )
                 # get the feature at the key entry
                 features = features[key_entry]
@@ -149,8 +143,7 @@ class FeatureKey(FeatureKeyAlias):
                 ):
                     raise IndexError(
                         "Index `%i` out of bounds for sequence of "
-                        "length `%i` of feature at key %s"
-                        % (key_entry, length, self[:i])
+                        "length `%i` of feature at key %s" % (key_entry, length, self[:i])
                     )
 
                 if isinstance(key_entry, slice):
@@ -162,9 +155,7 @@ class FeatureKey(FeatureKeyAlias):
                     # get features and pack them into a sequence of
                     # appropriate length
                     key = tuple.__new__(FeatureKey, self[i + 1 :])
-                    return Sequence(
-                        key.index_features(features), length=length
-                    )
+                    return Sequence(key.index_features(features), length=length)
 
         return features
 
@@ -204,9 +195,7 @@ class FeatureKey(FeatureKeyAlias):
         return (
             dict_of_lists_to_list_of_dicts(batch)
             if (len(self) == 0)
-            else FeatureKey(self[0], slice(None), *self[1:]).index_example(
-                batch
-            )
+            else FeatureKey(self[0], slice(None), *self[1:]).index_example(batch)
         )
 
     def __hash__(self) -> int:
@@ -215,9 +204,4 @@ class FeatureKey(FeatureKeyAlias):
         Returns:
             int: The hash value of the feature key.
         """
-        return hash(
-            tuple(
-                (k.start, k.stop, k.step) if isinstance(k, slice) else k
-                for k in self
-            )
-        )
+        return hash(tuple((k.start, k.stop, k.step) if isinstance(k, slice) else k for k in self))

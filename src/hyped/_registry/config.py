@@ -62,9 +62,7 @@ class BaseConfig(Registrable, BaseModel, metaclass=_register_model_meta):
 
         # make sure hashes match up
         if (h is not None) and (h != cls.type_hash):
-            raise ValueError(
-                "Type hash in dict doesn't match type hash of config"
-            )
+            raise ValueError("Type hash in dict doesn't match type hash of config")
         # make sure type identifiers match up
         if (t is not None) and (t != cls.type_id):
             raise ValueError(
@@ -117,9 +115,7 @@ class AutoConfig(BaseAutoClass[BaseConfig]):
             T = cls.type_registry.get_type_by_t(t)
 
         else:
-            raise TypeError(
-                "Unable to resolve type of config: `%s`" % str(dct)
-            )
+            raise TypeError("Unable to resolve type of config: `%s`" % str(dct))
 
         # create instance
         return T.from_dict(dct)
@@ -225,13 +221,10 @@ class BaseConfigurable(Generic[U], RegisterTypes, ABC):
         """
         generic_t = cls.generic_config_type
         # concrete config type must inherit generic config type
-        if (cls.CONFIG_TYPE is not None) and not issubclass(
-            cls.CONFIG_TYPE, generic_t
-        ):
+        if (cls.CONFIG_TYPE is not None) and not issubclass(cls.CONFIG_TYPE, generic_t):
             raise TypeError(
                 "Concrete config type `%s` specified by `CONFIG_TYPE` must "
-                "inherit from generic config type `%s`"
-                % (cls.CONFIG_TYPE, generic_t)
+                "inherit from generic config type `%s`" % (cls.CONFIG_TYPE, generic_t)
             )
         # return final config type and fallback to generic
         # type if not specified

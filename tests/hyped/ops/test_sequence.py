@@ -101,9 +101,7 @@ def test_sequence_access():
         )
 
     with patch("hyped.ops.sequence.ops.SequenceSetItem") as mock:
-        ops.set_item(
-            flow.src_features.seq, flow.src_features.idx, flow.src_features.val
-        )
+        ops.set_item(flow.src_features.seq, flow.src_features.idx, flow.src_features.val)
         # make sure processor was called correctly
         mock().call.assert_called_once_with(
             sequence=flow.src_features.seq,

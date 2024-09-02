@@ -26,9 +26,7 @@ class BaseJsonParserTest(BaseDataProcessorTest):
 
 class TestJsonParser_Value(BaseJsonParserTest):
     # processor config
-    processor_config = JsonParserConfig(
-        scheme=Features({"value": Value("int32")})
-    )
+    processor_config = JsonParserConfig(scheme=Features({"value": Value("int32")}))
     # input
     input_features = Features({"json_str": Value("string")})
     input_data = {
@@ -52,9 +50,7 @@ class TestJsonParser_Value(BaseJsonParserTest):
 class TestJsonParser_Sequence(BaseJsonParserTest):
     # processor
     processor_type = JsonParser
-    processor_config = JsonParserConfig(
-        scheme=Sequence(Value("int32"), length=3)
-    )
+    processor_config = JsonParserConfig(scheme=Sequence(Value("int32"), length=3))
     # input
     input_features = Features({"json_str": Value("string")})
     input_data = {
@@ -227,9 +223,7 @@ class TestJsonParser_CatchWithError(BaseJsonParserTest):
     }
 
     @pytest.mark.asyncio
-    async def test_case(
-        self, processor, input_refs, output_refs, exec_error_handler
-    ):
+    async def test_case(self, processor, input_refs, output_refs, exec_error_handler):
         cls = type(self)
         # check input data
         input_keys = set(cls.input_data.keys())
@@ -246,16 +240,12 @@ class TestJsonParser_CatchWithError(BaseJsonParserTest):
         io = IOContext(
             node_id=-1,
             inputs=cls.input_features,
-            outputs=processor._out_refs_type.build_features(
-                processor.config, input_refs
-            ),
+            outputs=processor._out_refs_type.build_features(processor.config, input_refs),
         )
 
         with exec_error_handler:
             # apply processor
-            output = await processor.batch_process(
-                cls.input_data, cls.input_index, cls.rank, io
-            )
+            output = await processor.batch_process(cls.input_data, cls.input_index, cls.rank, io)
 
         # check output format
         assert isinstance(output, dict)
@@ -271,8 +261,5 @@ class TestJsonParser_CatchWithError(BaseJsonParserTest):
         # check output matches expectation
         assert output["parsed"] == cls.expected_output_data["parsed"]
         assert all(
-            [
-                output["error"][i] != ""
-                for i in range(len(cls.expected_output_data["error"]))
-            ]
+            [output["error"][i] != "" for i in range(len(cls.expected_output_data["error"]))]
         )

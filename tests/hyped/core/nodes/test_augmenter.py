@@ -13,9 +13,7 @@ class TestDataAugmenter:
     async def test_batch_process(self, k):
         # create the mock instance
         augmenter = MockAugmenter()
-        augmenter.process = MagicMock(
-            return_value=[{"y": i} for i in range(k)]
-        )
+        augmenter.process = MagicMock(return_value=[{"y": i} for i in range(k)])
 
         # create dummy inputs
         rank = 0
@@ -27,9 +25,7 @@ class TestDataAugmenter:
             outputs=Features({"y": Value("int32")}),
         )
         # run batch process
-        out_batch, trace_index = await augmenter.batch_process(
-            batch, index, rank, io_ctx
-        )
+        out_batch, trace_index = await augmenter.batch_process(batch, index, rank, io_ctx)
         # check output
         assert out_batch == {"y": [i % k for i in range(10 * k)]}
         assert all(i == j // k for j, i in enumerate(trace_index))

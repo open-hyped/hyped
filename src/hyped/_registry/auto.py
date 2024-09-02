@@ -2,12 +2,7 @@
 from typing import Generic, TypeVar
 
 from ..common._generic import solve_typevar
-from .registry import (
-    Registrable,
-    RootedTypeRegistryView,
-    TypeRegistry,
-    default_registry,
-)
+from .registry import Registrable, RootedTypeRegistryView, TypeRegistry, default_registry
 
 T = TypeVar("T", bound=Registrable)
 
@@ -25,8 +20,7 @@ class BaseAutoClass(Generic[T]):
         """
         raise EnvironmentError(
             "%s is designed to be instantiated using the"
-            "`%s.from_config(config)` method"
-            % (type(self).__name__, type(self).__name__)
+            "`%s.from_config(config)` method" % (type(self).__name__, type(self).__name__)
         )
 
     @classmethod
@@ -37,8 +31,6 @@ class BaseAutoClass(Generic[T]):
         t = solve_typevar(cls, T)
         # check type
         if not issubclass(t, Registrable):
-            raise TypeError(
-                "Autoclass generic types must be registrable, got %s" % t
-            )
+            raise TypeError("Autoclass generic types must be registrable, got %s" % t)
         # build rooted view on type registry
         return RootedTypeRegistryView(root=t, registry=cls._registry)

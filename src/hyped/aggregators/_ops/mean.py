@@ -14,11 +14,7 @@ from typing_extensions import Unpack
 
 from hyped.common.feature_checks import SCALAR_TYPES
 from hyped.common.typing import Aggregate, Batch, IndexList, Rank
-from hyped.core.nodes.aggregator import (
-    BaseDataAggregator,
-    BaseDataAggregatorConfig,
-    IOContext,
-)
+from hyped.core.nodes.aggregator import BaseDataAggregator, BaseDataAggregatorConfig, IOContext
 from hyped.core.refs.inputs import CheckFeatureEquals, InputRefs
 from hyped.core.refs.outputs import OutputFeature, OutputRefs
 from hyped.core.refs.ref import FeatureRef
@@ -69,9 +65,7 @@ class MeanAggregatorConfig(BaseDataAggregatorConfig):
 
 
 class MeanAggregator(
-    BaseDataAggregator[
-        MeanAggregatorConfig, MeanAggregatorInputRefs, MeanAggregatorOutputRefs
-    ]
+    BaseDataAggregator[MeanAggregatorConfig, MeanAggregatorInputRefs, MeanAggregatorOutputRefs]
 ):
     """A data aggregator that computes the mean of input features.
 
@@ -122,13 +116,11 @@ class MeanAggregator(
             tuple[Aggregate, float]: The updated running mean and the new count of items.
         """
         ext_val, ext_count = ctx
-        return {
-            "value": (val["value"] * state + ext_val) / (state + ext_count)
-        }, (state + ext_count)
+        return {"value": (val["value"] * state + ext_val) / (state + ext_count)}, (
+            state + ext_count
+        )
 
-    def call(
-        self, **kwargs: Unpack[MeanAggregatorInputRefs]
-    ) -> MeanAggregatorOutputRefs:
+    def call(self, **kwargs: Unpack[MeanAggregatorInputRefs]) -> MeanAggregatorOutputRefs:
         """Execute the MeanAggregator to compute the mean value.
 
         Args:

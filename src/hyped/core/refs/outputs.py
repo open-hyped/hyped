@@ -6,7 +6,8 @@ or dynamically generated types, as well as a collection class for managing outpu
 references.
 
 Classes:
-    - :class:`LambdaOutputFeature`: Represents a lambda function for generating an output feature type.
+    - :class:`LambdaOutputFeature`: Represents a lambda function for generating an output
+      feature type.
     - :class:`OutputFeature`: Represents an output feature with a predefined feature type.
     - :class:`OutputRefs`: A collection of output feature references.
 
@@ -50,9 +51,7 @@ class LambdaOutputFeature(object):
     a feature will raise an AttributeError.
     """
 
-    def __init__(
-        self, f: Callable[[BaseConfig, None | InputRefs], None | FeatureType]
-    ) -> None:
+    def __init__(self, f: Callable[[BaseConfig, None | InputRefs], None | FeatureType]) -> None:
         """Initialize the LambdaOutputFeature instance.
 
         Args:
@@ -128,7 +127,8 @@ class OutputRefs(FeatureRef, BaseModelWithTypeValidation):
         FeatureRef and are annotated with LambdaOutputFeature instances.
 
         Raises:
-            TypeError: If any output reference does not conform to the specified output feature type validation.
+            TypeError: If any output reference does not conform to the specified
+                output feature type validation.
         """
         cls._feature_generators = {}
         cls._feature_names = set()
@@ -186,7 +186,8 @@ class OutputRefs(FeatureRef, BaseModelWithTypeValidation):
         Args:
             flow (DataFlowGraph): The data flow graph.
             node_id (str): The node id of the node generating the ouput.
-            features (Features): The output features, typically build by the :class:`build_features` method.
+            features (Features): The output features, typically build by the
+                :func:`build_features` method.
         """
         super(OutputRefs, self).__init__(
             key_=tuple(),
@@ -225,11 +226,7 @@ class OutputRefs(FeatureRef, BaseModelWithTypeValidation):
         obj = super(OutputRefs, self).__getattribute__(name)
         # check if the requested attribute is a conditional
         # feature ref with the condition not met
-        if (
-            isinstance(obj, FeatureRef)
-            and (name in type(self)._feature_names)
-            and obj is NONE_REF
-        ):
+        if isinstance(obj, FeatureRef) and (name in type(self)._feature_names) and obj is NONE_REF:
             # forward the request to getattr
             raise AttributeError()
 
@@ -262,9 +259,7 @@ class OutputRefs(FeatureRef, BaseModelWithTypeValidation):
                 "its output condition is not met."
             )
 
-        raise AttributeError(
-            f"'{type(self).__name__}' has no attribute '{name}'"
-        )
+        raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
 
     @property
     def refs(self) -> set[FeatureRef]:
@@ -275,9 +270,5 @@ class OutputRefs(FeatureRef, BaseModelWithTypeValidation):
         """
         ignore_fields = FeatureRef.model_fields.keys()
         return set(
-            [
-                getattr(self, key)
-                for key in self.model_fields.keys()
-                if key not in ignore_fields
-            ]
+            [getattr(self, key) for key in self.model_fields.keys() if key not in ignore_fields]
         )

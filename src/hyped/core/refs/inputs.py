@@ -5,9 +5,12 @@ used by data processors. It includes validators for checking feature types as we
 a collection class for managing input references and associated validators.
 
 Classes:
-    - :class:`FeatureValidator`: Validator for checking the type of a FeatureRef instance.
-    - :class:`CheckFeatureEquals`: Validator for checking if a FeatureRef matches a specific feature type.
-    - :class:`CheckFeatureIsSequence`: Validator for checking if a FeatureRef refers to a sequence.
+    - :class:`FeatureValidator`: Validator for checking the type of a :class:`FeatureRef`
+      instance.
+    - :class:`CheckFeatureEquals`: Validator for checking if a :class:`FeatureRef` matches a
+      specific feature type.
+    - :class:`CheckFeatureIsSequence`: Validator for checking if a :class:`FeatureRef` refers to
+      a sequence.
     - :class:`InputRefs`: A collection of input references used by data processors.
 
 Usage Example:
@@ -39,12 +42,12 @@ Usage Example:
                 ]
             ]
 
-    In this example, :class:`CustomInputRefs` extends :class:`InputRefs` to define a collection of input
-    references with specified validators for feature type checking.
+    In this example, :class:`CustomInputRefs` extends :class:`InputRefs` to define a collection
+    of input references with specified validators for feature type checking.
 """
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from itertools import chain
 from typing import (
     Annotated,
@@ -129,7 +132,8 @@ class BaseInputValidator(ABC, Generic[T]):
 
                 except Exception as e2:
                     raise RuntimeError(
-                        f"Feature does not conform to any of the expected types: `{str(e1)}` and `{str(e2)}` "
+                        f"Feature does not conform to any of the expected types: "
+                        f"`{str(e1)}` and `{str(e2)}`."
                     ) from e2
 
         return type(self)(check_either)
@@ -138,9 +142,10 @@ class BaseInputValidator(ABC, Generic[T]):
 class GlobalValidator(BaseInputValidator[InputRefs]):
     """Validator for checking the validity of the input references as a whole.
 
-    This validator applies a specified validation function to the entire set of input references,
-    ensuring that the configuration and the collective input references meet the necessary criteria.
-    This is in contrast to the :class:`FeatureValidator`, which validates individual input references.
+    This validator applies a specified validation function to the entire set of
+    input references, ensuring that the configuration and the collective input
+    references meet the necessary criteria. This is in contrast to the
+    :class:`FeatureValidator`, which validates individual input references.
 
     Args:
         f (Callable[[BaseConfig, InputRefs], None]): The validation function to be applied to
@@ -276,9 +281,7 @@ class InputRefsContainer(pydantic.BaseModel):
             Features: A dictionary-like object containing the feature types
             of the input references.
         """
-        return Features(
-            {key: ref.feature_ for key, ref in self.named_refs.items()}
-        )
+        return Features({key: ref.feature_ for key, ref in self.named_refs.items()})
 
 
 class InputRefsValidator(object):
@@ -318,9 +321,7 @@ class InputRefsValidator(object):
         if not issubclass(type_hint.__origin__, origin_type):
             return False
 
-        return all(
-            isinstance(meta, meta_type) for meta in type_hint.__metadata__
-        )
+        return all(isinstance(meta, meta_type) for meta in type_hint.__metadata__)
 
     def __init__(self, config: BaseConfig, refs_type: type[InputRefs]) -> None:
         """Initialize the InputRefsValidator with a given reference type.
@@ -345,40 +346,27 @@ class InputRefsValidator(object):
                         yield from base.__metadata__
                     # recurse into deeper base types
                     yield from get_global_validators(
-                        base.__origin__
-                        if get_origin(base) is Annotated
-                        else base
+                        base.__origin__ if get_origin(base) is Annotated else base
                     )
 
-        self.global_validators: tuple[GlobalValidator] = tuple(
-            get_global_validators(refs_type)
-        )
+        self.global_validators: tuple[GlobalValidator] = tuple(get_global_validators(refs_type))
 
         hints = get_type_hints(refs_type, include_extras=True)
         # separate type hints into required and optionals
-        required = {
-            key: hint
-            for key, hint in hints.items()
-            if get_origin(hint) is not NotRequired
-        }
+        required = {key: hint for key, hint in hints.items() if get_origin(hint) is not NotRequired}
         optional = {
-            key: get_args(hint)[0]
-            for key, hint in hints.items()
-            if get_origin(hint) is NotRequired
+            key: get_args(hint)[0] for key, hint in hints.items() if get_origin(hint) is NotRequired
         }
         # check type hints of refs type
         for key, hint in chain(required.items(), optional.items()):
-            if not self._validate_type_hint(
-                hint, FeatureRef, FeatureValidator
-            ):
+            if not self._validate_type_hint(hint, FeatureRef, FeatureValidator):
                 raise TypeError(key)  # TODO: write error message
 
         self.required_keys = set(required.keys())
         self.optional_keys = set(optional.keys())
         # get all validators for each type
         self.validators: dict[str, list[FeatureValidator]] = {
-            name: hint.__metadata__
-            for name, hint in chain(required.items(), optional.items())
+            name: hint.__metadata__ for name, hint in chain(required.items(), optional.items())
         }
 
     def validate(self, **refs: FeatureRef) -> InputRefsContainer:
@@ -438,7 +426,7 @@ class InputRefsValidator(object):
             # run global validators
             for validator in self.global_validators:
                 validator.f(self.config, refs)
-        except Exception as e:
+        except Exception:
             raise RuntimeError(
                 f"Error in global feature validation of `{self.refs_type.__name__}`."
             )

@@ -79,12 +79,12 @@ def cse_test_cases():
     node_id_1 = add_processor(graph, src_node_id, src_node_id, i=0)
     node_id_2 = add_processor(graph, src_node_id, node_id_1)
     node_id_2 = add_processor(graph, src_node_id, node_id_1)
-    node_id_3 = add_processor(graph, src_node_id, src_node_id, i=1)
+    add_processor(graph, src_node_id, src_node_id, i=1)
     # create target graph
     target, src_node_id = new_graph()
     node_id_1 = add_processor(target, src_node_id, src_node_id, i=0)
     node_id_2 = add_processor(target, src_node_id, node_id_1)
-    node_id_3 = add_processor(target, src_node_id, src_node_id, i=1)
+    add_processor(target, src_node_id, src_node_id, i=1)
     # add test case
     test_cases.append((graph, target))
 
@@ -104,19 +104,13 @@ def cse_test_cases():
     graph, _ = new_graph()
     ref_1 = Const(value=0).call(graph)
     ref_2 = Const(value=1).call(graph)
-    CollectFeatures().call(
-        collection=NestedContainer[FeatureRef](data={"a": ref_1, "b": ref_2})
-    )
-    CollectFeatures().call(
-        collection=NestedContainer[FeatureRef](data={"a": ref_1, "b": ref_2})
-    )
+    CollectFeatures().call(collection=NestedContainer[FeatureRef](data={"a": ref_1, "b": ref_2}))
+    CollectFeatures().call(collection=NestedContainer[FeatureRef](data={"a": ref_1, "b": ref_2}))
     # create target graph
     target, _ = new_graph()
     ref_1 = Const(value=0).call(target)
     ref_2 = Const(value=1).call(target)
-    CollectFeatures().call(
-        collection=NestedContainer[FeatureRef](data={"a": ref_1, "b": ref_2})
-    )
+    CollectFeatures().call(collection=NestedContainer[FeatureRef](data={"a": ref_1, "b": ref_2}))
     # add test case
     test_cases.append((graph, target))
 
@@ -177,12 +171,8 @@ def constant_evaluation_test_cases():
 
     target, src_node_id = new_graph()
     # both processor nodes should be evaluated to constant nodes
-    const_node_id_1 = (
-        Const(value={"y": 0}).call(target).node_id_
-    )  # original node_id_3
-    const_node_id_2 = (
-        Const(value={"value": 5}).call(target).node_id_
-    )  # original const_node_id_1
+    const_node_id_1 = Const(value={"y": 0}).call(target).node_id_  # original node_id_3
+    const_node_id_2 = Const(value={"value": 5}).call(target).node_id_  # original const_node_id_1
     node_id_4 = add_processor(target, src_node_id, src_node_id)
     add_processor(target, src_node_id, const_node_id_1)
     add_processor(target, node_id_4, const_node_id_2)
@@ -206,7 +196,7 @@ def optimize_test_cases():
     node_id_2 = add_processor(graph, src_node_id, src_node_id)
     # create target to simple graph
     target, src_node_id = new_graph()
-    node_id_3 = add_processor(target, src_node_id, src_node_id)
+    add_processor(target, src_node_id, src_node_id)
     # add test case
     test_cases.append((graph, target, node_id_1))
     test_cases.append((graph, target, node_id_2))
@@ -215,7 +205,7 @@ def optimize_test_cases():
     graph, src_node_id = new_graph()
     node_id_1 = add_processor(graph, src_node_id, src_node_id)
     node_id_2 = add_processor(graph, src_node_id, src_node_id)
-    node_id_3 = add_processor(graph, src_node_id, src_node_id)
+    add_processor(graph, src_node_id, src_node_id)
     node_id_4 = add_processor(graph, node_id_1, node_id_2)
     # create target to simple graph
     target, src_node_id = new_graph()

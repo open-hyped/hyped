@@ -1,7 +1,6 @@
 """CSV Dataset Writer."""
 import csv
 import os
-from typing import Any
 
 import _io
 import datasets
@@ -34,9 +33,7 @@ class CsvDatasetWriter(BaseDatasetWriter):
             is updated
     """
 
-    def worker_shard_file_obj(
-        self, path: str, worker_id: Rank
-    ) -> _io.TextIOWrapper:
+    def worker_shard_file_obj(self, path: str, worker_id: Rank) -> _io.TextIOWrapper:
         """Worker Shard File Object.
 
         Arguments:
@@ -48,9 +45,7 @@ class CsvDatasetWriter(BaseDatasetWriter):
         """
         return open(os.path.join(path, "data_shard_%i.csv" % worker_id), "w+")
 
-    def consume(
-        self, data: datasets.Dataset | datasets.IterableDataset
-    ) -> None:
+    def consume(self, data: datasets.Dataset | datasets.IterableDataset) -> None:
         """Consume a given dataset.
 
         Arguments:
@@ -58,9 +53,7 @@ class CsvDatasetWriter(BaseDatasetWriter):
                 the dataset to consume
         """
         if not all(
-            check_feature_equals(
-                feature, (datasets.Value, datasets.ClassLabel)
-            )
+            check_feature_equals(feature, (datasets.Value, datasets.ClassLabel))
             for feature in data.features.values()
         ):
             # all features must be strings

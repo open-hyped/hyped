@@ -161,15 +161,9 @@ class DataFlow(object):
         if self._executor is None:
             raise RuntimeError("Flow has not been build yet.")
 
-        return (
-            None
-            if self._aggregates is None
-            else MappingProxyType(self._aggregates)
-        )
+        return None if self._aggregates is None else MappingProxyType(self._aggregates)
 
-    def const(
-        self, value: Any, feature: None | FeatureType = None
-    ) -> FeatureRef:
+    def const(self, value: Any, feature: None | FeatureType = None) -> FeatureRef:
         """Adds a constant node to the data flow graph.
 
         This function creates and adds a constant node to the data flow graph
@@ -221,15 +215,11 @@ class DataFlow(object):
             )
 
         if collect.flow_ is not self._graph:
-            raise RuntimeError(
-                "The collect feature does not belong to the current graph."
-            )
+            raise RuntimeError("The collect feature does not belong to the current graph.")
 
         if aggregate is not None:
             if aggregate.flow_ is not self._graph:
-                raise RuntimeError(
-                    "The aggregate feature does not belong to the current graph."
-                )
+                raise RuntimeError("The aggregate feature does not belong to the current graph.")
 
             if not isinstance(aggregate.feature_, (datasets.Features, dict)):
                 raise TypeError(
@@ -246,17 +236,14 @@ class DataFlow(object):
             ]
             # validate aggregate type
             if (aggregate_type != DataFlowGraph.NodeType.DATA_AGGREGATOR) and (
-                aggregate_partition
-                != DataFlowGraph.PredefinedPartition.AGGREGATED
+                aggregate_partition != DataFlowGraph.PredefinedPartition.AGGREGATED
             ):
                 # invalid aggregate, must be the output of an aggregator call
                 raise RuntimeError()
 
         # collect all requested leaf nodes
         leaf_nodes = set(
-            [collect.node_id_]
-            if aggregate is None
-            else [collect.node_id_, aggregate.node_id_]
+            [collect.node_id_] if aggregate is None else [collect.node_id_, aggregate.node_id_]
         )
 
         # optimize data flow graph
@@ -272,9 +259,7 @@ class DataFlow(object):
         # update references to optimized graph
         collect = collect.model_copy(update=dict(flow_=optim_graph))
         aggregate = (
-            None
-            if aggregate is None
-            else aggregate.model_copy(update=dict(flow_=optim_graph))
+            None if aggregate is None else aggregate.model_copy(update=dict(flow_=optim_graph))
         )
 
         # get all aggregator node ids in the optimized graph
@@ -300,28 +285,20 @@ class DataFlow(object):
         if aggregate is not None:
             # get the node objects to each aggregator node
             aggregator_nodes = [
-                optim_graph.nodes[node_id][
-                    DataFlowGraph.NodeAttribute.NODE_OBJ
-                ]
+                optim_graph.nodes[node_id][DataFlowGraph.NodeAttribute.NODE_OBJ]
                 for node_id in aggregator_node_ids
             ]
             # build the io contexts for all aggregator nodes
             io_ctxs = [
                 IOContext(
                     node_id=node_id,
-                    inputs=optim_graph.nodes[node_id][
-                        DataFlowGraph.NodeAttribute.IN_FEATURES
-                    ],
-                    outputs=optim_graph.nodes[node_id][
-                        DataFlowGraph.NodeAttribute.OUT_FEATURES
-                    ],
+                    inputs=optim_graph.nodes[node_id][DataFlowGraph.NodeAttribute.IN_FEATURES],
+                    outputs=optim_graph.nodes[node_id][DataFlowGraph.NodeAttribute.OUT_FEATURES],
                 )
                 for node_id in aggregator_node_ids
             ]
             # create the aggregation manager
-            aggregation_manager = DataAggregationManager(
-                aggregator_nodes, io_ctxs
-            )
+            aggregation_manager = DataAggregationManager(aggregator_nodes, io_ctxs)
 
             # get the aggregator type
             aggregate_type = self._graph.nodes[aggregate.node_id_][
@@ -333,9 +310,7 @@ class DataFlow(object):
                 # matching the structure of the manager's proxy values dict
                 lazy_graph = DataFlowGraph()
                 lazy_graph.add_source_node(
-                    datasets.Features(
-                        {io.node_id: io.outputs for io in io_ctxs}
-                    )
+                    datasets.Features({io.node_id: io.outputs for io in io_ctxs})
                 )
                 # update the aggregate to point to the output of the
                 # aggregator in the lazy graph
@@ -355,14 +330,10 @@ class DataFlow(object):
                 value_graph = optim_graph.get_partition(
                     DataFlowGraph.PredefinedPartition.AGGREGATED
                 )
-                const_graph = optim_graph.get_partition(
-                    DataFlowGraph.PredefinedPartition.CONST
-                )
+                const_graph = optim_graph.get_partition(DataFlowGraph.PredefinedPartition.CONST)
                 # not all constants are used in the aggregated partition
                 # filter out the unused constants by building the dependency graph
-                lazy_graph = optim_graph.subgraph(
-                    chain(value_graph, const_graph)
-                )
+                lazy_graph = optim_graph.subgraph(chain(value_graph, const_graph))
                 lazy_graph = lazy_graph.dependency_graph({aggregate.node_id_})
 
                 # further processing of aggregates is currently only supported
@@ -403,16 +374,12 @@ class DataFlow(object):
                 # the structure of the proxy values dict of the manager
                 lazy_graph = DataFlowGraph(lazy_graph)
                 lazy_graph.add_source_node(
-                    datasets.Features(
-                        {io.node_id: io.outputs for io in io_ctxs}
-                    )
+                    datasets.Features({io.node_id: io.outputs for io in io_ctxs})
                 )
                 # finally the edges from the newly introduced source node
                 # to the nodes that make use of the aggregates need to be
                 # added to the graph
-                for u, v, key, data in optim_graph.subgraph_in_edges(
-                    lazy_graph, data=True
-                ):
+                for u, v, key, data in optim_graph.subgraph_in_edges(lazy_graph, data=True):
                     lazy_graph.add_edge(
                         lazy_graph.src_node_id,
                         v,
@@ -445,9 +412,7 @@ class DataFlow(object):
         flow._executor = LazyInstance(
             partial(
                 DataFlowExecutor,
-                graph=optim_graph.dependency_graph(
-                    {collect.node_id_, *aggregator_node_ids}
-                ),
+                graph=optim_graph.dependency_graph({collect.node_id_, *aggregator_node_ids}),
                 collect=collect,
                 aggregation_manager=aggregation_manager,
             )
@@ -455,9 +420,7 @@ class DataFlow(object):
 
         return flow, flow.aggregates
 
-    def batch_process(
-        self, batch: Batch, index: IndexList, rank: None | Rank = None
-    ) -> Batch:
+    def batch_process(self, batch: Batch, index: IndexList, rank: None | Rank = None) -> Batch:
         """Process a batch of data.
 
         Args:
@@ -510,9 +473,7 @@ class DataFlow(object):
         # convert to pyarrow table with correct schema
         return pa.table(
             data=self.batch_process(batch, index, rank),
-            schema=convert_features_to_arrow_schema(
-                self._executor.collect.feature_
-            ),
+            schema=convert_features_to_arrow_schema(self._executor.collect.feature_),
         )
 
     def apply(
@@ -524,21 +485,22 @@ class DataFlow(object):
     ) -> tuple[D, None | Aggregate | MappingProxyType[str, Any]]:
         """Apply the data flow to a dataset.
 
-        This method applies the data flow to the given dataset, processing the data according to the defined
-        processors and optionally including aggregators for dataset-wide computations.
+        This method applies the data flow to the given dataset, processing the data according to
+        the defined processors and optionally including aggregators for dataset-wide computations.
 
         Args:
             ds (D): The dataset to process.
-            collect (None | FeatureRef): The feature reference to collect. If None, uses current output features.
-            aggregate (None | FeatureRef): The feature reference to aggregated values to collect. If None,
-                uses the current aggregate features.
-            **kwargs: Additional arguments for dataset mapping. Refer to the HuggingFace documentation for the
-                :code:`Datasets.map` function for the respective dataset type.
+            collect (None | FeatureRef): The feature reference to collect. If None, uses current
+                output features.
+            aggregate (None | FeatureRef): The feature reference to aggregated values to collect.
+                If None, uses the current aggregate features.
+            **kwargs: Additional arguments for dataset mapping. Refer to the HuggingFace
+                documentation for the :code:`Datasets.map` function for the respective dataset type.
 
         Returns:
-            tuple[D, None | Aggregate | MappingProxyType[str, Any]]: The processed dataset and a snapshot
-            of the aggregated values after processing the dataset. In case of iterable datasets, the aggregated
-            values proxy object is returned instead of a snapshot.
+            tuple[D, None | Aggregate | MappingProxyType[str, Any]]: The processed dataset and a
+            snapshot of the aggregated values after processing the dataset. In case of iterable
+            datasets, the aggregated values proxy object is returned instead of a snapshot.
 
         Raises:
             ValueError: If the dataset type is not supported.
@@ -548,9 +510,7 @@ class DataFlow(object):
         # get the dataset features
         if isinstance(ds, (datasets.Dataset, datasets.IterableDataset)):
             features = ds.features
-        elif isinstance(
-            ds, (datasets.DatasetDict, datasets.IterableDatasetDict)
-        ):
+        elif isinstance(ds, (datasets.DatasetDict, datasets.IterableDatasetDict)):
             features = next(iter(ds.values())).features
         else:
             raise ValueError(
@@ -586,9 +546,7 @@ class DataFlow(object):
         # run data flow
         ds = flow._internal_apply(ds, **kwargs)
 
-        if isinstance(
-            ds, (datasets.IterableDataset, datasets.IterableDatasetDict)
-        ):
+        if isinstance(ds, (datasets.IterableDataset, datasets.IterableDatasetDict)):
             # set output features for lazy datasets manually
             if isinstance(ds, datasets.IterableDataset):
                 ds.info.features = flow._executor.collect.feature_
@@ -630,9 +588,7 @@ class DataFlow(object):
             # the output feature information
             return ds.map(self._batch_process_to_pyarrow, **kwargs)
 
-        elif isinstance(
-            ds, (datasets.IterableDataset, datasets.IterableDatasetDict)
-        ):
+        elif isinstance(ds, (datasets.IterableDataset, datasets.IterableDatasetDict)):
             # iterable dataset class doesn't support pyarrow
             # outputs in map function, but it also doesn't cache
             # and thus doesn't need the features while processing
@@ -682,14 +638,10 @@ class DataFlow(object):
         """
         # create a plot axes
         if ax is None:
-            _, ax = plt.subplots(
-                1, 1, figsize=(self.depth * 2, self.width * 2.5)
-            )
+            _, ax = plt.subplots(1, 1, figsize=(self.depth * 2, self.width * 2.5))
 
         # compute the node positions
-        pos = nx.multipartite_layout(
-            self._graph, subset_key=DataFlowGraph.NodeAttribute.DEPTH
-        )
+        pos = nx.multipartite_layout(self._graph, subset_key=DataFlowGraph.NodeAttribute.DEPTH)
 
         # build color map
         cmap = colormaps.get_cmap("Pastel1")
@@ -757,9 +709,7 @@ class DataFlow(object):
         if with_edge_labels:
             # group multi-edges by their source and target nodes
             grouped_edges = groupby(
-                sorted(
-                    self._graph.edges(data=True), key=lambda e: (e[0], e[1])
-                ),
+                sorted(self._graph.edges(data=True), key=lambda e: (e[0], e[1])),
                 key=lambda e: (e[0], e[1]),
             )
 
