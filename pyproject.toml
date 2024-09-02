@@ -1,12 +1,14 @@
 [project]
 name = "hyped"
 dynamic = ["version"]
-description = "TODO"
+description = "Easily streamline and customize data pipelines"
 readme = "README.md"
 classifiers = [
     "License :: Freely Distributable",
     "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 authors = [
     {name = "open-hyped"},
@@ -42,6 +44,7 @@ build-backend = "setuptools.build_meta"
 concurrency = ["multiprocessing"]
 parallel = true
 sigterm = true
+data_file = "/tmp/.coverage"
 
 [tool.coverage.report]
 ignore_errors = true
@@ -73,18 +76,16 @@ version_file = "src/hyped/__version__.py"
 
 [tool.black]
 target-version = ["py311"]
-line-length = 79
+line-length = 100
 docstring-style = "google"
 
 [tool.isort]
 profile = "black"
-line_length = 79
+line_length = 100
 skip = ["docs/source/conf.py"]
 
 [tool.ruff]
-line-length = 79
-# check docstrings
-select = ["D"]
+line-length = 100
 ignore = ["E741"]
 
 [tool.ruff.pydocstyle]

@@ -19,10 +19,11 @@ from .feature_checks import (
     raise_feature_equals,
     raise_feature_is_sequence,
 )
+from .typing import Batch, FeatureKeyAlias, Sample
 from .utils import dict_of_lists_to_list_of_dicts
 
 
-class FeatureKey(tuple[str | int | slice]):
+class FeatureKey(FeatureKeyAlias):
     """Feature Key used to index features and examples.
 
     Arguments:
@@ -30,11 +31,11 @@ class FeatureKey(tuple[str | int | slice]):
     """
 
     @classmethod
-    def from_tuple(cls, key: tuple[str | int | slice]) -> FeatureKey:
+    def from_tuple(cls, key: FeatureKeyAlias) -> FeatureKey:
         """Generate a FeatureKey from a tuple.
 
         Arguments:
-            key (tuple[str | int | slice]): Key entries.
+            key (FeatureKeyAlias): Key entries.
 
         Returns:
             FeatureKey: Generated feature key.
@@ -52,8 +53,7 @@ class FeatureKey(tuple[str | int | slice]):
 
         if len(key) > 0 and not isinstance(key[0], str):
             raise ValueError(
-                "First entry of a feature key must be a string, got %s."
-                % repr(key[0])
+                "First entry of a feature key must be a string, got %s." % repr(key[0])
             )
 
         for key_entry in key:
@@ -74,9 +74,7 @@ class FeatureKey(tuple[str | int | slice]):
         Returns:
             FeatureKey | str | int | slice: The retrieved key entry or a new FeatureKey.
         """
-        if isinstance(idx, slice) and (
-            (idx.start == 0) or (idx.start is None)
-        ):
+        if isinstance(idx, slice) and ((idx.start == 0) or (idx.start is None)):
             return FeatureKey(*super(FeatureKey, self).__getitem__(idx))
         return super(FeatureKey, self).__getitem__(idx)
 
@@ -109,9 +107,7 @@ class FeatureKey(tuple[str | int | slice]):
         Returns:
             CoreSchema: The integrated pydantic core schema.
         """
-        return core_schema.no_info_after_validator_function(
-            cls, handler(str | tuple)
-        )
+        return core_schema.no_info_after_validator_function(cls, handler(str | tuple))
 
     def index_features(self, features: Features) -> FeatureType:
         """Get the feature type of the feature indexed by the key.
@@ -130,8 +126,7 @@ class FeatureKey(tuple[str | int | slice]):
                 if key_entry not in features.keys():
                     raise KeyError(
                         "Key `%s` not present in features at `%s`, "
-                        "valid keys are %s"
-                        % (key_entry, self[:i], list(features.keys()))
+                        "valid keys are %s" % (key_entry, self[:i], list(features.keys()))
                     )
                 # get the feature at the key entry
                 features = features[key_entry]
@@ -148,8 +143,7 @@ class FeatureKey(tuple[str | int | slice]):
                 ):
                     raise IndexError(
                         "Index `%i` out of bounds for sequence of "
-                        "length `%i` of feature at key %s"
-                        % (key_entry, length, self[:i])
+                        "length `%i` of feature at key %s" % (key_entry, length, self[:i])
                     )
 
                 if isinstance(key_entry, slice):
@@ -161,17 +155,15 @@ class FeatureKey(tuple[str | int | slice]):
                     # get features and pack them into a sequence of
                     # appropriate length
                     key = tuple.__new__(FeatureKey, self[i + 1 :])
-                    return Sequence(
-                        key.index_features(features), length=length
-                    )
+                    return Sequence(key.index_features(features), length=length)
 
         return features
 
-    def index_example(self, example: dict[str, Any]) -> Any:
+    def index_example(self, example: Sample) -> Any:
         """Index the example with the key and retrieve the value.
 
         Arguments:
-            example (dict[str, Any]): The example to index.
+            example (Sample): The example to index.
 
         Returns:
             Any: The value of the example at the given key.
@@ -191,11 +183,11 @@ class FeatureKey(tuple[str | int | slice]):
 
         return example
 
-    def index_batch(self, batch: dict[str, list[Any]]) -> list[Any]:
+    def index_batch(self, batch: Batch) -> list[Any]:
         """Index a batch of examples with the given key and retrieve the batch of values.
 
         Arguments:
-            batch (dict[str, list[Any]]): Batch of examples to index.
+            batch (Batch): Batch of examples to index.
 
         Returns:
             list[Any]: The batch of values of the examples at the given key.
@@ -203,9 +195,7 @@ class FeatureKey(tuple[str | int | slice]):
         return (
             dict_of_lists_to_list_of_dicts(batch)
             if (len(self) == 0)
-            else FeatureKey(self[0], slice(None), *self[1:]).index_example(
-                batch
-            )
+            else FeatureKey(self[0], slice(None), *self[1:]).index_example(batch)
         )
 
     def __hash__(self) -> int:
@@ -214,9 +204,4 @@ class FeatureKey(tuple[str | int | slice]):
         Returns:
             int: The hash value of the feature key.
         """
-        return hash(
-            tuple(
-                (k.start, k.stop, k.step) if isinstance(k, slice) else k
-                for k in self
-            )
-        )
+        return hash(tuple((k.start, k.stop, k.step) if isinstance(k, slice) else k for k in self))

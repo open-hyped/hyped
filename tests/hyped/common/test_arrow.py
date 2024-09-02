@@ -1,7 +1,7 @@
 import pytest
 from datasets import Features, Sequence, Value
 
-from hyped.common.arrow import convert_features_to_arrow_schema
+from hyped.common._arrow import convert_features_to_arrow_schema
 from hyped.common.feature_checks import check_feature_equals
 
 
@@ -30,9 +30,7 @@ from hyped.common.feature_checks import check_feature_equals
         Features(
             {
                 "A": Sequence({"A": Value("int32"), "B": Value("int32")}),
-                "B": Sequence(
-                    {"A": Value("int32"), "B": Value("int32")}, length=16
-                ),
+                "B": Sequence({"A": Value("int32"), "B": Value("int32")}, length=16),
                 "C": Sequence(
                     {
                         "A": Value("int32"),

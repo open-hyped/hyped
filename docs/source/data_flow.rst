@@ -120,7 +120,7 @@ To get started, you'll first need to initialize a :class:`DataFlow` object with 
 .. code-block:: python
 
    import datasets
-   from hyped.data.flow import DataFlow
+   from hyped import DataFlow
 
    # Load dataset
    ds = datasets.load_dataset("imdb", split="test")
@@ -135,7 +135,7 @@ Once you have initialized a :class:`DataFlow` instance, you can enhance it by ad
 
 .. code-block:: python
 
-   from hyped.data.flow.processors.tokenizers.transformers import TransformersTokenizer
+   from hyped.processors import TransformersTokenizer
 
    # Define a tokenizer processor
    tokenizer = TransformersTokenizer(model_name="bert-base-uncased")
@@ -223,7 +223,7 @@ For handling datasets larger than available memory, Hyped provides support for s
 
 .. code-block:: python
 
-   from hyped.data.io.writers.json import JsonDatasetWriter
+   from hyped.io.writers.json import JsonDatasetWriter
 
    # Load dataset with streaming enabled
    ds = datasets.load_dataset("imdb", split="train", streaming=True)
@@ -246,10 +246,10 @@ Before diving into data flow visualization, let's first create a more complex da
 .. code-block:: python
 
    import datasets
-   from hyped.data.flow import DataFlow
-   from hyped.data.flow.ops import collect
-   from hyped.data.flow.processors.tokenizers.transformers import TransformersTokenizer
-   from hyped.data.flow.processors.templates.jinja2 import Jinja2
+   from hyped import DataFlow
+   from hyped.ops import collect
+   from hyped.processors import TransformersTokenizer
+   from hyped.processors import Jinja2
 
    # Create a more complex data flow for visualization
    complex_flow = DataFlow(features=ds.features)

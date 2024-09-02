@@ -11,8 +11,7 @@ sys.path.insert(0, os.path.abspath("../../src/hyped"))
 
 
 # import all modules
-import hyped
-import hyped.__version__
+import hyped  # noqa: E402
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
@@ -20,8 +19,8 @@ import hyped.__version__
 project = "hyped"
 copyright = "2024, open-hyped"
 author = "open-hyped"
-version = hyped.__version__.__version__
-release = hyped.__version__.__version__
+version = hyped.__version__
+release = hyped.__version__
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

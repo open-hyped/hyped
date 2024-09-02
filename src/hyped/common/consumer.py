@@ -14,6 +14,8 @@ from torch.utils.data._utils.worker import WorkerInfo
 from tqdm.auto import tqdm
 from tqdm.std import EMA
 
+from .typing import Index, Sample
+
 
 class ConsumerProcessException(Exception):
     """Consumer Process Exception.
@@ -157,9 +159,7 @@ class BaseDatasetConsumer(ABC):
         # distribute among them
         return min(self.num_proc, data.n_shards)
 
-    def consume(
-        self, data: datasets.Dataset | datasets.IterableDataset
-    ) -> None:
+    def consume(self, data: datasets.Dataset | datasets.IterableDataset) -> None:
         """Consume a given dataset.
 
         Arguments:
@@ -205,20 +205,14 @@ class BaseDatasetConsumer(ABC):
             w.join()
 
         # check for errors in workers
-        errors = [
-            (r, w.exception)
-            for r, w in enumerate(workers)
-            if w.exception is not None
-        ]
+        errors = [(r, w.exception) for r, w in enumerate(workers) if w.exception is not None]
         errors = [ConsumerProcessException(r, e, tb) for r, (e, tb) in errors]
 
         # raise exceptions catched in workers
         if len(errors) > 0:
             raise ConsumerProcessExceptionGroup(errors)
 
-    def _tqdm(
-        self, readers: list[mp.connection.Connection], total: int
-    ) -> None:
+    def _tqdm(self, readers: list[mp.connection.Connection], total: int) -> None:
         """Tqdm bar.
 
         Manages the tqdm progress bar for the consumer.
@@ -245,9 +239,7 @@ class BaseDatasetConsumer(ABC):
             dn_shards = 0
             dn_examples = 0
             # wait for any reader to receive data
-            for r in mp.connection.wait(
-                readers, timeout=self.tqdm_update_interval
-            ):
+            for r in mp.connection.wait(readers, timeout=self.tqdm_update_interval):
                 data = r.recv()
 
                 if data is None:
@@ -381,19 +373,17 @@ class BaseDatasetConsumer(ABC):
     @abstractmethod
     def consume_example(
         self,
-        shard_id: int,
-        example_id: int,
-        example: dict[str, Any],
+        shard_id: Index,
+        example_id: Index,
+        example: Sample,
     ) -> None:
         """Abstract function to consume a given example.
 
         This function implements the actual consume logic in subclasses.
 
         Arguments:
-            worker (mp.Process): worker process
-            worker_id (int): worker id
-            shard_id (int): dataset shard id
-            example_id (int): example id in the current dataset shard
-            example (dict[str, Any]): the example to consume
+            shard_id (Index): dataset shard id
+            example_id (Index): example id in the current dataset shard
+            example (Sample): the example to consume
         """
         ...

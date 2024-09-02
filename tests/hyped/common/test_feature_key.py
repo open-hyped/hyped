@@ -7,9 +7,7 @@ from hyped.common.feature_key import FeatureKey
 
 class TestFeatureKey(object):
     def test_basics(self):
-        with pytest.raises(
-            ValueError, match="First entry of a feature key must be a string"
-        ):
+        with pytest.raises(ValueError, match="First entry of a feature key must be a string"):
             FeatureKey(1)
 
         # test basics on single entry key
@@ -26,9 +24,7 @@ class TestFeatureKey(object):
         assert isinstance(key[2], slice)
         # test slicing
         assert isinstance(key[:1], FeatureKey)
-        assert isinstance(key[1:], tuple) and not isinstance(
-            key[1:], FeatureKey
-        )
+        assert isinstance(key[1:], tuple) and not isinstance(key[1:], FeatureKey)
         # test string representations of feature key
         str(key)
         repr(key)

@@ -70,9 +70,7 @@ class TestFeatureEquals:
                     }
                 ),
                 [
-                    Features(
-                        {"A": Sequence(Value("int32")), "B": Value("int32")}
-                    ),
+                    Features({"A": Sequence(Value("int32")), "B": Value("int32")}),
                     Features(
                         {
                             "A": Sequence(Value("int32"), length=2),
@@ -106,12 +104,8 @@ class TestFeatureEquals:
             [
                 Sequence(Features({"A": Value("int32"), "B": Value("int32")})),
                 [
-                    Sequence(
-                        Features({"X": Value("int32"), "Y": Value("int32")})
-                    ),
-                    Sequence(
-                        Features({"A": Value("int32"), "B": Value("int32")})
-                    ),
+                    Sequence(Features({"X": Value("int32"), "Y": Value("int32")})),
+                    Sequence(Features({"A": Value("int32"), "B": Value("int32")})),
                 ],
             ],
             [
@@ -120,9 +114,7 @@ class TestFeatureEquals:
                     length=2,
                 ),
                 [
-                    Sequence(
-                        Features({"A": Value("int32"), "B": Value("int32")})
-                    ),
+                    Sequence(Features({"A": Value("int32"), "B": Value("int32")})),
                     Sequence(
                         Features({"A": Value("int32"), "B": Value("int32")}),
                         length=2,
@@ -512,9 +504,7 @@ class TestSequenceLengthsMatch:
         assert not check_sequence_lengths_match(A, B, allow_arbitrary_lengths)
         # should raise an error
         with pytest.raises(TypeError):
-            raise_sequence_lengths_match(
-                "A", "B", A, B, allow_arbitrary_lengths
-            )
+            raise_sequence_lengths_match("A", "B", A, B, allow_arbitrary_lengths)
 
 
 class TestValueFeatureIsCastable:
@@ -565,9 +555,7 @@ class TestSequenceShape:
             [Sequence(Sequence(Value("int32"), length=4)), (-1, 4)],
             [Sequence(Sequence(Value("int32")), length=4), (4, -1)],
             [
-                Sequence(
-                    Sequence(Sequence(Value("int32"), length=2)), length=4
-                ),
+                Sequence(Sequence(Sequence(Value("int32"), length=2)), length=4),
                 (4, -1, 2),
             ],
             [[Value("int32")], (-1,)],
@@ -585,9 +573,7 @@ class TestSequenceShape:
             [Sequence(Sequence(Value("int32"), length=4)), (-1, -1)],
             [Sequence(Sequence(Value("int32")), length=4), (0,)],
             [
-                Sequence(
-                    Sequence(Sequence(Value("int32"), length=2)), length=4
-                ),
+                Sequence(Sequence(Sequence(Value("int32"), length=2)), length=4),
                 (-1, -1, 2),
             ],
             [[Value("int32")], (-1, -1)],
@@ -609,9 +595,7 @@ class TestNestedSequenceType:
             [Sequence(Sequence(Value("int32")), length=4), Value],
             [Sequence(Sequence(Value("int32")), length=4), INT_TYPES],
             [
-                Sequence(
-                    Sequence(Sequence(Value("int32"), length=2)), length=4
-                ),
+                Sequence(Sequence(Sequence(Value("int32"), length=2)), length=4),
                 Value("int32"),
             ],
             [[Value("int32")], Value("int32")],

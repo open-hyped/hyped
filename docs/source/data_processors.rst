@@ -34,7 +34,7 @@ Let's consider the example of configuring a Transformers Tokenizer data processo
 
 .. code-block:: python
 
-    from hyped.data.flow.processors.tokenizers.transformers import TransformersTokenizer
+    from hyped.processors import TransformersTokenizer
 
     # Define the configuration for the Transformers Tokenizer
     tokenizer_config = TransformersTokenizer.Config(
@@ -119,7 +119,7 @@ If your custom data processor requires configurable parameters, define a configu
 
 .. code-block:: python
 
-    from hyped.data.flow.core.nodes.processors import BaseDataProcessorConfig
+    from hyped.core.nodes.processors import BaseDataProcessorConfig
 
     class CustomConfig(BaseDataProcessorConfig):
         val: float = 1.0
@@ -132,9 +132,9 @@ Define input and output reference classes (:code:`InputRefs` and :code:`OutputRe
 .. code-block:: python
 
     import datasets
-    from hyped.data.flow.refs.ref import FeatureRef
-    from hyped.data.flow.refs.inputs import InputRefs, CheckFeatureEquals
-    from hyped.data.flow.refs.outputs import OutputRefs, OutputFeature
+    from hyped.core.refs.ref import FeatureRef
+    from hyped.core.refs.inputs import InputRefs, CheckFeatureEquals
+    from hyped.core.refs.outputs import OutputRefs, OutputFeature
 
     class CustomInputRefs(InputRefs):
         x: Annotated[FeatureRef, CheckFeatureEquals(datasets.Value("string"))]
@@ -142,7 +142,7 @@ Define input and output reference classes (:code:`InputRefs` and :code:`OutputRe
     class CustomOutputRefs(OutputRefs):
         y: Annotated[FeatureRef, OutputFeature(datasets.Value("string"))]
 
-For more information on specifying input and output references, please refer to the :doc:`InputRefs <api/data.flow.core.refs.inputs>` and :doc:`OutputRefs <api/data.flow.core.refs.outputs>` documentation, respectively.
+For more information on specifying input and output references, please refer to the :doc:`InputRefs <api/hyped.core.refs.inputs>` and :doc:`OutputRefs <api/hyped.core.refs.outputs>` documentation, respectively.
 
 3. Implement Custom Processor
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -151,10 +151,11 @@ Create a custom processor class (:code:`CustomProcessor`) inheriting from :class
 
 .. code-block:: python
 
-    from hyped.data.flow.core.nodes.processors import Sample, IOContext, BaseDataProcessor
-    
+    from hyped.core.nodes.processors import IOContext, BaseDataProcessor
+    from hyped.common.typing import Sample, Index, Rank
+
     class CustomProcessor(BaseDataProcessor[CustomConfig, CustomInputRefs, CustomOutputRefs]):
-        def process(self, inputs: Sample, index: int, rank: int, io: IOContext) -> Sample:
+        def process(self, inputs: Sample, index: index, rank: Rank, io: IOContext) -> Sample:
             # Access configuration values
             val = self.config.val
             # Custom process function combining index and input feature
@@ -166,7 +167,7 @@ Most of the arguments to the process function are rather intuitive, for referenc
 - **inputs**: The input sample in the form of a dictionary with the keys matching the members of the correspoding input references (i.e. :code:`x`).
 - **index**: The index of the sample in the dataset.
 - **rank**: The rank of the process, always 0 in case multiprocessing is disabled.
-- **io**: The execution context object containing the input and output feature types for reference. Additionally, it identifies a specific instance of a processor call. For more information see the :doc:`IOContext documentation <api/data.flow.core.nodes.base>`.
+- **io**: The execution context object containing the input and output feature types for reference. Additionally, it identifies a specific instance of a processor call. For more information see the :doc:`IOContext documentation <api/hyped.core.nodes.base>`.
 
 **Best Practices:**
 
@@ -181,10 +182,11 @@ Hyped supports asynchronous processing, enabling seamless integration of asynchr
 .. code-block:: python
 
     from asyncio import sleep
-    from hyped.data.flow.processors.base import Sample, IOContext, BaseDataProcessor
+    from hyped.core.nodes.processors import IOContext, BaseDataProcessor
+    from hyped.common.typing import Sample, Index, Rank
 
     class CustomAsyncProcessor(BaseDataProcessor[CustomConfig, CustomInputRefs, CustomOutputRefs]):
-        async def process(self, inputs: Sample, index: int, rank: int, io: IOContext) -> Sample:
+        async def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
             # Simulate asynchronous processing
             await sleep(1)
             return Sample(y=f"Index {index} has content {inputs['x']}")
@@ -195,16 +197,17 @@ By implementing the :code:`batch_process` function you can define custom batch p
 
 .. code-block:: python
     
-    from hyped.data.flow.processors.base import Batch, IOContext, BaseDataProcessor
+    from hyped.core.nodes.processors import IOContext, BaseDataProcessor
+    from hyped.common.typing import Batch, IndexList, Rank
 
     class CustomBatchProcessor(BaseDataProcessor[CustomConfig, CustomInputRefs, CustomOutputRefs]):
-        async def batch_process(self, inputs: Batch, index: list[int], rank: int, io: IOContext) -> Batch:
+        async def batch_process(self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext) -> Batch:
             # Custom batch processing logic
             return Batch(
                 y=[f"Index {i} has content {value}" for value in inputs["x"]]
             )
 
-4. Instantiate and Apply the Custom Processor
+1. Instantiate and Apply the Custom Processor
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Instantiate the custom processor with optional configuration parameters. Use the :code:`call` method to apply the processor to input features and retrieve the processed output features for further analysis or processing.
 

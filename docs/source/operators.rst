@@ -3,7 +3,7 @@ Operators
 
 Operators play a crucial role in data processing pipelines by providing high-level functions for performing common operations on feature references. These functions streamline the process of adding processors to the data flow graph, abstracting away the underlying complexities and allowing users to focus on defining the desired transformations.
 
-For more information about operators and a list of available operators, please refer to the :doc:`operator api documentation <api/data.flow.ops>`.
+For more information about operators and a list of available operators, please refer to the :doc:`operator api documentation <api/hyped.ops>`.
 
 **Example: Using the `collect` Operator**
 
@@ -14,9 +14,9 @@ To illustrate the `collect` operator, let's consider a scenario where we have a 
 .. code-block:: python
 
     import datasets
-    from hyped.data.flow import DataFlow
-    from hyped.data.flow.ops import collect
-    from hyped.data.flow.processors.tokenizers.transformers import TransformersTokenizer
+    from hyped import DataFlow
+    from hyped.ops import collect
+    from hyped.processors import TransformersTokenizer
 
     # load the imdb dataset
     ds = datasets("imdb", split="train")
@@ -61,7 +61,7 @@ Magic Operators in Hyped serve as convenient shortcuts, providing syntactic suga
 .. code-block:: python
 
     import datasets
-    from hyped.data.flow import DataFlow
+    from hyped import DataFlow
 
     # load the wiki-qa dataset
     ds = datasets("wiki_qa", split="train")
@@ -94,7 +94,7 @@ Consider the following example:
 .. code-block:: python
 
     import datasets
-    from hyped.data.flow import DataFlow
+    from hyped import DataFlow
 
     # load the wiki-qa dataset
     ds = datasets("wiki_qa", split="train")

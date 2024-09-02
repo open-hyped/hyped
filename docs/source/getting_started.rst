@@ -35,8 +35,8 @@ Start by importing the necessary modules and classes:
 .. code-block:: python
 
     import datasets
-    from hyped.data.flow import DataFlow
-    from hyped.data.flow.processors.tokenizers.transformers import (
+    from hyped import DataFlow
+    from hyped.transformers import (
         TransformersTokenizer,
         TransformersTokenizerConfig
     )
@@ -103,7 +103,7 @@ Hyped supports streaming data directly from and to disk, enabling efficient proc
 
 .. code-block:: python
 
-    from hyped.data.io.writers.json import JsonDatasetWriter
+    from hyped.io.writers.json import JsonDatasetWriter
 
     # Load dataset with streaming enabled
     ds = datasets.load_dataset("imdb", split="train", streaming=True)

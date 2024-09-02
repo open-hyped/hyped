@@ -1,3 +1,3 @@
-sphinx-apidoc -f -e -o source/api ../src/hyped --tocfile hyped
+sphinx-apidoc -f -e -o source/api ../src/hyped
 make clean
 make html
