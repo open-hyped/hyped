@@ -150,4 +150,4 @@ We welcome contributions from the community to help improve and expand Hyped. Be
 
 ## License
 
-Hyped is licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). See the [`LICENSE`](/LICENSE) file for details.
+tbd
