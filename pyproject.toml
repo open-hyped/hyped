@@ -1,7 +1,7 @@
 [project]
 name = "hyped"
 dynamic = ["version"]
-description = "TODO"
+description = "Easily streamline and customize data pipelines"
 readme = "README.md"
 classifiers = [
     "License :: Freely Distributable",
