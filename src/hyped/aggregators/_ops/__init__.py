@@ -10,16 +10,17 @@ and updating the aggregated results.
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from . import mean, sum
+    from .mean import MeanAggregator
+    from .sum import SumAggregator
 
 else:
     import sys
 
     from hyped.common.lazy_module import LazyModule
 
-    _lazy_modules = {
-        "sum": "hyped.aggregators._ops.sum",
-        "mean": "hyped.aggregators._ops.mean",
+    _lazy_imports = {
+        "MeanAggregator": "hyped.aggregators._ops.mean",
+        "SumAggregator": "hyped.aggregators._ops.sum",
     }
 
     sys.modules[__name__] = LazyModule(
@@ -27,5 +28,5 @@ else:
         __doc__,
         globals()["__file__"],
         __spec__,
-        lazy_modules=_lazy_modules,
+        lazy_imports=_lazy_imports,
     )

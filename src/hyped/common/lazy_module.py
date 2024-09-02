@@ -95,6 +95,11 @@ class LazyModule(ModuleType):
             len(shared_keys) == 0
         ), f"Overlapping keys in 'lazy_imports' and 'lazy_modules': {shared_keys}"
 
+        assert all(
+            key != module.split(".")[-1]
+            for key, module in self._lazy_imports.items()
+        ), "Attribute name conflicts with the name of the module it is importing."
+
     @property
     def __all__(self) -> list[str]:
         """Return a list of attribute names that are available for lazy loading.

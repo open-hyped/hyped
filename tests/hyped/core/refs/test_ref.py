@@ -332,7 +332,7 @@ class TestFeatureRef(object):
             (operator.sub, "hyped.ops.sub", "int32"),
             (operator.mul, "hyped.ops.mul", "int32"),
             (operator.truediv, "hyped.ops.truediv", "int32"),
-            (operator.pow, "hyped.ops.pow", "int32"),
+            (operator.pow, "hyped.ops.pow_", "int32"),
             (operator.mod, "hyped.ops.mod", "int32"),
             (operator.floordiv, "hyped.ops.floordiv", "int32"),
             (operator.eq, "hyped.ops.eq", "int32"),

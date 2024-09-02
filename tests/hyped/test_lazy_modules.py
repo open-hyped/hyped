@@ -14,8 +14,9 @@ from hyped.common.lazy_module import LazyModule
         hyped.aggregators._ops,
         hyped.processors,
         hyped.processors._ops,
-        hyped.processors._ops.sequence,
         hyped.io.writers,
+        hyped.ops,
+        hyped.core,
     ],
 )
 def test_lazy_imports(lazy_module):

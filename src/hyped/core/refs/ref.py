@@ -352,9 +352,9 @@ class FeatureRef(BaseModel):
         Returns:
             FeatureRef: Reference to the result of the exponentiation.
         """
-        from hyped.ops import pow
+        from hyped.ops import pow_
 
-        return pow(self, other)
+        return pow_(self, other)
 
     def __mod__(self, other: FeatureRef | Any) -> FeatureRef:
         """Perform modulo operation with another feature.
