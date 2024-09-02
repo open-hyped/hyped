@@ -58,38 +58,41 @@ Aggregate: TypeAlias = dict[str, Any]
 
 Represents aggregated statistics or summary information across the entire dataset. This is the 
 output type of aggregators structured as a dictionary where the keys represent different aggregate
-metrics or summary types, and the values can be of any type, depending on the nature of the aggregate.
+metrics or summary types, and the values can be of any type, depending on the nature of the
+aggregate.
 """
 
 TraceIndexList: TypeAlias = list[int]
 """A list of trace indices used to map outputs to their source samples in augmentation processes.
 
-In data augmentation, a single input sample can generate multiple output samples. The :class:`TraceIndexList`
-tracks the origin of each output sample by maintaining a list of indices. Each index in this list corresponds
-to the position of the input sample in the original batch that was used to generate the output sample.
+In data augmentation, a single input sample can generate multiple output samples. The
+:class:`TraceIndexList` tracks the origin of each output sample by maintaining a list of indices.
+Each index in this list corresponds to the position of the input sample in the original batch that
+was used to generate the output sample.
 
-For example, if `trace_index[i] = j`, it indicates that the `i`-th output sample was derived from the 
-`j`-th input sample in the original batch.
+For example, if `trace_index[i] = j`, it indicates that the `i`-th output sample was derived from
+the  `j`-th input sample in the original batch.
 
 Usage Context:
-    - When a batch of input samples undergoes augmentation, this list provides a direct mapping from each
-      output sample back to its corresponding input sample.
-    - This type is commonly returned alongside the augmented batch, enabling users to track which input sample
-      produced which output sample.
+    - When a batch of input samples undergoes augmentation, this list provides a direct mapping
+      from each output sample back to its corresponding input sample.
+    - This type is commonly returned alongside the augmented batch, enabling users to track which
+      input sample produced which output sample.
 """
 
 NodeId: TypeAlias = str
 """Node ID type in the data flow graph.
 
 Represents the identifier for a node within a data flow graph. This is typically a string that
-uniquely identifies a node, allowing for the tracking and referencing of nodes within the graph structure.
+uniquely identifies a node, allowing for the tracking and referencing of nodes within the graph
+structure.
 """
 
 PartitionId: TypeAlias = str
 """An identifier for a partition within the data flow graph.
 
-The :class:`PartitionId` is a string that uniquely identifies these partitions, enabling the tracking and
-management of different stages within the data flow graph.
+The :class:`PartitionId` is a string that uniquely identifies these partitions, enabling the
+tracking and management of different stages within the data flow graph.
 
 A partition in the data flow graph represents a subgraph where each sample from the dataset is
 processed or transformed independently of others. Partitions are often introduced during data
@@ -101,9 +104,9 @@ DataFlowGraphAlias: TypeAlias = object
 
 Alias for :class:`hyped.core.graph.DataFlowGraph`.
 
-Represents an alias or reference to the entire data flow graph. This can be used to refer to the graph
-in contexts where the actual structure of the graph is abstracted away. The type is generic (object) to 
-accommodate various possible representations of a data flow graph.
+Represents an alias or reference to the entire data flow graph. This can be used to refer to the
+graph in contexts where the actual structure of the graph is abstracted away. The type is generic
+(object) to accommodate various possible representations of a data flow graph.
 """
 
 FeatureKeyAlias: TypeAlias = tuple[str | int | slice, ...]
@@ -111,19 +114,19 @@ FeatureKeyAlias: TypeAlias = tuple[str | int | slice, ...]
 
 Alias for :class:`hyped.common.feature_key.FeatureKey`.
 
-Represents a tuple that serves as a key for accessing specific features of a node's output within the
-data flow graph.
+Represents a tuple that serves as a key for accessing specific features of a node's output within
+the data flow graph.
 """
 
 Pointer: TypeAlias = tuple[NodeId, FeatureKeyAlias, DataFlowGraphAlias]
 """Pointer pointing to output features of a node in the data flow graph.
 
-Represents a tuple used to point to specific output features of a node within a data flow graph. The tuple
-consists of:
+Represents a tuple used to point to specific output features of a node within a data flow graph.
+The tuple consists of:
 - :class:`NodeId`: The identifier of the node.
 - :class:`FeatureKeyAlias`: The key identifying the specific feature within the node's outputs.
 - :class:`DataFlowGraphAlias`: The data flow graph in which the node resides.
 
-This type alias is typically used in scenarios where specific outputs from a graph's node need to be tracked
-or referenced.
+This type alias is typically used in scenarios where specific outputs from a graph's node need to
+be tracked or referenced.
 """
