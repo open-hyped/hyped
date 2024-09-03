@@ -182,8 +182,8 @@ class DataFlow(object):
 
     def build(
         self,
-        collect: FeatureRef,
-        aggregate: None | FeatureRef = None,
+        collect: FeatureRef | dict[str, FeatureRef],
+        aggregate: None | FeatureRef | dict[str, FeatureRef] = None,
     ) -> tuple[DataFlow, None | MappingProxyType[str, Any]]:
         """Build an optimized sub-data flow to compute the requested output features.
 
@@ -194,8 +194,9 @@ class DataFlow(object):
         common subexpression elimination (CSE) and other AST optimizations.
 
         Args:
-            collect (FeatureRef): The feature reference to collect.
-            aggregate (None | FeatureRef): The feature reference to aggregated values to collect.
+            collect (FeatureRef | dict[str, FeatureRef]): The feature reference to collect.
+            aggregate (None | FeatureRef | dict[str, FeatureRef]): The feature reference
+                to aggregated values to collect.
 
         Returns:
             tuple[DataFlow, None | MappingProxyType[str, Any]]: The sub-data flow and a proxy
@@ -208,6 +209,18 @@ class DataFlow(object):
             RuntimeError: If the collect feature does not belong to this flow.
             RuntimeError: If the aggregate feature does not belong to this flow.
         """
+        # collect features if collect is a dict
+        if isinstance(collect, dict):
+            from hyped.ops.utils import collect as collect_op
+
+            collect = collect_op(collect)
+
+        # collect features if aggregate is a dict
+        if isinstance(aggregate, dict):
+            from hyped.ops.utils import collect as collect_op
+
+            aggregate = collect_op(aggregate)
+
         if not isinstance(collect.feature_, (datasets.Features, dict)):
             raise TypeError(
                 f"Expected `collect` feature of type `datasets.Features` or `dict`, "
@@ -479,8 +492,8 @@ class DataFlow(object):
     def apply(
         self,
         ds: D,
-        collect: None | FeatureRef = None,
-        aggregate: None | FeatureRef = None,
+        collect: None | FeatureRef | dict[str, FeatureRef] = None,
+        aggregate: None | FeatureRef | dict[str, FeatureRef] = None,
         **kwargs,
     ) -> tuple[D, None | Aggregate | MappingProxyType[str, Any]]:
         """Apply the data flow to a dataset.
@@ -490,10 +503,10 @@ class DataFlow(object):
 
         Args:
             ds (D): The dataset to process.
-            collect (None | FeatureRef): The feature reference to collect. If None, uses current
-                output features.
-            aggregate (None | FeatureRef): The feature reference to aggregated values to collect.
-                If None, uses the current aggregate features.
+            collect (None | FeatureRef | dict[str, FeatureRef]): The feature reference to
+                collect. If None, uses current output features.
+            aggregate (None | FeatureRef | dict[str, FeatureRef]): The feature reference
+                to aggregated values to collect. If None, uses the current aggregate features.
             **kwargs: Additional arguments for dataset mapping. Refer to the HuggingFace
                 documentation for the :code:`Datasets.map` function for the respective dataset type.
 

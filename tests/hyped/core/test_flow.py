@@ -324,6 +324,50 @@ class TestDataFlow:
             ]
         )
 
+    def test_apply_with_dict_collect_agg(
+        self, setup_flow, io_contexts, mock_manager, mock_lazy_flow_output
+    ):
+        flow, graph, _, proc_node, agg_node = setup_flow
+        proc_io_ctx, agg_io_ctx = io_contexts
+        # get references
+        out_ref = graph.get_node_output_ref(proc_node)
+        out_ref_dict = {k: out_ref[k] for k in out_ref.feature_.keys()}
+        agg_ref = graph.get_node_output_ref(agg_node)
+        agg_ref_dict = {k: agg_ref[k] for k in agg_ref.feature_.keys()}
+        # get the processor and aggregator instance
+        p = graph.nodes[proc_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
+        a = graph.nodes[agg_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
+
+        # create dummy dataset
+        ds = datasets.Dataset.from_dict(
+            {"x": list(range(100))}, features=flow.src_features.feature_
+        )
+
+        # apply flow to dataset
+        out_ds, vals = flow.apply(ds, collect=out_ref_dict, aggregate=agg_ref_dict, batch_size=10)
+        # check output types
+        assert isinstance(out_ds, datasets.Dataset)
+        assert vals == mock_lazy_flow_output()
+
+        # make sure processor is called for all samples in the dataset
+        p.process.assert_has_calls([call({"a": i, "b": 0}, i, 0, proc_io_ctx) for i in range(100)])
+        # make sure the aggregator is called for all batches
+        mock_manager.aggregate.assert_has_calls(
+            [
+                call(
+                    a,
+                    {
+                        "a": list(range(i * 10, (i + 1) * 10)),
+                        "b": [0] * 10,
+                    },
+                    list(range(i * 10, (i + 1) * 10)),
+                    0,
+                    agg_io_ctx,
+                )
+                for i in range(10)
+            ]
+        )
+
     def test_apply_to_dataset_dict(
         self, setup_flow, io_contexts, mock_manager, mock_lazy_flow_output
     ):
