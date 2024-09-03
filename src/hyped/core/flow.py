@@ -29,7 +29,6 @@ from hyped.common.feature_checks import check_feature_equals
 from hyped.common.feature_key import FeatureKey
 from hyped.common.lazy_instance import LazyInstance
 from hyped.common.typing import Aggregate, Batch, IndexList, Rank
-from hyped.ops.utils import collect as collect_op
 
 from .executor import DataFlowExecutor
 from .graph import DataFlowGraph
@@ -210,10 +209,16 @@ class DataFlow(object):
             RuntimeError: If the collect feature does not belong to this flow.
             RuntimeError: If the aggregate feature does not belong to this flow.
         """
-        # collect features if specified as dicts
+        # collect features if collect is a dict
         if isinstance(collect, dict):
+            from hyped.ops.utils import collect as collect_op
+
             collect = collect_op(collect)
+
+        # collect features if aggregate is a dict
         if isinstance(aggregate, dict):
+            from hyped.ops.utils import collect as collect_op
+
             aggregate = collect_op(aggregate)
 
         if not isinstance(collect.feature_, (datasets.Features, dict)):
