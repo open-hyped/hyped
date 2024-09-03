@@ -37,12 +37,14 @@ __all__ = [
     "ConditionalOutputFeature",
     "FeatureRef",
     "NONE_REF",
+    "IOContext",
 ]
 
 if TYPE_CHECKING:
     from .flow import DataFlow
     from .nodes.aggregator import BaseDataAggregator, BaseDataAggregatorConfig
     from .nodes.augmenter import BaseDataAugmenter, BaseDataAugmenterConfig
+    from .nodes.base import IOContext
     from .nodes.processor import BaseDataProcessor, BaseDataProcessorConfig
     from .refs.inputs import (
         CheckFeatureEquals,
@@ -83,6 +85,7 @@ else:
         "ConditionalOutputFeature": "hyped.core.refs.outputs",
         "FeatureRef": "hyped.core.refs.ref",
         "NONE_REF": "hyped.core.refs.ref",
+        "IOContext": "hyped.core.nodes.base",
     }
 
     sys.modules[__name__] = LazyModule(

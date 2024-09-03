@@ -29,13 +29,16 @@ Example:
 
 
 __all__ = [
-    "DataFlow",
+    # modules
     "aggregators",
     "augmenters",
     "io",
     "ops",
     "processors",
+    "core",
+    # core
+    "DataFlow",
 ]
 
-from . import aggregators, augmenters, io, ops, processors
+from . import aggregators, augmenters, core, io, ops, processors
 from .core.flow import DataFlow
