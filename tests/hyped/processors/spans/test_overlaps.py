@@ -9,8 +9,8 @@ class TestResolveOverlaps(BaseDataProcessorTest):
     processor_config = ResolveOverlapsConfig()
 
     input_features = Features({"spans": Sequence(Sequence(Value("int32"), length=2))})
-    input_data = {"spans": [[], [(1, 5), (7, 12)], [(1, 5), (3, 9)]]}
-    input_index = [0, 1, 2]
+    input_data = {"spans": [[], [(1, 5), (7, 12)], [(1, 5), (5, 12)], [(1, 5), (3, 9)]]}
+    input_index = [0, 1, 2, 3]
 
     expected_output_features = Features(
         {
@@ -19,6 +19,6 @@ class TestResolveOverlaps(BaseDataProcessorTest):
         }
     )
     expected_output_data = {
-        "spans": [[], [(1, 5), (7, 12)], [(3, 9)]],
-        "mask": [[], [True, True], [False, True]],
+        "spans": [[], [(1, 5), (7, 12)], [(1, 5), (5, 12)], [(3, 9)]],
+        "mask": [[], [True, True], [True, True], [False, True]],
     }

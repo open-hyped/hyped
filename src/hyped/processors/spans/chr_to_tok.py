@@ -4,6 +4,7 @@ This module defines the functionality required to process character spans and co
 token spans, which are useful for various Natural Language Processing (NLP) tasks such as Named
 Entity Recognition (NER).
 """
+import numpy as np
 from datasets.features.features import Sequence, Value
 from typing_extensions import Annotated, NotRequired, Unpack
 
@@ -49,6 +50,12 @@ class ChrToTokSpansOutputRefs(OutputRefs):
 class ChrToTokSpansConfig(BaseDataProcessorConfig):
     """Configuration for ChrToTokSpans."""
 
+    include_partial_start: bool = True
+    """Whether to include tokens that are only partly covered at the beginning of the query span."""
+
+    include_partial_end: bool = True
+    """Whether to include tokens that are only partly covered at the end of the query span."""
+
 
 class ChrToTokSpans(
     BaseDataProcessor[ChrToTokSpansConfig, ChrToTokSpansInputRefs, ChrToTokSpansOutputRefs]
@@ -71,16 +78,28 @@ class ChrToTokSpans(
         Returns:
             Sample: The output sample containing the computed token spans.
         """
+        query_spans = np.asarray(inputs["query_spans"])
+        chr_spans = np.asarray(inputs["chr_spans"])
+        mask = inputs.get("special_tokens_mask", None)
         # compute the span overlap matrix between
         # the query spans and the character spans
         overlap = compute_spans_overlap_matrix(
-            source_spans=inputs["query_spans"],
-            target_spans=inputs["chr_spans"],
-            special_tokens=inputs.get("special_tokens_mask", None),
+            source_spans=query_spans, target_spans=chr_spans, special_tokens=mask
         )
         # get begins and ends from mask
         tok_spans_begin = overlap.argmax(axis=1)
         tok_spans_end = tok_spans_begin + overlap.sum(axis=1)
+
+        # exclude partially overlapping tokens at the beginning
+        if not self.config.include_partial_start:
+            partial_mask = chr_spans[tok_spans_begin, 0] != query_spans[:, 0]
+            tok_spans_begin[partial_mask] += 1
+
+        # exclude partially overlapping tokens at the end
+        if not self.config.include_partial_end:
+            partial_mask = chr_spans[tok_spans_end - 1, 1] != query_spans[:, 1]
+            tok_spans_end[partial_mask] -= 1
+
         # build output
         tok_spans = list(zip(tok_spans_begin, tok_spans_end))
         return Sample(tok_spans=tok_spans)
