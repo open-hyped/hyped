@@ -7,6 +7,7 @@ from typing import Annotated
 
 from datasets import ClassLabel, Sequence, Value
 from datasets.features.features import FeatureType
+from typing_extensions import Unpack
 
 from hyped.common.feature_checks import (
     check_feature_is_sequence,
@@ -104,3 +105,19 @@ class ToClassLabel(
         assert isinstance(class_label, ClassLabel)  # TODO: write error message
         # convert each item in the input to a class label
         return Batch(class_label=list(map(class_label.str2int, inputs["label"])))
+
+    def call(self, **kwargs: Unpack[ToClassLabelInputRefs]) -> ToClassLabelOutputRefs:
+        """Execute the :class:`ToClassLabel` processor.
+
+        Processes the input references to convert string labels (:code:`label`) to class labels
+        (:code:`class_label`) based on the mapping of string labels to class labels.
+
+        Args:
+            label (FeatureRef): The feature reference to the sequence or single value of string
+                labels.
+            **kwargs (FeatureRef): Keyword arguments passed to the call method.
+
+        Returns:
+            ToClassLabelOutputRefs: The output references containing the converted class labels.
+        """
+        return super(ToClassLabel, self).call(**kwargs)
