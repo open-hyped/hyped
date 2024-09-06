@@ -32,7 +32,6 @@ __all__ = [
     "ResolveOverlaps",
     "ResolveOverlapsConfig",
     "ResolveOverlapsStrategy",
-    "ResolveOverlapsStrategyConfig",
     "Jinja2",
     "Jinja2Config",
     "TransformersTokenizer",
@@ -76,7 +75,6 @@ else:
         "ResolveOverlaps": "hyped.processors.spans.overlaps",
         "ResolveOverlapsConfig": "hyped.processors.spans.overlaps",
         "ResolveOverlapsStrategy": "hyped.processors.spans.utils",
-        "ResolveOverlapsStrategyConfig": "hyped.processors.spans.utils",
         # templates
         "Jinja2": "hyped.processors.templates.jinja2",
         "Jinja2Config": "hyped.processors.templates.jinja2",
