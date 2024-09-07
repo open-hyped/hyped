@@ -27,6 +27,7 @@ Example:
         processed_dataset, _ = flow.apply(dataset)
 """
 
+from .__version__ import __version__, __version_tuple__  # noqa: F401
 
 __all__ = [
     # modules
