@@ -1,16 +1,16 @@
 """Typed JSON Dataset Generator."""
 import io
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from itertools import chain, count
 
 import datasets
-import orjson
 import pyarrow as pa
-import pydantic
 from datasets.packaged_modules.json.json import Json, JsonConfig
 from datasets.utils.file_utils import readline
 
-from hyped.common._pydantic import pydantic_model_from_features
+from hyped import DataFlow
+from hyped.common.typing import Batch
+from hyped.processors import JsonParser
 
 
 @dataclass
@@ -21,16 +21,13 @@ class TypedJsonDatasetConfig(JsonConfig):
     Please refer to the huggingface documentation for more information.
 
     The attributes of the configuration are typically set by providing
-    them as keyword arguments to the `datasets.load_dataset` function.
+    them as keyword arguments to the :func:`datasets.load_dataset` function.
     """
 
     # features are required and not
     # optional as in the base json cofig
     features: datasets.Features = None
     """Dataset features, required for type checking."""
-
-    _feature_model: pydantic.BaseModel = field(init=False)
-    _batch_feature_model: pydantic.BaseModel = field(init=False)
 
     def __post_init__(self) -> None:
         """Build pydantic models from feature description."""
@@ -39,32 +36,49 @@ class TypedJsonDatasetConfig(JsonConfig):
                 "No dataset features provided. Please specify the expeted "
                 "dataset features for type checking."
             )
-        # create pydantic feature model
-        self._feature_model = pydantic_model_from_features(self.features)
-        self._batch_feature_model = pydantic.create_model(
-            "BatchModel", data=(list[self._feature_model], ...)
-        )
+
+        payload = datasets.Features({"payload": datasets.Value("string")})
+        self._flow = DataFlow(payload)
+        # add the json parser
+        parser = JsonParser(scheme=self.features)
+        obj = parser.call(payload=self._flow.src_features.payload)
+        # build the flow
+        self._flow, _ = self._flow.build(collect=obj)
 
     def __getstate__(self):
-        """Avoid pickle pydantic model types defined at runtime."""
-        d = self.__dict__.copy()
-        _ = d.pop("_feature_model")
-        _ = d.pop("_batch_feature_model")
-        return d
+        """Prepare the object state for serialization.
 
-    def __setstate__(self, d):
-        """Recreate pydantic model types at runtime."""
-        self.__dict__ = d
+        This method removes the :code:`_flow` attribute from the state dictionary
+        to prevent issues during serialization. The :code:`_flow` is rebuilt in
+        the :func:`__post_init__` method when deserializing.
+
+        Returns:
+            dict: The object's state without the :code:`_flow` attribute.
+        """
+        state = self.__dict__.copy()
+        _ = state.pop("_flow")
+        return state
+
+    def __setstate__(self, state):
+        """Restore the object state after deserialization.
+
+        This method restores the object's state and rebuilds the :code:`_flow`
+        by calling the :func:`__post_init__` method.
+
+        Args:
+            state (dict): The deserialized object state.
+        """
+        self.__dict__ = state
         self.__post_init__()
 
 
 class TypedJsonDataset(Json):
     """Typed Json Dataset.
 
-    Typically used by call to `datasets.load_dataset with appropriate
-    keyword arguments (see `TypedJsonDatasetConfig` for defails)
+    Typically used by call to :func:`datasets.load_dataset with appropriate
+    keyword arguments (see :class:`TypedJsonDatasetConfig` for defails)
 
-    ```
+    ```python
     datasets.load_dataset('hyped.io.datasets.typed_json', **kwargs)
     ```
     """
@@ -74,16 +88,7 @@ class TypedJsonDataset(Json):
     def _generate_tables(self, files):
         for fidx, fpath in enumerate(chain.from_iterable(files)):
             if self.config.field is not None:
-                # parse json
-                with open(fpath, "rb") as f:
-                    data = orjson.loads(f.read())
-                # get field of interest and parse as pydantic
-                data = data[self.config.field]
-                data = self.config._batch_feature_model.model_validate({"data": data}).model_dump()[
-                    "data"
-                ]
-                # convert to pyarrow table
-                yield fidx, pa.Table.from_pylist(data)
+                raise NotImplementedError()
 
             else:
                 with open(
@@ -111,14 +116,9 @@ class TypedJsonDataset(Json):
 
                         # finish current line and remove trailing newline
                         chunk += f.readline() if has_readline else readline(f)
-                        chunk = chunk.strip()
-                        # build json seralized string matching format expected
-                        # by the batch feature model
-                        serialized_chunk = '{"data": [%s]}' % chunk.replace("\n", ",")
-                        # parse the serialized object
-                        data = self.config._batch_feature_model.model_validate_json(  # noqa: E501
-                            serialized_chunk
-                        )
-                        data = data.model_dump()["data"]
-                        # convert to pyarrow table
-                        yield (fidx, chunk_idx), pa.Table.from_pylist(data)
+                        chunk = Batch(payload=chunk.strip().split("\n"))
+                        # parse chunk using dataflow flow
+                        index = range(len(chunk["payload"]))
+                        chunk = self.config._flow.batch_process(batch=chunk, index=index, rank=0)
+                        # yield the parsed chunk
+                        yield (fidx, chunk_idx), pa.Table.from_pylist(chunk["obj"])
