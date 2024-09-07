@@ -37,40 +37,6 @@ class TypedJsonDatasetConfig(JsonConfig):
                 "dataset features for type checking."
             )
 
-        payload = datasets.Features({"payload": datasets.Value("string")})
-        self._flow = DataFlow(payload)
-        # add the json parser
-        parser = JsonParser(scheme=self.features)
-        obj = parser.call(payload=self._flow.src_features.payload)
-        # build the flow
-        self._flow, _ = self._flow.build(collect=obj)
-
-    def __getstate__(self):
-        """Prepare the object state for serialization.
-
-        This method removes the :code:`_flow` attribute from the state dictionary
-        to prevent issues during serialization. The :code:`_flow` is rebuilt in
-        the :func:`__post_init__` method when deserializing.
-
-        Returns:
-            dict: The object's state without the :code:`_flow` attribute.
-        """
-        state = self.__dict__.copy()
-        _ = state.pop("_flow")
-        return state
-
-    def __setstate__(self, state):
-        """Restore the object state after deserialization.
-
-        This method restores the object's state and rebuilds the :code:`_flow`
-        by calling the :func:`__post_init__` method.
-
-        Args:
-            state (dict): The deserialized object state.
-        """
-        self.__dict__ = state
-        self.__post_init__()
-
 
 class TypedJsonDataset(Json):
     """Typed Json Dataset.
@@ -85,7 +51,20 @@ class TypedJsonDataset(Json):
 
     BUILDER_CONFIG_CLASS = TypedJsonDatasetConfig
 
+    def _build_flow(self) -> DataFlow:
+        payload = datasets.Features({"payload": datasets.Value("string")})
+        flow = DataFlow(payload)
+        # add the json parser
+        parser = JsonParser(scheme=self.config.features)
+        obj = parser.call(payload=flow.src_features.payload)
+        # build the flow
+        flow, _ = flow.build(collect=obj)
+
+        return flow
+
     def _generate_tables(self, files):
+        flow = self._build_flow()
+
         for fidx, fpath in enumerate(chain.from_iterable(files)):
             if self.config.field is not None:
                 raise NotImplementedError()
@@ -119,6 +98,6 @@ class TypedJsonDataset(Json):
                         chunk = Batch(payload=chunk.strip().split("\n"))
                         # parse chunk using dataflow flow
                         index = range(len(chunk["payload"]))
-                        chunk = self.config._flow.batch_process(batch=chunk, index=index, rank=0)
+                        chunk = flow.batch_process(batch=chunk, index=index, rank=0)
                         # yield the parsed chunk
                         yield (fidx, chunk_idx), pa.Table.from_pylist(chunk["obj"])

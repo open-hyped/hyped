@@ -234,7 +234,7 @@ class CasParser(BaseParser[CasParserConfig, CasParserInputRefs, CasParserOutputR
         """
         super().__init__(config, **kwargs)
 
-        self._typesystem = _load_typesystem(config.typesystem)
+        self._typesystem = _load_typesystem(self.config.typesystem)
 
     async def parse(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
         """Parses the CAS content and extracts annotations based on the configured typesystem.
