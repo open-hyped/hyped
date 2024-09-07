@@ -16,6 +16,7 @@ import datasets
 
 from hyped import DataFlow
 from hyped.common.typing import Sample
+from hyped.ops import collect
 from hyped.processors import CasParser, FileLoader
 
 
@@ -83,8 +84,12 @@ class CasDatasetBuilder(datasets.GeneratorBasedBuilder):
         payload = FileLoader().call(file_path=flow.src_features.file_path).content
         parsed_obj = parser.call(payload=payload).obj
 
+        # collect all outputs
+        output = {key: parsed_obj[key] for key in parsed_obj.feature_.keys()}
+        output["file_path"] = flow.src_features.file_path
+
         # build flow
-        flow, _ = flow.build(collect=parsed_obj)
+        flow, _ = flow.build(collect=collect(output))
 
         return flow
 
