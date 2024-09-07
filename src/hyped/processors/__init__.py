@@ -38,6 +38,10 @@ __all__ = [
     "TransformersTokenizerConfig",
     "ToClassLabel",
     "ToClassLabelConfig",
+    "FileLoader",
+    "FileLoaderConfig",
+    "FileChunkLoader",
+    "FileChunkLoaderConfig",
 ]
 
 if TYPE_CHECKING:
@@ -50,6 +54,12 @@ if TYPE_CHECKING:
     from .spans.utils import ResolveOverlapsStrategy
     from .templates.jinja2 import Jinja2, Jinja2Config
     from .tokenizers.transformers import TransformersTokenizer, TransformersTokenizerConfig
+    from .utils.file_loader import (
+        FileChunkLoader,
+        FileChunkLoaderConfig,
+        FileLoader,
+        FileLoaderConfig,
+    )
     from .utils.to_class_label import ToClassLabel, ToClassLabelConfig
 
 else:
@@ -84,6 +94,10 @@ else:
         # utils
         "ToClassLabel": "hyped.processors.utils.to_class_label",
         "ToClassLabelConfig": "hyped.processors.utils.to_class_label",
+        "FileLoader": "hyped.processors.utils.file_loader",
+        "FileLoaderConfig": "hyped.processors.utils.file_loader",
+        "FileChunkLoader": "hyped.processors.utils.file_loader",
+        "FileChunkLoaderConfig": "hyped.processors.utils.file_loader",
     }
 
     sys.modules[__name__] = LazyModule(

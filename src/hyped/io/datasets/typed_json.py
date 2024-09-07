@@ -114,7 +114,7 @@ class TypedJsonDataset(Json):
                         if len(chunk) == 0:
                             break
 
-                        # finish current line and remove trailing newline
+                        # finish current line
                         chunk += f.readline() if has_readline else readline(f)
                         chunk = Batch(payload=chunk.strip().split("\n"))
                         # parse chunk using dataflow flow
