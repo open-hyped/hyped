@@ -1,36 +1,21 @@
 import json
-import pickle
 
-import pytest
+import pydantic
 from datasets import ClassLabel, Features, Sequence, Value
 
-from hyped.common.feature_checks import check_object_matches_feature
-from hyped.core.nodes.processor import IOContext
+from hyped.common._pydantic import pydantic_model_from_features
 from hyped.processors.parsers.json import JsonParser, JsonParserConfig
 from tests.hyped.processors.base import BaseDataProcessorTest
 
 
-class BaseJsonParserTest(BaseDataProcessorTest):
-    # processor type
-    processor_type = JsonParser
-
-    def test_pickle_processor(self, processor):
-        # pickle and unpickle processor
-        reconstructed = pickle.loads(pickle.dumps(processor))
-        # make sure the underlying feature model is the same
-        assert (
-            processor._feature_model.model_json_schema()
-            == reconstructed._feature_model.model_json_schema()
-        )
-
-
-class TestJsonParser_Value(BaseJsonParserTest):
+class TestJsonParser_Value(BaseDataProcessorTest):
     # processor config
+    processor_type = JsonParser
     processor_config = JsonParserConfig(scheme=Features({"value": Value("int32")}))
     # input
-    input_features = Features({"json_str": Value("string")})
+    input_features = Features({"payload": Value("string")})
     input_data = {
-        "json_str": [
+        "payload": [
             json.dumps({"value": 0}),
             json.dumps({"value": 1}),
             json.dumps({"value": 2}),
@@ -39,22 +24,23 @@ class TestJsonParser_Value(BaseJsonParserTest):
     input_index = [0, 1, 2]
     # expected output
     expected_output_data = {
-        "parsed": [
+        "obj": [
             {"value": 0},
             {"value": 1},
             {"value": 2},
-        ]
+        ],
+        "exception": [None, None, None],
     }
 
 
-class TestJsonParser_Sequence(BaseJsonParserTest):
+class TestJsonParser_Sequence(BaseDataProcessorTest):
     # processor
     processor_type = JsonParser
     processor_config = JsonParserConfig(scheme=Sequence(Value("int32"), length=3))
     # input
-    input_features = Features({"json_str": Value("string")})
+    input_features = Features({"payload": Value("string")})
     input_data = {
-        "json_str": [
+        "payload": [
             json.dumps([0, 0, 0]),
             json.dumps([1, 2, 3]),
             json.dumps([3, 2, 1]),
@@ -63,15 +49,16 @@ class TestJsonParser_Sequence(BaseJsonParserTest):
     input_index = [0, 1, 2]
     # expected output
     expected_output_data = {
-        "parsed": [
+        "obj": [
             [0, 0, 0],
             [1, 2, 3],
             [3, 2, 1],
-        ]
+        ],
+        "exception": [None, None, None],
     }
 
 
-class TestJsonParser_Nested(BaseJsonParserTest):
+class TestJsonParser_Nested(BaseDataProcessorTest):
     # processor
     processor_type = JsonParser
     processor_config = JsonParserConfig(
@@ -87,9 +74,9 @@ class TestJsonParser_Nested(BaseJsonParserTest):
         )
     )
     # input
-    input_features = Features({"json_str": Value("string")})
+    input_features = Features({"payload": Value("string")})
     input_data = {
-        "json_str": [
+        "payload": [
             json.dumps(
                 {
                     "a": 0,
@@ -115,7 +102,7 @@ class TestJsonParser_Nested(BaseJsonParserTest):
     input_index = [0, 1]
     # expected output
     expected_output_data = {
-        "parsed": [
+        "obj": [
             {
                 "a": 0,
                 "b": [0, 0],
@@ -132,19 +119,21 @@ class TestJsonParser_Nested(BaseJsonParserTest):
                 "b": [2, 2],
                 "c": {"x": 3, "y": [{"i": 4}, {"i": 5}, {"i": 6}]},
             },
-        ]
+        ],
+        "exception": [None, None],
     }
 
 
-class TestJsonParser_ClassLabel(BaseJsonParserTest):
+class TestJsonParser_ClassLabel(BaseDataProcessorTest):
     # processor config
+    processor_type = JsonParser
     processor_config = JsonParserConfig(
         scheme=Features({"label": ClassLabel(names=["A", "B", "C"])}),
     )
     # input
-    input_features = Features({"json_str": Value("string")})
+    input_features = Features({"payload": Value("string")})
     input_data = {
-        "json_str": [
+        "payload": [
             json.dumps({"label": "A"}),
             json.dumps({"label": "B"}),
             json.dumps({"label": "C"}),
@@ -153,113 +142,45 @@ class TestJsonParser_ClassLabel(BaseJsonParserTest):
     input_index = [0, 1, 2]
     # expected output
     expected_output_data = {
-        "parsed": [
+        "obj": [
             {"label": 0},
             {"label": 1},
             {"label": 2},
-        ]
-    }
-
-
-class TestJsonParser_CatchNoError(BaseJsonParserTest):
-    # processor config
-    processor_config = JsonParserConfig(
-        scheme=Features({"value": Value("int32")}),
-        catch_validation_errors=True,
-    )
-    # input
-    input_features = Features({"json_str": Value("string")})
-    input_data = {
-        "json_str": [
-            json.dumps({"value": 0}),
-            json.dumps({"value": 1}),
-            json.dumps({"value": 2}),
-        ]
-    }
-    input_index = [0, 1, 2]
-    # expected output
-    expected_output_data = {
-        "parsed": [
-            {"value": 0},
-            {"value": 1},
-            {"value": 2},
         ],
-        "error": [
-            None,
-            None,
-            None,
-        ],
+        "exception": [None, None, None],
     }
 
 
-class TestJsonParser_CatchWithError(BaseJsonParserTest):
+def get_validation_error():
+    features = Features({"parsed": {"value": Value("int32")}})
+    payload = json.dumps({"parsed": {"value": "A"}})
+    model = pydantic_model_from_features(features)
+    try:
+        model.model_validate_json(payload)
+    except pydantic.ValidationError as validation_error:
+        return validation_error
+
+
+class TestJsonParser_CatchExceptions(BaseDataProcessorTest):
     # processor config
-    processor_config = JsonParserConfig(
-        scheme=Features({"value": Value("int32")}),
-        catch_validation_errors=True,
-    )
+    processor_type = JsonParser
+    processor_config = JsonParserConfig(scheme=Features({"value": Value("int32")}))
     # input
-    input_features = Features({"json_str": Value("string")})
+    input_features = Features({"payload": Value("string")})
     input_data = {
-        "json_str": [
+        "payload": [
             json.dumps({"value": "A"}),
-            json.dumps({"value": "B"}),
-            json.dumps({"value": "C"}),
+            json.dumps({"value": 0}),
+            json.dumps({"value": "A"}),
         ]
     }
     input_index = [0, 1, 2]
     # expected output
     expected_output_data = {
-        "parsed": [
-            {"value": None},
-            {"value": None},
-            {"value": None},
-        ],
-        "error": [
-            "some-error",
-            "some-error",
-            "some-error",
+        "obj": [None, {"value": 0}, None],
+        "exception": [
+            str(get_validation_error()),
+            None,
+            str(get_validation_error()),
         ],
     }
-
-    @pytest.mark.asyncio
-    async def test_case(self, processor, input_refs, output_refs, exec_error_handler):
-        cls = type(self)
-        # check input data
-        input_keys = set(cls.input_data.keys())
-        assert processor.required_input_keys.issubset(input_keys)
-        assert check_object_matches_feature(
-            cls.input_data,
-            {k: Sequence(v) for k, v in cls.input_features.items()},
-        )
-
-        # build default index if not specifically given
-        assert len(cls.input_index) == len(next(iter(cls.input_data.values())))
-
-        # build the io context
-        io = IOContext(
-            node_id=-1,
-            inputs=cls.input_features,
-            outputs=processor._out_refs_type.build_features(processor.config, input_refs),
-        )
-
-        with exec_error_handler:
-            # apply processor
-            output = await processor.batch_process(cls.input_data, cls.input_index, cls.rank, io)
-
-        # check output format
-        assert isinstance(output, dict)
-        for key, val in output.items():
-            assert isinstance(val, list)
-            assert len(val) == len(cls.input_index)
-
-        # check output matches features
-        assert check_object_matches_feature(
-            output, {k: Sequence(v) for k, v in output_refs.feature_.items()}
-        )
-
-        # check output matches expectation
-        assert output["parsed"] == cls.expected_output_data["parsed"]
-        assert all(
-            [output["error"][i] != "" for i in range(len(cls.expected_output_data["error"]))]
-        )
