@@ -295,10 +295,11 @@ class CasParser(BaseParser[CasParserConfig, CasParserInputRefs, CasParserOutputR
                 # add nested features to dict
                 for feature_type in nested_feature_types:
                     key = "%s:%s" % (t.name, feature_type.name)
+                    val = annotation.get(feature_type.name)
                     sample[key].append(
-                        annotations[feature_type.rangeType.name].index(
-                            annotation.get(feature_type.name).xmiID
-                        )
+                        annotations[feature_type.rangeType.name].index(val.xmiID)
+                        if val is not None
+                        else None
                     )
 
         return sample

@@ -152,3 +152,7 @@ tags
 
 # ignore prototype scripts
 /proto*.py
+
+/typesystem.xml
+/Typesystem.xml
+/TypeSystem.xml
