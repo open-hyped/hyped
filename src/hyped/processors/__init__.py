@@ -96,8 +96,6 @@ else:
         "ToClassLabelConfig": "hyped.processors.utils.to_class_label",
         "FileLoader": "hyped.processors.utils.file_loader",
         "FileLoaderConfig": "hyped.processors.utils.file_loader",
-        "FileChunkLoader": "hyped.processors.utils.file_loader",
-        "FileChunkLoaderConfig": "hyped.processors.utils.file_loader",
     }
 
     sys.modules[__name__] = LazyModule(

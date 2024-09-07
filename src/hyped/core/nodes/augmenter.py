@@ -118,8 +118,11 @@ class BaseDataAugmenter(BaseNode[C, I, O], ABC):
 
         # collect all outputs in case the process function
         # is a coroutine
-        if self._is_process_async:
-            outputs = [[sample async for sample in gen] for gen in outputs]
+        outputs = (
+            [[sample async for sample in gen] for gen in outputs]
+            if self._is_process_async
+            else list(map(list, outputs))
+        )
 
         # build trace indices for each output sample
         trace_index = ([i] * len(out) for i, out in enumerate(outputs))
