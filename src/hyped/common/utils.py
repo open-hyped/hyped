@@ -1,6 +1,8 @@
 """A Collection of utility functions used throughout the project."""
 
 import importlib.util
+import os
+from contextlib import contextmanager
 from functools import cache
 from queue import Empty, Queue
 from typing import Any, Hashable, Iterable
@@ -80,6 +82,24 @@ def deep_equal(obj1: Any, obj2: Any) -> bool:
 
     # For all other types, use standard equality
     return obj1 == obj2
+
+
+@contextmanager
+def chdir(new_dir: str):
+    """Context manager for temporarily changing the working directory.
+
+    Args:
+        new_dir (str): The directory to change to temporarily.
+
+    Yields:
+        None
+    """
+    original_dir = os.getcwd()  # Save the current working directory
+    os.chdir(new_dir)  # Change to the new directory
+    try:
+        yield  # Yield control back to the caller
+    finally:
+        os.chdir(original_dir)  # Restore the original directory
 
 
 @cache

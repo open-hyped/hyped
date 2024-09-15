@@ -52,16 +52,19 @@ def get_worker_info() -> None | WorkerInfo:
 
         info = torch_get_worker_info()
 
-        return (
-            None
-            if info is None
-            else WorkerInfo(
-                rank=info.id,
-                num_workers=info.num_workers,
-                seed=info.seed,
-                ctx=SimpleNamespace(dataset=info.dataset),
-            )
-        )
+        if (info is not None) and (_worker_info is None):
+            # create worker info from torch worker info
+            ctx = SimpleNamespace(dataset=info.dataset)
+            _worker_info = WorkerInfo(info.id, info.num_workers, info.seed, ctx)
+
+        # expect that either both worker infos are set or unset
+        assert not ((info is None) ^ (_worker_info is None))
+
+        if info is not None:
+            # compare local worker info with pytorch worker info
+            assert _worker_info.rank == info.id
+            assert _worker_info.num_workers == info.num_workers
+            assert _worker_info.seed == info.seed
 
     return _worker_info
 
