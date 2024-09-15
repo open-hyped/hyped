@@ -27,7 +27,7 @@ def mock_connections():
 def worker(mock_connections):
     """Fixture to create a Worker instance."""
     req_ctx_conn, worker_req_ctx_conn = mock_connections
-    return Worker(rank=0, num_workers=1, req_ctx_conn=worker_req_ctx_conn)
+    return Worker(rank=0, num_workers=1, dataset_info=None, req_ctx_conn=worker_req_ctx_conn)
 
 
 class TestWorker:
@@ -152,7 +152,7 @@ class TestDynamicMultiprocessingRunner:
         finalizer = SharedMock()
         # run dynamic multiprocessing runner
         runner = DynamicMultiprocessingRunner(num_workers=2)
-        runner.run(ds, processor, finalizer)
+        runner.run(ds.info, ds, processor, finalizer)
         # make sure all samples have been processed
         finalizer.assert_has_calls(
             [call((0, {"obj": i})) for i in range(num_samples)], same_order=False

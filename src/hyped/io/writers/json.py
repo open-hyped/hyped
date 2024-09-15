@@ -13,7 +13,7 @@ from .base import BaseDatasetWriter
 
 
 class JsonDatasetWriter(BaseDatasetWriter):
-    """Json Dataset Writer.
+    """A dataset writer for saving data in JSON format.
 
     This class inherits from :code:`BaseDatasetWriter` and implements methods for writing
     samples in a sharded manner. Each worker writes to a separate JSON file, named

@@ -63,7 +63,7 @@ from functools import partial
 from typing import Any, Callable, Iterable, TypeAlias
 
 import datasets
-from datasets import Dataset, DatasetDict, IterableDataset, IterableDatasetDict
+from datasets import Dataset, DatasetDict, DatasetInfo, IterableDataset, IterableDatasetDict
 from datasets.iterable_dataset import (
     FilteredExamplesIterable,
     MappedExamplesIterable,
@@ -111,6 +111,7 @@ class Worker(mp.Process):
         self,
         rank: Rank,
         num_workers: int,
+        dataset_info: DatasetInfo,
         req_ctx_conn: mp.connection.Connection,
         worker_init: Callable[[], Any] = do_nothing,
         worker_finalize: Callable[[], Any] = do_nothing,
@@ -128,6 +129,7 @@ class Worker(mp.Process):
 
         self._rank = rank
         self._num_workers = num_workers
+        self._dataset_info = dataset_info
         # context management connections
         self._req_ctx_conn = req_ctx_conn
         self._recv_ctx_conn, self._send_ctx_conn = mp.Pipe(duplex=False)
@@ -232,6 +234,7 @@ class Worker(mp.Process):
             rank=self._rank,
             num_workers=self._num_workers,
             seed=None,
+            dataset_info=self._dataset_info,
         )
 
         # initialize worker
@@ -333,6 +336,7 @@ class DynamicMultiprocessingRunner(object):
 
     def run(
         self,
+        dataset_info: DatasetInfo,
         ds: IterableDataset,
         processor: Callable[[IndexedSamplesIterable], IndexedSamplesIterable],
         finalizer: Callable[[IndexedSamplesIterable], Any],
@@ -359,6 +363,7 @@ class DynamicMultiprocessingRunner(object):
             Worker(
                 rank,
                 self._num_workers,
+                dataset_info,
                 worker_req_ctx_conn,
                 self._worker_init,
                 self._worker_finalize,
@@ -555,7 +560,7 @@ class DatasetConsumer(object):
 
         # create the source dataaset that excludes the
         # pipeline processing steps
-        src_ds = IterableDataset(ex_iterable=pipeline.src_iterable, info=ds.info, split=ds.split)
+        src_ds = IterableDataset(ex_iterable=pipeline.src_iterable)
 
         return src_ds, pipeline.copy()
 
@@ -566,7 +571,7 @@ class DatasetConsumer(object):
             ds (IterableDataset): The dataset to process.
         """
 
-        ds, processor = self._prepare_dataset(ds)
+        src_ds, processor = self._prepare_dataset(ds)
         finalizer = partial(_drop_key_and_apply, fn=self._fn)
 
         runner = DynamicMultiprocessingRunner(
@@ -575,7 +580,7 @@ class DatasetConsumer(object):
             worker_init=self._initialize,
             worker_finalize=self._finalize,
         )
-        runner.run(ds, processor, finalizer)
+        runner.run(ds.info, src_ds, processor, finalizer)
 
 
 class BaseDatasetWriter(ABC):
@@ -646,7 +651,7 @@ class BaseDatasetWriter(ABC):
         )
         # build state
         state = {key: getattr(ds, key, None) for key in keys}
-        state["_format_kwargs"] = json.dumps({})
+        state["_format_kwargs"] = {}
         state["_split"] = str(ds.split) if ds.split is not None else ds.split
         state["_data_files"] = [{"filename": fname} for fname in os.listdir(".")]
 

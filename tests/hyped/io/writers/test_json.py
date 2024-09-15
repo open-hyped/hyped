@@ -1,13 +1,15 @@
 import json
 import os
 
+from datasets import Dataset
+
 from hyped.io.writers.json import JsonDatasetWriter
 
 from .base import BaseTestDatasetWriter
 
 
 class TestJsonDatasetWriter(BaseTestDatasetWriter):
-    samples = [{"obj": i} for i in range(10)]
+    dataset = Dataset.from_dict({"obj": list(range(10))})
     writer_type = JsonDatasetWriter
 
     def check(self) -> None:
@@ -17,4 +19,5 @@ class TestJsonDatasetWriter(BaseTestDatasetWriter):
         with open("shard-0.json", "r") as f:
             output_samples = list(map(json.loads, f.readlines()))
 
-        assert output_samples == cls.samples
+        for actual, expected in zip(output_samples, cls.dataset):
+            assert actual == expected
