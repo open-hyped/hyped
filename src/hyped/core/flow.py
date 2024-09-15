@@ -28,7 +28,7 @@ from hyped.common._arrow import convert_features_to_arrow_schema
 from hyped.common.feature_checks import check_feature_equals
 from hyped.common.feature_key import FeatureKey
 from hyped.common.lazy_instance import LazyInstance
-from hyped.common.typing import Aggregate, Batch, IndexList, Rank
+from hyped.common.typing import Aggregate, Batch, DatasetType, IndexList, Rank
 
 from .executor import DataFlowExecutor
 from .graph import DataFlowGraph
@@ -39,13 +39,7 @@ from .nodes.const import Const
 from .optim import DataFlowGraphOptimizer
 from .refs.ref import FeatureRef
 
-D = TypeVar(
-    "D",
-    datasets.Dataset,
-    datasets.DatasetDict,
-    datasets.IterableDataset,
-    datasets.IterableDatasetDict,
-)
+D = TypeVar("D", DatasetType)
 
 # patch asyncio if running in an async environment, such as jupyter notebook
 # this fixes #26
