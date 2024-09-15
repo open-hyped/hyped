@@ -1,9 +1,15 @@
+from queue import Queue
+from unittest.mock import patch
+
 import numpy as np
 import pytest
 
 from hyped.common.utils import (
+    QueueIterator,
+    StoppableIterator,
     deep_equal,
     dict_of_lists_to_list_of_dicts,
+    is_package_installed,
     list_of_dicts_to_dict_of_lists,
 )
 
@@ -107,3 +113,109 @@ def test_mixed_structures():
         {"a": [1, 2, {"b": np.array([3, 4])}]},
         {"a": [1, 2, {"b": np.array([4, 3])}]},
     )
+
+
+def test_is_package_installed_existing_package():
+    # Mock `importlib.util.find_spec` to return a mock object for an existing package
+    with patch("importlib.util.find_spec", return_value=object()):
+        # Test for a package that exists (mocked)
+        assert is_package_installed("existing_package") is True
+
+
+def test_is_package_installed_non_existing_package():
+    # Mock `importlib.util.find_spec` to return None for a non-existing package
+    with patch("importlib.util.find_spec", return_value=None):
+        # Test for a package that does not exist
+        assert is_package_installed("non_existing_package") is False
+
+
+def test_is_package_installed_real_package():
+    # Test with a package that is actually installed (e.g., 'pytest')
+    assert is_package_installed("pytest") is True
+
+
+def test_is_package_installed_real_non_existing_package():
+    # Test with a package that is very unlikely to exist
+    assert is_package_installed("some_non_existing_random_package") is False
+
+
+class TestQueueIterator:
+    def test_queue_iterator_basic(self):
+        q = Queue()
+        items = [1, 2, 3, 4]
+
+        # Put items in the queue
+        for item in items:
+            q.put(item)
+        q.put(None)  # Sentinel value
+
+        iterator = QueueIterator(q, sentinel=None)
+
+        # Ensure that all items are returned in order
+        assert list(iterator) == items
+
+    def test_queue_iterator_empty_queue(self):
+        q = Queue()
+        iterator = QueueIterator(q, sentinel=None, timeout=0.1)
+
+        # Ensure that StopIteration is raised when queue is empty
+        with pytest.raises(StopIteration):
+            next(iterator)
+
+    def test_queue_iterator_with_sentinel(self):
+        q = Queue()
+        items = [1, 2, 3, "stop", 5]
+
+        # Put items in the queue
+        for item in items:
+            q.put(item)
+
+        # Sentinel value is "stop"
+        iterator = QueueIterator(q, sentinel="stop")
+
+        # Ensure items before sentinel are returned
+        assert list(iterator) == [1, 2, 3]
+
+    def test_queue_iterator_with_timeout(self):
+        q = Queue()
+
+        # No items in the queue, should raise StopIteration after timeout
+        iterator = QueueIterator(q, timeout=0.1)
+        with pytest.raises(StopIteration):
+            next(iterator)
+
+
+class TestStoppableIterator:
+    def test_stoppable_iterator_basic(self):
+        iterable = [1, 2, 3, 4, 5]
+        iterator = StoppableIterator(iterable)
+
+        # Ensure all items are returned in order
+        assert list(iterator) == iterable
+
+    def test_stoppable_iterator_stop(self):
+        iterable = [1, 2, 3, 4, 5]
+        iterator = StoppableIterator(iterable)
+
+        # Retrieve first two items
+        assert next(iterator) == 1
+        assert next(iterator) == 2
+
+        # Stop the iterator
+        iterator.stop()
+
+        # Ensure StopIteration is raised after stop is called
+        with pytest.raises(StopIteration):
+            next(iterator)
+
+    def test_stoppable_iterator_exhausted(self):
+        iterable = [1, 2]
+        iterator = StoppableIterator(iterable)
+
+        # Exhaust the iterator
+        assert next(iterator) == 1
+        assert next(iterator) == 2
+
+        # Ensure StopIteration is raised after all items are exhausted
+        with pytest.raises(StopIteration):
+            next(iterator)

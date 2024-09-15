@@ -1,0 +1,211 @@
+import multiprocessing as mp
+from unittest.mock import MagicMock, call, patch
+
+import pytest
+from datasets import Dataset
+from datasets.iterable_dataset import MappedExamplesIterable, TypedExamplesIterable
+from sharedmock.mock import SharedMock
+
+from hyped.io.writers.base import (
+    DatasetConsumer,
+    DynamicMultiprocessingRunner,
+    Worker,
+    _passthrough,
+)
+
+
+@pytest.fixture
+def mock_connections():
+    """Fixture for mock connections used in Worker."""
+    return mp.Pipe(duplex=False)
+
+
+@pytest.fixture
+def worker(mock_connections):
+    """Fixture to create a Worker instance."""
+    req_ctx_conn, worker_req_ctx_conn = mock_connections
+    return Worker(rank=0, num_workers=1, req_ctx_conn=worker_req_ctx_conn)
+
+
+class TestWorker:
+    def test_request_new_ctx(self, worker, mock_connections):
+        req_ctx_conn, worker_req_ctx_conn = mock_connections
+
+        producer = "PRODUCER"
+        processor = "PROCESSOR"
+        finalizer = "FINALIZER"
+
+        # send new context before worker request to avoid deadlock
+        worker.send_ctx(producer, processor, finalizer, False)
+        worker._request_new_ctx()
+
+        # check if worker asked for new context
+        assert req_ctx_conn.recv() == worker._rank
+
+        # check worker context
+        assert worker._producer == producer
+        assert worker._processor == processor
+        assert worker._finalizer == finalizer
+
+    def test_check_ctx(self, worker):
+        producer = "PRODUCER"
+        processor = "PROCESSOR"
+        finalizer = "FINALIZER"
+
+        # no context update send
+        done, new_ctx = worker._check_ctx()
+        assert done is False
+        assert new_ctx is False
+
+        # send context update
+        worker.send_ctx(None, processor, finalizer, False)
+        done, new_ctx = worker._check_ctx()
+
+        assert done is False
+        assert new_ctx is True
+        # check worker context
+        assert worker._processor == processor
+        assert worker._finalizer == finalizer
+
+        # send invalid worker context
+        with pytest.raises(AssertionError):
+            # producer not allowed
+            worker.send_ctx(producer, processor, finalizer, False)
+            worker._check_ctx()
+
+    @patch("hyped.io.writers.base.set_worker_info")
+    def test_run(self, mock_set_worker_info, worker):
+        processor_marker = MagicMock()
+        # set up worker
+        worker._producer = [MagicMock(), MagicMock(), MagicMock()]
+        worker._processor = lambda x: map(processor_marker, x)
+        worker._finalizer = MagicMock()
+        # mock request new context
+        worker._request_new_ctx = MagicMock(side_effect=[True, False].pop)
+
+        # run worker
+        worker.run()
+
+        mock_set_worker_info.assert_called_once()
+        # make sure all samples have been processed
+        worker._finalizer.assert_has_calls(
+            [call(processor_marker(x)) for x in worker._producer], any_order=True
+        )
+
+    @patch("hyped.io.writers.base.set_worker_info")
+    def test_run_with_ctx_update(self, mock_set_worker_info, worker):
+        processor_marker = MagicMock()
+        # set up worker
+        worker._producer = [MagicMock(), MagicMock(), MagicMock()]
+        worker._processor = lambda x: map(processor_marker, x)
+        worker._finalizer = MagicMock()
+        # mock request new and check context
+        worker._request_new_ctx = MagicMock(side_effect=[True, False].pop)
+        worker._check_ctx = MagicMock(return_value=(False, True))
+
+        worker.run()
+
+        mock_set_worker_info.assert_called_once()
+        # make sure all samples have been processed
+        worker._finalizer.assert_has_calls(
+            [call(processor_marker(x)) for x in worker._producer], any_order=True
+        )
+
+    @patch("hyped.io.writers.base.set_worker_info")
+    def test_run_with_abort(self, mock_set_worker_info, worker):
+        processor_marker = MagicMock()
+        # set up worker
+        worker._producer = [MagicMock(), MagicMock(), MagicMock()]
+        worker._processor = lambda x: map(processor_marker, x)
+        worker._finalizer = MagicMock()
+        # mock request new and check context
+        worker._request_new_ctx = MagicMock(side_effect=[True, False].pop)
+        worker._check_ctx = MagicMock(return_value=(True, True))
+
+        worker.run()
+
+        mock_set_worker_info.assert_called_once()
+        # make sure all samples have been processed
+        worker._finalizer.assert_has_calls(
+            [call(processor_marker(x)) for x in worker._producer[:1]], any_order=True
+        )
+
+
+class TestDynamicMultiprocessingRunner:
+    @pytest.mark.parametrize("num_shards", [1, 2, 3])
+    @pytest.mark.parametrize("num_samples", [20])
+    def test_run(self, num_shards, num_samples):
+        # create mock dataset
+        samples = {"obj": [i for i in range(num_samples)]}
+        ds = Dataset.from_dict(samples)
+        ds = ds.to_iterable_dataset(num_shards)
+        # create mock processor and finalizer
+        processor = _passthrough
+        finalizer = SharedMock()
+        # run dynamic multiprocessing runner
+        runner = DynamicMultiprocessingRunner(num_workers=2)
+        runner.run(ds, processor, finalizer)
+        # make sure all samples have been processed
+        finalizer.assert_has_calls(
+            [call((0, {"obj": i})) for i in range(num_samples)], same_order=False
+        )
+
+
+def _double_fn(x):
+    return {"obj": x["obj"] * 2}
+
+
+class TestDatasetConsumer:
+    @pytest.mark.parametrize("num_shards", [1, 2, 3])
+    @pytest.mark.parametrize("num_samples", [20])
+    def test_consume(self, num_shards, num_samples):
+        # create mock dataset
+        samples = {"obj": [i for i in range(num_samples)]}
+        ds = Dataset.from_dict(samples)
+        ds = ds.to_iterable_dataset(num_shards)
+
+        # create mock function
+        fn = SharedMock()
+
+        # create dataset consumer and consumer dataset
+        consumer = DatasetConsumer(fn=fn, num_proc=2)
+        consumer.consume(ds)
+
+        # make sure all samples have been processed
+        fn.assert_has_calls([call({"obj": i}) for i in range(num_samples)], same_order=False)
+
+    @pytest.mark.parametrize("num_shards", [1, 2, 3])
+    @pytest.mark.parametrize("num_samples", [20])
+    def test_consume_with_pipeline(self, num_shards, num_samples):
+        # create mock dataset
+        samples = {"obj": [i for i in range(num_samples)]}
+        ds = Dataset.from_dict(samples)
+        ds = ds.to_iterable_dataset(num_shards)
+
+        # apply map function
+        ds = ds.map(_double_fn)
+
+        # create mock function
+        fn = SharedMock()
+
+        # create dataset consumer and consumer dataset
+        consumer = DatasetConsumer(fn=fn, num_proc=2)
+        consumer.consume(ds)
+
+        # make sure all samples have been processed
+        fn.assert_has_calls([call({"obj": i * 2}) for i in range(num_samples)], same_order=False)
+
+    def test_prepare_dataset(self):
+        ds = Dataset.from_dict({"obj": [0]})
+        ds = ds.to_iterable_dataset(1)
+        # apply map function
+        mapped_ds = ds.map(_double_fn)
+
+        # call prepare dataset
+        consumer = DatasetConsumer(fn=MagicMock(), num_proc=2)
+        src_ds, pipeline = consumer._prepare_dataset(mapped_ds)
+
+        # check output
+        assert ds._ex_iterable == src_ds._ex_iterable
+        assert isinstance(pipeline[0], TypedExamplesIterable)
+        assert isinstance(pipeline[1], MappedExamplesIterable)

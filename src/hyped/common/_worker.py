@@ -59,6 +59,7 @@ def get_worker_info() -> None | WorkerInfo:
                 rank=info.id,
                 num_workers=info.num_workers,
                 seed=info.seed,
+                ctx=SimpleNamespace(dataset=info.dataset),
             )
         )
 
@@ -82,7 +83,18 @@ def set_worker_info(rank: Rank, num_workers: int, seed: int, **ctx: Any) -> Work
     """
     global _worker_info
 
+    # make sure the worker info is not set yet
     assert get_worker_info() is None, "Worker info already set."
 
+    # set worker info
     _worker_info = WorkerInfo(rank, num_workers, seed, SimpleNamespace(**ctx))
+
+    if is_package_installed("torch"):
+        import torch.utils.data._utils.worker
+
+        # set pytorch worker info
+        torch.utils.data._utils.worker._worker_info = torch.utils.data._utils.worker.WorkerInfo(
+            id=rank, num_workers=num_workers, seed=seed, dataset=ctx.get("dataset")
+        )
+
     return _worker_info

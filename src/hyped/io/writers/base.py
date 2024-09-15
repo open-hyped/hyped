@@ -1,5 +1,7 @@
 """
 
+TODO:
+
 Error handling:
 - Error Handling in Workers: Each worker should catch exceptions during task processing and skip to
   the next sample instead of crashing.
@@ -18,6 +20,13 @@ Error log content:
 - Error type: The specific type of error (e.g., ValueError, TypeError).
 - Traceback: A detailed stack trace for debugging purposes.
 
+Worker & Group Monitoring:
+- Monitor Idle Time of worker
+- Monitor Idle Time of consumer process in group
+- Monitor Average Idle Time of worker process in group
+
+DONE:
+
 Separate Dataset from Transformation:
 - datasets.iterable_dataset._BaseExamplesIterable wraps dataset (nested)
 - wrap source dataset at lowest level in thread-safe iterable
@@ -30,11 +39,6 @@ Worker Groups & Processing Strategies:
 - If a worker group consists of only one worker, the worker uses the shard process stategy
 - If a worker group consists of more then one worker, the group uses the distributed process stategy
 - Worker groups are dynamically managed by the main process based on ressource usage
-
-Worker & Group Monitoring:
-- Monitor Idle Time of worker
-- Monitor Idle Time of consumer process in group
-- Monitor Average Idle Time of worker process in group
 
 Dynamic Group Management:
 - Worker Groups are build based on ressource usage and remaining shards to process
@@ -413,7 +417,7 @@ class ExamplesIterablePipeline(list[_BaseExamplesIterable]):
 
         return pipeline
 
-    def run(self, ex_iterable):
+    def __call__(self, ex_iterable):
         """Run the pipeline on the given example iterable.
 
         Args:
@@ -504,7 +508,7 @@ class DatasetConsumer(object):
         # pipeline processing steps
         src_ds = IterableDataset(ex_iterable=pipeline.src_iterable, info=ds.info, split=ds.split)
 
-        return src_ds, pipeline.copy().run
+        return src_ds, pipeline.copy()
 
     def consume(self, ds: DatasetType) -> None:
         """Process the dataset using worker processes.

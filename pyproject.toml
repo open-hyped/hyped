@@ -31,7 +31,12 @@ dependencies = [
 
 [project.optional-dependencies]
 linting = ["pre-commit"]
-tests = ["pytest", "pytest-cov", "pytest-asyncio"]
+tests = [
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "sharedmock@git+https://github.com/ScriptingSquirrel/python-sharedmock.git"
+]
 docs = ["sphinx", "sphinx_rtd_theme"]
 cas = ["dkpro-cassis>=0.8.0"]
 llm = ["openai>=1.23.6"]
