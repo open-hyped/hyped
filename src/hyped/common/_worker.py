@@ -101,3 +101,13 @@ def set_worker_info(rank: Rank, num_workers: int, seed: int, **ctx: Any) -> Work
         )
 
     return _worker_info
+
+
+def reset_worker_info() -> None:
+    global _worker_info
+    _worker_info = None
+
+    if is_package_installed("torch"):
+        import torch.utils.data._utils.worker
+
+        torch.utils.data._utils.worker._worker_info = None

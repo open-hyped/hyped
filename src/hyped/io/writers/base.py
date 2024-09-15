@@ -71,9 +71,14 @@ from datasets.iterable_dataset import (
     _BaseExamplesIterable,
 )
 
-from hyped.common._worker import set_worker_info
+from hyped.common._worker import reset_worker_info, set_worker_info
 from hyped.common.typing import DatasetType, Rank, Sample
-from hyped.common.utils import QueueIterator, StoppableIterator, chdir
+from hyped.common.utils import (
+    QueueIterator,
+    StoppableIterator,
+    chdir,
+    dict_of_lists_to_list_of_dicts,
+)
 
 IndexedSamplesIterable: TypeAlias = Iterable[tuple[str, Sample]]
 
@@ -237,10 +242,10 @@ class Worker(mp.Process):
             dataset_info=self._dataset_info,
         )
 
-        # initialize worker
-        self._worker_init()
-
         try:
+            # initialize worker
+            self._worker_init()
+
             # request a processing context
             while not self._request_new_ctx():
                 # create producer iterator to avoid resetting when
@@ -279,9 +284,15 @@ class Worker(mp.Process):
                         # producer exhausted
                         producer_exhausted = True
 
+        except KeyboardInterrupt:  # pragma: not covered
+            ...
+
         finally:
-            # finalize worker
-            self._worker_finalize()
+            try:
+                # finalize worker
+                self._worker_finalize()
+            except Exception:  # pragma: not covered
+                pass
 
 
 class DynamicMultiprocessingRunner(object):
@@ -571,16 +582,44 @@ class DatasetConsumer(object):
             ds (IterableDataset): The dataset to process.
         """
 
-        src_ds, processor = self._prepare_dataset(ds)
-        finalizer = partial(_drop_key_and_apply, fn=self._fn)
+        if self._num_proc > 1:
+            # prepare the dataset and function to apply
+            src_ds, processor = self._prepare_dataset(ds)
+            finalizer = partial(_drop_key_and_apply, fn=self._fn)
 
-        runner = DynamicMultiprocessingRunner(
-            num_workers=self._num_proc,
-            prefetch_factor=self._prefetch,
-            worker_init=self._initialize,
-            worker_finalize=self._finalize,
-        )
-        runner.run(ds.info, src_ds, processor, finalizer)
+            # create the multiprocessing runner and run it
+            runner = DynamicMultiprocessingRunner(
+                num_workers=self._num_proc,
+                prefetch_factor=self._prefetch,
+                worker_init=self._initialize,
+                worker_finalize=self._finalize,
+            )
+            runner.run(ds.info, src_ds, processor, finalizer)
+
+        else:
+            # set the worker info
+            set_worker_info(rank=0, num_workers=1, seed=None, dataset_info=ds.info)
+
+            try:
+                # initialize the consumer
+                self._initialize()
+                # consume dataset
+                for batch in ds.iter(batch_size=self._prefetch):
+                    for sample in dict_of_lists_to_list_of_dicts(batch):
+                        self._fn(sample)
+
+            except KeyboardInterrupt:  # pragma: not covered
+                raise
+
+            finally:
+                try:
+                    # finalize the consumer
+                    self._finalize()
+                except Exception:  # pragma: not covered
+                    ...
+
+                # reset the worker info
+                reset_worker_info()
 
 
 class BaseDatasetWriter(ABC):
