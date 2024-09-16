@@ -139,10 +139,19 @@ class Worker(mp.Process):
 
         Args:
             rank (Rank): The rank or identifier for the worker, typically representing
-                the worker's position in a set of workers.
-            num_workers (int): The total number of workers involved in the process.
-            req_ctx_conn (mp.connection.Connection): A connection object to request
-                new context updates from the main process.
+                the worker's position or role in the set of workers.
+            num_workers (int): The total number of workers involved in the data
+                processing pipeline.
+            dataset_info (DatasetInfo): Information about the dataset to be processed,
+                including relevant metadata or configuration details.
+            tracker_conn (mp.connection.Connection): A connection object used to
+                send updates to the progress tracker thread.
+            req_ctx_conn (mp.connection.Connection): A connection object used to request
+                request a new processing context from the manager process.
+            worker_init (Callable[[], Any], optional): A callable function to initialize
+                the worker's state before processing begins. Defaults to :func:`do_nothing`.
+            worker_finalize (Callable[[], Any], optional): A callable function to finalize
+                the worker's state after processing is complete. Defaults to :func:`do_nothing`.
         """
         super(Worker, self).__init__(daemon=True)
 
@@ -352,10 +361,100 @@ class Worker(mp.Process):
                 pass
 
 
+class TqdmReporter(threading.Thread):
+    """Tqdm Reporter Thread.
+
+    A thread that reports progress using the :func:`tqdm` progress bar, based on the state of a
+    :class:`ProgressTracker`.
+    """
+
+    def __init__(self, tracker: ProgressTracker, update_interval: float = 0.1) -> None:
+        """Initializes the :class:`TqdmReporter` thread.
+
+        Args:
+            tracker (ProgressTracker): The :class:`ProgressTracker` instance to track progress.
+            update_interval (float, optional): The interval in seconds between progress updates.
+                Defaults to 0.1.
+        """
+        super(TqdmReporter, self).__init__(daemon=True)
+        self.tracker = tracker
+        self._update_interval = update_interval
+
+    @property
+    def _pbar_desc(self) -> str:
+        """Description displayed in tqdm bar.
+
+        Returns a formatted description of the progress bar, including the current number
+        of busy workers and their roles (processor, producer, consumer).
+
+        Returns:
+            str: A string describing the progress bar status.
+        """
+        counts = Counter(self.tracker._roles)
+        return (
+            f"Workers {self.tracker.num_busy_workers}/{self.tracker._num_workers} "
+            f"(S={counts[WorkerRole.PROCESSOR]}, "
+            f"P={counts[WorkerRole.PRODUCER]}, "
+            f"C={counts[WorkerRole.CONSUMER]})"
+        )
+
+    def run(self) -> None:
+        """Thread entrypoint.
+
+        The main loop of the :class:`TqdmReporter` thread. Continuously updates the progress bar
+        based on the state of the :class:`ProgressTracker` until the tracker is done. After
+        completion, performs one final update to ensure the progress bar reflects the latest state.
+        """
+
+        ema_dn = EMA(smoothing=0.3)
+        ema_dt = EMA(smoothing=0.3)
+
+        with tqdm(total=self.tracker._num_shards, desc=self._pbar_desc) as pbar:
+            prev_total_samples = 0
+            prev_update_time = pbar._time()
+
+            def _iter():
+                # iterate as long as the tracker is running
+                while not self.tracker._done.wait(timeout=self._update_interval):
+                    yield
+                # do a final update after the tracker finished
+                yield
+
+            for _ in _iter():
+                # get current state
+                total_samples = self.tracker.total_consumed_samples
+                update_time = pbar._time()
+
+                # compute sample throughput
+                dn = total_samples - prev_total_samples
+                dt = update_time - prev_update_time
+                throughput = ema_dn(dn) / max(ema_dt(dt), 1e-5)
+
+                # format total samples
+                formatting_string = "%d" if total_samples < 10**6 else "%.2e"
+                formatted_total_samples = formatting_string % total_samples
+                # update progress bar
+                pbar.set_description(self._pbar_desc, refresh=False)
+                pbar.set_postfix_str(
+                    (
+                        f"{self.tracker._queue.qsize()}q, "
+                        f"{throughput:.02f}ex/s, "
+                        f"{formatted_total_samples}ex"
+                    ),
+                    refresh=False,
+                )
+                # update values
+                prev_total_samples = total_samples
+                prev_update_time = update_time
+
+                # update the progress bar
+                pbar.update(self.tracker._finished_shards - pbar.n)
+
+
 class ProgressTracker(threading.Thread):
     """Progress Tracker Thread
 
-    A thread that tracks the progress of multiprocessing workers, and updates a tqdm progress bar.
+    A monitoring thread that tracks the state and progress of all workers in a centralized fashion.
 
     The progress tracker monitors the number of processed and consumed samples by each worker,
     updates the roles of the workers (processor, producer, consumer), and tracks the number of
@@ -391,6 +490,8 @@ class ProgressTracker(threading.Thread):
         ]
         # connection to workers
         self._recv_prog_conn, self._send_prog_conn = mp.Pipe(duplex=False)
+        # event set by worker indicating that the process has finished
+        self._done = threading.Event()
 
     @property
     def total_produced_samples(self) -> int:
@@ -431,7 +532,7 @@ class ProgressTracker(threading.Thread):
         return rank, role, num_samples, producer_exhausted, done
 
     @property
-    def busy_workers(self) -> int:
+    def num_busy_workers(self) -> int:
         """Returns the number of workers that are currently busy.
 
         A worker is considered busy if its role is not None.
@@ -440,23 +541,6 @@ class ProgressTracker(threading.Thread):
             int: Number of busy workers.
         """
         return sum(role is not None for role in self._roles)
-
-    @property
-    def _pbar_desc(self) -> str:
-        """
-        Returns a formatted description of the progress bar, including the current number
-        of busy workers and their roles (processor, producer, consumer).
-
-        Returns:
-            str: A string describing the progress bar status.
-        """
-        counts = Counter(self._roles)
-        return (
-            f"Workers {self.busy_workers}/{self._num_workers} "
-            f"(S={counts[WorkerRole.PROCESSOR]}, "
-            f"P={counts[WorkerRole.PRODUCER]}, "
-            f"C={counts[WorkerRole.CONSUMER]})"
-        )
 
     def run(self):
         """Run progress tracker thread.
@@ -470,69 +554,27 @@ class ProgressTracker(threading.Thread):
         The thread continues running until all workers have stopped.
         """
 
-        with tqdm(total=self._num_shards, desc=self._pbar_desc) as pbar:
-            ema_dn = EMA(smoothing=0.3)
-            ema_dt = EMA(smoothing=0.3)
+        while self._stopped_workers < self._num_workers:
+            if self._recv_prog_conn.poll(timeout=0.05):
+                # receive progress update
+                rank, role, num_samples, producer_exhausted, done = self.recv_progress()
 
-            prev_total_samples = 0
-            prev_update_time = pbar._time()
+                if role is not None:
+                    # update worker role and number of processed samples
+                    self._roles[rank] = role
+                    self._num_samples[rank][role] += num_samples
 
-            while self._stopped_workers < self._num_workers:
-                if self._recv_prog_conn.poll(timeout=0.05):
-                    # receive progress update
-                    rank, role, num_samples, producer_exhausted, done = self.recv_progress()
+                if role in {WorkerRole.PROCESSOR, WorkerRole.PRODUCER}:
+                    # update number of finished shards
+                    self._finished_shards += int(producer_exhausted)
 
-                    if role is not None:
-                        # update worker role and number of processed samples
-                        self._roles[rank] = role
-                        self._num_samples[rank][role] += num_samples
+                if done:
+                    # update number of stopped workers
+                    self._stopped_workers += 1
+                    self._roles[rank] = None
 
-                    if role in {WorkerRole.PROCESSOR, WorkerRole.PRODUCER}:
-                        # update number of finished shards
-                        self._finished_shards += int(producer_exhausted)
-
-                    if done:
-                        # update number of stopped workers
-                        self._stopped_workers += 1
-                        self._roles[rank] = None
-
-                    total_samples = self.total_consumed_samples
-                    update_time = pbar._time()
-
-                    # exhaust progress updates before rendering
-                    if ((update_time - prev_update_time) < 0.05) and self._recv_prog_conn.poll(
-                        timeout=0.05
-                    ):
-                        continue
-
-                    # compute sample throughput
-                    dn = total_samples - prev_total_samples
-                    dt = update_time - prev_update_time
-                    throughput = ema_dn(dn) / max(ema_dt(dt), 1e-5)
-
-                    # format total samples
-                    formatting_string = "%d" if total_samples < 10**6 else "%.2e"
-                    formatted_total_samples = formatting_string % total_samples
-                    # update progress bar
-                    pbar.set_description(self._pbar_desc, refresh=False)
-                    pbar.set_postfix_str(
-                        (
-                            f"{self._queue.qsize()}q, "
-                            f"{throughput:.02f}ex/s, "
-                            f"{formatted_total_samples}ex"
-                        ),
-                        refresh=False,
-                    )
-                    # update values
-                    prev_total_samples = total_samples
-                    prev_update_time = update_time
-
-                    # update the progress bar
-                    pbar.update(self._finished_shards - pbar.n)
-
-                else:
-                    # refresh the progress bar
-                    pbar.refresh()
+        # set done event
+        self._done.set()
 
 
 class DynamicMultiprocessingRunner(object):
@@ -614,8 +656,9 @@ class DynamicMultiprocessingRunner(object):
             queue = manager.Queue(maxsize=self._num_workers * self._prefetch)
             iterable = QueueIterator(queue, sentinel=None, timeout=None)
 
-            # create the progress tracker thread
+            # create the progress tracker and reporter threads
             tracker = ProgressTracker(num_shards, self._num_workers, queue)
+            reporter = TqdmReporter(tracker)
 
             # create all workers
             workers = [
@@ -631,8 +674,9 @@ class DynamicMultiprocessingRunner(object):
                 for rank in range(self._num_workers)
             ]
 
-            # start the tracker thread
+            # start the tracker and reporter thread
             tracker.start()
+            reporter.start()
             # start all workers
             for worker in workers:
                 worker.start()
@@ -702,8 +746,10 @@ class DynamicMultiprocessingRunner(object):
             # wait for all workers to join
             for worker in workers:
                 worker.join()
-            # wait for tracker to join
+
+            # wait for tracker and reporter to join
             tracker.join()
+            reporter.join()
 
 
 class ExamplesIterablePipeline(list[_BaseExamplesIterable]):
