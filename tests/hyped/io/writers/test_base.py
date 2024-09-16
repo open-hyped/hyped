@@ -13,6 +13,7 @@ from hyped.io.writers.base import (
     DatasetConsumer,
     DynamicMultiprocessingRunner,
     Worker,
+    WorkerRole,
     _passthrough,
 )
 
@@ -20,37 +21,47 @@ from hyped.io.writers.base import (
 @pytest.fixture
 def mock_connections():
     """Fixture for mock connections used in Worker."""
-    return mp.Pipe(duplex=False)
+    return mp.Pipe(duplex=False), mp.Pipe(duplex=False)
 
 
 @pytest.fixture
 def worker(mock_connections):
     """Fixture to create a Worker instance."""
-    req_ctx_conn, worker_req_ctx_conn = mock_connections
-    return Worker(rank=0, num_workers=1, dataset_info=None, req_ctx_conn=worker_req_ctx_conn)
+    ((req_ctx_conn, worker_req_ctx_conn), (tracker_conn, worker_tracker_conn)) = mock_connections
+
+    return Worker(
+        rank=0,
+        num_workers=1,
+        dataset_info=None,
+        tracker_conn=worker_tracker_conn,
+        req_ctx_conn=worker_req_ctx_conn,
+    )
 
 
 class TestWorker:
     def test_request_new_ctx(self, worker, mock_connections):
-        req_ctx_conn, worker_req_ctx_conn = mock_connections
+        req_ctx_conn, worker_req_ctx_conn = mock_connections[0]
 
+        role = WorkerRole.PROCESSOR
         producer = "PRODUCER"
         processor = "PROCESSOR"
         finalizer = "FINALIZER"
 
         # send new context before worker request to avoid deadlock
-        worker.send_ctx(producer, processor, finalizer, False)
+        worker.send_ctx(role, producer, processor, finalizer, False)
         worker._request_new_ctx()
 
         # check if worker asked for new context
         assert req_ctx_conn.recv() == worker._rank
 
         # check worker context
+        assert worker._role == role
         assert worker._producer == producer
         assert worker._processor == processor
         assert worker._finalizer == finalizer
 
     def test_check_ctx(self, worker):
+        role = WorkerRole.PROCESSOR
         producer = "PRODUCER"
         processor = "PROCESSOR"
         finalizer = "FINALIZER"
@@ -61,19 +72,20 @@ class TestWorker:
         assert new_ctx is False
 
         # send context update
-        worker.send_ctx(None, processor, finalizer, False)
+        worker.send_ctx(role, None, processor, finalizer, False)
         done, new_ctx = worker._check_ctx()
 
         assert done is False
         assert new_ctx is True
         # check worker context
+        assert worker._role == role
         assert worker._processor == processor
         assert worker._finalizer == finalizer
 
         # send invalid worker context
         with pytest.raises(AssertionError):
             # producer not allowed
-            worker.send_ctx(producer, processor, finalizer, False)
+            worker.send_ctx(role, producer, processor, finalizer, False)
             worker._check_ctx()
 
     @patch("hyped.io.writers.base.set_worker_info")
