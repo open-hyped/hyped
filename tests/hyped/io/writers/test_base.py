@@ -32,7 +32,6 @@ def worker(mock_connections):
     return Worker(
         rank=0,
         num_workers=1,
-        dataset_info=None,
         req_ctx_conn=worker_req_ctx_conn,
         tracker_conn=worker_tracker_conn,
     )
@@ -164,7 +163,7 @@ class TestDynamicMultiprocessingRunner:
         finalizer = SharedMock()
         # run dynamic multiprocessing runner
         runner = DynamicMultiprocessingRunner(num_workers=2)
-        runner.run(ds, ds.info, processor, finalizer)
+        runner.run(ds, processor, finalizer)
         # make sure all samples have been processed
         finalizer.assert_has_calls(
             [call((0, {"obj": i})) for i in range(num_samples)], same_order=False
@@ -241,17 +240,20 @@ class TestBaseDatasetWriter:
             write_sample = MagicMock()
             finalize = MagicMock()
 
-        with patch("hyped.io.writers.base.DatasetConsumer") as mock:
+        with (
+            patch("hyped.io.writers.base.DatasetConsumer") as mock,
+            patch("hyped.io.writers.base.partial") as partial_mock,
+        ):
             writer = MockDatasetWriter(save_dir=tmp_path, overwrite=True)
-            writer._write_split(ds, save_dir=tmp_path)
+            writer._write_dataset(ds, save_dir=tmp_path)
 
             # make sure the consumer is created and called correctly
             mock.assert_called_once_with(
                 writer.write_sample,
                 num_proc=writer.num_proc,
                 prefetch_factor=writer.prefetch,
-                initialize=writer.initialize,
-                finalize=writer.finalize,
+                initialize=partial_mock(writer.initialize, ds.info),
+                finalize=partial_mock(writer.finalize, ds.info),
             )
             mock().consume.assert_called_once_with(ds)
 
@@ -274,7 +276,7 @@ class TestBaseDatasetWriter:
             write_sample = MagicMock()
             finalize = MagicMock()
 
-        with patch("hyped.io.writers.base.BaseDatasetWriter._write_split") as write_split_mock:
+        with patch("hyped.io.writers.base.BaseDatasetWriter._write_dataset") as write_split_mock:
             writer = MockDatasetWriter(save_dir=tmp_path, overwrite=path_exists)
             writer.write(ds)
 
@@ -293,7 +295,7 @@ class TestBaseDatasetWriter:
             write_sample = MagicMock()
             finalize = MagicMock()
 
-        with patch("hyped.io.writers.base.BaseDatasetWriter._write_split") as write_split_mock:
+        with patch("hyped.io.writers.base.BaseDatasetWriter._write_dataset") as write_split_mock:
             writer = MockDatasetWriter(save_dir=tmp_path, overwrite=path_exists)
             writer.write(ds)
 

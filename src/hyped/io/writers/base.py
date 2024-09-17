@@ -110,7 +110,6 @@ class Worker(mp.Process):
         self,
         rank: Rank,
         num_workers: int,
-        dataset_info: DatasetInfo,
         req_ctx_conn: mp.connection.Connection,
         tracker_conn: mp.connection.Connection,
         tracker_update_interval: float = 0.1,
@@ -124,8 +123,6 @@ class Worker(mp.Process):
                 the worker's position or role in the set of workers.
             num_workers (int): The total number of workers involved in the data
                 processing pipeline.
-            dataset_info (DatasetInfo): Information about the dataset to be processed,
-                including relevant metadata or configuration details.
             req_ctx_conn (mp.connection.Connection): A connection object used to request
                 request a new processing context from the manager process.
             tracker_conn (mp.connection.Connection): A connection object used to
@@ -144,7 +141,6 @@ class Worker(mp.Process):
 
         self._rank = rank
         self._num_workers = num_workers
-        self._dataset_info = dataset_info
         # context management connections
         self._req_ctx_conn = req_ctx_conn
         self._recv_ctx_conn, self._send_ctx_conn = mp.Pipe(duplex=False)
@@ -270,7 +266,6 @@ class Worker(mp.Process):
             rank=self._rank,
             num_workers=self._num_workers,
             seed=None,
-            dataset_info=self._dataset_info,
         )
 
         try:
@@ -639,7 +634,6 @@ class DynamicMultiprocessingRunner(object):
     def run(
         self,
         ds: IterableDataset,
-        dataset_info: DatasetInfo,
         processor: Callable[[IndexedSamplesIterable], IndexedSamplesIterable],
         finalizer: Callable[[IndexedSamplesIterable], Any],
     ) -> None:
@@ -647,8 +641,6 @@ class DynamicMultiprocessingRunner(object):
 
         Args:
             ds: (IterableDataset): The dataset to process.
-            dataset_info (DatasetInfo): Dataset information of the dataset after the processor is
-                applied.
             processor (Callable[[IndexedSamplesIterable], IndexedSamplesIterable]): The function to
                 process each sample.
             finalizer (Callable[[IndexedSamplesIterable], Any]): The function to finalize each
@@ -682,7 +674,6 @@ class DynamicMultiprocessingRunner(object):
                 Worker(
                     rank=rank,
                     num_workers=self._num_workers,
-                    dataset_info=dataset_info,
                     req_ctx_conn=worker_req_ctx_conn,
                     tracker_conn=tracker._send_prog_conn,
                     tracker_update_interval=self._progress_update_interval,
@@ -922,11 +913,11 @@ class DatasetConsumer(object):
                 progress_update_interval=tqdm_update_interval,
                 disable_progress_bar=disable_tqdm,
             )
-            runner.run(src_ds, ds.info, processor, finalizer)
+            runner.run(src_ds, processor, finalizer)
 
         else:
             # set the worker info
-            set_worker_info(rank=0, num_workers=1, seed=None, dataset_info=ds.info)
+            set_worker_info(rank=0, num_workers=1, seed=None)
 
             try:
                 # initialize the consumer
@@ -1026,8 +1017,8 @@ class BaseDatasetWriter(ABC):
         with open(datasets.config.DATASET_STATE_JSON_FILENAME, "w", encoding="utf-8") as state_file:
             json.dump(state, state_file, indent=2, sort_keys=True)
 
-    def _write_split(self, ds: IterableDataset | Dataset, save_dir: str) -> None:
-        """Write the dataset split to the specified directory.
+    def _write_dataset(self, ds: IterableDataset | Dataset, save_dir: str) -> None:
+        """Write the single dataset split to the specified directory.
 
         Args:
             ds (IterableDataset | Dataset): The dataset or iterable dataset to be written.
@@ -1045,8 +1036,8 @@ class BaseDatasetWriter(ABC):
                 self.write_sample,
                 num_proc=self.num_proc,
                 prefetch_factor=self.prefetch,
-                initialize=self.initialize,
-                finalize=self.finalize,
+                initialize=partial(self.initialize, ds.info),
+                finalize=partial(self.finalize, ds.info),
             )
             consumer.consume(ds)
 
@@ -1078,7 +1069,7 @@ class BaseDatasetWriter(ABC):
         if isinstance(ds, (DatasetDict, IterableDatasetDict)):
             # write all splits
             for key, split in ds.items():
-                self._write_split(split, os.path.join(self.save_dir, key))
+                self._write_dataset(split, os.path.join(self.save_dir, key))
             # write dataset splits json
             with open(
                 os.path.join(self.save_dir, datasets.config.DATASETDICT_JSON_FILENAME), "w+"
@@ -1087,7 +1078,7 @@ class BaseDatasetWriter(ABC):
 
         else:
             # save dataset to directory
-            self._write_split(ds, self.save_dir)
+            self._write_dataset(ds, self.save_dir)
 
     @abstractmethod
     def write_sample(self, sample: Sample) -> None:
@@ -1102,20 +1093,28 @@ class BaseDatasetWriter(ABC):
         ...
 
     @abstractmethod
-    def initialize(self) -> None:
+    def initialize(self, info: DatasetInfo) -> None:
         """Abstract method for initializing the write process.
 
         Any setup tasks, such as creating necessary files or folders, should take place here.
         The working directory is temporarily set to the save directory during this method.
+
+        Args:
+            info (DatasetInfo): Information about the dataset to be written, including metadata
+                and configuration details.
         """
         ...
 
     @abstractmethod
-    def finalize(self) -> None:
+    def finalize(self, info: DatasetInfo) -> None:
         """Abstract method for finalizing the write process.
 
         This method should handle any cleanup or final write operations after all samples
         have been processed. The working directory is temporarily set to the save directory
         during this method.
+
+        Args:
+            info (DatasetInfo): Information about the dataset to be written, including metadata
+                and configuration details.
         """
         ...

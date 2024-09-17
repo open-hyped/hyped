@@ -5,6 +5,7 @@ The dataset is sharded, with each worker writing to a separate JSON file. Each s
 serialized using :code:`orjson` for efficient performance.
 """
 import orjson
+from datasets import DatasetInfo
 
 from hyped.common._worker import get_worker_info
 from hyped.common.typing import Sample
@@ -20,7 +21,7 @@ class JsonDatasetWriter(BaseDatasetWriter):
     according to its rank.
     """
 
-    def initialize(self) -> None:
+    def initialize(self, info: DatasetInfo) -> None:
         """Initialize the file for writing.
 
         This method is called at the start of the dataset writing process and
@@ -28,8 +29,11 @@ class JsonDatasetWriter(BaseDatasetWriter):
         in write-binary mode to store serialized JSON lines.
 
         The file is named using the worker's rank, in the format "shard-<rank>.json".
-
         The working directory is set to the save directory during this method.
+
+        Args:
+            info (DatasetInfo): Information about the dataset to be written, including metadata
+                and configuration details.
         """
         info = get_worker_info()
         info.ctx.file_path = f"shard-{info.rank}.json"
@@ -50,13 +54,16 @@ class JsonDatasetWriter(BaseDatasetWriter):
         info = get_worker_info()
         info.ctx.file.write(orjson.dumps(sample) + b"\n")
 
-    def finalize(self) -> None:
+    def finalize(self, info: DatasetInfo) -> None:
         """
         Finalize the writing process.
 
         This method closes the JSON file after all samples have been written.
-
         The working directory is set to the save directory during this method.
+
+        Args:
+            info (DatasetInfo): Information about the dataset to be written, including metadata
+                and configuration details.
         """
         info = get_worker_info()
         info.ctx.file.close()
