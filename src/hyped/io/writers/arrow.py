@@ -21,7 +21,7 @@ class ArrowDatasetWriter(BaseDatasetWriter):
     features to an Arrow schema and uses PyArrow for efficient serialization
     of the data.
 
-    The output is compatible with the Hugging Face Datasets library's `load_from_disk`
+    The output is compatible with the Hugging Face Datasets library's :func:`load_from_disk`
     function, making it easy to reload the saved dataset:
 
     .. code-block:: python

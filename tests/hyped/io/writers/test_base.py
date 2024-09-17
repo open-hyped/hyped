@@ -33,8 +33,8 @@ def worker(mock_connections):
         rank=0,
         num_workers=1,
         dataset_info=None,
-        tracker_conn=worker_tracker_conn,
         req_ctx_conn=worker_req_ctx_conn,
+        tracker_conn=worker_tracker_conn,
     )
 
 
@@ -164,7 +164,7 @@ class TestDynamicMultiprocessingRunner:
         finalizer = SharedMock()
         # run dynamic multiprocessing runner
         runner = DynamicMultiprocessingRunner(num_workers=2)
-        runner.run(ds.info, ds, processor, finalizer)
+        runner.run(ds, ds.info, processor, finalizer)
         # make sure all samples have been processed
         finalizer.assert_has_calls(
             [call((0, {"obj": i})) for i in range(num_samples)], same_order=False

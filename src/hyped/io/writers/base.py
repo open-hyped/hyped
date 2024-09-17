@@ -1,53 +1,8 @@
-"""
+"""Base Module for dynamic multiprocessing and dataset consumption.
 
-TODO:
-
-Error handling:
-- Error Handling in Workers: Each worker should catch exceptions during task processing and skip to
-  the next sample instead of crashing.
-- Error Logging: Workers will log errors, including details like the task, error message, and
-  traceback.
-- Shared Error Log: Use a thread-safe structure (e.g., Queue) to collect errors from all workers
-  and pass them back to the main process.
-- User-Accessible Error Log: After processing, the consumer will provide access to the error log
-  via a method (e.g., get_errors()) for user inspection.
-- No Retries: Tasks will not be retried upon failure; they will simply be logged and skipped.
-
-Error log content:
-- Worker rank: Identifies which worker process encountered the error.
-- Sample index: Indicates which sample in the dataset caused the error.
-- Error message: A description of the error that occurred.
-- Error type: The specific type of error (e.g., ValueError, TypeError).
-- Traceback: A detailed stack trace for debugging purposes.
-
-Worker & Group Monitoring:
-- Monitor Idle Time of worker
-- Monitor Idle Time of consumer process in group
-- Monitor Average Idle Time of worker process in group
-
-DONE:
-
-Separate Dataset from Transformation:
-- datasets.iterable_dataset._BaseExamplesIterable wraps dataset (nested)
-- wrap source dataset at lowest level in thread-safe iterable
-  - manages a queue which some prefetch size that the object always fills up with source samples
-  - iterable iterates over the queue
-  - maybe include batching logic for reduced communication overhead
-- exchange source dataset with iterable dataset build from thread-safe iterable
-
-Worker Groups & Processing Strategies:
-- If a worker group consists of only one worker, the worker uses the shard process stategy
-- If a worker group consists of more then one worker, the group uses the distributed process stategy
-- Worker groups are dynamically managed by the main process based on ressource usage
-
-Dynamic Group Management:
-- Worker Groups are build based on ressource usage and remaining shards to process
-- Initial Worker Groups:
-  - Number of Shards >= Number of Workers: N groups of size 1
-  - Number of Shards < Number of Workers:  1 group of size N
-- Dynamic Group Updates:
-  - 
-  
+This module provides high-level functionality for processing large datasets using a dynamic
+multiprocessing system. It includes utilities for managing worker processes, tracking progress,
+and implementing custom dataset writers.
 """
 from __future__ import annotations
 
@@ -113,9 +68,35 @@ def _drop_key_and_apply(key_and_sample: tuple[str, Sample], fn: Callable[[Sample
 
 
 class WorkerRole(Enum):
+    """Enumeration of different roles a worker can assume during multiprocessing.
+
+    Workers can dynamically switch between these roles based on the current processing stage
+    and system needs.
+    """
+
     PROCESSOR = 0
+    """Role where the worker processes a shard of data independently. 
+
+    In this role, the worker is responsible for processing its assigned shard of the dataset
+    without interacting with other workers. This occurs in Stage 1 where each worker processes
+    a distinct shard.
+    """
+
     PRODUCER = 1
+    """Role where the worker produces data and adds it to a shared queue. 
+
+    In this role, the worker reads data from a shard and places it into the queue for further
+    processing by other workers. This occurs in Stage 2 when the system shifts to multi-worker
+    processing of a single shard.
+    """
+
     CONSUMER = 2
+    """Role where the worker consumes data from a shared queue for processing. 
+
+    In this role, the worker retrieves data from the queue (populated by a PRODUCER) and processes
+    it. This role is also part of Stage 2, where multiple workers collaborate on processing data
+    from a single shard.
+    """
 
 
 class Worker(mp.Process):
@@ -130,8 +111,9 @@ class Worker(mp.Process):
         rank: Rank,
         num_workers: int,
         dataset_info: DatasetInfo,
-        tracker_conn: mp.connection.Connection,
         req_ctx_conn: mp.connection.Connection,
+        tracker_conn: mp.connection.Connection,
+        tracker_update_interval: float = 0.1,
         worker_init: Callable[[], Any] = do_nothing,
         worker_finalize: Callable[[], Any] = do_nothing,
     ) -> None:
@@ -144,18 +126,21 @@ class Worker(mp.Process):
                 processing pipeline.
             dataset_info (DatasetInfo): Information about the dataset to be processed,
                 including relevant metadata or configuration details.
-            tracker_conn (mp.connection.Connection): A connection object used to
-                send updates to the progress tracker thread.
             req_ctx_conn (mp.connection.Connection): A connection object used to request
                 request a new processing context from the manager process.
-            worker_init (Callable[[], Any], optional): A callable function to initialize
-                the worker's state before processing begins. Defaults to :func:`do_nothing`.
-            worker_finalize (Callable[[], Any], optional): A callable function to finalize
-                the worker's state after processing is complete. Defaults to :func:`do_nothing`.
+            tracker_conn (mp.connection.Connection): A connection object used to
+                send updates to the progress tracker thread.
+            tracker_update_interval (float): The time interval, in seconds, between sending
+                progress updates to the tracker. Defaults to 0.1.
+            worker_init (Callable[[], Any]): A callable function to initialize the worker's
+                state before processing begins. Defaults to :func:`do_nothing`.
+            worker_finalize (Callable[[], Any]): A callable function to finalize the worker's
+                state after processing is complete. Defaults to :func:`do_nothing`.
         """
         super(Worker, self).__init__(daemon=True)
 
         self._tracker_conn = tracker_conn
+        self._tracker_update_interval = tracker_update_interval
 
         self._rank = rank
         self._num_workers = num_workers
@@ -255,9 +240,21 @@ class Worker(mp.Process):
         # return done
         return done, (prod is not None) or (proc is not None) or (fn is not None)
 
-    def _send_prog_to_tracker(
+    def _report_progress(
         self, role: WorkerRole | None, num_samples: int, producer_exhausted: bool, done: bool
     ) -> None:
+        """Send a progress update to the tracker.
+
+        This function reports the progress of the current worker to the tracker by sending
+        information about the worker's role, number of processed samples, producer status,
+        and whether the worker has finished processing.
+
+        Args:
+            role (WorkerRole | None): The current role of the worker.
+            num_samples (int): The number of samples processed by the worker since the last update.
+            producer_exhausted (bool): Whether the producer has exhausted all samples.
+            done (bool): Whether the worker has finished processing.
+        """
         self._tracker_conn.send((self._rank, role, num_samples, producer_exhausted, done))
 
     def run(self) -> None:
@@ -282,6 +279,8 @@ class Worker(mp.Process):
 
             # request a processing context
             while not self._request_new_ctx():
+                # report new context to tracker
+                self._report_progress(self._role, 0, False, False)
                 # create producer iterator to avoid resetting when
                 # new context is received during execution
                 producer_iter = iter(self._producer)
@@ -295,9 +294,9 @@ class Worker(mp.Process):
                     current_role = self._role
                     # create a stoppable producer that allows to dynamically
                     # interrupt the execution and apply the new context
-                    controllable_producer = StoppableIterator(producer_iter)
+                    stoppable_producer = StoppableIterator(producer_iter)
                     # apply the processor to the producer and apply the finalizer
-                    samples_iter = self._processor(controllable_producer)
+                    samples_iter = self._processor(stoppable_producer)
                     work_iter = map(self._finalizer, samples_iter)
 
                     for _ in work_iter:
@@ -309,7 +308,7 @@ class Worker(mp.Process):
                         # stop worker
                         if done:
                             # send progress to tracker
-                            self._send_prog_to_tracker(
+                            self._report_progress(
                                 current_role, num_samples, producer_exhausted, True
                             )
 
@@ -324,19 +323,21 @@ class Worker(mp.Process):
                         if new_ctx:
                             # stop the producer from generating further samples
                             # and exhaust the current samples generated by the producer
-                            controllable_producer.stop()
+                            stoppable_producer.stop()
                             for _ in work_iter:
                                 num_samples += 1
                             # send progress to tracker
-                            self._send_prog_to_tracker(
+                            self._report_progress(
                                 current_role, num_samples, producer_exhausted, False
                             )
                             # apply the new context
                             break
 
                         # send continuous updates to tracker
-                        if (num_samples > 0) and (time() - last_update > 0.1):
-                            self._send_prog_to_tracker(
+                        if (num_samples > 0) and (
+                            time() - last_update > self._tracker_update_interval
+                        ):
+                            self._report_progress(
                                 current_role, num_samples, producer_exhausted, False
                             )
                             num_samples = 0
@@ -347,13 +348,13 @@ class Worker(mp.Process):
                         producer_exhausted = True
 
                 # send final progress update before new requesting context
-                self._send_prog_to_tracker(current_role, num_samples, producer_exhausted, False)
+                self._report_progress(current_role, num_samples, producer_exhausted, False)
 
         except KeyboardInterrupt:  # pragma: not covered
             ...
 
         finally:
-            self._send_prog_to_tracker(None, 0, False, True)
+            self._report_progress(None, 0, False, True)
             try:
                 # finalize worker
                 self._worker_finalize()
@@ -373,8 +374,8 @@ class TqdmReporter(threading.Thread):
 
         Args:
             tracker (ProgressTracker): The :class:`ProgressTracker` instance to track progress.
-            update_interval (float, optional): The interval in seconds between progress updates.
-                Defaults to 0.1.
+            update_interval (float): The interval in seconds between progress updates. Defaults
+                to 0.1.
         """
         super(TqdmReporter, self).__init__(daemon=True)
         self.tracker = tracker
@@ -585,21 +586,14 @@ class DynamicMultiprocessingRunner(object):
 
     The processing is carried out in two distinct stages:
 
-    - **Stage 1:** Single-Shard Single-Worker
-      Each dataset shard is assigned to a single worker process. This ensures that each worker
-      handles only one shard at a time. The system tracks which workers are actively processing
-      data.
+    - **Stage 1: Single-Shard Single-Worker**
+      Each worker is assigned one dataset shard at a time, with minimal communication overhead,
+      maximizing throughput by keeping the workers busy with their assigned tasks.
 
-      This stage has minimal communication overhead while fully utilizing all workers.
-
-    - **Stage 2:** Single-Shard Multiple-Workers
-      Begins after all shards have been assigned in Stage 1. In this stage, a single shard is
-      processed by multiple workers. The workers are dynamically assigned as producers or consumers
-      based on their status:
-        - **Producers**: Add data to a queue.
-        - **Consumers**: Process data from the queue.
-      This approach maximizes the utilization of workers and maintains a continuous data flow until
-      all shards are processed.
+    - **Stage 2: Single-Shard Multiple-Workers**
+      After all shards are assigned, the system transitions into this stage, where multiple
+      workers process the same shard, dividing the roles into producers (feeding a queue) and
+      consumers (processing data from the queue).
 
     By transitioning to Stage 2, the system ensures efficient and parallel processing of data,
     optimizing performance and resource usage.
@@ -611,14 +605,26 @@ class DynamicMultiprocessingRunner(object):
         prefetch_factor: int = 8,
         worker_init: Callable[[], Any] = do_nothing,
         worker_finalize: Callable[[], Any] = do_nothing,
+        progress_update_interval: float = 0.1,
+        disable_progress_bar: bool = False,
     ) -> None:
         """Initialize the multiprocessing runner.
 
         Args:
             num_workers (int): The number of worker processes to create for parallel data
                 processing.
-            prefetch_factor (int, optional): The number of items that should be prefetched
-                in Stage 2 when using a queue. Default is 8.
+            prefetch_factor (int): The number of items per worker that should be prefetched in
+                Stage 2 when using a queue. Default is 8.
+            worker_init (Callable[[], Any]): A callable that will be invoked to initialize each
+                worker. This function will run before the worker starts processing data. Default
+                is a no-op function.
+            worker_finalize (Callable[[], Any]): A callable that will be invoked to finalize each
+                worker. This function will run after the worker has finished processing all data.
+                Default is a no-op function.
+            progress_update_interval (float): The interval (in seconds) at which the progress
+                tracker receives updates from the workers. Default is 0.1.
+            disable_progress_bar (bool): If set to True, the progress bar (tqdm) will be disabled
+                during processing. Default is False.
         """
 
         self._num_workers = num_workers
@@ -627,17 +633,22 @@ class DynamicMultiprocessingRunner(object):
         self._worker_init = worker_init
         self._worker_finalize = worker_finalize
 
+        self._progress_update_interval = progress_update_interval
+        self._disable_progress_bar = disable_progress_bar
+
     def run(
         self,
-        dataset_info: DatasetInfo,
         ds: IterableDataset,
+        dataset_info: DatasetInfo,
         processor: Callable[[IndexedSamplesIterable], IndexedSamplesIterable],
         finalizer: Callable[[IndexedSamplesIterable], Any],
     ) -> None:
         """Execute data processing using the worker processes.
 
         Args:
-            ds (IterableDataset): The dataset to process.
+            ds: (IterableDataset): The dataset to process.
+            dataset_info (DatasetInfo): Dataset information of the dataset after the processor is
+                applied.
             processor (Callable[[IndexedSamplesIterable], IndexedSamplesIterable]): The function to
                 process each sample.
             finalizer (Callable[[IndexedSamplesIterable], Any]): The function to finalize each
@@ -656,27 +667,31 @@ class DynamicMultiprocessingRunner(object):
             queue = manager.Queue(maxsize=self._num_workers * self._prefetch)
             iterable = QueueIterator(queue, sentinel=None, timeout=None)
 
-            # create the progress tracker and reporter threads
+            # create the progress tracker
             tracker = ProgressTracker(num_shards, self._num_workers, queue)
-            reporter = TqdmReporter(tracker)
+            tracker.start()
+
+            # create the reporter if asked for
+            reporter: None | TqdmReporter
+            if not self._disable_progress_bar:
+                reporter = TqdmReporter(tracker, update_interval=self._progress_update_interval)
+                reporter.start()
 
             # create all workers
             workers = [
                 Worker(
-                    rank,
-                    self._num_workers,
-                    dataset_info,
-                    tracker._send_prog_conn,
-                    worker_req_ctx_conn,
-                    self._worker_init,
-                    self._worker_finalize,
+                    rank=rank,
+                    num_workers=self._num_workers,
+                    dataset_info=dataset_info,
+                    req_ctx_conn=worker_req_ctx_conn,
+                    tracker_conn=tracker._send_prog_conn,
+                    tracker_update_interval=self._progress_update_interval,
+                    worker_init=self._worker_init,
+                    worker_finalize=self._worker_finalize,
                 )
                 for rank in range(self._num_workers)
             ]
 
-            # start the tracker and reporter thread
-            tracker.start()
-            reporter.start()
             # start all workers
             for worker in workers:
                 worker.start()
@@ -734,7 +749,7 @@ class DynamicMultiprocessingRunner(object):
                 # update consumer worker ranks
                 consumer_worker_ranks.update(idling_worker_ranks)
 
-            # put sentinel signal to queue
+            # put sentinel signal to queue, one per consumer worker
             for _ in consumer_worker_ranks:
                 queue.put(None)
 
@@ -749,7 +764,8 @@ class DynamicMultiprocessingRunner(object):
 
             # wait for tracker and reporter to join
             tracker.join()
-            reporter.join()
+            if not self._disable_progress_bar:
+                reporter.join()
 
 
 class ExamplesIterablePipeline(list[_BaseExamplesIterable]):
@@ -825,8 +841,8 @@ class DatasetConsumer(object):
 
         Args:
             fn (Callable[[Sample], Any]): The function to be applied to each sample in the dataset.
-            num_proc (int, optional): The number of processes to use for parallel processing.
-                Defaults to the number of cpus, meaning single-threaded execution.
+            num_proc (int): The number of processes to use for parallel processing. Defaults to the
+                number of cpus, meaning single-threaded execution.
         """
         self._fn = fn
         self._num_proc = num_proc
@@ -876,11 +892,20 @@ class DatasetConsumer(object):
 
         return src_ds, pipeline.copy()
 
-    def consume(self, ds: IterableDataset) -> None:
+    def consume(
+        self,
+        ds: IterableDataset,
+        tqdm_update_interval: float = 0.1,
+        disable_tqdm: bool = False,
+    ) -> None:
         """Process the dataset using worker processes.
 
         Args:
             ds (IterableDataset): The dataset to process.
+            progress_update_interval (float): The interval (in seconds) at which the progress
+                tracker receives updates from the workers. Default is 0.1.
+            disable_progress_bar (bool): If set to True, the progress bar (tqdm) will be
+                disabled during processing. Default is False.
         """
 
         if self._num_proc > 1:
@@ -894,8 +919,10 @@ class DatasetConsumer(object):
                 prefetch_factor=self._prefetch,
                 worker_init=self._initialize,
                 worker_finalize=self._finalize,
+                progress_update_interval=tqdm_update_interval,
+                disable_progress_bar=disable_tqdm,
             )
-            runner.run(ds.info, src_ds, processor, finalizer)
+            runner.run(src_ds, ds.info, processor, finalizer)
 
         else:
             # set the worker info
@@ -927,7 +954,7 @@ class BaseDatasetWriter(ABC):
     """Base class for writing datasets to disk.
 
     This class provides a framework for saving a dataset to a specified directory.
-    The folder structure and save format follow the Hugging Face :func:`save_to_disk`
+    The folder structure and save format follows the Hugging Face :func:`save_to_disk`
     structure, ensuring compatibility with datasets saved using this format.
 
     Subclasses should implement methods for writing individual samples, and initializing
@@ -946,11 +973,11 @@ class BaseDatasetWriter(ABC):
 
         Args:
             save_dir (str): Directory where the dataset will be saved.
-            overwrite (bool, optional): Whether to overwrite existing files in the save directory.
+            overwrite (bool): Whether to overwrite existing files in the save directory.
                 Defaults to False.
-            num_proc (int, optional): Number of processes to use for dataset processing. Defaults
+            num_proc (int): Number of processes to use for dataset processing. Defaults
                 to the number of CPU cores.
-            prefetch_factor (int, optional): Number of samples to prefetch for improved
+            prefetch_factor (int): Number of samples to prefetch for improved
                 performance. Defaults to 8.
         """
         self.save_dir = save_dir
