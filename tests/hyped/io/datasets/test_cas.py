@@ -44,7 +44,7 @@ class TestCasDataset:
             assert len(example["cassis.Entity:entityType"]) == len(example["cassis.Entity:begin"])
             assert len(example["cassis.Entity:entityType"]) == len(example["cassis.Entity:end"])
             # test relation annotation features
-            assert len(example["cassis.Relation:source"]) == 1
+            assert len(example["cassis.Relation:source"]) == 2
             assert len(example["cassis.Relation:source"]) == len(example["cassis.Relation:target"])
 
             # test entity content
@@ -60,13 +60,14 @@ class TestCasDataset:
                 if eType == "LOC":
                     assert text[begin:end] == "Baghdad"
 
+            # get index of the two entities
+            ORG = example["cassis.Entity:entityType"].index("ORG")
+            LOC = example["cassis.Entity:entityType"].index("LOC")
             # test relation content
-            for src, tgt in zip(
-                example["cassis.Relation:source"],
-                example["cassis.Relation:target"],
-            ):
-                assert example["cassis.Entity:entityType"][src] == "ORG"
-                assert example["cassis.Entity:entityType"][tgt] == "LOC"
+            relations = set(
+                list(zip(example["cassis.Relation:source"], example["cassis.Relation:target"]))
+            )
+            assert relations == {(ORG, LOC), (LOC, None)}
 
     def test_load_specific_types_only(self, data_dir, tmpdir):
         # load dataset

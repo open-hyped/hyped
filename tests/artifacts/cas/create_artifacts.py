@@ -36,7 +36,15 @@ def build_examples(path):
     org = Entity(begin=0, end=4, entityType="ORG")
     loc = Entity(begin=30, end=37, entityType="LOC")
     # add annotations
-    cas.add_all([org, loc, Relation(source=org, target=loc), Label(label="Document")])
+    cas.add_all(
+        [
+            org,
+            loc,
+            Relation(source=org, target=loc),
+            Relation(source=loc, target=None),
+            Label(label="Document"),
+        ]
+    )
     # save in json and xmi format
     cas.to_json(os.path.join(path, "cas.json"))
     cas.to_xmi(os.path.join(path, "cas.xmi"))
