@@ -250,8 +250,8 @@ class TestBaseDatasetWriter:
             # make sure the consumer is created and called correctly
             mock.assert_called_once_with(
                 writer.write_sample,
-                num_proc=writer.num_proc,
-                prefetch_factor=writer.prefetch,
+                num_proc=writer._num_proc,
+                prefetch_factor=writer._prefetch,
                 initialize=partial_mock(writer.initialize, ds.info),
                 finalize=partial_mock(writer.finalize, ds.info),
             )
