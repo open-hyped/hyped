@@ -145,6 +145,7 @@ class Worker(mp.Process):
         # context management connections
         self._req_ctx_conn = req_ctx_conn
         self._recv_ctx_conn, self._send_ctx_conn = mp.Pipe(duplex=False)
+        self._recv_ctx_done = mp.Event()
         # worker initializer and finalizer
         self._worker_init = worker_init
         self._worker_finalize = worker_finalize
@@ -153,6 +154,9 @@ class Worker(mp.Process):
         self._producer: Iterable[IndexedSample] | None = None
         self._processor: Callable[[Iterable[IndexedSample]], Iterable[IndexedSample]] | None = None
         self._finalizer: Callable[[IndexedSample], Any] | None = None
+
+        # set the event to avoid blocking the request of the first context
+        self._recv_ctx_done.set()
 
     def send_ctx(
         self,
@@ -173,7 +177,9 @@ class Worker(mp.Process):
             finalizer (Callable[[IndexedSample], Any] | None): The finalizer function.
             done (bool): Whether the context change is final.
         """
+        self._recv_ctx_done.clear()
         self._send_ctx_conn.send((role, producer, processor, finalizer, done))
+        self._recv_ctx_done.wait()
 
     def _request_new_ctx(self) -> bool:
         """Request new processing context from the main process.
@@ -181,39 +187,23 @@ class Worker(mp.Process):
         Returns:
             bool: Whether the worker has been instructed to stop.
         """
-        # request new context from main process
-        self._req_ctx_conn.send(self._rank)
+        # only ask for a new context if currently no new context
+        # is being received
+        if self._recv_ctx_done.is_set():
+            # request new context from main process
+            self._recv_ctx_done.clear()
+            self._req_ctx_conn.send(self._rank)
+
         # wait for new context to be received
-        done, new_ctx = self._recv_ctx(keep_producer=False)
-        assert new_ctx or done
+        return self._apply_ctx(self._recv_ctx())
 
-        return done
-
-    def _check_ctx(self) -> tuple[bool, bool]:
-        """Check if a new context is available.
-
-        Returns:
-            tuple[bool, bool]: A tuple where the first element indicates if the worker should stop,
-            and the second element indicates if new context was set.
-        """
-
-        # check if the worker was asked to apply a new context
-        if self._recv_ctx_conn.poll():
-            return self._recv_ctx(keep_producer=True)
-
-        return False, False
-
-    def _recv_ctx(self, keep_producer: bool) -> tuple[bool, bool]:
+    def _recv_ctx(self) -> tuple:
         """Receive and update the processing context.
 
         This method receives a new processing context from the worker's connection,
         updating the worker's pipeline with the new producer, processor, and finalizer
         functions. If :code:`keep_producer` is :code:`True`, the current producer is
         preserved, and only the processing stages are updated.
-
-        Args:
-            keep_producer (bool): Whether to keep the current producer. If :code:`True`,
-                the producer will not be updated from the received context.
 
         Returns:
             tuple[bool, bool]: A tuple where the first element indicates if the worker
@@ -224,22 +214,28 @@ class Worker(mp.Process):
             AssertionError: If :code:`keep_producer` is :code:`True` but a new producer was
                 reveived.
         """
-        # receive context
-        role, prod, proc, fn, done = self._recv_ctx_conn.recv()
+        # wait for new context
+        while not self._recv_ctx_conn.poll(timeout=1.0):
+            print("WAITING", self._rank)
 
-        # keep the producer and only change the processing stages of the pipeline
-        if keep_producer:
-            assert prod is None, (
-                f"Unexpected producer received while keeping the current producer "
-                f"(Rank {self._rank}, Prod {prod}, Cur {self._producer})."
-            )
-        # update context
+        # receive context
+        while self._recv_ctx_conn.poll():
+            ctx = self._recv_ctx_conn.recv()
+
+        return ctx
+
+    def _apply_ctx(self, ctx: tuple) -> bool:
+        # unpack the context
+        role, prod, proc, fn, done = ctx
+        # apply context to worker
         self._role = role if role is not None else self._role
         self._producer = prod if prod is not None else self._producer
         self._processor = proc if proc is not None else self._processor
         self._finalizer = fn if fn is not None else self._finalizer
-        # return done
-        return done, (prod is not None) or (proc is not None) or (fn is not None)
+        # set receive process done event
+        self._recv_ctx_done.set()
+
+        return done
 
     def _report_progress(
         self, role: WorkerRole | None, num_samples: int, producer_exhausted: bool, done: bool
@@ -277,8 +273,9 @@ class Worker(mp.Process):
             # initialize worker
             self._worker_init()
 
+            done = False
             # request a processing context
-            while not self._request_new_ctx():
+            while (not done) and (not self._request_new_ctx()):
                 # report new context to tracker
                 self._report_progress(self._role, 0, False, False)
                 # create producer iterator to avoid resetting when
@@ -295,63 +292,84 @@ class Worker(mp.Process):
                     # create a stoppable producer that allows to dynamically
                     # interrupt the execution and apply the new context
                     stoppable_producer = StoppableIterator(producer_iter)
-                    # apply the processor to the producer and apply the finalizer
-                    samples_iter = self._processor(stoppable_producer)
-                    work_iter = map(self._finalizer, samples_iter)
 
-                    for _ in work_iter:
-                        num_samples += 1
+                    try:
+                        # apply the processor to the producer and apply the finalizer
+                        samples_iter = self._processor(stoppable_producer)
+                        work_iter = map(self._finalizer, samples_iter)
 
-                        # check for a new context
-                        done, new_ctx = self._check_ctx()
+                        # main worker loop
+                        for _ in work_iter:
+                            num_samples += 1
 
-                        # stop worker
-                        if done:
-                            try:
-                                # finalize worker
-                                self._worker_finalize()
-                            except Exception:  # pragma: not covered
-                                ...
-                            finally:
+                            # check if the worker was asked to apply a new context
+                            if self._recv_ctx_conn.poll():
+                                # mark the worker as receiving a new process
+                                self._recv_ctx_done.clear()
+
+                                # receive and unpack context
+                                ctx = self._recv_ctx()
+                                _, prod, _, _, done = ctx
+
+                                # the producer is not allowed to change
+                                assert (
+                                    prod is None
+                                ), f"Unexpected producer received in worker with rank {self._rank}."
+
+                                if done:
+                                    # stop worker
+                                    raise StopIteration()
+
+                                # stop the producer from generating further samples
+                                # and exhaust the current samples generated by the producer
+                                stoppable_producer.stop()
+                                for _ in work_iter:
+                                    num_samples += 1
+
                                 # send progress to tracker
                                 self._report_progress(
-                                    current_role, num_samples, producer_exhausted, True
+                                    current_role, num_samples, producer_exhausted, False
                                 )
 
-                            return
+                                # apply the new context
+                                self._apply_ctx(ctx)
+                                break
 
-                        # apply new context
-                        if new_ctx:
-                            # stop the producer from generating further samples
-                            # and exhaust the current samples generated by the producer
-                            stoppable_producer.stop()
-                            for _ in work_iter:
-                                num_samples += 1
-                            # send progress to tracker
-                            self._report_progress(
-                                current_role, num_samples, producer_exhausted, False
-                            )
-                            # apply the new context
-                            break
+                            # send continuous updates to tracker
+                            if (num_samples > 0) and (
+                                time() - last_update > self._tracker_update_interval
+                            ):
+                                self._report_progress(
+                                    current_role, num_samples, producer_exhausted, False
+                                )
+                                num_samples = 0
+                                last_update = time()
 
-                        # send continuous updates to tracker
-                        if (num_samples > 0) and (
-                            time() - last_update > self._tracker_update_interval
-                        ):
-                            self._report_progress(
-                                current_role, num_samples, producer_exhausted, False
-                            )
-                            num_samples = 0
-                            last_update = time()
+                        else:
+                            # producer exhausted
+                            producer_exhausted = True
 
-                    else:
-                        # producer exhausted
+                    except StopIteration:
+                        # catch stop execution error
                         producer_exhausted = True
+
+                    except KeyboardInterrupt:  # pragma: not covered
+                        ...
+
+                    except Exception:
+                        # gracefully handle exceptions without stopping the worker
+                        # print("MINOR", self._rank, e)
+                        ...
 
                 # send final progress update before new requesting context
                 self._report_progress(current_role, num_samples, producer_exhausted, False)
 
         except KeyboardInterrupt:  # pragma: not covered
+            ...
+
+        except Exception:
+            # gracefully handle exception
+            # print("MAJOR", self._rank, e)
             ...
 
         finally:
@@ -719,11 +737,20 @@ class DynamicMultiprocessingRunner(object):
             while len(running_worker_ranks) > 0:
                 # collect all idling workers
                 idling_worker_ranks = {req_ctx_conn.recv()}
-                while req_ctx_conn.poll(timeout=0.01):
+                while req_ctx_conn.poll(timeout=0.1):
                     idling_worker_ranks.add(req_ctx_conn.recv())
 
                 # update running ranks
                 running_worker_ranks -= idling_worker_ranks
+
+                # use idling ranks as consumers
+                for rank in idling_worker_ranks:
+                    workers[rank].send_ctx(
+                        WorkerRole.CONSUMER, iterable, processor, finalizer, False
+                    )
+
+                # update consumer worker ranks
+                consumer_worker_ranks.update(idling_worker_ranks)
 
                 if len(running_worker_ranks) > 0:
                     if (producer_worker_rank is None) or (
@@ -738,15 +765,6 @@ class DynamicMultiprocessingRunner(object):
                 else:
                     # no worker running that could act as producer
                     producer_worker_rank = None
-
-                # use idling ranks as consumers
-                for rank in idling_worker_ranks:
-                    workers[rank].send_ctx(
-                        WorkerRole.CONSUMER, iterable, processor, finalizer, False
-                    )
-
-                # update consumer worker ranks
-                consumer_worker_ranks.update(idling_worker_ranks)
 
             # put sentinel signal to queue, one per consumer worker
             for _ in consumer_worker_ranks:
