@@ -47,6 +47,7 @@ class TestWorker:
         processor = "PROCESSOR"
         finalizer = "FINALIZER"
 
+        worker._recv_ctx_done = MagicMock()
         # send new context before worker request to avoid deadlock
         worker.send_ctx(role, producer, processor, finalizer, False)
         worker._request_new_ctx()
@@ -60,38 +61,11 @@ class TestWorker:
         assert worker._processor == processor
         assert worker._finalizer == finalizer
 
-    def test_check_ctx(self, worker):
-        role = WorkerRole.PROCESSOR
-        producer = "PRODUCER"
-        processor = "PROCESSOR"
-        finalizer = "FINALIZER"
-
-        # no context update send
-        done, new_ctx = worker._check_ctx()
-        assert done is False
-        assert new_ctx is False
-
-        # send context update
-        worker.send_ctx(role, None, processor, finalizer, False)
-        done, new_ctx = worker._check_ctx()
-
-        assert done is False
-        assert new_ctx is True
-        # check worker context
-        assert worker._role == role
-        assert worker._processor == processor
-        assert worker._finalizer == finalizer
-
-        # send invalid worker context
-        with pytest.raises(AssertionError):
-            # producer not allowed
-            worker.send_ctx(role, producer, processor, finalizer, False)
-            worker._check_ctx()
-
     @patch("hyped.io.writers.base.set_worker_info")
     def test_run(self, mock_set_worker_info, worker):
         processor_marker = MagicMock()
 
+        worker._tracker_update_interval = 0.0
         # set up worker
         worker._worker_init = MagicMock()
         worker._worker_finalize = MagicMock()
@@ -121,12 +95,17 @@ class TestWorker:
         worker._finalizer = MagicMock()
         # mock request new and check context
         worker._request_new_ctx = MagicMock(side_effect=[True, False].pop)
-        worker._check_ctx = MagicMock(return_value=(False, True))
+
+        worker._recv_ctx_conn = MagicMock()
+        worker._recv_ctx_conn.poll = MagicMock(return_value=True)
+
+        worker._recv_ctx = MagicMock(return_value=(None, None, None, None, False))
 
         worker.run()
 
         mock_set_worker_info.assert_called_once()
         # make sure all samples have been processed
+        assert len(worker._recv_ctx.mock_calls) == 3
         worker._finalizer.assert_has_calls(
             [call(processor_marker(x)) for x in worker._producer], any_order=True
         )
@@ -140,15 +119,51 @@ class TestWorker:
         worker._finalizer = MagicMock()
         # mock request new and check context
         worker._request_new_ctx = MagicMock(side_effect=[True, False].pop)
-        worker._check_ctx = MagicMock(return_value=(True, True))
+
+        worker._recv_ctx_conn = MagicMock()
+        worker._recv_ctx_conn.poll = MagicMock(return_value=True)
+
+        worker._recv_ctx = MagicMock(return_value=(None, None, None, None, True))
 
         worker.run()
 
         mock_set_worker_info.assert_called_once()
         # make sure all samples have been processed
+        assert len(worker._recv_ctx.mock_calls) == 1
         worker._finalizer.assert_has_calls(
-            [call(processor_marker(x)) for x in worker._producer[:1]], any_order=True
+            [call(processor_marker(worker._producer[0]))], any_order=True
         )
+
+    @patch("hyped.io.writers.base.set_worker_info")
+    def test_error_logging(self, mock_set_worker_info, worker):
+        # set up worker
+        worker._producer = [MagicMock(), MagicMock(), MagicMock()]
+        worker._processor = _passthrough
+        worker._finalizer = MagicMock(side_effect=RuntimeError)
+        # mock request new and check context
+        worker._logger = MagicMock()
+        worker._logger.error = MagicMock()
+        # mock request new context and run worker
+        worker._request_new_ctx = MagicMock(side_effect=[True, False].pop)
+        worker.run()
+        # make sure errors were logged
+        assert len(worker._logger.error.mock_calls) == 3
+
+        worker._logger.error.reset_mock()
+        worker._worker_init = MagicMock(side_effect=RuntimeError)
+        # mock request new context and run worker
+        worker._request_new_ctx = MagicMock(side_effect=[True, False].pop)
+        worker.run()
+        # make sure errors were logged
+        worker._logger.error.assert_called_once()
+
+        worker._logger.error.reset_mock()
+        worker._worker_finalize = MagicMock(side_effect=RuntimeError)
+        # mock request new context and run worker
+        worker._request_new_ctx = MagicMock(side_effect=[True, False].pop)
+        worker.run()
+        # make sure errors were logged
+        assert len(worker._logger.error.mock_calls) == 2
 
 
 class TestDynamicMultiprocessingRunner:

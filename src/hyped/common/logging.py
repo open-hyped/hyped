@@ -21,7 +21,7 @@ def setup_logging() -> None:
     console output and one for logging to a file. Both use the same custom format, including
     the timestamp, log level, logger name, and message.
     """
-    default_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    default_level = os.getenv("LOG_LEVEL", "WARNING").upper()
 
     logging_config = {
         "version": 1,

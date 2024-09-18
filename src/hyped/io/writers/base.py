@@ -283,7 +283,10 @@ class Worker(mp.Process):
         # set receive process done event
         self._recv_ctx_done.set()
 
-        self._logger.debug(f"Applied new context with role {self._role.name}.")
+        self._logger.debug(
+            f"Applied new context with role "
+            f"`{self._role.name if self._role is not None else None}`."
+        )
 
         return done
 
@@ -427,7 +430,7 @@ class Worker(mp.Process):
                 # finalize worker
                 self._worker_finalize()
                 self._logger.info("Worker finalized successfully.")
-            except Exception as e:  # pragma: not covered
+            except Exception as e:
                 self._logger.error(f"Error finalizing worker: {str(e)}.", exc_info=True)
             finally:
                 # tell tracker that worker terminated
