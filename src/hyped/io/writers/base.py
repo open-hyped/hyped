@@ -21,7 +21,7 @@ from functools import partial
 from itertools import count
 from queue import Queue
 from time import time
-from typing import Any, Callable, Iterable, TypeVar
+from typing import Any, Callable, Iterable, TypeAlias, TypeVar
 
 import datasets
 from datasets import Dataset, DatasetDict, DatasetInfo, IterableDataset, IterableDatasetDict
@@ -35,10 +35,11 @@ from tqdm.auto import tqdm
 from tqdm.std import EMA
 
 from hyped.common._worker import reset_worker_info, set_worker_info
+from hyped.common.logging import Logger, get_cls_logger
 from hyped.common.typing import DatasetType, Rank, Sample
 from hyped.common.utils import QueueIterator, StoppableIterator, chdir
 
-IndexedSample = tuple[str, Sample]
+IndexedSample: TypeAlias = tuple[str, Sample]
 
 
 def do_nothing():
@@ -100,6 +101,34 @@ class WorkerRole(Enum):
     """
 
 
+ContextTuple: TypeAlias = tuple[
+    WorkerRole | None,
+    Iterable[IndexedSample],
+    Callable[[Iterable[IndexedSample]], Iterable[IndexedSample]] | None,
+    Callable[[IndexedSample], Any] | None,
+    bool,
+]
+"""Type alias representing the context passed to workers.
+
+This tuple defines the context used for setting up a worker's role, producer,
+processing function, finalizer function, and a completion flag.
+
+Elements:
+    - WorkerRole | None: The role assigned to the worker (e.g., producer, processor),
+      or None if the role remains unchanged.
+    - Iterable[IndexedSample]: The producer for the worker, providing an iterable
+      over indexed samples that the worker will process.
+    - Callable[[Iterable[IndexedSample]], Iterable[IndexedSample]] | None: The processing
+      function that transforms the produced samples. It accepts an iterable of
+      indexed samples and returns an iterable of transformed samples. If None,
+      no processing function is applied.
+    - Callable[[IndexedSample], Any] | None: The finalizer function applied to each
+      individual sample after processing, or None if no finalizer is needed.
+    - bool: A flag indicating whether the context application is complete and
+      the worker should stop processing.
+"""
+
+
 class Worker(mp.Process):
     """A worker process for parallel data processing.
 
@@ -154,9 +183,16 @@ class Worker(mp.Process):
         self._producer: Iterable[IndexedSample] | None = None
         self._processor: Callable[[Iterable[IndexedSample]], Iterable[IndexedSample]] | None = None
         self._finalizer: Callable[[IndexedSample], Any] | None = None
-
         # set the event to avoid blocking the request of the first context
         self._recv_ctx_done.set()
+
+        # create logger
+        self._logger = get_cls_logger(type(self))
+
+        # Log initialization details
+        self._logger.debug(
+            f"Created worker with rank {self._rank} of {self._num_workers} total workers."
+        )
 
     def send_ctx(
         self,
@@ -180,6 +216,7 @@ class Worker(mp.Process):
         self._recv_ctx_done.clear()
         self._send_ctx_conn.send((role, producer, processor, finalizer, done))
         self._recv_ctx_done.wait()
+        self._logger.debug("Sent new context to worker.")
 
     def _request_new_ctx(self) -> bool:
         """Request new processing context from the main process.
@@ -190,6 +227,7 @@ class Worker(mp.Process):
         # only ask for a new context if currently no new context
         # is being received
         if self._recv_ctx_done.is_set():
+            self._logger.debug("Requesting new context from main process.")
             # request new context from main process
             self._recv_ctx_done.clear()
             self._req_ctx_conn.send(self._rank)
@@ -197,7 +235,7 @@ class Worker(mp.Process):
         # wait for new context to be received
         return self._apply_ctx(self._recv_ctx())
 
-    def _recv_ctx(self) -> tuple:
+    def _recv_ctx(self) -> ContextTuple:
         """Receive and update the processing context.
 
         This method receives a new processing context from the worker's connection,
@@ -206,25 +244,35 @@ class Worker(mp.Process):
         preserved, and only the processing stages are updated.
 
         Returns:
-            tuple[bool, bool]: A tuple where the first element indicates if the worker
-            should stop, and the second element indicates if any new context has been
-            applied.
-
-        Raises:
-            AssertionError: If :code:`keep_producer` is :code:`True` but a new producer was
-                reveived.
+            ContextTuple: A tuple containing the received context.
         """
         # wait for new context
         while not self._recv_ctx_conn.poll(timeout=1.0):
-            print("WAITING", self._rank)
+            self._logger.debug("Waiting for new context...")
 
         # receive context
         while self._recv_ctx_conn.poll():
             ctx = self._recv_ctx_conn.recv()
 
+        self._logger.debug("Received new context.")
+
         return ctx
 
-    def _apply_ctx(self, ctx: tuple) -> bool:
+    def _apply_ctx(self, ctx: ContextTuple) -> bool:
+        """Apply context to the worker.
+
+        This method updates the worker's internal attributes based on the provided context.
+        Each context element (role, producer, processor, finalizer) is conditionally applied,
+        meaning if the element is :code:`None`, the corresponding worker attribute remains
+        unchanged.
+
+        The method also triggers an event to signal that the context has been successfully received
+        and applied. Additionally, it logs the applied role for debugging purposes.
+
+        Returns:
+            bool: The :code:`done` flag, which indicates if the process using this context should
+            be completed.
+        """
         # unpack the context
         role, prod, proc, fn, done = ctx
         # apply context to worker
@@ -235,11 +283,11 @@ class Worker(mp.Process):
         # set receive process done event
         self._recv_ctx_done.set()
 
+        self._logger.debug(f"Applied new context with role {self._role.name}.")
+
         return done
 
-    def _report_progress(
-        self, role: WorkerRole | None, num_samples: int, producer_exhausted: bool, done: bool
-    ) -> None:
+    def _report_progress(self, num_samples: int, producer_exhausted: bool, done: bool) -> None:
         """Send a progress update to the tracker.
 
         This function reports the progress of the current worker to the tracker by sending
@@ -247,12 +295,12 @@ class Worker(mp.Process):
         and whether the worker has finished processing.
 
         Args:
-            role (WorkerRole | None): The current role of the worker.
             num_samples (int): The number of samples processed by the worker since the last update.
             producer_exhausted (bool): Whether the producer has exhausted all samples.
             done (bool): Whether the worker has finished processing.
         """
-        self._tracker_conn.send((self._rank, role, num_samples, producer_exhausted, done))
+        self._tracker_conn.send((self._rank, self._role, num_samples, producer_exhausted, done))
+        self._logger.debug("Reported progress to tracker.")
 
     def run(self) -> None:
         """Start the worker process.
@@ -272,12 +320,13 @@ class Worker(mp.Process):
         try:
             # initialize worker
             self._worker_init()
+            self._logger.info("Initialization complete.")
 
             done = False
             # request a processing context
             while (not done) and (not self._request_new_ctx()):
                 # report new context to tracker
-                self._report_progress(self._role, 0, False, False)
+                self._report_progress(0, False, False)
                 # create producer iterator to avoid resetting when
                 # new context is received during execution
                 producer_iter = iter(self._producer)
@@ -288,12 +337,13 @@ class Worker(mp.Process):
                     num_samples = 0
                     last_update = time()
 
-                    current_role = self._role
                     # create a stoppable producer that allows to dynamically
                     # interrupt the execution and apply the new context
                     stoppable_producer = StoppableIterator(producer_iter)
 
                     try:
+                        self._logger.debug(f"Starting processing with role {self._role}.")
+
                         # apply the processor to the producer and apply the finalizer
                         samples_iter = self._processor(stoppable_producer)
                         work_iter = map(self._finalizer, samples_iter)
@@ -304,7 +354,9 @@ class Worker(mp.Process):
 
                             # check if the worker was asked to apply a new context
                             if self._recv_ctx_conn.poll():
-                                # mark the worker as receiving a new process
+                                self._logger.debug("Detected context update request.")
+
+                                # mark the worker as receiving a new context
                                 self._recv_ctx_done.clear()
 
                                 # receive and unpack context
@@ -318,6 +370,7 @@ class Worker(mp.Process):
 
                                 if done:
                                     # stop worker
+                                    self._logger.info("Received 'done' signal, stopping.")
                                     raise StopIteration()
 
                                 # stop the producer from generating further samples
@@ -327,9 +380,7 @@ class Worker(mp.Process):
                                     num_samples += 1
 
                                 # send progress to tracker
-                                self._report_progress(
-                                    current_role, num_samples, producer_exhausted, False
-                                )
+                                self._report_progress(num_samples, producer_exhausted, False)
 
                                 # apply the new context
                                 self._apply_ctx(ctx)
@@ -339,14 +390,13 @@ class Worker(mp.Process):
                             if (num_samples > 0) and (
                                 time() - last_update > self._tracker_update_interval
                             ):
-                                self._report_progress(
-                                    current_role, num_samples, producer_exhausted, False
-                                )
+                                self._report_progress(num_samples, producer_exhausted, False)
                                 num_samples = 0
                                 last_update = time()
 
                         else:
                             # producer exhausted
+                            self._logger.info("Finished processing current context.")
                             producer_exhausted = True
 
                     except StopIteration:
@@ -354,33 +404,36 @@ class Worker(mp.Process):
                         producer_exhausted = True
 
                     except KeyboardInterrupt:  # pragma: not covered
-                        ...
+                        self._logger.warning("Worker interrupted by user.")
 
-                    except Exception:
+                    except Exception as e:
                         # gracefully handle exceptions without stopping the worker
-                        # print("MINOR", self._rank, e)
-                        ...
+                        self._logger.error(
+                            f"Unexpected error during processing: {str(e)}.", exc_info=True
+                        )
 
                 # send final progress update before new requesting context
-                self._report_progress(current_role, num_samples, producer_exhausted, False)
+                self._report_progress(num_samples, producer_exhausted, False)
 
         except KeyboardInterrupt:  # pragma: not covered
-            ...
+            self._logger.warning("Worker interrupted by user.")
 
-        except Exception:
+        except Exception as e:
             # gracefully handle exception
-            # print("MAJOR", self._rank, e)
-            ...
+            self._logger.error(f"Unexpected error during processing: {str(e)}.", exc_info=True)
 
         finally:
             try:
                 # finalize worker
                 self._worker_finalize()
-            except Exception:  # pragma: not covered
-                pass
+                self._logger.info("Worker finalized successfully.")
+            except Exception as e:  # pragma: not covered
+                self._logger.error(f"Error finalizing worker: {str(e)}.", exc_info=True)
             finally:
                 # tell tracker that worker terminated
-                self._report_progress(None, 0, False, True)
+                self._report_progress(0, False, True)
+
+        self._logger.info("Worker finished.")
 
 
 class TqdmReporter(threading.Thread):
@@ -399,8 +452,9 @@ class TqdmReporter(threading.Thread):
                 to 0.1.
         """
         super(TqdmReporter, self).__init__(daemon=True)
-        self.tracker = tracker
+        self._tracker = tracker
         self._update_interval = update_interval
+        self._logger = get_cls_logger(type(self))
 
     @property
     def _pbar_desc(self) -> str:
@@ -412,9 +466,9 @@ class TqdmReporter(threading.Thread):
         Returns:
             str: A string describing the progress bar status.
         """
-        counts = Counter(self.tracker._roles)
+        counts = Counter(self._tracker._roles)
         return (
-            f"Workers {self.tracker.num_busy_workers}/{self.tracker._num_workers} "
+            f"Workers {self._tracker.num_busy_workers}/{self._tracker._num_workers} "
             f"(S={counts[WorkerRole.PROCESSOR]}, "
             f"P={counts[WorkerRole.PRODUCER]}, "
             f"C={counts[WorkerRole.CONSUMER]})"
@@ -428,29 +482,40 @@ class TqdmReporter(threading.Thread):
         completion, performs one final update to ensure the progress bar reflects the latest state.
         """
 
+        self._logger.info("Thread started.")
+
         ema_dn = EMA(smoothing=0.3)
         ema_dt = EMA(smoothing=0.3)
 
-        with tqdm(total=self.tracker._num_shards, desc=self._pbar_desc) as pbar:
+        with tqdm(total=self._tracker._num_shards, desc=self._pbar_desc) as pbar:
+            self._logger.debug(
+                f"Initialized tqdm progress bar with {self._tracker._num_shards} total shards."
+            )
+
             prev_total_samples = 0
             prev_update_time = pbar._time()
 
             def _iter():
                 # iterate as long as the tracker is running
-                while not self.tracker._done.wait(timeout=self._update_interval):
+                while not self._tracker._done.wait(timeout=self._update_interval):
                     yield
                 # do a final update after the tracker finished
                 yield
 
             for _ in _iter():
                 # get current state
-                total_samples = self.tracker.total_consumed_samples
+                total_samples = self._tracker.total_consumed_samples
                 update_time = pbar._time()
 
                 # compute sample throughput
                 dn = total_samples - prev_total_samples
                 dt = update_time - prev_update_time
                 throughput = ema_dn(dn) / max(ema_dt(dt), 1e-5)
+
+                self._logger.debug(
+                    f"Updating progress: Total samples {total_samples}, "
+                    f"Throughput {throughput:.02f}ex/s"
+                )
 
                 # format total samples
                 formatting_string = "%d" if total_samples < 10**6 else "%.2e"
@@ -459,7 +524,7 @@ class TqdmReporter(threading.Thread):
                 pbar.set_description(self._pbar_desc, refresh=False)
                 pbar.set_postfix_str(
                     (
-                        f"{self.tracker._queue.qsize()}q, "
+                        f"{self._tracker._queue.qsize()}q, "
                         f"{throughput:.02f}ex/s, "
                         f"{formatted_total_samples}ex"
                     ),
@@ -470,7 +535,9 @@ class TqdmReporter(threading.Thread):
                 prev_update_time = update_time
 
                 # update the progress bar
-                pbar.update(self.tracker._finished_shards - pbar.n)
+                pbar.update(self._tracker._finished_shards - pbar.n)
+
+        self._logger.info("Thread finished.")
 
 
 class ProgressTracker(threading.Thread):
@@ -515,6 +582,8 @@ class ProgressTracker(threading.Thread):
         # event set by worker indicating that the process has finished
         self._done = threading.Event()
 
+        self._logger = get_cls_logger(type(self))
+
     @property
     def total_produced_samples(self) -> int:
         """Returns the total number of samples produced by all workers.
@@ -552,6 +621,10 @@ class ProgressTracker(threading.Thread):
             and whether the worker has terminated.
         """
         rank, role, num_samples, producer_exhausted, done = self._recv_prog_conn.recv()
+        self._logger.debug(
+            f"Received progress update: Rank {rank}, Role {role}, Samples {num_samples}, "
+            f"Producer exhausted {producer_exhausted}, Done {done}"
+        )
         return rank, role, num_samples, producer_exhausted, done
 
     @property
@@ -576,6 +649,7 @@ class ProgressTracker(threading.Thread):
 
         The thread continues running until all workers have stopped.
         """
+        self._logger.info("Thread started.")
 
         while self._stopped_workers < self._num_workers:
             if self._recv_prog_conn.poll(timeout=0.05):
@@ -587,17 +661,25 @@ class ProgressTracker(threading.Thread):
                     self._roles[rank] = role
                     self._num_samples[rank][role] += num_samples
 
-                if role in {WorkerRole.PROCESSOR, WorkerRole.PRODUCER}:
+                if producer_exhausted and (role in {WorkerRole.PROCESSOR, WorkerRole.PRODUCER}):
                     # update number of finished shards
-                    self._finished_shards += int(producer_exhausted)
+                    self._finished_shards += 1
+                    self._logger.debug(
+                        f"Finished shards incremented. Total finished shards: "
+                        f"{self._finished_shards}"
+                    )
 
                 if done:
                     # update number of stopped workers
                     self._stopped_workers += 1
                     self._roles[rank] = None
+                    self._logger.debug(
+                        f"Worker {rank} stopped. Total stopped workers: {self._stopped_workers}."
+                    )
 
         # set done event
         self._done.set()
+        self._logger.info("Thread finished.")
 
 
 class DynamicMultiprocessingRunner(object):
@@ -658,6 +740,8 @@ class DynamicMultiprocessingRunner(object):
         self._progress_update_interval = progress_update_interval
         self._disable_progress_bar = disable_progress_bar
 
+        self._logger = get_cls_logger(type(self))
+
     def run(
         self,
         ds: IterableDataset,
@@ -674,10 +758,13 @@ class DynamicMultiprocessingRunner(object):
                 sample.
         """
 
+        self._logger.info("Starting data processing.")
+
         with mp.Manager() as manager:
             # prepare the dataset
             num_shards = ds.n_shards
             ds = ds._prepare_ex_iterable_for_iteration(batch_size=self._prefetch)
+            self._logger.info("Number of shards: %d", num_shards)
 
             # create connection for workers to request new context
             req_ctx_conn, worker_req_ctx_conn = mp.Pipe(duplex=False)
@@ -689,12 +776,14 @@ class DynamicMultiprocessingRunner(object):
             # create the progress tracker
             tracker = ProgressTracker(num_shards, self._num_workers, queue)
             tracker.start()
+            self._logger.info("Progress tracker started.")
 
             # create the reporter if asked for
             reporter: None | TqdmReporter
             if not self._disable_progress_bar:
                 reporter = TqdmReporter(tracker, update_interval=self._progress_update_interval)
                 reporter.start()
+                self._logger.info("TqdmReporter started.")
 
             # create all workers
             workers = [
@@ -709,14 +798,18 @@ class DynamicMultiprocessingRunner(object):
                 )
                 for rank in range(self._num_workers)
             ]
+            self._logger.info(f"All {self._num_workers} workers created.")
 
             # start all workers
             for worker in workers:
                 worker.start()
 
+            self._logger.info("All workers started.")
+
             # keep track of all running workers
             running_worker_ranks: set[int] = set()
 
+            self._logger.info("Starting Stage 1: Single-Shard Single-Worker")
             # stage 1: shards available
             # whenever a group is idleing give it a new shard to process
             for shard_id in range(num_shards):
@@ -728,7 +821,10 @@ class DynamicMultiprocessingRunner(object):
                 worker.send_ctx(WorkerRole.PROCESSOR, shard, processor, finalizer, False)
                 running_worker_ranks.add(rank)
 
+                self._logger.info(f"Assigned shard {shard_id} to worker {rank}.")
+
             # Stage 2: all shards being processed
+            self._logger.info("Starting Stage 2: Single-Shard Multiple-Workers")
 
             # keep track of producer and consumer workers
             producer_worker_rank: None | int = None
@@ -740,6 +836,8 @@ class DynamicMultiprocessingRunner(object):
                 while req_ctx_conn.poll(timeout=0.1):
                     idling_worker_ranks.add(req_ctx_conn.recv())
 
+                self._logger.debug("Idling workers: %s", idling_worker_ranks)
+
                 # update running ranks
                 running_worker_ranks -= idling_worker_ranks
 
@@ -748,6 +846,7 @@ class DynamicMultiprocessingRunner(object):
                     workers[rank].send_ctx(
                         WorkerRole.CONSUMER, iterable, processor, finalizer, False
                     )
+                    self._logger.info(f"Assigned worker {rank} as consumer.")
 
                 # update consumer worker ranks
                 consumer_worker_ranks.update(idling_worker_ranks)
@@ -761,28 +860,35 @@ class DynamicMultiprocessingRunner(object):
                         workers[producer_worker_rank].send_ctx(
                             WorkerRole.PRODUCER, None, _passthrough, queue.put, False
                         )
+                        self._logger.info(f"Assigned worker {producer_worker_rank} as producer.")
 
                 else:
                     # no worker running that could act as producer
                     producer_worker_rank = None
 
+            self._logger.info("Sending sentinel signals to consumer workers.")
             # put sentinel signal to queue, one per consumer worker
             for _ in consumer_worker_ranks:
                 queue.put(None)
 
+            self._logger.info("Stopping all workers.")
             # send stop signal to all workers
             for _ in range(self._num_workers):
                 rank = req_ctx_conn.recv()
                 workers[rank].send_ctx(None, None, None, None, True)
 
+            self._logger.info("Waiting for all workers to join.")
             # wait for all workers to join
             for worker in workers:
                 worker.join()
 
+            self._logger.info("Waiting for tracker and reporter to join.")
             # wait for tracker and reporter to join
             tracker.join()
             if not self._disable_progress_bar:
                 reporter.join()
+
+        self._logger.info("Data processing completed.")
 
 
 class MainProcessRunner(object):
@@ -820,6 +926,8 @@ class MainProcessRunner(object):
         self._tqdm_update_interval = tqdm_update_interval
         self._disable_tqdm = disable_tqdm
 
+        self._logger = get_cls_logger(type(self))
+
     def run(self, ds: IterableDataset, fn: Callable[[Sample], Any]) -> None:
         """Execute data processing on the dataset.
 
@@ -832,26 +940,32 @@ class MainProcessRunner(object):
             ds (IterableDataset): The dataset to process.
             fn (Callable[[Sample], Any]): The function to apply to each sample in the dataset.
         """
+        self._logger.info("Preparing to run data processing on dataset.")
 
         # prepare the dataset
         ds = ds._prepare_ex_iterable_for_iteration(batch_size=self._batch_size)
         num_shards = ds.n_shards
+        self._logger.info(f"Dataset prepared with {num_shards} shards.")
+
         # prepare the function to apply
         fn = partial(_drop_key_and_apply, fn=fn)
 
         # create and start the tracker thread
         tracker = ProgressTracker(num_shards, 1, Queue())
         tracker.start()
+        self._logger.info("ProgressTracker started.")
 
         def _report_progress(num_samples, shard_exhausted, done):
             report = (0, WorkerRole.PROCESSOR, num_samples, shard_exhausted, done)
             tracker._send_prog_conn.send(report)
+            self._logger.debug(f"Reported progress: {num_samples} samples processed.")
 
         # create and start the reporter thread
         reporter: None | TqdmReporter
         if not self._disable_tqdm:
             reporter = TqdmReporter(tracker, update_interval=self._tqdm_update_interval)
             reporter.start()
+            self._logger.info("TqdmReporter started.")
 
         # set the worker info
         set_worker_info(rank=0, num_workers=1, seed=None)
@@ -859,6 +973,7 @@ class MainProcessRunner(object):
         try:
             # initialize the consumer
             self._initialize()
+            self._logger.info("Initialization complete.")
 
             last_update_samples = 0
             last_update_time = time()
@@ -866,6 +981,7 @@ class MainProcessRunner(object):
             counter = count(1)
             # consume the dataset one shard at a time
             for i in range(num_shards):
+                self._logger.info(f"Processing shard {i + 1}/{num_shards}.")
                 # get the current shard and apply the function to each sample
                 shard = ds.shard_data_sources(i, num_shards)
                 shard = map(fn, shard)
@@ -886,20 +1002,30 @@ class MainProcessRunner(object):
                 last_update_time = time()
 
         except KeyboardInterrupt:  # pragma: not covered
+            self._logger.warning("Processing interrupted by user.")
             raise
 
         finally:
             # report worker done
+            self._logger.info("Processing completed. Finalizing worker.")
             _report_progress(0, False, True)
 
             try:
                 # finalize the consumer
                 self._finalize()
-            except Exception:  # pragma: not covered
-                ...
+                self._logger.info("Worker finalized successfully.")
+            except Exception as e:  # pragma: not covered
+                self._logger.error(f"Error during worker finalization: {e}", exc_info=True)
 
             # reset the worker info
             reset_worker_info()
+
+        # ensure tracker and reporter threads are joined
+        tracker.join()
+        self._logger.info("ProgressTracker stopped.")
+        if not self._disable_tqdm:
+            reporter.join()
+            self._logger.info("TqdmReporter stopped.")
 
 
 class ExamplesIterablePipeline(list[_BaseExamplesIterable]):
@@ -956,6 +1082,10 @@ class ExamplesIterablePipeline(list[_BaseExamplesIterable]):
 
         yield from pipeline[-1]
 
+    def __str__(self) -> str:
+        """String representation of the pipeline."""
+        return "[" + ", ".join([type(step).__name__ for step in self]) + "]"
+
 
 class DatasetConsumer(object):
     """Consumes and processes a dataset.
@@ -1001,6 +1131,8 @@ class DatasetConsumer(object):
         self._tqdm_update_interval = tqdm_update_interval
         self._disable_tqdm = disable_tqdm
 
+        self._logger = get_cls_logger(type(self))
+
     def _prepare_dataset(
         self, ds: IterableDataset
     ) -> tuple[IterableDataset, Callable[[Iterable[Sample]], Iterable[Sample]]]:
@@ -1036,6 +1168,10 @@ class DatasetConsumer(object):
         ):
             pipeline.insert(0, pipeline.src_iterable)
 
+        self._logger.info(
+            f"Separated {len(pipeline)} processing steps from iterable dataset: {str(pipeline)}"
+        )
+
         # create the source dataaset that excludes the
         # pipeline processing steps
         src_ds = IterableDataset(ex_iterable=pipeline.src_iterable)
@@ -1050,6 +1186,7 @@ class DatasetConsumer(object):
         """
 
         if self._num_proc > 1:
+            self._logger.info("Running in multi-process mode.")
             # prepare the dataset and function to apply
             src_ds, processor = self._prepare_dataset(ds)
             finalizer = partial(_drop_key_and_apply, fn=self._fn)
@@ -1066,6 +1203,7 @@ class DatasetConsumer(object):
             runner.run(src_ds, processor, finalizer)
 
         else:
+            self._logger.info("Running in single-process mode.")
             # create the main process runner and run it
             runner = MainProcessRunner(
                 batch_size=self._prefetch,
@@ -1120,6 +1258,12 @@ class BaseDatasetWriter(ABC):
         self._tqdm_update_interval = tqdm_update_interval
         self._disable_tqdm = disable_tqdm
 
+        self._logger = get_cls_logger(type(self))
+
+    @property
+    def logger(self) -> Logger:
+        return self._logger
+
     def _write_info(self, ds: IterableDataset) -> None:
         """Write dataset information to a JSON file in the save directory.
 
@@ -1127,6 +1271,7 @@ class BaseDatasetWriter(ABC):
             ds (IterableDataset): The dataset object containing metadata to be saved.
         """
 
+        self._logger.info(f"Writing dataset info to {os.getcwd()}.")
         info = asdict(ds.info)
 
         with open(
@@ -1143,6 +1288,8 @@ class BaseDatasetWriter(ABC):
         Args:
             ds (IterableDataset): The dataset object containing state information to be saved.
         """
+
+        self._logger.info(f"Writing dataset state to {os.getcwd()}.")
 
         keys = (
             "_fingerprint",
@@ -1168,6 +1315,8 @@ class BaseDatasetWriter(ABC):
             ds (IterableDataset | Dataset): The dataset or iterable dataset to be written.
             save_dir (str): The directory where the split data will be saved.
         """
+
+        self._logger.info(f"Writing dataset split {ds.split} to {os.getcwd()}.")
 
         os.makedirs(save_dir, exist_ok=True)
         # convert dataset to iterable dataset
@@ -1207,6 +1356,7 @@ class BaseDatasetWriter(ABC):
                 )
             else:
                 # delete existing directory
+                self._logger.info("Deleting existing directory: {self.save_dir}.")
                 shutil.rmtree(self.save_dir)
 
         # create the save directory

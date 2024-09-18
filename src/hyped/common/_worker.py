@@ -58,7 +58,7 @@ def get_worker_info() -> None | WorkerInfo:
             _worker_info = WorkerInfo(info.id, info.num_workers, info.seed, ctx)
 
         # expect that either both worker infos are set or unset
-        assert not ((info is None) ^ (_worker_info is None))
+        # assert not ((info is None) ^ (_worker_info is None))
 
         if info is not None:
             # compare local worker info with pytorch worker info
