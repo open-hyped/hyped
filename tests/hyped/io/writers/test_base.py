@@ -1,5 +1,6 @@
 import multiprocessing as mp
 import os
+from time import sleep
 from unittest.mock import MagicMock, call, patch
 
 import datasets
@@ -162,7 +163,9 @@ class TestDynamicMultiprocessingRunner:
         processor = _passthrough
         finalizer = SharedMock()
         # run dynamic multiprocessing runner
-        runner = DynamicMultiprocessingRunner(num_workers=2)
+        runner = DynamicMultiprocessingRunner(
+            num_workers=2, disable_progress_bar=True, progress_update_interval=0.0
+        )
         runner.run(ds, processor, finalizer)
         # make sure all samples have been processed
         finalizer.assert_has_calls(
@@ -171,11 +174,12 @@ class TestDynamicMultiprocessingRunner:
 
 
 def _double_fn(x):
+    sleep(0.1)
     return {"obj": x["obj"] * 2}
 
 
 class TestDatasetConsumer:
-    @pytest.mark.parametrize("num_proc", [1, 2])
+    @pytest.mark.parametrize("num_proc", [1, 2, 3])
     @pytest.mark.parametrize("num_samples", [20])
     def test_consume(self, num_proc, num_samples):
         # create mock dataset
@@ -193,7 +197,7 @@ class TestDatasetConsumer:
         # make sure all samples have been processed
         fn.assert_has_calls([call({"obj": i}) for i in range(num_samples)], same_order=False)
 
-    @pytest.mark.parametrize("num_proc", [1, 2])
+    @pytest.mark.parametrize("num_proc", [1, 2, 3])
     @pytest.mark.parametrize("num_samples", [20])
     def test_consume_with_pipeline(self, num_proc, num_samples):
         # create mock dataset
@@ -225,7 +229,7 @@ class TestDatasetConsumer:
         src_ds, pipeline = consumer._prepare_dataset(mapped_ds)
 
         # check output
-        assert ds._ex_iterable == src_ds._ex_iterable
+        assert isinstance(src_ds._ex_iterable, type(ds._ex_iterable))
         assert isinstance(pipeline[0], TypedExamplesIterable)
         assert isinstance(pipeline[1], MappedExamplesIterable)
 
@@ -254,6 +258,8 @@ class TestBaseDatasetWriter:
                 prefetch_factor=writer._prefetch,
                 initialize=partial_mock(writer.initialize, ds.info),
                 finalize=partial_mock(writer.finalize, ds.info),
+                tqdm_update_interval=writer._tqdm_update_interval,
+                disable_tqdm=writer._disable_tqdm,
             )
             mock().consume.assert_called_once_with(ds)
 

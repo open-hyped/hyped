@@ -21,7 +21,7 @@ from functools import partial
 from itertools import count
 from queue import Queue
 from time import time
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, TypeVar
 
 import datasets
 from datasets import Dataset, DatasetDict, DatasetInfo, IterableDataset, IterableDatasetDict
@@ -46,12 +46,16 @@ def do_nothing():
     return
 
 
-def _passthrough(x: Any) -> Any:
+T = TypeVar("T")
+U = TypeVar("U")
+
+
+def _passthrough(x: T) -> T:
     """Identity function that returns the input unchanged."""
     return x
 
 
-def _drop_key_and_apply(key_and_sample: tuple[str, Sample], fn: Callable[[Sample], Any]) -> Any:
+def _drop_key_and_apply(key_and_sample: tuple[str, Sample], fn: Callable[[Sample], U]) -> U:
     """Apply a function to the sample part of a key-value tuple.
 
     Args:
@@ -214,7 +218,7 @@ class Worker(mp.Process):
         Returns:
             tuple[bool, bool]: A tuple where the first element indicates if the worker
             should stop, and the second element indicates if any new context has been
-            applied .
+            applied.
 
         Raises:
             AssertionError: If :code:`keep_producer` is :code:`True` but a new producer was
@@ -222,9 +226,13 @@ class Worker(mp.Process):
         """
         # receive context
         role, prod, proc, fn, done = self._recv_ctx_conn.recv()
+
         # keep the producer and only change the processing stages of the pipeline
         if keep_producer:
-            assert prod is None, "Unexpected producer received while keeping the current producer."
+            assert prod is None, (
+                f"Unexpected producer received while keeping the current producer "
+                f"(Rank {self._rank}, Prod {prod}, Cur {self._producer})."
+            )
         # update context
         self._role = role if role is not None else self._role
         self._producer = prod if prod is not None else self._producer
@@ -299,16 +307,17 @@ class Worker(mp.Process):
 
                         # stop worker
                         if done:
-                            # send progress to tracker
-                            self._report_progress(
-                                current_role, num_samples, producer_exhausted, True
-                            )
-
                             try:
                                 # finalize worker
                                 self._worker_finalize()
                             except Exception:  # pragma: not covered
                                 ...
+                            finally:
+                                # send progress to tracker
+                                self._report_progress(
+                                    current_role, num_samples, producer_exhausted, True
+                                )
+
                             return
 
                         # apply new context
@@ -346,12 +355,14 @@ class Worker(mp.Process):
             ...
 
         finally:
-            self._report_progress(None, 0, False, True)
             try:
                 # finalize worker
                 self._worker_finalize()
             except Exception:  # pragma: not covered
                 pass
+            finally:
+                # tell tracker that worker terminated
+                self._report_progress(None, 0, False, True)
 
 
 class TqdmReporter(threading.Thread):
@@ -692,7 +703,6 @@ class DynamicMultiprocessingRunner(object):
             # whenever a group is idleing give it a new shard to process
             for shard_id in range(num_shards):
                 shard = ds.shard_data_sources(shard_id, num_shards)
-                shard._event = manager.Event()
                 # wait for worker to request new context
                 rank = req_ctx_conn.recv()
                 worker = workers[rank]
@@ -709,7 +719,7 @@ class DynamicMultiprocessingRunner(object):
             while len(running_worker_ranks) > 0:
                 # collect all idling workers
                 idling_worker_ranks = {req_ctx_conn.recv()}
-                while req_ctx_conn.poll():
+                while req_ctx_conn.poll(timeout=0.01):
                     idling_worker_ranks.add(req_ctx_conn.recv())
 
                 # update running ranks
@@ -1014,11 +1024,8 @@ class DatasetConsumer(object):
 
         return src_ds, pipeline.copy()
 
-    def consume(
-        self,
-        ds: IterableDataset,
-    ) -> None:
-        """Process the dataset using worker processes.
+    def consume(self, ds: IterableDataset) -> None:
+        """Process the dataset.
 
         Args:
             ds (IterableDataset): The dataset to process.
