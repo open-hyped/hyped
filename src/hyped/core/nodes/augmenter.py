@@ -114,15 +114,17 @@ class BaseDataAugmenter(BaseNode[C, I, O], ABC):
         samples = (dict(zip(keys, values)) for values in zip(*inputs.values()))
 
         # apply process function to each sample
-        outputs = (self.process(sample, i, rank, io) for (i, sample) in zip(index, samples))
+        calls = (self.process(sample, i, rank, io) for (i, sample) in zip(index, samples))
 
-        # collect all outputs in case the process function
-        # is a coroutine
-        outputs = (
-            [[sample async for sample in gen] for gen in outputs]
-            if self._is_process_async
-            else list(map(list, outputs))
-        )
+        # collect all outputs
+        if self._is_process_async:
+            # collect from async generators
+            outputs = []
+            for call in calls:
+                outputs.append([sample async for sample in call])
+        else:
+            # collect from sync generators
+            outputs = list(map(list, calls))
 
         # build trace indices for each output sample
         trace_index = ([i] * len(out) for i, out in enumerate(outputs))
