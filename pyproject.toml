@@ -16,9 +16,9 @@ authors = [
 requires-python = ">=3.10"
 license = {text = "Apache 2.0"}
 dependencies = [
-    "datasets>=2.16.1",
+    "dill>=0.3.8",
+    "datasets>=3.0.0",
     "fsspec<=2023.9.2",
-    "torch>=2.2.1",
     "transformers>=4.36.2",
     "networkx>=3.1",
     "matplotlib>=3.8.2",
@@ -30,17 +30,23 @@ dependencies = [
 
 [project.optional-dependencies]
 linting = ["pre-commit"]
-tests = ["pytest", "pytest-cov", "pytest-asyncio"]
+tests = [
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "sharedmock@git+https://github.com/ScriptingSquirrel/python-sharedmock.git"
+]
 docs = ["sphinx", "sphinx_rtd_theme"]
 cas = ["dkpro-cassis>=0.8.0"]
 llm = ["openai>=1.23.6"]
+torch = ["torch>=2.2.1"]
 
 [build-system]
 requires = ["setuptools >= 61.0.0", "setuptools_scm>=8.0.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.coverage.run]
-concurrency = ["multiprocessing"]
+concurrency = ["multiprocessing","thread"]
 parallel = true
 sigterm = true
 data_file = "/tmp/.coverage"

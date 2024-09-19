@@ -1,76 +1,69 @@
-"""Json Data Writer."""
-import os
+"""Json Dataset Writer.
 
-import _io
+This module provides a dataset writer implementation for writing samples to a JSON file.
+The dataset is sharded, with each worker writing to a separate JSON file. Each sample is
+serialized using :code:`orjson` for efficient performance.
+"""
 import orjson
-from torch.utils.data._utils.worker import get_worker_info
+from datasets import DatasetInfo
 
-from hyped.common.typing import Index, Rank, Sample
+from hyped.common._worker import get_worker_info
+from hyped.common.typing import Sample
 
 from .base import BaseDatasetWriter
 
 
 class JsonDatasetWriter(BaseDatasetWriter):
-    """Json Dataset Writer.
+    """A dataset writer for saving data in JSON format.
 
-    Implements the `BaseDatasetWriter` class to write a dataset
-    to the disk in json-line format.
-
-    Arguments:
-        save_dir (str): the directory to save the dataset in
-        exist_ok (bool):
-            whether it is ok to write to the directory if it
-            already exists. Defaults to False.
-        num_proc (None | int):
-            The number of processes to use. Defaults to the number of
-            cpu cores available.
-        tqdm_kwargs (dict[str, Any]):
-            extra keyword arguments passed to the tqdm progress bar
-        tqdm_update_interval (float):
-            the update interval in seconds in which the tqdm bar
-            is updated
+    This class inherits from :code:`BaseDatasetWriter` and implements methods for writing
+    samples in a sharded manner. Each worker writes to a separate JSON file, named
+    according to its rank.
     """
 
-    def worker_shard_file_obj(self, path: str, worker_id: Rank) -> _io.TextIOWrapper:
-        """Worker Shard File Object.
+    def initialize(self, info: DatasetInfo) -> None:
+        """Initialize the file for writing.
 
-        Arguments:
-            path (str): path to store the file
-            worker_id (Rank): worker id
+        This method is called at the start of the dataset writing process and
+        creates a new JSON file specific to the worker's rank. The file is opened
+        in write-binary mode to store serialized JSON lines.
 
-        Returns:
-            f (_io.TextIOWrapper): file object to write the dataset to
+        The file is named using the worker's rank, in the format "shard-<rank>.json".
+        The working directory is set to the save directory during this method.
+
+        Args:
+            info (DatasetInfo): Information about the dataset to be written, including metadata
+                and configuration details.
         """
-        return open(os.path.join(path, "data_shard_%i.jsonl" % worker_id), "wb+")
+        info = get_worker_info()
+        info.ctx.file_path = f"shard-{info.rank}.json"
+        info.ctx.file = open(info.ctx.file_path, "wb")
 
-    def finalize_worker(self) -> None:
-        """Cleanup and close the save file."""
-        # finalize the worker
-        super(JsonDatasetWriter, self).finalize_worker()
-
-        worker_info = get_worker_info()
-        # check if the worker ouput file exists after finalization
-        # or if it got deleted because it was empty
-        if os.path.isfile(worker_info.args.save_file_path):
-            # remove trailing newline character when the file
-            # exists, i.e. contains content
-            with open(worker_info.args.save_file_path, "r+") as f:
-                f.seek(f.seek(0, os.SEEK_END) - 1, os.SEEK_SET)
-                f.truncate()
-
-    def consume_example(
-        self,
-        shard_id: Index,
-        example_id: Index,
-        example: Sample,
-    ) -> None:
-        """Encode an example in json and write it to the worker's save file.
-
-        Arguments:
-            shard_id (Index): dataset shard id
-            example_id (Index): example id in the current dataset shard
-            example (Sample): the example to consume
+    def write_sample(self, sample: Sample) -> None:
         """
-        # save example to file in json format
-        worker_info = get_worker_info()
-        worker_info.args.save_file.write(orjson.dumps(example) + b"\n")
+        Write an individual sample to the JSON file.
+
+        This method serializes the sample to JSON format using :code:`orjson` and writes it
+        as a line in the JSON file. Each sample is separated by a newline.
+
+        The working directory is set to the save directory during this method.
+
+        Args:
+            sample (Sample): The sample to be written, which will be serialized as JSON.
+        """
+        info = get_worker_info()
+        info.ctx.file.write(orjson.dumps(sample) + b"\n")
+
+    def finalize(self, info: DatasetInfo) -> None:
+        """
+        Finalize the writing process.
+
+        This method closes the JSON file after all samples have been written.
+        The working directory is set to the save directory during this method.
+
+        Args:
+            info (DatasetInfo): Information about the dataset to be written, including metadata
+                and configuration details.
+        """
+        info = get_worker_info()
+        info.ctx.file.close()

@@ -22,9 +22,9 @@ import numpy as np
 import pyarrow as pa
 from datasets.features.features import FeatureType
 from matplotlib import colormaps
-from torch.utils.data import get_worker_info
 
 from hyped.common._arrow import convert_features_to_arrow_schema
+from hyped.common._worker import get_worker_info
 from hyped.common.feature_checks import check_feature_equals
 from hyped.common.feature_key import FeatureKey
 from hyped.common.lazy_instance import LazyInstance
@@ -450,9 +450,9 @@ class DataFlow(object):
         assert self._executor is not None, "Flow has not been build yet."
 
         if rank is None:
-            # try to get multiprocessing rank from pytorch worker info
+            # try to get multiprocessing rank from worker info
             worker_info = get_worker_info()
-            rank = 0 if worker_info is None else worker_info.id
+            rank = 0 if worker_info is None else worker_info.rank
 
         # create a new event loop to execute the flow in
         loop = asyncio.new_event_loop()

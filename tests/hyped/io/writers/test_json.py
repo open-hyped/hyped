@@ -1,14 +1,23 @@
-import datasets
-import pytest
+import json
+import os
+
+from datasets import Dataset
 
 from hyped.io.writers.json import JsonDatasetWriter
-from tests.hyped.io.writers.base import BaseTestDatasetWriter
+
+from .base import BaseTestDatasetWriter
 
 
 class TestJsonDatasetWriter(BaseTestDatasetWriter):
-    @pytest.fixture
-    def writer(self, tmpdir, num_proc):
-        return JsonDatasetWriter(save_dir=tmpdir, exist_ok=True, num_proc=num_proc)
+    dataset = Dataset.from_dict({"obj": list(range(10))})
+    writer_type = JsonDatasetWriter
 
-    def load_dataset(self, tmpdir, features):
-        return datasets.load_dataset("json", data_files="%s/*.jsonl" % tmpdir, features=features)
+    def check(self) -> None:
+        cls = type(self)
+
+        assert "shard-0.json" in os.listdir(".")
+        with open("shard-0.json", "r") as f:
+            output_samples = list(map(json.loads, f.readlines()))
+
+        for actual, expected in zip(output_samples, cls.dataset):
+            assert actual == expected

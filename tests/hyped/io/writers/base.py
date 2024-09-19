@@ -1,67 +1,36 @@
-import json
 import os
 from abc import ABC, abstractmethod
+from typing import Any
 
-import datasets
 import pytest
+from datasets import Dataset
+
+from hyped.common.utils import chdir
+from hyped.io.writers.base import BaseDatasetWriter
 
 
 class BaseTestDatasetWriter(ABC):
-    @pytest.fixture(params=[2, 4, 8])
-    def num_proc(self, request):
-        return request.param
-
-    @pytest.fixture(params=[2, 4, 8])
-    def num_shards(self, request):
-        return request.param
+    dataset: Dataset
+    writer_type: type[BaseDatasetWriter]
+    writer_args: dict[str, Any] = {}
 
     @pytest.fixture
-    @abstractmethod
-    def writer(self, tmpdir, num_proc):
-        ...
+    def writer(self, tmp_path) -> BaseDatasetWriter:
+        cls = type(self)
+        # build keyword arguments
+        kwargs = cls.writer_args.copy()
+        kwargs["save_dir"] = os.path.join(tmp_path, "data")
+        kwargs["num_proc"] = 1
+        # create writer instance
+        return cls.writer_type(**kwargs)
 
     @abstractmethod
-    def load_dataset(self, tmpdir, features):
+    def check(self) -> None:
         ...
 
-    def assert_equal(self, a: dict, b: dict) -> bool:
-        assert a == b
-
-    @pytest.mark.parametrize("num_samples", [1024, 2048, 10000])
-    def test_with_dummy_data(self, writer, tmpdir, num_samples, num_shards):
-        # create dummy dataset
-        ds = datasets.Dataset.from_dict({"id": range(num_samples)})
-        ds = ds.to_iterable_dataset(num_shards=num_shards)
-        # write dataset
-        writer.consume(ds)
-        # load dataset features from disk
-        with open(os.path.join(str(tmpdir), "features.json"), "r") as f:
-            features = datasets.Features.from_dict(json.loads(f.read()))
-        assert features == ds.features
-        # load stored dataset
-        stored_ds = self.load_dataset(str(tmpdir), features)
-        stored_ds = stored_ds["train"].sort("id")
-        # check dataset
-        for i, item in enumerate(stored_ds):
-            self.assert_equal({"id": i}, item)
-
-    @pytest.mark.skip(reason="Tests with real datasets take forever.")
-    @pytest.mark.parametrize("dataset", ["conll2003", "imdb"])
-    def test_with_actual_data(self, writer, tmpdir, dataset):
-        # load dataset and add an index column to
-        # recover the original order after saving
-        ds = datasets.load_dataset(dataset, split="test")
-        ds = ds.add_column("__index__", range(len(ds)))
-        # shard and write it
-        ds = ds.to_iterable_dataset(num_shards=8)
-        writer.consume(ds)
-        # load dataset features from disk
-        with open(os.path.join(str(tmpdir), "features.json"), "r") as f:
-            features = datasets.Features.from_dict(json.loads(f.read()))
-        assert features == ds.features
-        # load stored dataset
-        stored_ds = self.load_dataset(str(tmpdir), features)
-        stored_ds = stored_ds["train"].sort("__index__")
-        # check dataset
-        for original, stored in zip(ds, stored_ds):
-            self.assert_equal(original, stored)
+    def test_case(self, writer):
+        # write dataset to disk
+        writer.write(type(self).dataset)
+        # check save directory
+        with chdir(writer.save_dir):
+            self.check()

@@ -13,6 +13,7 @@ used across different parts of the project, making the code more consistent and 
 
 from typing import Any
 
+from datasets import Dataset, DatasetDict, IterableDataset, IterableDatasetDict
 from typing_extensions import TypeAlias
 
 Sample: TypeAlias = dict[str, Any]
@@ -129,4 +130,19 @@ The tuple consists of:
 
 This type alias is typically used in scenarios where specific outputs from a graph's node need to
 be tracked or referenced.
+"""
+
+DatasetType: TypeAlias = Dataset | DatasetDict | IterableDataset | IterableDatasetDict
+"""Dataset Type Alias.
+
+Alias for the different dataset types supported, including:
+
+- :class:`Dataset`: A single dataset containing features and samples.
+- :class:`DatasetDict`: A dictionary-like structure containing multiple datasets, often split into
+  training, validation, and test sets.
+- :class:`IterableDataset`: A dataset that is lazily loaded, allowing for streaming data processing.
+- :class:`IterableDatasetDict`: A dictionary-like structure containing multiple iterable datasets.
+
+This type alias is used to represent any of the aforementioned dataset types when processing or 
+consuming datasets in various contexts.
 """
