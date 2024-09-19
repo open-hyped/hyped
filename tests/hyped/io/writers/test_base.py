@@ -47,13 +47,20 @@ class TestWorker:
         processor = "PROCESSOR"
         finalizer = "FINALIZER"
 
-        worker._recv_ctx_done = MagicMock()
-        # send new context before worker request to avoid deadlock
+        # mock context conn receiver to avoid deadlock
+        parent_ctx_conn_recv = worker._parent_ctx_conn.recv
+        worker._parent_ctx_conn.recv = MagicMock()
+
+        # send new context before worker request to avoid deadlock in worker
         worker.send_ctx(role, producer, processor, finalizer, False)
+        worker._parent_ctx_conn.recv.assert_called_once()
+
+        # request new context
         worker._request_new_ctx()
 
-        # check if worker asked for new context
+        # check if worker asked for new context and accepted the send context
         assert req_ctx_conn.recv() == worker._rank
+        assert parent_ctx_conn_recv() is True
 
         # check worker context
         assert worker._role == role
@@ -96,8 +103,8 @@ class TestWorker:
         # mock request new and check context
         worker._request_new_ctx = MagicMock(side_effect=[True, False].pop)
 
-        worker._recv_ctx_conn = MagicMock()
-        worker._recv_ctx_conn.poll = MagicMock(return_value=True)
+        worker._child_ctx_conn = MagicMock()
+        worker._child_ctx_conn.poll = MagicMock(return_value=True)
 
         worker._recv_ctx = MagicMock(return_value=(None, None, None, None, False))
 
@@ -120,8 +127,8 @@ class TestWorker:
         # mock request new and check context
         worker._request_new_ctx = MagicMock(side_effect=[True, False].pop)
 
-        worker._recv_ctx_conn = MagicMock()
-        worker._recv_ctx_conn.poll = MagicMock(return_value=True)
+        worker._child_ctx_conn = MagicMock()
+        worker._child_ctx_conn.poll = MagicMock(return_value=True)
 
         worker._recv_ctx = MagicMock(return_value=(None, None, None, None, True))
 

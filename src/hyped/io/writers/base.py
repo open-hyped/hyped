@@ -24,6 +24,7 @@ from time import time
 from typing import Any, Callable, Iterable, TypeAlias, TypeVar
 
 import datasets
+import dill
 from datasets import Dataset, DatasetDict, DatasetInfo, IterableDataset, IterableDatasetDict
 from datasets.iterable_dataset import (
     FilteredExamplesIterable,
@@ -173,8 +174,7 @@ class Worker(mp.Process):
         self._num_workers = num_workers
         # context management connections
         self._req_ctx_conn = req_ctx_conn
-        self._recv_ctx_conn, self._send_ctx_conn = mp.Pipe(duplex=False)
-        self._recv_ctx_done = mp.Event()
+        self._parent_ctx_conn, self._child_ctx_conn = mp.Pipe(duplex=True)
         # worker initializer and finalizer
         self._worker_init = worker_init
         self._worker_finalize = worker_finalize
@@ -183,8 +183,6 @@ class Worker(mp.Process):
         self._producer: Iterable[IndexedSample] | None = None
         self._processor: Callable[[Iterable[IndexedSample]], Iterable[IndexedSample]] | None = None
         self._finalizer: Callable[[IndexedSample], Any] | None = None
-        # set the event to avoid blocking the request of the first context
-        self._recv_ctx_done.set()
 
         # create logger
         self._logger = get_cls_logger(type(self))
@@ -201,7 +199,7 @@ class Worker(mp.Process):
         processor: Callable[[Iterable[IndexedSample]], Iterable[IndexedSample]] | None,
         finalizer: Callable[[IndexedSample], Any] | None,
         done: bool,
-    ) -> None:
+    ) -> bool:
         """
         Send new processing context to the worker.
 
@@ -212,11 +210,19 @@ class Worker(mp.Process):
                 processor function.
             finalizer (Callable[[IndexedSample], Any] | None): The finalizer function.
             done (bool): Whether the context change is final.
+
+        Returns:
+            bool: Boolean indicating whether the worker accepted the new context.
         """
-        self._recv_ctx_done.clear()
-        self._send_ctx_conn.send((role, producer, processor, finalizer, done))
-        self._recv_ctx_done.wait()
-        self._logger.debug("Sent new context to worker.")
+        # send serialized context
+        ctx = (role, producer, processor, finalizer, done)
+        self._parent_ctx_conn.send_bytes(dill.dumps(ctx))
+        # wait for feedback from worker
+        accepted = self._parent_ctx_conn.recv()
+        self._logger.debug(
+            f"Sent new context to worker, worker {'accpeted' if accepted else 'refused'}."
+        )
+        return accepted
 
     def _request_new_ctx(self) -> bool:
         """Request new processing context from the main process.
@@ -224,16 +230,21 @@ class Worker(mp.Process):
         Returns:
             bool: Whether the worker has been instructed to stop.
         """
-        # only ask for a new context if currently no new context
-        # is being received
-        if self._recv_ctx_done.is_set():
-            self._logger.debug("Requesting new context from main process.")
-            # request new context from main process
-            self._recv_ctx_done.clear()
-            self._req_ctx_conn.send(self._rank)
+
+        self._logger.debug("Requesting new context from main process.")
+        # request new context from main process
+        self._req_ctx_conn.send(self._rank)
 
         # wait for new context to be received
-        return self._apply_ctx(self._recv_ctx())
+        ctx = self._recv_ctx()
+
+        _, prod, _, _, done = ctx
+        if (prod is None) and not done:
+            # not accepted, expected new producer
+            self._child_ctx_conn.send(False)
+            return self._request_new_ctx()
+
+        return self._apply_ctx(ctx)
 
     def _recv_ctx(self) -> ContextTuple:
         """Receive and update the processing context.
@@ -247,13 +258,14 @@ class Worker(mp.Process):
             ContextTuple: A tuple containing the received context.
         """
         # wait for new context
-        while not self._recv_ctx_conn.poll(timeout=1.0):
+        while not self._child_ctx_conn.poll(timeout=1.0):
             self._logger.debug("Waiting for new context...")
 
         # receive context
-        while self._recv_ctx_conn.poll():
-            ctx = self._recv_ctx_conn.recv()
-
+        while self._child_ctx_conn.poll():
+            ctx = self._child_ctx_conn.recv_bytes()
+        # deserialize context
+        ctx = dill.loads(ctx)
         self._logger.debug("Received new context.")
 
         return ctx
@@ -280,13 +292,14 @@ class Worker(mp.Process):
         self._producer = prod if prod is not None else self._producer
         self._processor = proc if proc is not None else self._processor
         self._finalizer = fn if fn is not None else self._finalizer
-        # set receive process done event
-        self._recv_ctx_done.set()
-
+        # log
         self._logger.debug(
             f"Applied new context with role "
             f"`{self._role.name if self._role is not None else None}`."
         )
+
+        # accepted
+        self._child_ctx_conn.send(True)
 
         return done
 
@@ -356,38 +369,38 @@ class Worker(mp.Process):
                             num_samples += 1
 
                             # check if the worker was asked to apply a new context
-                            if self._recv_ctx_conn.poll():
+                            if self._child_ctx_conn.poll():
                                 self._logger.debug("Detected context update request.")
-
-                                # mark the worker as receiving a new context
-                                self._recv_ctx_done.clear()
 
                                 # receive and unpack context
                                 ctx = self._recv_ctx()
                                 _, prod, _, _, done = ctx
 
-                                # the producer is not allowed to change
-                                assert (
-                                    prod is None
-                                ), f"Unexpected producer received in worker with rank {self._rank}."
+                                if prod is not None:
+                                    # new context not accepted
+                                    self._child_ctx_conn.send(False)
 
-                                if done:
-                                    # stop worker
-                                    self._logger.info("Received 'done' signal, stopping.")
-                                    raise StopIteration()
+                                else:
+                                    # the producer is not allowed to change
+                                    assert prod is None, "Unexpected producer received."
 
-                                # stop the producer from generating further samples
-                                # and exhaust the current samples generated by the producer
-                                stoppable_producer.stop()
-                                for _ in work_iter:
-                                    num_samples += 1
+                                    if done:
+                                        # stop worker
+                                        self._logger.info("Received 'done' signal, stopping.")
+                                        raise StopIteration()
 
-                                # send progress to tracker
-                                self._report_progress(num_samples, producer_exhausted, False)
+                                    # stop the producer from generating further samples
+                                    # and exhaust the current samples generated by the producer
+                                    stoppable_producer.stop()
+                                    for _ in work_iter:
+                                        num_samples += 1
 
-                                # apply the new context
-                                self._apply_ctx(ctx)
-                                break
+                                    # send progress to tracker
+                                    self._report_progress(num_samples, producer_exhausted, False)
+
+                                    # apply the new context
+                                    self._apply_ctx(ctx)
+                                    break
 
                             # send continuous updates to tracker
                             if (num_samples > 0) and (
@@ -821,7 +834,8 @@ class DynamicMultiprocessingRunner(object):
                 rank = req_ctx_conn.recv()
                 worker = workers[rank]
                 # send new context to worker
-                worker.send_ctx(WorkerRole.PROCESSOR, shard, processor, finalizer, False)
+                accepted = worker.send_ctx(WorkerRole.PROCESSOR, shard, processor, finalizer, False)
+                assert accepted, f"Worker {rank} unexpectedly refused the processor context."
                 running_worker_ranks.add(rank)
 
                 self._logger.info(f"Assigned shard {shard_id} to worker {rank}.")
@@ -858,12 +872,19 @@ class DynamicMultiprocessingRunner(object):
                     if (producer_worker_rank is None) or (
                         producer_worker_rank in idling_worker_ranks
                     ):
-                        # select a running rank as the producer
-                        producer_worker_rank = next(iter(running_worker_ranks))
-                        workers[producer_worker_rank].send_ctx(
-                            WorkerRole.PRODUCER, None, _passthrough, queue.put, False
-                        )
-                        self._logger.info(f"Assigned worker {producer_worker_rank} as producer.")
+                        candidate_ranks = iter(running_worker_ranks)
+                        ctx = (WorkerRole.PRODUCER, None, _passthrough, queue.put, False)
+
+                        try:
+                            # try to assign a producer worker
+                            # test running workers until one of them accepts the producer context
+                            while not workers[(rank := next(candidate_ranks))].send_ctx(*ctx):
+                                self._logger.info(f"Worker {rank} did not accept producer context.")
+                            self._logger.info(
+                                f"Assigned worker {producer_worker_rank} as producer."
+                            )
+                        except StopIteration:
+                            producer_worker_rank = None
 
                 else:
                     # no worker running that could act as producer
@@ -878,7 +899,7 @@ class DynamicMultiprocessingRunner(object):
             # send stop signal to all workers
             for _ in range(self._num_workers):
                 rank = req_ctx_conn.recv()
-                workers[rank].send_ctx(None, None, None, None, True)
+                assert workers[rank].send_ctx(None, None, None, None, True)
 
             self._logger.info("Waiting for all workers to join.")
             # wait for all workers to join
