@@ -45,11 +45,13 @@ Usage Example:
 
 from __future__ import annotations
 
+import inspect
 from abc import ABC
-from itertools import chain, repeat
-from typing import Iterable, TypeVar
+from itertools import chain
+from typing import AsyncIterable, Iterable, TypeVar, overload
 
 from hyped.common.typing import Batch, Index, IndexList, Rank, Sample, TraceIndexList
+from hyped.common.utils import list_of_dicts_to_dict_of_lists
 
 from ..refs.inputs import InputRefs
 from ..refs.outputs import OutputRefs
@@ -80,6 +82,10 @@ class BaseDataAugmenter(BaseNode[C, I, O], ABC):
     augmentation is applied to the input data.
     """
 
+    def __init__(self, config: None | C = None, **kwargs) -> None:
+        super().__init__(config, **kwargs)
+        self._is_process_async = inspect.isasyncgenfunction(self.process)
+
     async def batch_process(
         self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
     ) -> tuple[Batch, TraceIndexList]:
@@ -107,27 +113,36 @@ class BaseDataAugmenter(BaseNode[C, I, O], ABC):
         keys = inputs.keys()
         samples = (dict(zip(keys, values)) for values in zip(*inputs.values()))
 
-        # apply the process function to each sample in the batch
-        # and for each output track the index of the source sample
-        # in the input batch, i.e. the trace index
-        trace_and_outputs = chain.from_iterable(
-            zip(repeat(j), self.process(sample, i, rank, io))
-            for j, (i, sample) in enumerate(zip(index, samples))
-        )
+        # apply process function to each sample
+        calls = (self.process(sample, i, rank, io) for (i, sample) in zip(index, samples))
 
-        # check if any samples remain
-        trace_and_outputs = list(trace_and_outputs)
-        if len(trace_and_outputs) == 0:
-            return {key: [] for key in io.outputs.keys()}, []
+        # collect all outputs
+        if self._is_process_async:
+            # collect from async generators
+            outputs = []
+            for call in calls:
+                outputs.append([sample async for sample in call])
+        else:
+            # collect from sync generators
+            outputs = list(map(list, calls))
 
-        # separate the trace index and the outputs
-        trace_index, outputs = zip(*trace_and_outputs)
+        # build trace indices for each output sample
+        trace_index = ([i] * len(out) for i, out in enumerate(outputs))
 
-        # pack output samples to batch format
-        batch = {key: [d[key] for d in outputs] for key in io.outputs.keys()}
-        return batch, list(trace_index)
+        # chain outputs
+        outputs = list(chain.from_iterable(outputs))
+        trace_index = list(chain.from_iterable(trace_index))
 
-    # TODO: support async process functions
+        # back outputs to batch format
+        batch = list_of_dicts_to_dict_of_lists(outputs, keys=io.outputs.keys())
+        return batch, trace_index
+
+    @overload
+    async def process(
+        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
+    ) -> AsyncIterable[Sample]:
+        ...
+
     def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Iterable[Sample]:
         """Defines the augmentation logic to be applied to individual samples.
 

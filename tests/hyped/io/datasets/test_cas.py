@@ -1,67 +1,22 @@
 import os
 
-import cassis
 import datasets
 import pytest
-from cassis.typesystem import TYPE_NAME_STRING
 
 import hyped.io.datasets  # noqa: F401
 
 
-def build_typesystem(path):
-    # create sample typesystem
-    typesystem = cassis.TypeSystem(add_document_annotation_type=False)
-    # add label annotation
-    label = typesystem.create_type(name="cassis.Label", supertypeName="uima.cas.TOP")
-    typesystem.create_feature(domainType=label, name="label", rangeType=TYPE_NAME_STRING)
-    # add entity annotation
-    entity = typesystem.create_type(name="cassis.Entity")
-    typesystem.create_feature(domainType=entity, name="entityType", rangeType=TYPE_NAME_STRING)
-    # add bi-relation entity
-    relation = typesystem.create_type(name="cassis.Relation", supertypeName="uima.cas.TOP")
-    typesystem.create_feature(domainType=relation, name="source", rangeType=entity)
-    typesystem.create_feature(domainType=relation, name="target", rangeType=entity)
-    # save typesystem
-    typesystem.to_xml(os.path.join(path, "typesystem.test.xml"))
-
-
-def build_examples(path):
-    # load test typesystem
-    with open(os.path.join(path, "typesystem.test.xml"), "rb") as f:
-        typesystem = cassis.load_typesystem(f)
-    # get annotation types
-    Entity = typesystem.get_type("cassis.Entity")
-    Relation = typesystem.get_type("cassis.Relation")
-    Label = typesystem.get_type("cassis.Label")
-    # create cas object
-    cas = cassis.Cas(typesystem=typesystem)
-    cas.sofa_string = "U.N. official Ekeus heads for Baghdad."
-    # create entities
-    org = Entity(begin=0, end=4, entityType="ORG")
-    loc = Entity(begin=30, end=37, entityType="LOC")
-    # add annotations
-    cas.add_all([org, loc, Relation(source=org, target=loc), Label(label="Document")])
-    # save in json and xmi format
-    cas.to_json(os.path.join(path, "cas.test.json"))
-    cas.to_xmi(os.path.join(path, "cas.test.xmi"))
-
-
 class TestCasDataset:
-    @pytest.fixture(scope="class")
-    def data_dir(self, tmpdir_factory):
-        tmpdir = tmpdir_factory.mktemp("cas")
-        # create resource files
-        build_typesystem(tmpdir)
-        build_examples(tmpdir)
-        # run test
-        return tmpdir
+    @pytest.fixture
+    def data_dir(self):
+        return "./tests/artifacts/cas/"
 
     def test_load_data(self, data_dir, tmpdir):
         # load dataset
         ds = datasets.load_dataset(
             "hyped.io.datasets.cas",
-            typesystem=os.path.join(data_dir, "typesystem.test.xml"),
-            data_files={"train": os.path.join(data_dir, "cas.test.*")},
+            typesystem=os.path.join(data_dir, "typesystem.xml"),
+            data_files={"train": os.path.join(data_dir, "cas.*")},
             cache_dir=os.path.join(tmpdir, "cache"),
         )
 
@@ -89,7 +44,7 @@ class TestCasDataset:
             assert len(example["cassis.Entity:entityType"]) == len(example["cassis.Entity:begin"])
             assert len(example["cassis.Entity:entityType"]) == len(example["cassis.Entity:end"])
             # test relation annotation features
-            assert len(example["cassis.Relation:source"]) == 1
+            assert len(example["cassis.Relation:source"]) == 2
             assert len(example["cassis.Relation:source"]) == len(example["cassis.Relation:target"])
 
             # test entity content
@@ -105,21 +60,22 @@ class TestCasDataset:
                 if eType == "LOC":
                     assert text[begin:end] == "Baghdad"
 
+            # get index of the two entities
+            ORG = example["cassis.Entity:entityType"].index("ORG")
+            LOC = example["cassis.Entity:entityType"].index("LOC")
             # test relation content
-            for src, tgt in zip(
-                example["cassis.Relation:source"],
-                example["cassis.Relation:target"],
-            ):
-                assert example["cassis.Entity:entityType"][src] == "ORG"
-                assert example["cassis.Entity:entityType"][tgt] == "LOC"
+            relations = set(
+                list(zip(example["cassis.Relation:source"], example["cassis.Relation:target"]))
+            )
+            assert relations == {(ORG, LOC), (LOC, None)}
 
     def test_load_specific_types_only(self, data_dir, tmpdir):
         # load dataset
         ds = datasets.load_dataset(
             "hyped.io.datasets.cas",
-            typesystem=os.path.join(data_dir, "typesystem.test.xml"),
-            data_files={"train": os.path.join(data_dir, "cas.test.*")},
-            annotation_types=["cassis.Label"],
+            typesystem=os.path.join(data_dir, "typesystem.xml"),
+            data_files={"train": os.path.join(data_dir, "cas.*")},
+            types=["cassis.Label"],
             cache_dir=os.path.join(tmpdir, "cache"),
         )
 
@@ -141,9 +97,9 @@ class TestCasDataset:
             # load dataset
             datasets.load_dataset(
                 "hyped.io.datasets.cas",
-                typesystem=os.path.join(data_dir, "typesystem.test.xml"),
-                data_files={"train": os.path.join(data_dir, "cas.test.*")},
-                annotation_types=[
+                typesystem=os.path.join(data_dir, "typesystem.xml"),
+                data_files={"train": os.path.join(data_dir, "cas.*")},
+                types=[
                     "cassis.Label",
                     "cassis.Relation",  # relation require entities
                 ],

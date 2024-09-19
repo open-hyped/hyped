@@ -15,7 +15,7 @@ from hyped.core.refs.ref import FeatureRef
 
 
 class BaseDataAugmenterTest:
-    # processor to test
+    # augmenter to test
     augmenter_type: type[BaseDataAugmenter]
     augmenter_config: BaseDataAugmenterConfig
     # input values
@@ -60,13 +60,13 @@ class BaseDataAugmenterTest:
         return mock_flow
 
     @pytest.fixture
-    def processor(self):
+    def augmenter(self):
         cls = type(self)
         return cls.augmenter_type.from_config(cls.augmenter_config)
 
     @pytest.fixture
     def input_refs(
-        self, processor, input_verification_error_handler, flow
+        self, augmenter, input_verification_error_handler, flow
     ) -> None | InputRefsContainer:
         cls = type(self)
 
@@ -76,41 +76,41 @@ class BaseDataAugmenterTest:
         }
 
         with input_verification_error_handler:
-            return processor._in_refs_validator.validate(**input_refs)
+            return augmenter._in_refs_validator.validate(**input_refs)
 
     @pytest.fixture
-    def output_refs(self, processor, input_refs, flow) -> None | OutputRefs:
+    def output_refs(self, augmenter, input_refs, flow) -> None | OutputRefs:
         # error catched in input verification
         if input_refs is None:
             return None
         # build output feature references
-        return processor._out_refs_type(
+        return augmenter._out_refs_type(
             flow,
             "out",
-            processor._out_refs_type.build_features(processor.config, input_refs.named_refs),
+            augmenter._out_refs_type.build_features(augmenter.config, input_refs.named_refs),
         )
 
-    def test_call(self, processor, input_refs):
+    def test_call(self, augmenter, input_refs):
         cls = type(self)
 
         if input_refs is not None:
-            # call the processor
-            out = processor.call(**input_refs.named_refs)
+            # call the augmenter
+            out = augmenter.call(**input_refs.named_refs)
             # check the output features
             if cls.expected_output_features is not None:
                 assert check_feature_equals(out.feature_, cls.expected_output_features)
 
     @pytest.mark.asyncio
-    async def test_pickle(self, processor, input_refs, output_refs, exec_error_handler):
-        # pickle and unpickle processor
-        serialized = pickle.dumps(processor)
+    async def test_pickle(self, augmenter, input_refs, output_refs, exec_error_handler):
+        # pickle and unpickle augmenter
+        serialized = pickle.dumps(augmenter)
         reconstructed = pickle.loads(serialized)
-        # run the test case on the reconstructed processor
+        # run the test case on the reconstructed augmenter
         # make sure the underlying feature model is the same
         await self.test_case(reconstructed, input_refs, output_refs, exec_error_handler)
 
     @pytest.mark.asyncio
-    async def test_case(self, processor, input_refs, output_refs, exec_error_handler):
+    async def test_case(self, augmenter, input_refs, output_refs, exec_error_handler):
         cls = type(self)
 
         if input_refs is None:
@@ -124,15 +124,19 @@ class BaseDataAugmenterTest:
 
         # check output features
         if cls.expected_output_features is not None:
-            assert check_feature_equals(output_refs.feature_, cls.expected_output_features)
+            assert check_feature_equals(output_refs.feature_, cls.expected_output_features), (
+                f"Output features do not match expected features.\n"
+                f"Expected: {cls.expected_output_features}\n"
+                f"Actual:   {output_refs.feature_}"
+            )
 
-        # only test the feature management, don't run the processor
+        # only test the feature management, don't run the augmenter
         if cls.input_data is None:
             return
 
         # check input data
         input_keys = set(cls.input_data.keys())
-        assert processor.required_input_keys.issubset(input_keys)
+        assert augmenter.required_input_keys.issubset(input_keys)
         assert check_object_matches_feature(
             cls.input_data,
             {k: Sequence(v) for k, v in cls.input_features.items()},
@@ -151,8 +155,8 @@ class BaseDataAugmenterTest:
         io = IOContext(node_id=-1, inputs=cls.input_features, outputs=output_refs.feature_)
 
         with exec_error_handler:
-            # apply processor
-            output, output_index = await processor.batch_process(
+            # apply augmenter
+            output, output_index = await augmenter.batch_process(
                 cls.input_data, input_index, cls.rank, io
             )
 
@@ -168,7 +172,11 @@ class BaseDataAugmenterTest:
         assert isinstance(output, dict)
         for key, val in output.items():
             assert isinstance(val, list)
-            assert len(val) == len(output_index)
+            assert len(val) == len(output_index), (
+                f"Output batch size doesn't match expected batch size.\n"
+                f"Expected: {len(val)}\n"
+                f"Actual:   {len(output_index)}"
+            )
 
         # check output matches features
         assert check_object_matches_feature(
@@ -177,4 +185,8 @@ class BaseDataAugmenterTest:
 
         # check output matches expectation
         if cls.expected_output_data is not None:
-            assert deep_equal(output, cls.expected_output_data)
+            assert deep_equal(output, cls.expected_output_data), (
+                f"Output data do not match expected data.\n"
+                f"Expected: {cls.expected_output_data}\n"
+                f"Actual:   {output}"
+            )

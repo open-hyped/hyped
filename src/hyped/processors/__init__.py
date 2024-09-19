@@ -25,6 +25,8 @@ __all__ = [
     "PrecisionRecallFScoreSupportConfig",
     "JsonParser",
     "JsonParserConfig",
+    "CasParser",
+    "CasParserConfig",
     "BioTags",
     "BioTagsConfig",
     "ChrToTokSpans",
@@ -38,11 +40,16 @@ __all__ = [
     "TransformersTokenizerConfig",
     "ToClassLabel",
     "ToClassLabelConfig",
+    "FileLoader",
+    "FileLoaderConfig",
+    "FileChunkLoader",
+    "FileChunkLoaderConfig",
 ]
 
 if TYPE_CHECKING:
     from .api.openai_chat import OpenAIChatCompletion, OpenAIChatCompletionConfig
     from .metrics.prfs import PrecisionRecallFScoreSupport, PrecisionRecallFScoreSupportConfig
+    from .parsers.cas import CasParser, CasParserConfig
     from .parsers.json import JsonParser, JsonParserConfig
     from .spans.bio_tags import BioTags, BioTagsConfig
     from .spans.chr_to_tok import ChrToTokSpans, ChrToTokSpansConfig
@@ -50,6 +57,7 @@ if TYPE_CHECKING:
     from .spans.utils import ResolveOverlapsStrategy
     from .templates.jinja2 import Jinja2, Jinja2Config
     from .tokenizers.transformers import TransformersTokenizer, TransformersTokenizerConfig
+    from .utils.file_loader import FileLoader, FileLoaderConfig
     from .utils.to_class_label import ToClassLabel, ToClassLabelConfig
 
 else:
@@ -67,6 +75,8 @@ else:
         # parsers
         "JsonParser": "hyped.processors.parsers.json",
         "JsonParserConfig": "hyped.processors.parsers.json",
+        "CasParser": "hyped.processors.parsers.cas",
+        "CasParserConfig": "hyped.processors.parsers.cas",
         # spans
         "BioTags": "hyped.processors.spans.bio_tags",
         "BioTagsConfig": "hyped.processors.spans.bio_tags",
@@ -84,6 +94,8 @@ else:
         # utils
         "ToClassLabel": "hyped.processors.utils.to_class_label",
         "ToClassLabelConfig": "hyped.processors.utils.to_class_label",
+        "FileLoader": "hyped.processors.utils.file_loader",
+        "FileLoaderConfig": "hyped.processors.utils.file_loader",
     }
 
     sys.modules[__name__] = LazyModule(

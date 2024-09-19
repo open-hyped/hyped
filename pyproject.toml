@@ -22,11 +22,10 @@ dependencies = [
     "transformers>=4.36.2",
     "networkx>=3.1",
     "matplotlib>=3.8.2",
-    "orjson>=3.9.4",
     "pydantic>=2.6.4",
-    "json_repair>=0.17.0",
     "nest-asyncio>=1.6.0",
     "scikit-learn>=1.5.1",
+    "aiofiles>=24.1.0"
 ]
 
 [project.optional-dependencies]

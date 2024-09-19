@@ -28,6 +28,7 @@ class BaseDataProcessorTest:
     # expected errors
     expected_execution_error: None | type[Exception] = None
     expected_input_verification_error: None | type[Exception] = None
+    expected_output_features_error: None | type[Exception] = None
     # others
     rank: Rank = 0
 
@@ -48,6 +49,15 @@ class BaseDataProcessorTest:
         return (
             pytest.raises(cls.expected_input_verification_error)
             if cls.expected_input_verification_error is not None
+            else nullcontext()
+        )
+
+    @pytest.fixture
+    def output_features_error_handler(self):
+        cls = type(self)
+        return (
+            pytest.raises(cls.expected_output_features_error)
+            if cls.expected_output_features_error is not None
             else nullcontext()
         )
 
@@ -78,26 +88,30 @@ class BaseDataProcessorTest:
             return processor._in_refs_validator.validate(**input_refs)
 
     @pytest.fixture
-    def output_refs(self, processor, input_refs, flow) -> None | OutputRefs:
+    def output_refs(
+        self, processor, input_refs, flow, output_features_error_handler
+    ) -> None | OutputRefs:
         # error catched in input verification
         if input_refs is None:
             return None
-        # build output feature references
-        return processor._out_refs_type(
-            flow,
-            "out",
-            processor._out_refs_type.build_features(processor.config, input_refs.named_refs),
-        )
+        with output_features_error_handler:
+            # build output feature references
+            return processor._out_refs_type(
+                flow,
+                "out",
+                processor._out_refs_type.build_features(processor.config, input_refs.named_refs),
+            )
 
-    def test_call(self, processor, input_refs):
+    def test_call(self, processor, input_refs, output_features_error_handler):
         cls = type(self)
 
         if input_refs is not None:
-            # call the processor
-            out = processor.call(**input_refs.named_refs)
-            # check the output features
-            if cls.expected_output_features is not None:
-                assert check_feature_equals(out.feature_, cls.expected_output_features)
+            with output_features_error_handler:
+                # call the processor
+                out = processor.call(**input_refs.named_refs)
+                # check the output features
+                if cls.expected_output_features is not None:
+                    assert check_feature_equals(out.feature_, cls.expected_output_features)
 
     @pytest.mark.asyncio
     async def test_pickle(self, processor, input_refs, output_refs, exec_error_handler):
@@ -119,11 +133,22 @@ class BaseDataProcessorTest:
             # make sure no input verification error was specified and
             assert cls.expected_input_verification_error is None
 
+        if output_refs is None:
+            # catched input verification error
+            return
+        else:
+            # make sure no input verification error was specified and
+            assert cls.expected_output_features_error is None
+
         assert output_refs is not None
 
         # check output features
         if cls.expected_output_features is not None:
-            assert check_feature_equals(output_refs.feature_, cls.expected_output_features)
+            assert check_feature_equals(output_refs.feature_, cls.expected_output_features), (
+                f"Output features do not match expected features.\n"
+                f"Expected: {cls.expected_output_features}\n"
+                f"Actual:   {output_refs.feature_}"
+            )
 
         # only test the feature management, don't run the processor
         if cls.input_data is None:
@@ -173,5 +198,5 @@ class BaseDataProcessorTest:
             assert deep_equal(output, cls.expected_output_data), (
                 f"Output data do not match expected data.\n"
                 f"Expected: {cls.expected_output_data}\n"
-                f"Received: {output}"
+                f"Actual:   {output}"
             )

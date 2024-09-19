@@ -1,4 +1,4 @@
-"""This module contains the implementation of a JSON parser data processor.
+"""This module provides a JSON parser .
 
 The processor is designed to parse JSON strings into structured feature types
 using Pydantic for deserialization and validation.
@@ -7,41 +7,42 @@ import json
 from typing import Annotated
 
 from datasets.features.features import Features, FeatureType, Sequence, Value
-from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
+from pydantic import BeforeValidator, ConfigDict, PlainSerializer
 from pydantic_core import ValidationError
 from typing_extensions import Unpack
 
 from hyped.common._pydantic import pydantic_model_from_features
-from hyped.common.typing import Index, Rank, Sample
-from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, IOContext
-from hyped.core.refs.inputs import CheckFeatureEquals, InputRefs
-from hyped.core.refs.outputs import ConditionalOutputFeature, LambdaOutputFeature, OutputRefs
+from hyped.common.typing import Batch, Index, IndexList, Rank, Sample
+from hyped.core.refs.inputs import CheckFeatureEquals
+from hyped.core.refs.outputs import LambdaOutputFeature
 from hyped.core.refs.ref import FeatureRef
 
-
-class JsonParserInputRefs(InputRefs):
-    """Inputs for the JsonParser."""
-
-    json_str: Annotated[FeatureRef, CheckFeatureEquals(Value("string"))]
-    """
-    The input JSON string feature.
-    """
-
-
-class JsonParserOutputRefs(OutputRefs):
-    """Outputs for the JsonParser."""
-
-    parsed: Annotated[FeatureRef, LambdaOutputFeature(lambda c, _: c.scheme)]
-    """The output parsed feature."""
-    error: Annotated[
-        FeatureRef,
-        ConditionalOutputFeature(Value("string"), lambda c, _: c.catch_validation_errors),
-    ]
-    """Feature that is true if the parsing resulted in an error."""
+from .base import (
+    BaseParser,
+    BaseParserConfig,
+    BaseParserInputRefs,
+    BaseParserOutputRefs,
+    IOContext,
+    ParserException,
+)
 
 
-class JsonParserConfig(BaseDataProcessorConfig):
-    """Configuration class for the JsonParser."""
+class JsonParserInputRefs(BaseParserInputRefs):
+    """Holds references to the input features for the JSON parser."""
+
+    payload: Annotated[FeatureRef, CheckFeatureEquals(Value("string"))]
+    """The input payload expected to be a serialized json string."""
+
+
+class JsonParserOutputRefs(BaseParserOutputRefs):
+    """Holds references to the output features of the JSON parser."""
+
+    obj: Annotated[FeatureRef, LambdaOutputFeature(lambda c, _: c.scheme)]
+    """A reference to the parsed object."""
+
+
+class JsonParserConfig(BaseParserConfig):
+    """Configuration class for the :class:`JsonParser`."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -66,27 +67,24 @@ class JsonParserConfig(BaseDataProcessorConfig):
             )
         ),
     ]
-    """
-    The scheme defining the structure of the parsed JSON.
-    """
-    catch_validation_errors: bool = False
-    """Catch validation errors. This creates an additional output feature `errors`
-    that indicates if an error was thrown.
-    """
+    """A feature defining the structure of the JSON input."""
 
 
-class JsonParser(BaseDataProcessor[JsonParserConfig, JsonParserInputRefs, JsonParserOutputRefs]):
+class JsonParser(BaseParser[JsonParserConfig, JsonParserInputRefs, JsonParserOutputRefs]):
     """The JSON parser data processor.
 
     This processor is designed to take a JSON string as input and parse it into
     structured data based on a predefined schema. The schema can be defined using
-    either a :code:`Features` object, a single :code:`FeatureType`, or a
-    :code:`Sequence` of :code:`FeatureType` instances.
+    either a :code:`Features` object, a single :code:`FeatureType` instances.
 
     The parsed data is then validated and transformed into the desired format using
     Pydantic models, ensuring that the data conforms to the specified schema. This
     processor can handle batch processing, where multiple JSON strings are parsed and
     validated in a single operation, improving efficiency and performance.
+
+    This processor can handle batch processing, where multiple JSON strings are parsed
+    and validated in a single operation. If a batch cannot be parsed as a whole, it
+    falls back to parsing each sample individually and identifying those with errors.
     """
 
     def __init__(self, config: None | JsonParserConfig = None, **kwargs) -> None:
@@ -98,17 +96,44 @@ class JsonParser(BaseDataProcessor[JsonParserConfig, JsonParserInputRefs, JsonPa
                 or create a new configuration if none is provided.
         """
         super(JsonParser, self).__init__(config, **kwargs)
-        self._feature_model = self._build_feature_model()
+        self._feature_model = pydantic_model_from_features(features={"parsed": self.config.scheme})
+        self._batch_feature_model = pydantic_model_from_features(
+            features={"parsed_batch": Sequence(self.config.scheme)}
+        )
 
-    def _build_feature_model(self) -> BaseModel:
-        """Build the Pydantic model for the features.
+    async def batch_process(
+        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
+    ) -> Batch:
+        """Parse a batch of JSON strings.
+
+        This method attempts to parse a batch of JSON strings as a single operation,
+        improving performance. If a validation error occurs, it falls back to parsing
+        each sample individually and identifies which samples raised errors.
+
+        Args:
+            inputs (Batch): The batch of input samples containing JSON strings to process.
+            index (IndexList): The indices associated with the input samples.
+            rank (Rank): The rank of the processor in a distributed setting.
+            io (IOContext): Context information for the data processor's execution.
 
         Returns:
-            BaseModel: Pydantic model for the features.
+            Batch: A batch containing the parsed objects or a list of exceptions for
+            individual samples that failed validation.
         """
-        return pydantic_model_from_features(features={"parsed": self.config.scheme})
 
-    def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
+        try:
+            # try to load the batch in one operation
+            batch_json_string = '{"parsed_batch": [%s]}' % ",".join(inputs["payload"])
+            batch_model = self._batch_feature_model.model_validate_json(batch_json_string)
+            return Batch(
+                obj=batch_model.model_dump()["parsed_batch"], exception=[None] * len(index)
+            )
+        except ValidationError:
+            # fallback to processing each sample individually and identify the
+            # samples that raise the validation error
+            return await super().batch_process(inputs, index, rank, io)
+
+    async def parse(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
         """Parse a single JSON-string to a dictionary object.
 
         This method parses a JSON string contained within the input sample and validates it
@@ -123,36 +148,20 @@ class JsonParser(BaseDataProcessor[JsonParserConfig, JsonParserInputRefs, JsonPa
             io (IOContext): Context information for the data processors execution.
 
         Returns:
-            Sample: The processed output sample. If :code:`config.catch_validation_errors` is
-            :code:`True`, the output includes the parsed data or a default model and an error
-            message. If not, the output only includes the parsed data.
+            Sample: The parsed object.
 
         Raises:
-            ValidationError: If validation of the JSON string fails and
+            ParserException: If validation of the JSON string fails and
                 :code:`config.catch_validation_errors` is False.
         """
-        json_string = f"""{{"parsed": {inputs["json_str"]}}}"""
-        if self.config.catch_validation_errors:
-            # try parsing json, return default model (Nones) + failed otherwise
-            try:
-                parsed = self._feature_model.model_validate_json(json_string)
-                error = None
-
-            except ValidationError as e:
-                parsed = self._feature_model()
-                error = str(e)
-
-            return Sample(
-                parsed=parsed.model_dump()["parsed"],
-                error=error,
-            )
-
-        else:
-            # parse the json string and return
-            parsed = self._feature_model.model_validate_json(json_string)
-            return Sample(
-                parsed=parsed.model_dump()["parsed"],
-            )
+        try:
+            # try to parse the json string
+            json_string = f'{{"parsed": {inputs["payload"]}}}'
+            model = self._feature_model.model_validate_json(json_string)
+            return model.model_dump()["parsed"]
+        except ValidationError as e:
+            # raise a parser exception from the validation error
+            raise ParserException(str(e)) from e
 
     def call(self, **kwargs: Unpack[JsonParserInputRefs]) -> JsonParserOutputRefs:
         """Add the JsonParser node to the data flow.
