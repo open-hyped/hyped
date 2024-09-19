@@ -125,7 +125,7 @@ ds = datasets.load_dataset("imdb", split="train", streaming=True)
 ds, _ = flow.apply(ds)
 
 # Write processed examples to disk using 4 worker processes
-JsonDatasetWriter("dump/", num_proc=4).consume(ds)
+JsonDatasetWriter("dump/", num_proc=4).write(ds)
 ```
 
 ## Running Tests
