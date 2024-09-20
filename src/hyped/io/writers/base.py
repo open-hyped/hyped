@@ -18,13 +18,14 @@ from copy import copy
 from dataclasses import asdict
 from enum import Enum
 from functools import partial
-from itertools import count
+from itertools import chain, count
 from queue import Queue
 from time import time
 from typing import Any, Callable, Iterable, TypeAlias, TypeVar
 
 import datasets
 import dill
+import orjson
 from datasets import Dataset, DatasetDict, DatasetInfo, IterableDataset, IterableDatasetDict
 from datasets.iterable_dataset import (
     FilteredExamplesIterable,
@@ -36,9 +37,10 @@ from tqdm.auto import tqdm
 from tqdm.std import EMA
 
 from hyped.common._worker import reset_worker_info, set_worker_info
+from hyped.common.iterators import QueueIterator, StoppableIterator, batched
 from hyped.common.logging import Logger, get_cls_logger
 from hyped.common.typing import DatasetType, Rank, Sample
-from hyped.common.utils import QueueIterator, StoppableIterator, chdir
+from hyped.common.utils import chdir, compose
 
 IndexedSample: TypeAlias = tuple[str, Sample]
 
@@ -104,7 +106,7 @@ class WorkerRole(Enum):
 
 ContextTuple: TypeAlias = tuple[
     WorkerRole | None,
-    Iterable[IndexedSample],
+    Iterable[IndexedSample] | None,
     Callable[[Iterable[IndexedSample]], Iterable[IndexedSample]] | None,
     Callable[[IndexedSample], Any] | None,
     bool,
@@ -117,7 +119,7 @@ processing function, finalizer function, and a completion flag.
 Elements:
     - WorkerRole | None: The role assigned to the worker (e.g., producer, processor),
       or None if the role remains unchanged.
-    - Iterable[IndexedSample]: The producer for the worker, providing an iterable
+    - Iterable[IndexedSample] | None: The producer for the worker, providing an iterable
       over indexed samples that the worker will process.
     - Callable[[Iterable[IndexedSample]], Iterable[IndexedSample]] | None: The processing
       function that transforms the produced samples. It accepts an iterable of
@@ -540,7 +542,7 @@ class TqdmReporter(threading.Thread):
                 pbar.set_description(self._pbar_desc, refresh=False)
                 pbar.set_postfix_str(
                     (
-                        f"{self._tracker._queue.qsize()}q, "
+                        f"{self._tracker.num_buffered_samples}q, "
                         f"{throughput:.02f}ex/s, "
                         f"{formatted_total_samples}ex"
                     ),
@@ -566,17 +568,19 @@ class ProgressTracker(threading.Thread):
     finished shards.
     """
 
-    def __init__(self, num_shards: int, num_workers: int, queue: mp.Queue) -> None:
+    def __init__(self, num_shards: int, num_workers: int, queue: mp.Queue, item_size: int) -> None:
         """Initializes the ProgressTracker.
 
         Args:
             num_shards (int): The total number of shards to process.
             num_workers (int): The number of workers processing the data.
             queue (mp.Queue): Sample queue filled by producer in stage 2.
+            item_size (int): The number of samples contained within a queue item.
         """
         super(ProgressTracker, self).__init__(daemon=True)
 
         self._queue = queue
+        self._item_size = item_size
         # track shards
         self._num_shards = num_shards
         self._finished_shards = 0
@@ -599,6 +603,10 @@ class ProgressTracker(threading.Thread):
         self._done = threading.Event()
 
         self._logger = get_cls_logger(type(self))
+
+    @property
+    def num_buffered_samples(self) -> int:
+        return self._queue.qsize() * self._item_size
 
     @property
     def total_produced_samples(self) -> int:
@@ -758,6 +766,36 @@ class DynamicMultiprocessingRunner(object):
 
         self._logger = get_cls_logger(type(self))
 
+    def serializer(self, it: Iterable[Sample]) -> Iterable[Any]:
+        """Serializer applied in stage 2 producer.
+
+        Collects and serialized a batch of samples using :code:`orjson`.
+
+        Args:
+            it (Iterable[Sample]): An iterable of samples to be serialized.
+
+        Returns:
+            Iterable[Any]: An iterable containing the serialized samples,
+            where each sample is serialized to a byte format using orjson.dumps.
+
+        """
+        return map(orjson.dumps, batched(it, n=self._prefetch))
+
+    def deserializer(self, it: Iterable[Any]) -> Iterable[Sample]:
+        """Deserializer used in stage 2 consumer workers.
+
+        Deserializes an iterable of serialized data back into samples using :code:`orjson`.
+
+        Args:
+            it (Iterable[Any]): An iterable of serialized data (e.g., bytes)
+            to be deserialized.
+
+        Returns:
+            Iterable[Sample]: An iterable of samples, where each serialized
+            data is deserialized using orjson.loads.
+        """
+        return chain.from_iterable(map(orjson.loads, it))
+
     def run(
         self,
         ds: IterableDataset,
@@ -786,11 +824,11 @@ class DynamicMultiprocessingRunner(object):
             req_ctx_conn, worker_req_ctx_conn = mp.Pipe(duplex=False)
 
             # create sample queue used in stage 2 but required for tracker
-            queue = manager.Queue(maxsize=self._num_workers * self._prefetch)
-            iterable = QueueIterator(queue, sentinel=None, timeout=None)
+            queue = manager.Queue(maxsize=self._num_workers * 2)
+            queue_it = QueueIterator(queue, sentinel=None, timeout=None)
 
             # create the progress tracker
-            tracker = ProgressTracker(num_shards, self._num_workers, queue)
+            tracker = ProgressTracker(num_shards, self._num_workers, queue, self._prefetch)
             tracker.start()
             self._logger.info("Progress tracker started.")
 
@@ -861,7 +899,11 @@ class DynamicMultiprocessingRunner(object):
                 # use idling ranks as consumers
                 for rank in idling_worker_ranks:
                     workers[rank].send_ctx(
-                        WorkerRole.CONSUMER, iterable, processor, finalizer, False
+                        WorkerRole.CONSUMER,
+                        queue_it,
+                        compose(processor, self.deserializer),
+                        finalizer,
+                        False,
                     )
                     self._logger.info(f"Assigned worker {rank} as consumer.")
 
@@ -873,7 +915,7 @@ class DynamicMultiprocessingRunner(object):
                         producer_worker_rank in idling_worker_ranks
                     ):
                         candidate_ranks = iter(running_worker_ranks)
-                        ctx = (WorkerRole.PRODUCER, None, _passthrough, queue.put, False)
+                        ctx = (WorkerRole.PRODUCER, None, self.serializer, queue.put, False)
 
                         try:
                             # try to assign a producer worker

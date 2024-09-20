@@ -194,6 +194,17 @@ class TestDynamicMultiprocessingRunner:
             [call((0, {"obj": i})) for i in range(num_samples)], same_order=False
         )
 
+    def test_serialization_deserialization(self):
+        runner = DynamicMultiprocessingRunner(num_workers=2)
+        samples = [{"key": i} for i in range(32)]
+
+        # Serialize and deserialize the samples
+        serialized = list(runner.serializer(samples))
+        deserialized = list(runner.deserializer(serialized))
+
+        # Check that the deserialized output matches the original samples
+        assert deserialized == samples, "Deserialized output does not match the original samples"
+
 
 def _double_fn(x):
     sleep(0.1)

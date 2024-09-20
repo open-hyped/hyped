@@ -4,10 +4,29 @@ import importlib.util
 import os
 from contextlib import contextmanager
 from functools import cache
-from queue import Empty, Queue
-from typing import Any, Hashable, Iterable
+from typing import Any, Callable, Hashable, TypeVar
 
 import numpy as np
+
+T = TypeVar("T")
+R = TypeVar("R")
+S = TypeVar("S")
+
+
+def compose(f: Callable[[R], T], g: Callable[[S], R]) -> Callable[[S], T]:
+    """
+    Composes two functions, applying the second function to its argument,
+    and then applying the first function to the result.
+
+    Args:
+        f (Callable[[R], T]): The function to apply last. It takes the output of g.
+        g (Callable[[S], R]): The function to apply first.
+
+    Returns:
+        Callable[[S], T]: A new function that takes an argument of the type
+        accepted by g and returns a result of the type produced by f.
+    """
+    return lambda x: f(g(x))
 
 
 def list_of_dicts_to_dict_of_lists(
@@ -115,98 +134,3 @@ def is_package_installed(package_name: str) -> bool:
     """
     package_spec = importlib.util.find_spec(package_name)
     return package_spec is not None
-
-
-class QueueIterator:
-    """An iterator for consuming items from a queue.
-
-    This iterator retrieves items from a queue with an optional timeout and can
-    terminate iteration upon encountering a sentinel value.
-    """
-
-    def __init__(self, queue: Queue, sentinel: Any = None, timeout: None | float = None) -> None:
-        """Initialize the iterator.
-
-        Args:
-            queue (Queue): The queue to iterate through.
-            sentinel (Any): A special value to signal the end of the queue.
-            timeout (float): Timeout for waiting on queue items.
-        """
-        self.queue = queue
-        self.sentinel = sentinel
-        self.timeout = timeout
-
-    def __iter__(self) -> Iterable[Any]:
-        """Return the iterator object itself.
-
-        Returns:
-            Iterable[Any]: The iterator object itself.
-        """
-        return self
-
-    def __next__(self) -> Any:
-        """Retrieve the next item from the queue.
-
-        Returns:
-            Any: The next item from the queue.
-
-        Raises:
-            StopIteration: If the sentinel value is encountered or if the queue is empty.
-        """
-        try:
-            # Get the next item from the queue with a timeout
-            item = self.queue.get(timeout=self.timeout)
-
-            # If the sentinel value is encountered, raise StopIteration to end iteration
-            if item == self.sentinel:
-                raise StopIteration
-
-            return item
-        except Empty:
-            raise StopIteration
-
-
-class StoppableIterator(object):
-    """An iterator that can be stopped manually.
-
-    This iterator allows manual interruption of iteration by calling the :func:`stop`
-    method, which causes the iterator to stop yielding items.
-    """
-
-    def __init__(self, iterable: Iterable[Any]) -> None:
-        """Initialize the stoppable iterator.
-
-        Args:
-            iterable (Iterable[Any]): The iterable to iterate over.
-        """
-        self.iterable = iter(iterable)
-        self.stopped = False
-
-    def stop(self) -> None:
-        """Stop the iteration.
-
-        Sets the stopped flag to True, causing the iterator to stop yielding items.
-        """
-        self.stopped = True
-
-    def __iter__(self) -> Iterable[Any]:
-        """Return the iterator object itself.
-
-        Returns:
-            Iterable[Any]: The iterator object itself.
-        """
-        return self
-
-    def __next__(self) -> Any:
-        """Retrieve the next item from the iterable.
-
-        Returns:
-            Any: The next item from the iterable.
-
-        Raises:
-            StopIteration: If iteration is stopped or if the iterable is exhausted.
-        """
-        if self.stopped:
-            raise StopIteration
-
-        return next(self.iterable)
