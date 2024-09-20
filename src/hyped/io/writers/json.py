@@ -21,42 +21,50 @@ class JsonDatasetWriter(BaseDatasetWriter):
     according to its rank.
     """
 
-    def initialize(self, info: DatasetInfo) -> None:
+    def initialize_shard(self, shard_id: int, info: DatasetInfo) -> None:
         """Initialize the file for writing.
 
         This method is called at the start of the dataset writing process and
         creates a new JSON file specific to the worker's rank. The file is opened
         in write-binary mode to store serialized JSON lines.
 
-        The file is named using the worker's rank, in the format "shard-<rank>.json".
+        The file is named using the worker's rank, in the format "shard-<shard_id>.json".
         The working directory is set to the save directory during this method.
 
         Args:
+            shard_id (int): The id of the shard being initialized.
             info (DatasetInfo): Information about the dataset to be written, including metadata
                 and configuration details.
         """
         info = get_worker_info()
-        info.ctx.file_path = f"shard-{info.rank}.json"
+        info.ctx.file_path = f"shard-{shard_id}.json"
         info.ctx.file = open(info.ctx.file_path, "wb")
 
-    def write_sample(self, sample: Sample) -> None:
-        """
-        Write an individual sample to the JSON file.
+    def write_batch(self, batch: list[Sample]) -> int:
+        """Write a batch of samples to the JSON file.
 
-        This method serializes the sample to JSON format using :code:`orjson` and writes it
-        as a line in the JSON file. Each sample is separated by a newline.
+        This method serializes the samples to JSON format using :code:`orjson` and writes
+        each sample as a line in the JSON file, with samples separated by newlines.
 
         The working directory is set to the save directory during this method.
 
         Args:
-            sample (Sample): The sample to be written, which will be serialized as JSON.
-        """
-        info = get_worker_info()
-        info.ctx.file.write(orjson.dumps(sample) + b"\n")
+            batch (list[Sample]): A list of samples to be written, each of which will be
+                serialized as JSON.
 
-    def finalize(self, info: DatasetInfo) -> None:
+        Returns:
+            int: The number of bytes written to the shard.
         """
-        Finalize the writing process.
+
+        info = get_worker_info()
+        file_size = info.ctx.file.tell()
+        # write the sample to the file and return the written bytes
+        serialized = b"\n".join(map(orjson.dumps, batch))
+        info.ctx.file.write(serialized + b"\n")
+        return info.ctx.file.tell() - file_size
+
+    def finalize_shard(self, info: DatasetInfo) -> None:
+        """Finalize the writing process.
 
         This method closes the JSON file after all samples have been written.
         The working directory is set to the save directory during this method.

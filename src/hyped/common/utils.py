@@ -3,30 +3,95 @@
 import importlib.util
 import os
 from contextlib import contextmanager
-from functools import cache
-from typing import Any, Callable, Hashable, TypeVar
+from functools import cache, reduce
+from typing import Any, Callable, Hashable
 
 import numpy as np
 
-T = TypeVar("T")
-R = TypeVar("R")
-S = TypeVar("S")
 
+class compose(object):
+    """Composes an arbitrary number of functions into a single function.
 
-def compose(f: Callable[[R], T], g: Callable[[S], R]) -> Callable[[S], T]:
-    """
-    Composes two functions, applying the second function to its argument,
-    and then applying the first function to the result.
+    The composed function applies the input functions from right to left (i.e.,
+    the last function in the list is applied first, and the first function is applied last).
+
+    Example:
+        If :code:`compose(f, g, h)` is called with input :code:`x`, it returns :code:`f(g(h(x)))`.
 
     Args:
-        f (Callable[[R], T]): The function to apply last. It takes the output of g.
-        g (Callable[[S], R]): The function to apply first.
+        *functions (Callable[[Any], Any]): An arbitrary number of functions to compose.
+            Each function must accept the output of the subsequent function (or the initial input).
+            Must contain at least one function.
 
     Returns:
-        Callable[[S], T]: A new function that takes an argument of the type
-        accepted by g and returns a result of the type produced by f.
+        Callable[[Any], Any]: A function that applies the composed functions sequentially from
+        right to left.
     """
-    return lambda x: f(g(x))
+
+    def __init__(self, *functions: Callable[[Any], Any]) -> None:
+        """Initialize the :class:`compose` object with the provided functions.
+
+        Args:
+            *functions (Callable[[Any], Any]): Functions to be composed.
+        """
+        assert len(functions) > 0, "At least one function must be provided"
+        self._functions = tuple(reversed(functions))
+
+    def __call__(self, x: Any) -> Any:
+        """Applies the composed functions to the input.
+
+        Args:
+            x (Any): The initial input to be passed through the composed functions.
+
+        Returns:
+            Any: The result of applying the composed functions sequentially.
+        """
+        return reduce(lambda x, f: f(x), self._functions, x)
+
+
+class run_all(object):
+    """Runs an arbitrary number of functions sequentially with the same arguments.
+
+    Each function in the list is called with the provided arguments, and their execution
+    order is from first to last. No function's output is used as input for the next.
+
+    Example:
+        If :code:`run_all(f, g, h)` is called with arguments :code:`x, y`, it executes:
+
+        .. code-block:: python
+
+            f(x, y)
+            g(x, y)
+            h(x, y)
+
+    Args:
+        *functions (Callable[[Any], Any]): An arbitrary number of functions to be run
+            sequentially. Each function must accept the same arguments.
+
+    Returns:
+        None
+    """
+
+    def __init__(self, *functions: Callable[[Any], Any]) -> None:
+        """Initialize the :class:`run_all` object with the provided functions.
+
+        Args:
+            *functions (Callable[[Any], Any]): Functions to be executed sequentially.
+        """
+        self._functions = functions
+
+    def __call__(self, *args, **kwargs) -> None:
+        """Executes all functions with the provided arguments and keyword arguments.
+
+        Args:
+            *args (Any): Positional arguments to be passed to each function.
+            **kwargs (Any): Keyword arguments to be passed to each function.
+
+        Returns:
+            None
+        """
+        for f in self._functions:
+            f(*args, **kwargs)
 
 
 def list_of_dicts_to_dict_of_lists(

@@ -7,7 +7,7 @@ import operator
 import sys
 from itertools import islice
 from queue import Empty, Queue
-from typing import Any, Iterable, Iterator, Tuple, TypeVar
+from typing import Any, Callable, Generic, Iterable, Iterator, Tuple, TypeVar
 
 if sys.version_info >= (3, 12):
     from itertools import batched
@@ -145,3 +145,62 @@ class StoppableIterator(object):
             raise StopIteration
 
         return next(self.iterable)
+
+
+T = TypeVar("T")
+U = TypeVar("U")
+
+
+class BatchBuffer(Generic[T, U]):
+    """A buffer that collects items until a specified batch.
+
+    It applies a function when the target batch size is reached.
+    """
+
+    def __init__(self, batch_size: int, apply_function: Callable[[list[T]], U]) -> None:
+        """Initialize the :class:`BatchBuffer`.
+
+        Args:
+            batch_size (int): The number of items to collect before applying the function.
+            apply_function (Callable[[List[T]], U]): The function to apply to the collected items.
+        """
+        self._batch_size = batch_size
+        self._apply_function = apply_function
+        self._buffer = []
+
+    def add(self, item: T) -> U | None:
+        """Add an item to the buffer and apply the function if the batch size is reached.
+
+        Args:
+            item (T): The item to add to the buffer.
+
+        Returns:
+            U | None: The result of applying the function if the batch size is reached; otherwise,
+            returns :code:`None`.
+        """
+        self._buffer.append(item)
+        if self.is_full():
+            return self.flush()
+
+    def flush(self) -> U | None:
+        """Apply the function to the collected items and clear the buffer.
+
+        Returns:
+            U | None: The result of applying the function to the collected items.
+        """
+        if len(self._buffer) > 0:
+            out = self._apply_function(self._buffer)
+            self.clear()
+            return out
+
+    def is_full(self) -> bool:
+        """Check if the buffer is full.
+
+        Returns:
+            bool: True if the buffer has reached the batch size; otherwise, False.
+        """
+        return len(self._buffer) >= self._batch_size
+
+    def clear(self) -> None:
+        """Clear the buffer without applying the function."""
+        self._buffer.clear()

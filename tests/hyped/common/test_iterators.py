@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import hyped.common.iterators
-from hyped.common.iterators import QueueIterator, StoppableIterator
+from hyped.common.iterators import BatchBuffer, QueueIterator, StoppableIterator
 
 
 def test_batched():
@@ -122,3 +122,80 @@ class TestStoppableIterator:
         # Ensure StopIteration is raised after all items are exhausted
         with pytest.raises(StopIteration):
             next(iterator)
+
+
+class TestBatchBuffer:
+    def test_initialization(self):
+        def dummy_function(batch: list[int]) -> int:
+            return sum(batch)
+
+        buffer = BatchBuffer(batch_size=3, apply_function=dummy_function)
+
+        assert buffer._batch_size == 3
+        assert buffer._apply_function == dummy_function
+        assert buffer._buffer == []
+
+    def test_add_and_flush(self):
+        def dummy_function(batch: list[int]) -> int:
+            return sum(batch)
+
+        buffer = BatchBuffer(batch_size=3, apply_function=dummy_function)
+
+        # Adding items to the buffer
+        result = buffer.add(1)
+        assert result is None
+        assert buffer._buffer == [1]
+
+        result = buffer.add(2)
+        assert result is None
+        assert buffer._buffer == [1, 2]
+
+        # This should trigger the flush
+        result = buffer.add(3)
+        assert result == 6  # 1 + 2 + 3
+        assert buffer._buffer == []  # Buffer should be cleared
+
+    def test_partial_flush(self):
+        def dummy_function(batch: list[int]) -> int:
+            return sum(batch)
+
+        buffer = BatchBuffer(batch_size=3, apply_function=dummy_function)
+
+        buffer.add(1)
+        buffer.add(2)
+
+        # This should not flush since the buffer is not full
+        result = buffer.add(3)
+        assert result == 6  # 1 + 2 + 3
+        assert buffer._buffer == []  # Buffer should be cleared
+
+        # Adding again to see partial behavior
+        buffer.add(4)
+        assert buffer._buffer == [4]  # Buffer should contain 4
+
+    def test_is_full(self):
+        f = MagicMock()
+        buffer = BatchBuffer(batch_size=3, apply_function=f)
+
+        assert not buffer.is_full()  # Initially empty
+        assert not f.called
+        buffer.add(1)
+        assert not buffer.is_full()  # One item added
+        assert not f.called
+        buffer.add(2)
+        assert not buffer.is_full()  # Two items added
+        assert not f.called
+        buffer.add(3)
+        assert f.called
+
+    def test_clear(self):
+        def dummy_function(batch: list[int]) -> int:
+            return sum(batch)
+
+        buffer = BatchBuffer(batch_size=3, apply_function=dummy_function)
+
+        buffer.add(1)
+        buffer.add(2)
+        buffer.clear()  # Manually clear the buffer
+
+        assert buffer._buffer == []  # Buffer should be empty
