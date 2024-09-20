@@ -1,3 +1,8 @@
+"""Utility module for enhanced iterator control.
+
+This module provides common iterator functionality to simplify the processing
+of iterables and queues, offering more flexible control over iteration.
+"""
 import sys
 from itertools import islice
 from queue import Empty, Queue
