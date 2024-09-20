@@ -40,16 +40,17 @@ class JsonDatasetWriter(BaseDatasetWriter):
         info.ctx.file_path = f"shard-{shard_id}.json"
         info.ctx.file = open(info.ctx.file_path, "wb")
 
-    def write_sample(self, sample: Sample) -> int:
-        """Write an individual sample to the JSON file.
+    def write_batch(self, batch: list[Sample]) -> int:
+        """Write a batch of samples to the JSON file.
 
-        This method serializes the sample to JSON format using :code:`orjson` and writes it
-        as a line in the JSON file. Each sample is separated by a newline.
+        This method serializes the samples to JSON format using :code:`orjson` and writes
+        each sample as a line in the JSON file, with samples separated by newlines.
 
         The working directory is set to the save directory during this method.
 
         Args:
-            sample (Sample): The sample to be written, which will be serialized as JSON.
+            batch (list[Sample]): A list of samples to be written, each of which will be
+                serialized as JSON.
 
         Returns:
             int: The number of bytes written to the shard.
@@ -58,7 +59,8 @@ class JsonDatasetWriter(BaseDatasetWriter):
         info = get_worker_info()
         file_size = info.ctx.file.tell()
         # write the sample to the file and return the written bytes
-        info.ctx.file.write(orjson.dumps(sample) + b"\n")
+        serialized = b"\n".join(map(orjson.dumps, batch))
+        info.ctx.file.write(serialized + b"\n")
         return info.ctx.file.tell() - file_size
 
     def finalize_shard(self, info: DatasetInfo) -> None:

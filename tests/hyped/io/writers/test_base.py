@@ -427,14 +427,14 @@ class TestShardingController:
         finalize_shard.reset_mock()
 
         for _ in range(max_shard_size):
-            controller.callback({})
+            controller.callback([{}])
             controller.update(42)
             # no new shard needed to be generated yet
             assert not finalize_shard.called
             assert not initialize_shard.called
 
         # this update should kick of a new shard
-        controller.callback({})
+        controller.callback([{}])
         controller.update(42)
 
         finalize_shard.assert_called_once()
@@ -464,14 +464,14 @@ class TestShardingController:
         finalize_shard.reset_mock()
 
         for _ in range(max_shard_size // 42 + 1):
-            controller.callback({})
+            controller.callback([{}])
             controller.update(1)
             # no new shard needed to be generated yet
             assert not finalize_shard.called
             assert not initialize_shard.called
 
         # this update should kick of a new shard
-        controller.callback({})
+        controller.callback([{}])
         controller.update(1)
 
         finalize_shard.assert_called_once()
@@ -497,14 +497,14 @@ class TestShardingController:
         finalize_shard.reset_mock()
 
         for _ in range(max_shard_size // 42 + 1):
-            controller.callback({})
+            controller.callback([{}])
             controller.update(42)
             # no new shard needed to be generated yet
             assert not finalize_shard.called
             assert not initialize_shard.called
 
         # this update should kick of a new shard
-        controller.callback({})
+        controller.callback([{}])
         controller.update(42)
 
         finalize_shard.assert_called_once()
@@ -518,7 +518,7 @@ class TestBaseDatasetWriter:
         ds = ds.to_iterable_dataset(1)
 
         class MockDatasetWriter(BaseDatasetWriter):
-            write_sample = MagicMock()
+            write_batch = MagicMock()
             initialize = MagicMock()
             finalize = MagicMock()
             initialize_shard = MagicMock()
@@ -528,9 +528,12 @@ class TestBaseDatasetWriter:
             patch("hyped.io.writers.base.DatasetConsumer") as consumer_mock,
             patch("hyped.io.writers.base.ShardingController") as sharding_mock,
         ):
-            sharding_mock.is_active = with_sharding
+            sharding_mock().is_active = with_sharding
+            sharding_mock.reset_mock()
 
-            writer = MockDatasetWriter(save_dir=tmp_path, overwrite=True)
+            writer = MockDatasetWriter(
+                save_dir=tmp_path, overwrite=True, write_batch_size=1, num_proc=1
+            )
             writer._write_dataset(ds, save_dir=tmp_path)
 
             # check sharding strategy
@@ -544,27 +547,30 @@ class TestBaseDatasetWriter:
             init = consumer_mock.mock_calls[0].kwargs["initialize"]
             finalize = consumer_mock.mock_calls[0].kwargs["finalize"]
 
-            mock_sample = MagicMock()
-            # apply function
-            fn(mock_sample)
-            # make sure that the callback is called first, then the write sample
-            # and finally the update function
-            if with_sharding:
-                sharding_mock().callback.assert_called_once_with(mock_sample)
-                MockDatasetWriter.write_sample.assert_called_once_with(sharding_mock().callback())
-                sharding_mock().update(MockDatasetWriter.write_sample())
-            else:
-                MockDatasetWriter.write_sample.assert_called_once_with(sharding_mock().callback())
+            # avoid buffer clear because clearing is inplace and mock call arguments
+            # would be cleared too
+            with patch("hyped.io.writers.base.BatchBuffer.clear", MagicMock()):
+                mock_sample = MagicMock()
+                # apply function
+                fn(mock_sample)
+                # make sure that the callback is called first, then the write sample
+                # and finally the update function
+                if with_sharding:
+                    sharding_mock().callback.assert_called_once_with([mock_sample])
+                    writer.write_batch.assert_called_once_with(sharding_mock().callback())
+                    sharding_mock().update(writer.write_batch())
+                else:
+                    writer.write_batch.assert_called_once_with([mock_sample])
 
             # make sure the sharding initializers is called
             init()
             sharding_mock().initialize.assert_called_once()
-            MockDatasetWriter.initialize.assert_called_once()
+            writer.initialize.assert_called_once()
 
             # make sure the sharding finalizers is called
             finalize()
             sharding_mock().finalize.assert_called_once()
-            MockDatasetWriter.finalize.assert_called_once()
+            writer.finalize.assert_called_once()
 
             # check the output directory
             assert set(os.listdir(tmp_path)) == {
@@ -582,7 +588,7 @@ class TestBaseDatasetWriter:
 
         class MockDatasetWriter(BaseDatasetWriter):
             initialize = MagicMock()
-            write_sample = MagicMock()
+            write_batch = MagicMock()
             finalize = MagicMock()
             initialize_shard = MagicMock()
             finalize_shard = MagicMock()
@@ -603,7 +609,7 @@ class TestBaseDatasetWriter:
 
         class MockDatasetWriter(BaseDatasetWriter):
             initialize = MagicMock()
-            write_sample = MagicMock()
+            write_batch = MagicMock()
             finalize = MagicMock()
             initialize_shard = MagicMock()
             finalize_shard = MagicMock()

@@ -16,6 +16,7 @@ from abc import ABC, abstractmethod
 from types import MappingProxyType
 from typing import Any, TypeVar
 
+from hyped.common._worker import manager as _manager  # noqa: F401
 from hyped.common.typing import Aggregate, Batch, IndexList, Rank
 
 from ..refs.inputs import InputRefs

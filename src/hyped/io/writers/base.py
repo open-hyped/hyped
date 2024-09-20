@@ -37,9 +37,16 @@ from datasets.iterable_dataset import (
 from tqdm.auto import tqdm
 from tqdm.std import EMA
 
+from hyped.common._worker import manager as _manager  # noqa: F401
 from hyped.common._worker import reset_worker_info, set_worker_info
 from hyped.common.feature_key import FeatureKey
-from hyped.common.iterators import QueueIterator, StoppableIterator, batched, ith_entries
+from hyped.common.iterators import (
+    BatchBuffer,
+    QueueIterator,
+    StoppableIterator,
+    batched,
+    ith_entries,
+)
 from hyped.common.logging import Logger, get_cls_logger
 from hyped.common.typing import DatasetType, Rank, Sample
 from hyped.common.utils import chdir, compose, run_all
@@ -1469,19 +1476,19 @@ class ShardingController(object):
         self._shard_bytes = 0
         self._sample_size = 0
 
-    def callback(self, sample: Sample) -> Sample:
-        """Process each sample before writing and check if a new shard is required.
+    def callback(self, batch: list[Sample]) -> Sample:
+        """Process each batch before writing and check if a new shard is required.
 
         Args:
-            sample (Sample): The sample to be written.
+            batch (list[Sample]): The batch of samples to be written.
 
         Returns:
-            Sample: The sample, unchanged.
+            [Sample]: The batch, unchanged.
         """
 
         if self._sharding_strategy is ShardingStrategy.SAMPLE_ITEM:
             # cache the size of the sample to be used later in the shard size update
-            self._sample_size = self._sample_size_key.index_example(sample)
+            self._sample_size = sum(map(self._sample_size_key.index_example, batch))
 
         # check if shard is full
         if self._shard_size >= self._max_shard_size:
@@ -1489,7 +1496,7 @@ class ShardingController(object):
             self.finalize()
             self.initialize()
 
-        return sample
+        return batch
 
     def update(self, num_bytes: int) -> None:
         """Update the shard size based on the number of bytes written or sample size.
@@ -1543,6 +1550,7 @@ class BaseDatasetWriter(ABC):
         overwrite: bool = False,
         num_proc: int = mp.cpu_count(),
         prefetch_factor: int = 8,
+        write_batch_size: int = 32,
         tqdm_update_interval: float = 0.1,
         disable_tqdm: bool = False,
         sharding_strategy: ShardingStrategy = ShardingStrategy.FILE_SIZE,
@@ -1559,6 +1567,8 @@ class BaseDatasetWriter(ABC):
                 to the number of CPU cores.
             prefetch_factor (int): Number of samples to prefetch for improved
                 performance. Defaults to 8.
+            write_batch_size (int): The number of samples to write in a single batch.
+                Defaults to 32.
             tqdm_update_interval (float): The interval in seconds at which the tqdm
                 progress bar updates. Default is 0.1.
             disable_tqdm (bool): Whether to disable the tqdm progress bar. Default is
@@ -1576,6 +1586,7 @@ class BaseDatasetWriter(ABC):
         self._overwrite = overwrite
         self._num_proc = num_proc
         self._prefetch = prefetch_factor
+        self._write_batch_size = write_batch_size
         # tqdm setup
         self._tqdm_update_interval = tqdm_update_interval
         self._disable_tqdm = disable_tqdm
@@ -1659,14 +1670,17 @@ class BaseDatasetWriter(ABC):
 
         # wrap write function in sharding callback if needed
         write_fn = (
-            self.write_sample
+            self.write_batch
             if not sharding_controller.is_active
             else compose(
                 sharding_controller.update,
-                self.write_sample,
+                self.write_batch,
                 sharding_controller.callback,
             )
         )
+
+        # wrap write function in batch buffer
+        buffered_write_fn = BatchBuffer(batch_size=self._write_batch_size, apply_function=write_fn)
 
         os.makedirs(save_dir, exist_ok=True)
         # convert dataset to iterable dataset
@@ -1676,7 +1690,7 @@ class BaseDatasetWriter(ABC):
         with chdir(save_dir):
             # write dataset to directory
             consumer = DatasetConsumer(
-                write_fn,
+                buffered_write_fn.add,
                 num_proc=self._num_proc,
                 prefetch_factor=self._prefetch,
                 initialize=run_all(
@@ -1730,17 +1744,17 @@ class BaseDatasetWriter(ABC):
             self._write_dataset(ds, self.save_dir)
 
     @abstractmethod
-    def write_sample(self, sample: Sample) -> int:
-        """Abstract method for writing an individual sample.
+    def write_batch(self, batch: list[Sample]) -> int:
+        """Abstract method for writing a batch of samples.
 
-        This method writes a single sample to the dataset shard and returns the
+        This method writes a batch of samples to the dataset shard and returns the
         number of bytes written.
 
         The working directory is temporarily set to the save directory during this method,
         any files created will be saved in the designated dataset directory.
 
         Args:
-            sample (Sample): The sample to be written.
+            batch (list[Sample]): The batch of samples to be written.
 
         Returns:
             int: The number of bytes written to the shard.
@@ -1793,7 +1807,7 @@ class BaseDatasetWriter(ABC):
         ...
 
     @abstractmethod
-    def finalize_shard(self, shard_id: int, info: DatasetInfo) -> None:
+    def finalize_shard(self, info: DatasetInfo) -> None:
         """Abstract method for finalizing the write process for the current shard.
 
         This method should handle any cleanup or final write operations after the samples for the
@@ -1801,7 +1815,6 @@ class BaseDatasetWriter(ABC):
         directory during this method.
 
         Args:
-            shard_id (int): The id of the shard being finalized.
             info (DatasetInfo): Information about the dataset to be written, including metadata
                 and configuration details.
         """

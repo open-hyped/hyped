@@ -60,14 +60,14 @@ class ArrowDatasetWriter(BaseDatasetWriter):
             sink=worker_info.ctx.file, schema=worker_info.ctx.schema
         )
 
-    def write_sample(self, sample: Sample) -> int:
-        """Write a single sample to the Arrow shard.
+    def write_batch(self, batch: list[Sample]) -> int:
+        """Write a batch of samples to the Arrow shard.
 
-        This method writes the sample as a record batch to the worker's shard file
+        This method writes the samples as a record batch to the worker's shard file
         using the Arrow schema initialized during the :code:`initialize` phase.
 
         Args:
-            sample (Sample): The sample to be written to the Arrow file.
+            batch (list[Sample]): A list of samples to be written to the Arrow file.
 
         Returns:
             int: The number of bytes written to the shard.
@@ -75,19 +75,18 @@ class ArrowDatasetWriter(BaseDatasetWriter):
         info = get_worker_info()
         file_size = info.ctx.file.tell()
         # write sample to file
-        sample = pa.RecordBatch.from_pylist([sample], schema=info.ctx.schema)
-        info.ctx.writer.write(sample)
+        batch = pa.RecordBatch.from_pylist(batch, schema=info.ctx.schema)
+        info.ctx.writer.write(batch)
         # return bytes written to file
         return info.ctx.file.tell() - file_size
 
-    def finalize_shard(self, shard_id: int, info: DatasetInfo) -> None:
+    def finalize_shard(self, info: DatasetInfo) -> None:
         """Finalize the writing process.
 
         This method closes the Arrow writer and the corresponding shard file.
         It ensures all written samples are properly flushed to disk.
 
         Args:
-            shard_id (int): The id of the shard being initialized.
             info (DatasetInfo): Information about the dataset to be written, including metadata
                 and configuration details.
         """
