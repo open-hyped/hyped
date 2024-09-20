@@ -12,33 +12,15 @@ Classes:
 from __future__ import annotations
 
 import asyncio
-import multiprocessing as mp
 from abc import ABC, abstractmethod
-from multiprocessing.managers import SyncManager
 from types import MappingProxyType
 from typing import Any, TypeVar
 
-from hyped.common.lazy_instance import LazyStaticInstance
 from hyped.common.typing import Aggregate, Batch, IndexList, Rank
 
 from ..refs.inputs import InputRefs
 from ..refs.outputs import OutputRefs
 from .base import BaseNode, BaseNodeConfig, IOContext
-
-
-def _sync_manager_factory() -> SyncManager:
-    """Factory function for creating a SyncManager instance.
-
-    Returns:
-        SyncManager: An instance of SyncManager.
-    """
-    manager = SyncManager(ctx=mp.context.DefaultContext)
-    manager.start()
-    return manager
-
-
-# create global sync manager
-_manager = LazyStaticInstance[SyncManager](_sync_manager_factory)
 
 
 class DataAggregationManager(object):
