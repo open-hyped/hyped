@@ -606,6 +606,15 @@ class ProgressTracker(threading.Thread):
 
     @property
     def num_buffered_samples(self) -> int:
+        """Returns the number of samples currently buffered in the queue awaiting processing.
+
+        This property calculates the total number of samples that are waiting in the queue by
+        multiplying the number of items in the queue by the item size (the number of samples
+        contained in each item).
+
+        Returns:
+            int: The total number of samples currently buffered in the queue.
+        """
         return self._queue.qsize() * self._item_size
 
     @property
