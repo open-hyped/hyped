@@ -3,6 +3,7 @@
 This module provides common iterator functionality to simplify the processing
 of iterables and queues, offering more flexible control over iteration.
 """
+import operator
 import sys
 from itertools import islice
 from queue import Empty, Queue
@@ -29,16 +30,26 @@ else:
             Iterator[Tuple[T, ...]]: A generator that yields tuples containing
             n elements each from the iterable. The last batch may contain fewer
             than n elements if the total number of elements is not a multiple of n.
-
-        Example:
-            >>> list(batched('ABCDEFG', 3))
-            [('A', 'B', 'C'), ('D', 'E', 'F'), ('G',)]
         """
         if n < 1:
             raise ValueError("n must be at least one")
         iterator = iter(iterable)
         while batch := tuple(islice(iterator, n)):
             yield batch
+
+
+def ith_entries(iterable: Iterable[Tuple], i: int) -> Iterator:
+    """
+    Returns an iterator that yields the i-th entry from each tuple in the iterable using itemgetter.
+
+    Args:
+        iterable (Iterable[Tuple]): An iterable that yields tuples.
+        i (int): The index of the entry to extract from each tuple.
+
+    Returns:
+        Iterator: An iterator yielding the i-th entry from each tuple.
+    """
+    return map(operator.itemgetter(i), iterable)
 
 
 class QueueIterator:

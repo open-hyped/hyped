@@ -37,7 +37,7 @@ from tqdm.auto import tqdm
 from tqdm.std import EMA
 
 from hyped.common._worker import reset_worker_info, set_worker_info
-from hyped.common.iterators import QueueIterator, StoppableIterator, batched
+from hyped.common.iterators import QueueIterator, StoppableIterator, batched, ith_entries
 from hyped.common.logging import Logger, get_cls_logger
 from hyped.common.typing import DatasetType, Rank, Sample
 from hyped.common.utils import chdir, compose
@@ -45,31 +45,12 @@ from hyped.common.utils import chdir, compose
 IndexedSample: TypeAlias = tuple[str, Sample]
 
 
-def do_nothing():
+T = TypeVar("T")
+
+
+def _do_nothing():
     """A no-operation function that returns nothing."""
     return
-
-
-T = TypeVar("T")
-U = TypeVar("U")
-
-
-def _passthrough(x: T) -> T:
-    """Identity function that returns the input unchanged."""
-    return x
-
-
-def _drop_key_and_apply(key_and_sample: tuple[str, Sample], fn: Callable[[Sample], U]) -> U:
-    """Apply a function to the sample part of a key-value tuple.
-
-    Args:
-        key_and_sample (tuple[str, Sample]): A tuple where the second element is the sample.
-        fn (Callable[[Sample], Any]): The function to apply to the sample.
-
-    Returns:
-        Any: The result of applying the function to the sample.
-    """
-    return fn(key_and_sample[1])
 
 
 class WorkerRole(Enum):
@@ -104,11 +85,14 @@ class WorkerRole(Enum):
     """
 
 
+T = TypeVar("T")
+U = TypeVar("U")
+
 ContextTuple: TypeAlias = tuple[
     WorkerRole | None,
-    Iterable[IndexedSample] | None,
-    Callable[[Iterable[IndexedSample]], Iterable[IndexedSample]] | None,
-    Callable[[IndexedSample], Any] | None,
+    Iterable[T] | None,
+    Callable[[Iterable[T]], Iterable[U]] | None,
+    Callable[[U], Any] | None,
     bool,
 ]
 """Type alias representing the context passed to workers.
@@ -132,6 +116,65 @@ Elements:
 """
 
 
+class ExamplesIterablePipeline(list[_BaseExamplesIterable]):
+    """Pipeline of huggingface's :class:`_BaseExamplesIterable` blocks.
+
+    This class manages a sequence of processing steps applied to a dataset,
+    allowing for chaining and copying of processing pipelines.
+    """
+
+    @property
+    def src_iterable(self) -> None | _BaseExamplesIterable:
+        """Get the source iterable for the pipeline.
+
+        Returns:
+            _BaseExamplesIterable: The source iterable for the pipeline.
+
+        Raises:
+            AssertionError: If the pipeline is empty.
+        """
+        assert len(self) > 0, "Pipeline is empty; no source iterable available."
+        return self[0].ex_iterable
+
+    def copy(self) -> ExamplesIterablePipeline:
+        """Create a copy of the pipeline with each step copied.
+
+        Returns:
+            ExamplesIterablePipeline: A new pipeline instance with copied steps.
+        """
+
+        first = copy(self[0])
+        first.ex_iterable = None
+
+        pipeline = ExamplesIterablePipeline([first])
+
+        for step in map(copy, self[1:]):
+            step.ex_iterable = pipeline[-1]
+            pipeline.append(step)
+
+        return pipeline
+
+    def __call__(self, ex_iterable: Iterable[IndexedSample]) -> Iterable[IndexedSample]:
+        """Run the pipeline on the given example iterable.
+
+        Args:
+            ex_iterable (Iterable[IndexedSample]): The example iterable to be processed by the
+                pipeline.
+
+        Returns:
+            Iterable[IndexedSample]: Processed samples from the pipeline.
+        """
+
+        pipeline = self.copy()
+        pipeline[0].ex_iterable = ex_iterable
+
+        yield from pipeline[-1]
+
+    def __str__(self) -> str:
+        """String representation of the pipeline."""
+        return "[" + ", ".join([type(step).__name__ for step in self]) + "]"
+
+
 class Worker(mp.Process):
     """A worker process for parallel data processing.
 
@@ -146,8 +189,8 @@ class Worker(mp.Process):
         req_ctx_conn: mp.connection.Connection,
         tracker_conn: mp.connection.Connection,
         tracker_update_interval: float = 0.1,
-        worker_init: Callable[[], Any] = do_nothing,
-        worker_finalize: Callable[[], Any] = do_nothing,
+        worker_init: Callable[[], Any] = _do_nothing,
+        worker_finalize: Callable[[], Any] = _do_nothing,
     ) -> None:
         """Initialize a worker process for parallel data processing.
 
@@ -194,12 +237,15 @@ class Worker(mp.Process):
             f"Created worker with rank {self._rank} of {self._num_workers} total workers."
         )
 
+    T = TypeVar("T")
+    U = TypeVar("U")
+
     def send_ctx(
         self,
         role: WorkerRole | None,
-        producer: Iterable[IndexedSample] | None,
-        processor: Callable[[Iterable[IndexedSample]], Iterable[IndexedSample]] | None,
-        finalizer: Callable[[IndexedSample], Any] | None,
+        producer: Iterable[T] | None,
+        processor: Callable[[Iterable[T]], Iterable[U]] | None,
+        finalizer: Callable[[U], Any] | None,
         done: bool,
     ) -> bool:
         """
@@ -207,10 +253,10 @@ class Worker(mp.Process):
 
         Args:
             role (WorkerRole | None): The role of the worker.
-            producer (Iterable[IndexedSample] | None): The producer iterable for generating samples.
-            processor (Callable[[Iterable[IndexedSample]], Iterable[IndexedSample]] | None): The
+            producer (Iterable[T] | None): The producer iterable for generating samples.
+            processor (Callable[[Iterable[T]], Iterable[U]] | None): The
                 processor function.
-            finalizer (Callable[[IndexedSample], Any] | None): The finalizer function.
+            finalizer (Callable[[U], Any] | None): The finalizer function.
             done (bool): Whether the context change is final.
 
         Returns:
@@ -715,6 +761,49 @@ class ProgressTracker(threading.Thread):
         self._logger.info("Thread finished.")
 
 
+class Serializer(object):
+    """Serializer applied in multiprocessing runner stage 2.
+
+    This serializer collects and serialized a batch of samples into a single
+    serialized element using :code:`orjson` to reduce latency. From our experiments
+    :code:`orjson` showed to be the fastest serializer for json-compatible objects.
+    """
+
+    def __init__(self, batch_size: int):
+        """Initialize a new serializer.
+
+        Args:
+            batch_size (int): The number of batches to pack together.
+        """
+        self.batch_size = batch_size
+
+    def serialize(self, it: Iterable[Sample]) -> Iterable[Any]:
+        """Serialization wrapper.
+
+        Args:
+            it (Iterable[Sample]): An iterable of samples to be serialized.
+
+        Returns:
+            Iterable[Any]: An iterable containing the serialized samples,
+            where each sample is serialized to a byte format using orjson.dumps.
+
+        """
+        return map(orjson.dumps, batched(it, n=self.batch_size))
+
+    def deserialize(self, it: Iterable[Any]) -> Iterable[Sample]:
+        """Deserializer wrapper.
+
+        Args:
+            it (Iterable[Any]): An iterable of serialized data (e.g., bytes)
+            to be deserialized.
+
+        Returns:
+            Iterable[Sample]: An iterable of samples, where each serialized
+            data is deserialized using orjson.loads.
+        """
+        return chain.from_iterable(map(orjson.loads, it))
+
+
 class DynamicMultiprocessingRunner(object):
     """Manages and runs a set of worker processes to handle parallel data processing.
 
@@ -740,8 +829,8 @@ class DynamicMultiprocessingRunner(object):
         self,
         num_workers: int,
         prefetch_factor: int = 8,
-        worker_init: Callable[[], Any] = do_nothing,
-        worker_finalize: Callable[[], Any] = do_nothing,
+        worker_init: Callable[[], Any] = _do_nothing,
+        worker_finalize: Callable[[], Any] = _do_nothing,
         progress_update_interval: float = 0.1,
         disable_progress_bar: bool = False,
     ) -> None:
@@ -775,69 +864,86 @@ class DynamicMultiprocessingRunner(object):
 
         self._logger = get_cls_logger(type(self))
 
-    def serializer(self, it: Iterable[Sample]) -> Iterable[Any]:
-        """Serializer applied in stage 2 producer.
-
-        Collects and serialized a batch of samples using :code:`orjson`.
-
-        Args:
-            it (Iterable[Sample]): An iterable of samples to be serialized.
-
-        Returns:
-            Iterable[Any]: An iterable containing the serialized samples,
-            where each sample is serialized to a byte format using orjson.dumps.
-
-        """
-        return map(orjson.dumps, batched(it, n=self._prefetch))
-
-    def deserializer(self, it: Iterable[Any]) -> Iterable[Sample]:
-        """Deserializer used in stage 2 consumer workers.
-
-        Deserializes an iterable of serialized data back into samples using :code:`orjson`.
+    def _prepare_dataset(
+        self, ds: IterableDataset
+    ) -> tuple[_BaseExamplesIterable, Callable[[Iterable[IndexedSample]], Iterable[IndexedSample]]]:
+        """Prepare the dataset for processing by separating processing steps.
 
         Args:
-            it (Iterable[Any]): An iterable of serialized data (e.g., bytes)
-            to be deserialized.
+            ds (IterableDataset): The dataset to prepare.
 
         Returns:
-            Iterable[Sample]: An iterable of samples, where each serialized
-            data is deserialized using orjson.loads.
+            tuple[IterableDataset, Callable[[Iterable[IndexedSample]], Iterable[IndexedSample]]]:
+            A tuple containing the source dataset and a processor function representing the lazy
+            operations applied to the dataset.
         """
-        return chain.from_iterable(map(orjson.loads, it))
 
-    def run(
-        self,
-        ds: IterableDataset,
-        processor: Callable[[Iterable[IndexedSample]], Iterable[IndexedSample]],
-        finalizer: Callable[[IndexedSample], Any],
-    ) -> None:
+        if not hasattr(ds, "_ex_iterable") or not isinstance(
+            ds._ex_iterable,
+            (
+                MappedExamplesIterable,
+                FilteredExamplesIterable,
+                TypedExamplesIterable,
+            ),
+        ):
+            return ds._prepare_ex_iterable_for_iteration(batch_size=self._prefetch), partial(
+                ith_entries, i=1
+            )
+
+        # collect all processing steps to separate off
+        pipeline = ExamplesIterablePipeline([ds._ex_iterable])
+        while isinstance(
+            pipeline.src_iterable,
+            (
+                MappedExamplesIterable,
+                FilteredExamplesIterable,
+                TypedExamplesIterable,
+            ),
+        ):
+            pipeline.insert(0, pipeline.src_iterable)
+
+        self._logger.info(
+            f"Separated {len(pipeline)} processing steps from iterable dataset: {str(pipeline)}"
+        )
+
+        # create the source dataaset that excludes the pipeline processing steps
+        src_ds = IterableDataset(ex_iterable=pipeline.src_iterable)
+        ex_iterable = src_ds._prepare_ex_iterable_for_iteration(batch_size=self._prefetch)
+        # pipeline iterator yields (key, sample)-tuples, drop the key
+        processor = compose(partial(ith_entries, i=1), pipeline.copy())
+
+        return ex_iterable, processor
+
+    def run(self, ds: IterableDataset, fn: Callable[[Sample], Any]) -> None:
         """Execute data processing using the worker processes.
 
         Args:
             ds: (IterableDataset): The dataset to process.
-            processor (Callable[[Iterable[IndexedSample]], Iterable[IndexedSample]]): The function
-                to process each sample.
-            finalizer (Callable[[IndexedSample], Any]): The function to finalize each
-                sample.
+            fn (Callable[[Sample], Any]): The function to apply to each sample in the dataset.
         """
 
         self._logger.info("Starting data processing.")
 
-        with mp.Manager() as manager:
-            # prepare the dataset
-            num_shards = ds.n_shards
-            ds = ds._prepare_ex_iterable_for_iteration(batch_size=self._prefetch)
-            self._logger.info("Number of shards: %d", num_shards)
+        # prepare the dataset
+        ds, processor = self._prepare_dataset(ds)
 
+        num_shards = ds.n_shards
+        self._logger.info("Number of shards: %d", num_shards)
+
+        with mp.Manager() as manager:
             # create connection for workers to request new context
             req_ctx_conn, worker_req_ctx_conn = mp.Pipe(duplex=False)
 
+            # create the serializer used in stage 2
+            serializer = Serializer(batch_size=self._prefetch)
             # create sample queue used in stage 2 but required for tracker
             queue = manager.Queue(maxsize=self._num_workers * 2)
             queue_it = QueueIterator(queue, sentinel=None, timeout=None)
 
-            # create the progress tracker
-            tracker = ProgressTracker(num_shards, self._num_workers, queue, self._prefetch)
+            # create the progress tracker, note that the serializer dumps a batch of samples
+            # into a single queue element with a batch size set to the prefetch factor, explaining
+            # the item_size=prefetch here
+            tracker = ProgressTracker(num_shards, self._num_workers, queue, serializer.batch_size)
             tracker.start()
             self._logger.info("Progress tracker started.")
 
@@ -881,7 +987,7 @@ class DynamicMultiprocessingRunner(object):
                 rank = req_ctx_conn.recv()
                 worker = workers[rank]
                 # send new context to worker
-                accepted = worker.send_ctx(WorkerRole.PROCESSOR, shard, processor, finalizer, False)
+                accepted = worker.send_ctx(WorkerRole.PROCESSOR, shard, processor, fn, False)
                 assert accepted, f"Worker {rank} unexpectedly refused the processor context."
                 running_worker_ranks.add(rank)
 
@@ -910,8 +1016,8 @@ class DynamicMultiprocessingRunner(object):
                     workers[rank].send_ctx(
                         WorkerRole.CONSUMER,
                         queue_it,
-                        compose(processor, self.deserializer),
-                        finalizer,
+                        compose(processor, serializer.deserialize),
+                        fn,
                         False,
                     )
                     self._logger.info(f"Assigned worker {rank} as consumer.")
@@ -924,7 +1030,7 @@ class DynamicMultiprocessingRunner(object):
                         producer_worker_rank in idling_worker_ranks
                     ):
                         candidate_ranks = iter(running_worker_ranks)
-                        ctx = (WorkerRole.PRODUCER, None, self.serializer, queue.put, False)
+                        ctx = (WorkerRole.PRODUCER, None, serializer.serialize, queue.put, False)
 
                         try:
                             # try to assign a producer worker
@@ -1022,11 +1128,8 @@ class MainProcessRunner(object):
         num_shards = ds.n_shards
         self._logger.info(f"Dataset prepared with {num_shards} shards.")
 
-        # prepare the function to apply
-        fn = partial(_drop_key_and_apply, fn=fn)
-
         # create and start the tracker thread
-        tracker = ProgressTracker(num_shards, 1, Queue())
+        tracker = ProgressTracker(num_shards, 1, Queue(), 0)
         tracker.start()
         self._logger.info("ProgressTracker started.")
 
@@ -1059,7 +1162,7 @@ class MainProcessRunner(object):
                 self._logger.info(f"Processing shard {i + 1}/{num_shards}.")
                 # get the current shard and apply the function to each sample
                 shard = ds.shard_data_sources(i, num_shards)
-                shard = map(fn, shard)
+                shard = map(fn, ith_entries(shard, i=1))
 
                 # iterate through the shard and track the total number of samples seen
                 # using a global counter
@@ -1103,65 +1206,6 @@ class MainProcessRunner(object):
             self._logger.info("TqdmReporter stopped.")
 
 
-class ExamplesIterablePipeline(list[_BaseExamplesIterable]):
-    """Pipeline of huggingface's :class:`_BaseExamplesIterable` blocks.
-
-    This class manages a sequence of processing steps applied to a dataset,
-    allowing for chaining and copying of processing pipelines.
-    """
-
-    @property
-    def src_iterable(self) -> None | _BaseExamplesIterable:
-        """Get the source iterable for the pipeline.
-
-        Returns:
-            _BaseExamplesIterable: The source iterable for the pipeline.
-
-        Raises:
-            AssertionError: If the pipeline is empty.
-        """
-        assert len(self) > 0, "Pipeline is empty; no source iterable available."
-        return self[0].ex_iterable
-
-    def copy(self) -> ExamplesIterablePipeline:
-        """Create a copy of the pipeline with each step copied.
-
-        Returns:
-            ExamplesIterablePipeline: A new pipeline instance with copied steps.
-        """
-
-        first = copy(self[0])
-        first.ex_iterable = None
-
-        pipeline = ExamplesIterablePipeline([first])
-
-        for step in map(copy, self[1:]):
-            step.ex_iterable = pipeline[-1]
-            pipeline.append(step)
-
-        return pipeline
-
-    def __call__(self, ex_iterable: Iterable[IndexedSample]) -> Iterable[IndexedSample]:
-        """Run the pipeline on the given example iterable.
-
-        Args:
-            ex_iterable (Iterable[IndexedSample]): The example iterable to be processed by the
-                pipeline.
-
-        Returns:
-            Iterable[IndexedSample]: Processed samples from the pipeline.
-        """
-
-        pipeline = self.copy()
-        pipeline[0].ex_iterable = ex_iterable
-
-        yield from pipeline[-1]
-
-    def __str__(self) -> str:
-        """String representation of the pipeline."""
-        return "[" + ", ".join([type(step).__name__ for step in self]) + "]"
-
-
 class DatasetConsumer(object):
     """Consumes and processes a dataset.
 
@@ -1174,8 +1218,8 @@ class DatasetConsumer(object):
         fn: Callable[[Sample], Any],
         num_proc: int = mp.cpu_count(),
         prefetch_factor: int = 8,
-        initialize: Callable[[], Any] = do_nothing,
-        finalize: Callable[[], Any] = do_nothing,
+        initialize: Callable[[], Any] = _do_nothing,
+        finalize: Callable[[], Any] = _do_nothing,
         tqdm_update_interval: float = 0.1,
         disable_tqdm: bool = False,
     ) -> None:
@@ -1208,51 +1252,6 @@ class DatasetConsumer(object):
 
         self._logger = get_cls_logger(type(self))
 
-    def _prepare_dataset(
-        self, ds: IterableDataset
-    ) -> tuple[IterableDataset, Callable[[Iterable[Sample]], Iterable[Sample]]]:
-        """Prepare the dataset for processing by separating processing steps.
-
-        Args:
-            ds (IterableDataset): The dataset to prepare.
-
-        Returns:
-            tuple[IterableDataset, Callable[[Iterable[Sample]], Iterable[Sample]]]:
-            A tuple containing the processed dataset and a function to run the pipeline.
-        """
-
-        if not isinstance(
-            ds._ex_iterable,
-            (
-                MappedExamplesIterable,
-                FilteredExamplesIterable,
-                TypedExamplesIterable,
-            ),
-        ):
-            return ds, _passthrough
-
-        # collect all processing steps to separate off
-        pipeline = ExamplesIterablePipeline([ds._ex_iterable])
-        while isinstance(
-            pipeline.src_iterable,
-            (
-                MappedExamplesIterable,
-                FilteredExamplesIterable,
-                TypedExamplesIterable,
-            ),
-        ):
-            pipeline.insert(0, pipeline.src_iterable)
-
-        self._logger.info(
-            f"Separated {len(pipeline)} processing steps from iterable dataset: {str(pipeline)}"
-        )
-
-        # create the source dataaset that excludes the
-        # pipeline processing steps
-        src_ds = IterableDataset(ex_iterable=pipeline.src_iterable)
-
-        return src_ds, pipeline.copy()
-
     def consume(self, ds: IterableDataset) -> None:
         """Process the dataset.
 
@@ -1262,10 +1261,6 @@ class DatasetConsumer(object):
 
         if self._num_proc > 1:
             self._logger.info("Running in multi-process mode.")
-            # prepare the dataset and function to apply
-            src_ds, processor = self._prepare_dataset(ds)
-            finalizer = partial(_drop_key_and_apply, fn=self._fn)
-
             # create the multiprocessing runner and run it
             runner = DynamicMultiprocessingRunner(
                 num_workers=self._num_proc,
@@ -1275,7 +1270,7 @@ class DatasetConsumer(object):
                 progress_update_interval=self._tqdm_update_interval,
                 disable_progress_bar=self._disable_tqdm,
             )
-            runner.run(src_ds, processor, finalizer)
+            runner.run(ds, self._fn)
 
         else:
             self._logger.info("Running in single-process mode.")
