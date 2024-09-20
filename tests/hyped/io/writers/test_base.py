@@ -6,16 +6,15 @@ from unittest.mock import MagicMock, call, patch
 import datasets
 import pytest
 from datasets import Dataset, IterableDatasetDict
-from datasets.iterable_dataset import MappedExamplesIterable, TypedExamplesIterable
 from sharedmock.mock import SharedMock
 
 from hyped.io.writers.base import (
     BaseDatasetWriter,
     DatasetConsumer,
     DynamicMultiprocessingRunner,
+    Serializer,
     Worker,
     WorkerRole,
-    _passthrough,
 )
 
 
@@ -145,7 +144,7 @@ class TestWorker:
     def test_error_logging(self, mock_set_worker_info, worker):
         # set up worker
         worker._producer = [MagicMock(), MagicMock(), MagicMock()]
-        worker._processor = _passthrough
+        worker._processor = lambda x: x
         worker._finalizer = MagicMock(side_effect=RuntimeError)
         # mock request new and check context
         worker._logger = MagicMock()
@@ -173,6 +172,19 @@ class TestWorker:
         assert len(worker._logger.error.mock_calls) == 2
 
 
+class TestSerializer:
+    def test_serialization_deserialization(self):
+        serializer = Serializer(batch_size=5)
+        samples = [{"key": i} for i in range(32)]
+
+        # Serialize and deserialize the samples
+        serialized = list(serializer.serialize(samples))
+        deserialized = list(serializer.deserialize(serialized))
+
+        # Check that the deserialized output matches the original samples
+        assert deserialized == samples, "Deserialized output does not match the original samples"
+
+
 class TestDynamicMultiprocessingRunner:
     @pytest.mark.parametrize("num_shards", [1, 2, 3])
     @pytest.mark.parametrize("num_samples", [20])
@@ -182,17 +194,35 @@ class TestDynamicMultiprocessingRunner:
         ds = Dataset.from_dict(samples)
         ds = ds.to_iterable_dataset(num_shards)
         # create mock processor and finalizer
-        processor = _passthrough
-        finalizer = SharedMock()
+        fn = SharedMock()
         # run dynamic multiprocessing runner
         runner = DynamicMultiprocessingRunner(
             num_workers=2, disable_progress_bar=True, progress_update_interval=0.0
         )
-        runner.run(ds, processor, finalizer)
+        runner.run(ds, fn)
         # make sure all samples have been processed
-        finalizer.assert_has_calls(
-            [call((0, {"obj": i})) for i in range(num_samples)], same_order=False
-        )
+        fn.assert_has_calls([call({"obj": i}) for i in range(num_samples)], same_order=False)
+
+    @pytest.mark.parametrize("nested", [0, 1, 2])
+    def test_prepare_dataset(self, nested):
+        ds = Dataset.from_dict({"obj": [0]})
+        ds = ds.to_iterable_dataset(1)
+        # apply map function
+        mapped_ds = ds
+        for _ in range(nested):
+            mapped_ds = mapped_ds.map(_double_fn)
+
+        # call prepare dataset
+        runner = DynamicMultiprocessingRunner(num_workers=2)
+        src_ex_it, pipeline = runner._prepare_dataset(mapped_ds)
+
+        # check output
+        assert isinstance(src_ex_it, type(ds._ex_iterable))
+
+        # test pipeline output
+        expected = list(pipeline(src_ex_it))
+        actual = list(ds)
+        assert actual == expected
 
 
 def _double_fn(x):
@@ -239,21 +269,6 @@ class TestDatasetConsumer:
 
         # make sure all samples have been processed
         fn.assert_has_calls([call({"obj": i * 2}) for i in range(num_samples)], same_order=False)
-
-    def test_prepare_dataset(self):
-        ds = Dataset.from_dict({"obj": [0]})
-        ds = ds.to_iterable_dataset(1)
-        # apply map function
-        mapped_ds = ds.map(_double_fn)
-
-        # call prepare dataset
-        consumer = DatasetConsumer(fn=MagicMock(), num_proc=2)
-        src_ds, pipeline = consumer._prepare_dataset(mapped_ds)
-
-        # check output
-        assert isinstance(src_ds._ex_iterable, type(ds._ex_iterable))
-        assert isinstance(pipeline[0], TypedExamplesIterable)
-        assert isinstance(pipeline[1], MappedExamplesIterable)
 
 
 class TestBaseDatasetWriter:
