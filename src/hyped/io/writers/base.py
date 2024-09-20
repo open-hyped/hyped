@@ -12,8 +12,9 @@ import multiprocessing.connection  # noqa: F401
 import os
 import shutil
 import threading
+import warnings
 from abc import ABC, abstractmethod
-from collections import Counter
+from collections import Counter, OrderedDict
 from copy import copy
 from dataclasses import asdict
 from enum import Enum
@@ -37,10 +38,11 @@ from tqdm.auto import tqdm
 from tqdm.std import EMA
 
 from hyped.common._worker import reset_worker_info, set_worker_info
+from hyped.common.feature_key import FeatureKey
 from hyped.common.iterators import QueueIterator, StoppableIterator, batched, ith_entries
 from hyped.common.logging import Logger, get_cls_logger
 from hyped.common.typing import DatasetType, Rank, Sample
-from hyped.common.utils import chdir, compose
+from hyped.common.utils import chdir, compose, run_all
 
 IndexedSample: TypeAlias = tuple[str, Sample]
 
@@ -921,6 +923,7 @@ class DynamicMultiprocessingRunner(object):
             ds: (IterableDataset): The dataset to process.
             fn (Callable[[Sample], Any]): The function to apply to each sample in the dataset.
         """
+        global _manager
 
         self._logger.info("Starting data processing.")
 
@@ -930,144 +933,139 @@ class DynamicMultiprocessingRunner(object):
         num_shards = ds.n_shards
         self._logger.info("Number of shards: %d", num_shards)
 
-        with mp.Manager() as manager:
-            # create connection for workers to request new context
-            req_ctx_conn, worker_req_ctx_conn = mp.Pipe(duplex=False)
+        # create connection for workers to request new context
+        req_ctx_conn, worker_req_ctx_conn = mp.Pipe(duplex=False)
 
-            # create the serializer used in stage 2
-            serializer = Serializer(batch_size=self._prefetch)
-            # create sample queue used in stage 2 but required for tracker
-            queue = manager.Queue(maxsize=self._num_workers * 2)
-            queue_it = QueueIterator(queue, sentinel=None, timeout=None)
+        # create the serializer used in stage 2
+        serializer = Serializer(batch_size=self._prefetch)
+        # create sample queue used in stage 2 but required for tracker
+        queue = _manager.Queue(maxsize=self._num_workers * 2)
+        queue_it = QueueIterator(queue, sentinel=None, timeout=None)
 
-            # create the progress tracker, note that the serializer dumps a batch of samples
-            # into a single queue element with a batch size set to the prefetch factor, explaining
-            # the item_size=prefetch here
-            tracker = ProgressTracker(num_shards, self._num_workers, queue, serializer.batch_size)
-            tracker.start()
-            self._logger.info("Progress tracker started.")
+        # create the progress tracker, note that the serializer dumps a batch of samples
+        # into a single queue element with a batch size set to the prefetch factor, explaining
+        # the item_size=prefetch here
+        tracker = ProgressTracker(num_shards, self._num_workers, queue, serializer.batch_size)
+        tracker.start()
+        self._logger.info("Progress tracker started.")
 
-            # create the reporter if asked for
-            reporter: None | TqdmReporter
-            if not self._disable_progress_bar:
-                reporter = TqdmReporter(tracker, update_interval=self._progress_update_interval)
-                reporter.start()
-                self._logger.info("TqdmReporter started.")
+        # create the reporter if asked for
+        reporter: None | TqdmReporter
+        if not self._disable_progress_bar:
+            reporter = TqdmReporter(tracker, update_interval=self._progress_update_interval)
+            reporter.start()
+            self._logger.info("TqdmReporter started.")
 
-            # create all workers
-            workers = [
-                Worker(
-                    rank=rank,
-                    num_workers=self._num_workers,
-                    req_ctx_conn=worker_req_ctx_conn,
-                    tracker_conn=tracker._send_prog_conn,
-                    tracker_update_interval=self._progress_update_interval,
-                    worker_init=self._worker_init,
-                    worker_finalize=self._worker_finalize,
+        # create all workers
+        workers = [
+            Worker(
+                rank=rank,
+                num_workers=self._num_workers,
+                req_ctx_conn=worker_req_ctx_conn,
+                tracker_conn=tracker._send_prog_conn,
+                tracker_update_interval=self._progress_update_interval,
+                worker_init=self._worker_init,
+                worker_finalize=self._worker_finalize,
+            )
+            for rank in range(self._num_workers)
+        ]
+        self._logger.info(f"All {self._num_workers} workers created.")
+
+        # start all workers
+        for worker in workers:
+            worker.start()
+
+        self._logger.info("All workers started.")
+
+        # keep track of all running workers
+        running_worker_ranks: set[int] = set()
+
+        self._logger.info("Starting Stage 1: Single-Shard Single-Worker")
+        # stage 1: shards available
+        # whenever a group is idleing give it a new shard to process
+        for shard_id in range(num_shards):
+            shard = ds.shard_data_sources(shard_id, num_shards)
+            # wait for worker to request new context
+            rank = req_ctx_conn.recv()
+            worker = workers[rank]
+            # send new context to worker
+            accepted = worker.send_ctx(WorkerRole.PROCESSOR, shard, processor, fn, False)
+            assert accepted, f"Worker {rank} unexpectedly refused the processor context."
+            running_worker_ranks.add(rank)
+
+            self._logger.info(f"Assigned shard {shard_id} to worker {rank}.")
+
+        # Stage 2: all shards being processed
+        self._logger.info("Starting Stage 2: Single-Shard Multiple-Workers")
+
+        # keep track of producer and consumer workers
+        producer_worker_rank: None | int = None
+        consumer_worker_ranks: set[int] = set()
+
+        while len(running_worker_ranks) > 0:
+            # collect all idling workers
+            idling_worker_ranks = {req_ctx_conn.recv()}
+            while req_ctx_conn.poll(timeout=0.1):
+                idling_worker_ranks.add(req_ctx_conn.recv())
+
+            self._logger.debug("Idling workers: %s", idling_worker_ranks)
+
+            # update running ranks
+            running_worker_ranks -= idling_worker_ranks
+
+            # use idling ranks as consumers
+            for rank in idling_worker_ranks:
+                workers[rank].send_ctx(
+                    WorkerRole.CONSUMER,
+                    queue_it,
+                    compose(processor, serializer.deserialize),
+                    fn,
+                    False,
                 )
-                for rank in range(self._num_workers)
-            ]
-            self._logger.info(f"All {self._num_workers} workers created.")
+                self._logger.info(f"Assigned worker {rank} as consumer.")
 
-            # start all workers
-            for worker in workers:
-                worker.start()
+            # update consumer worker ranks
+            consumer_worker_ranks.update(idling_worker_ranks)
 
-            self._logger.info("All workers started.")
+            if len(running_worker_ranks) > 0:
+                if (producer_worker_rank is None) or (producer_worker_rank in idling_worker_ranks):
+                    candidate_ranks = iter(running_worker_ranks)
+                    ctx = (WorkerRole.PRODUCER, None, serializer.serialize, queue.put, False)
 
-            # keep track of all running workers
-            running_worker_ranks: set[int] = set()
+                    try:
+                        # try to assign a producer worker
+                        # test running workers until one of them accepts the producer context
+                        while not workers[(rank := next(candidate_ranks))].send_ctx(*ctx):
+                            self._logger.info(f"Worker {rank} did not accept producer context.")
+                        self._logger.info(f"Assigned worker {producer_worker_rank} as producer.")
+                    except StopIteration:
+                        producer_worker_rank = None
 
-            self._logger.info("Starting Stage 1: Single-Shard Single-Worker")
-            # stage 1: shards available
-            # whenever a group is idleing give it a new shard to process
-            for shard_id in range(num_shards):
-                shard = ds.shard_data_sources(shard_id, num_shards)
-                # wait for worker to request new context
-                rank = req_ctx_conn.recv()
-                worker = workers[rank]
-                # send new context to worker
-                accepted = worker.send_ctx(WorkerRole.PROCESSOR, shard, processor, fn, False)
-                assert accepted, f"Worker {rank} unexpectedly refused the processor context."
-                running_worker_ranks.add(rank)
+            else:
+                # no worker running that could act as producer
+                producer_worker_rank = None
 
-                self._logger.info(f"Assigned shard {shard_id} to worker {rank}.")
+        self._logger.info("Sending sentinel signals to consumer workers.")
+        # put sentinel signal to queue, one per consumer worker
+        for _ in consumer_worker_ranks:
+            queue.put(None)
 
-            # Stage 2: all shards being processed
-            self._logger.info("Starting Stage 2: Single-Shard Multiple-Workers")
+        self._logger.info("Stopping all workers.")
+        # send stop signal to all workers
+        for _ in range(self._num_workers):
+            rank = req_ctx_conn.recv()
+            assert workers[rank].send_ctx(None, None, None, None, True)
 
-            # keep track of producer and consumer workers
-            producer_worker_rank: None | int = None
-            consumer_worker_ranks: set[int] = set()
+        self._logger.info("Waiting for all workers to join.")
+        # wait for all workers to join
+        for worker in workers:
+            worker.join()
 
-            while len(running_worker_ranks) > 0:
-                # collect all idling workers
-                idling_worker_ranks = {req_ctx_conn.recv()}
-                while req_ctx_conn.poll(timeout=0.1):
-                    idling_worker_ranks.add(req_ctx_conn.recv())
-
-                self._logger.debug("Idling workers: %s", idling_worker_ranks)
-
-                # update running ranks
-                running_worker_ranks -= idling_worker_ranks
-
-                # use idling ranks as consumers
-                for rank in idling_worker_ranks:
-                    workers[rank].send_ctx(
-                        WorkerRole.CONSUMER,
-                        queue_it,
-                        compose(processor, serializer.deserialize),
-                        fn,
-                        False,
-                    )
-                    self._logger.info(f"Assigned worker {rank} as consumer.")
-
-                # update consumer worker ranks
-                consumer_worker_ranks.update(idling_worker_ranks)
-
-                if len(running_worker_ranks) > 0:
-                    if (producer_worker_rank is None) or (
-                        producer_worker_rank in idling_worker_ranks
-                    ):
-                        candidate_ranks = iter(running_worker_ranks)
-                        ctx = (WorkerRole.PRODUCER, None, serializer.serialize, queue.put, False)
-
-                        try:
-                            # try to assign a producer worker
-                            # test running workers until one of them accepts the producer context
-                            while not workers[(rank := next(candidate_ranks))].send_ctx(*ctx):
-                                self._logger.info(f"Worker {rank} did not accept producer context.")
-                            self._logger.info(
-                                f"Assigned worker {producer_worker_rank} as producer."
-                            )
-                        except StopIteration:
-                            producer_worker_rank = None
-
-                else:
-                    # no worker running that could act as producer
-                    producer_worker_rank = None
-
-            self._logger.info("Sending sentinel signals to consumer workers.")
-            # put sentinel signal to queue, one per consumer worker
-            for _ in consumer_worker_ranks:
-                queue.put(None)
-
-            self._logger.info("Stopping all workers.")
-            # send stop signal to all workers
-            for _ in range(self._num_workers):
-                rank = req_ctx_conn.recv()
-                assert workers[rank].send_ctx(None, None, None, None, True)
-
-            self._logger.info("Waiting for all workers to join.")
-            # wait for all workers to join
-            for worker in workers:
-                worker.join()
-
-            self._logger.info("Waiting for tracker and reporter to join.")
-            # wait for tracker and reporter to join
-            tracker.join()
-            if not self._disable_progress_bar:
-                reporter.join()
+        self._logger.info("Waiting for tracker and reporter to join.")
+        # wait for tracker and reporter to join
+        tracker.join()
+        if not self._disable_progress_bar:
+            reporter.join()
 
         self._logger.info("Data processing completed.")
 
@@ -1285,6 +1283,248 @@ class DatasetConsumer(object):
             runner.run(ds, self._fn)
 
 
+def _parse_size(size_str: str) -> int:
+    """Convert a string representation of size to bytes.
+
+    Args:
+        size_str (str): The size string (e.g., '5GB', '200MB', '1.5KB').
+
+    Returns:
+        int: The size in bytes.
+
+    Raises:
+        ValueError: If the size_str is not a valid format.
+    """
+    size_str = size_str.strip().upper()
+    size_units = OrderedDict(
+        [("KB", 1024), ("MB", 1024**2), ("GB", 1024**3), ("TB", 1024**4), ("B", 1)]
+    )
+
+    if len(size_str) < 2 or not any(unit in size_str for unit in size_units):
+        raise ValueError(f"Invalid size format: {size_str}")
+
+    for unit, factor in size_units.items():
+        if size_str.endswith(unit):
+            try:
+                size_value = float(size_str[: -len(unit)].strip())
+                return int(size_value * factor)
+            except ValueError:
+                raise ValueError(f"Invalid size value: {size_str}")
+
+    raise ValueError(f"Invalid size format: {size_str}")
+
+
+class ShardingStrategy(str, Enum):
+    """Enum representing different strategies for sharding dataset samples.
+
+    The strategy determines how the dataset will be divided into shards based on
+    either the number of samples, an attribute of the sample, or the file size
+    of the written data.
+    """
+
+    SAMPLE_COUNT = "sample_count"
+    """Shard based on the number of samples.
+
+    In this mode, shards are created once a specified number of samples
+    has been written. This is the default mode.
+    """
+
+    SAMPLE_ITEM = "sample_item"
+    """Shard based on an attribute of each sample.
+
+    In this mode, a specific item or attribute of the sample is used to determine
+    shard size. The attribute to be measured must be specified as part of the sharding
+    configuration (e.g., an attribute that represents the sample size in terms of data).
+    """
+
+    FILE_SIZE = "file_size"
+    """Shard based on the total size of written files.
+
+    In this mode, the size of the output files is monitored, and a new shard is started
+    once a specified file size threshold is reached (e.g., 1 GB).
+    """
+
+    NONE = "none"
+    """Disable sharding.
+
+    In this mode, all samples are written to a single file or destination
+    without splitting them into multiple shards.
+    """
+
+
+class ShardingController(object):
+    """Controller responsible for managing dataset sharding during the writing process.
+
+    This class provides an interface to manage sharding strategies, track shard sizes,
+    and control the lifecycle of shards, such as initializing and finalizing shards
+    when specific thresholds are met.
+    """
+
+    def __init__(
+        self,
+        is_multi_processed: bool,
+        sharding_strategy: ShardingStrategy,
+        max_shard_size: None | int | str,
+        sample_size_key: None | FeatureKey,
+        initialize_shard: Callable[[int], Any],
+        finalize_shard: Callable[[int], Any],
+    ) -> None:
+        """Initialize the :class:`ShardingController`.
+
+        Args:
+            is_multi_processed (bool): Whether the sharding controller will manage
+                multiple processes.
+            sharding_strategy (ShardingStrategy): The strategy for determining when to
+                create a new shard.
+            max_shard_size (None | int | str): The maximum size of a shard. The format
+                depends on the sharding strategy (e.g., integer for sample counts or byte sizes,
+                or a string for file size such as "5GB").
+            sample_size_key (None | FeatureKey): The key to measure sample size, only
+                used with the SAMPLE_ITEM strategy.
+            initialize_shard (Callable[[int], Any]): A function to initialize a new shard.
+            finalize_shard (Callable[[int], Any]): A function to finalize the current shard.
+        """
+        global _manager
+
+        if (sharding_strategy is not ShardingStrategy.SAMPLE_ITEM) and (
+            sample_size_key is not None
+        ):
+            warnings.warn(
+                "The `sample_size_key` parameter is ignored when using sharding strategies "
+                "other than SAMPLE_ITEM.",
+                UserWarning,
+            )
+
+        if (sharding_strategy is ShardingStrategy.SAMPLE_ITEM) and (sample_size_key is None):
+            raise ValueError(
+                "The `sample_size_key` must be specified when using the `SAMPLE_ITEM` sharding "
+                "strategy."
+            )
+
+        if (sharding_strategy is not ShardingStrategy.FILE_SIZE) and isinstance(
+            max_shard_size, str
+        ):
+            raise ValueError(
+                "The `max_shard_size` parameter must be an integer when not using the `FILE_SIZE` "
+                "sharding strategy."
+            )
+
+        if isinstance(max_shard_size, str):
+            # parse the size string to an integer
+            max_shard_size = _parse_size(max_shard_size)
+
+        if (sample_size_key is not None) and not isinstance(sample_size_key, FeatureKey):
+            sample_size_key = FeatureKey(sample_size_key)
+
+        self._is_multi_processed = is_multi_processed
+        # sharding strategy
+        self._sharding_strategy = sharding_strategy
+        self._max_shard_size = max_shard_size
+        self._sample_size_key = sample_size_key
+        # shard state
+        self._shard_id: None | int = None
+        self._shard_size = 0
+        self._shard_bytes = 0
+        self._sample_size = 0
+        # global shard state
+        self._num_shards = _manager.Value("i32", 0) if is_multi_processed else 0
+        self._lock = _manager.Lock() if is_multi_processed else None
+        # shard creation
+        self._initialize_shard = initialize_shard
+        self._finalize_shard = finalize_shard
+
+        self._logger = get_cls_logger(type(self))
+
+    @property
+    def is_active(self) -> bool:
+        """Returns whether the sharding controller is active.
+
+        Returns:
+            bool: True if sharding is active, False otherwise.
+        """
+        return self._sharding_strategy is not ShardingStrategy.NONE
+
+    def _next_shard_id(self) -> None:
+        """Assign the next shard ID.
+
+        If multi-processing is enabled, this is done with thread-safe increments
+        using locks; otherwise, the counter is incremented directly.
+        """
+
+        assert self._shard_id is None
+
+        if not self._is_multi_processed:
+            self._shard_id = self._num_shards
+            self._num_shards += 1
+
+        else:
+            with self._lock:
+                self._shard_id = self._num_shards.get()
+                self._num_shards.set(self._shard_id + 1)
+
+    def _reset_state(self) -> None:
+        """Reset the shard state variables for the next shard."""
+        self._shard_id = None
+        self._shard_size = 0
+        self._shard_bytes = 0
+        self._sample_size = 0
+
+    def callback(self, sample: Sample) -> Sample:
+        """Process each sample before writing and check if a new shard is required.
+
+        Args:
+            sample (Sample): The sample to be written.
+
+        Returns:
+            Sample: The sample, unchanged.
+        """
+
+        if self._sharding_strategy is ShardingStrategy.SAMPLE_ITEM:
+            # cache the size of the sample to be used later in the shard size update
+            self._sample_size = self._sample_size_key.index_example(sample)
+
+        # check if shard is full
+        if self._shard_size >= self._max_shard_size:
+            # finalize current shard and initialize a new one
+            self.finalize()
+            self.initialize()
+
+        return sample
+
+    def update(self, num_bytes: int) -> None:
+        """Update the shard size based on the number of bytes written or sample size.
+
+        Args:
+            num_bytes (int): The number of bytes written to the current shard.
+        """
+
+        # udpate shard size according to the strategy
+        self._shard_bytes += num_bytes
+        self._shard_size += (
+            1
+            if self._sharding_strategy is ShardingStrategy.SAMPLE_COUNT
+            else self._sample_size
+            if self._sharding_strategy is ShardingStrategy.SAMPLE_ITEM
+            else num_bytes
+            if self._sharding_strategy is ShardingStrategy.FILE_SIZE
+            else 0
+        )
+
+    def initialize(self) -> None:
+        """Initialize a new shard by assigning an ID and invoking the initialization logic."""
+        # initialize new shard
+        self._next_shard_id()
+        self._initialize_shard(self._shard_id)
+        self._logger.info(f"Initialized new shard with id {self._shard_id}.")
+
+    def finalize(self) -> None:
+        """Finalize the current shard, reset its state, and invoke the finalization logic."""
+        if self._shard_id is not None:
+            self._finalize_shard()
+            self._reset_state()
+            self._logger.info(f"Finalized shard with id {self._shard_id}")
+
+
 class BaseDatasetWriter(ABC):
     """Base class for writing datasets to disk.
 
@@ -1305,28 +1545,44 @@ class BaseDatasetWriter(ABC):
         prefetch_factor: int = 8,
         tqdm_update_interval: float = 0.1,
         disable_tqdm: bool = False,
+        sharding_strategy: ShardingStrategy = ShardingStrategy.FILE_SIZE,
+        max_shard_size: None | int | str = "5GB",
+        sample_size_key: None | FeatureKey = None,
     ) -> None:
         """Initialize the :class:`BaseDatasetWriter`.
 
         Args:
             save_dir (str): Directory where the dataset will be saved.
-            overwrite (bool, optional): Whether to overwrite existing files in the save directory.
+            overwrite (bool): Whether to overwrite existing files in the save directory.
                 Defaults to False.
-            num_proc (int, optional): Number of processes to use for dataset processing. Defaults
+            num_proc (int): Number of processes to use for dataset processing. Defaults
                 to the number of CPU cores.
-            prefetch_factor (int, optional): Number of samples to prefetch for improved
+            prefetch_factor (int): Number of samples to prefetch for improved
                 performance. Defaults to 8.
-            tqdm_update_interval (float, optional): The interval in seconds at which the tqdm
+            tqdm_update_interval (float): The interval in seconds at which the tqdm
                 progress bar updates. Default is 0.1.
-            disable_tqdm (bool, optional): Whether to disable the tqdm progress bar. Default is
+            disable_tqdm (bool): Whether to disable the tqdm progress bar. Default is
                 False, meaning the progress bar is enabled.
+            sharding_strategy (ShardingStrategy): The strategy to use for sharding
+                dataset samples. Defaults to :class:`FILE_SIZE`.
+            max_shard_size (None | int | str): Maximum size for each shard according to the
+                sharding strategy. If specified, the sharding strategy will consider this limit.
+                Defaults to '5GB' matching the default sharding strategy.
+            sample_size_key (str, optional): The key in the dataset sample to measure size if using
+                the :class:`SAMPLE_ITEM` sharding strategy.
         """
+
         self.save_dir = save_dir
         self._overwrite = overwrite
         self._num_proc = num_proc
         self._prefetch = prefetch_factor
+        # tqdm setup
         self._tqdm_update_interval = tqdm_update_interval
         self._disable_tqdm = disable_tqdm
+        # sharding
+        self._sharding_strategy = sharding_strategy
+        self._max_shard_size = max_shard_size
+        self._sample_size_key = sample_size_key
 
         self._logger = get_cls_logger(type(self))
 
@@ -1388,6 +1644,30 @@ class BaseDatasetWriter(ABC):
 
         self._logger.info(f"Writing dataset split {ds.split} to {os.getcwd()}.")
 
+        if ds.info is None:
+            warnings.warn("", UserWarning)  # TODO
+
+        # create sharding controller
+        sharding_controller = ShardingController(
+            is_multi_processed=self._num_proc > 1,
+            sharding_strategy=self._sharding_strategy,
+            max_shard_size=self._max_shard_size,
+            sample_size_key=self._sample_size_key,
+            initialize_shard=partial(self.initialize_shard, info=ds.info),
+            finalize_shard=partial(self.finalize_shard, info=ds.info),
+        )
+
+        # wrap write function in sharding callback if needed
+        write_fn = (
+            self.write_sample
+            if not sharding_controller.is_active
+            else compose(
+                sharding_controller.update,
+                self.write_sample,
+                sharding_controller.callback,
+            )
+        )
+
         os.makedirs(save_dir, exist_ok=True)
         # convert dataset to iterable dataset
         if isinstance(ds, Dataset):
@@ -1396,11 +1676,14 @@ class BaseDatasetWriter(ABC):
         with chdir(save_dir):
             # write dataset to directory
             consumer = DatasetConsumer(
-                self.write_sample,
+                write_fn,
                 num_proc=self._num_proc,
                 prefetch_factor=self._prefetch,
-                initialize=partial(self.initialize, ds.info),
-                finalize=partial(self.finalize, ds.info),
+                initialize=run_all(
+                    sharding_controller.initialize,
+                    partial(self.initialize, ds.info),
+                ),
+                finalize=run_all(sharding_controller.finalize, partial(self.finalize, ds.info)),
                 tqdm_update_interval=self._tqdm_update_interval,
                 disable_tqdm=self._disable_tqdm,
             )
@@ -1447,39 +1730,78 @@ class BaseDatasetWriter(ABC):
             self._write_dataset(ds, self.save_dir)
 
     @abstractmethod
-    def write_sample(self, sample: Sample) -> None:
+    def write_sample(self, sample: Sample) -> int:
         """Abstract method for writing an individual sample.
 
+        This method writes a single sample to the dataset shard and returns the
+        number of bytes written.
+
         The working directory is temporarily set to the save directory during this method,
-        so any files created will be saved in the designated dataset directory.
+        any files created will be saved in the designated dataset directory.
 
         Args:
             sample (Sample): The sample to be written.
+
+        Returns:
+            int: The number of bytes written to the shard.
         """
         ...
 
-    @abstractmethod
     def initialize(self, info: DatasetInfo) -> None:
-        """Abstract method for initializing the write process.
+        """Initialize the global dataset write process.
 
-        Any setup tasks, such as creating necessary files or folders, should take place here.
-        The working directory is temporarily set to the save directory during this method.
+        This method is responsible for any setup tasks that need to be performed once before
+        writing begins for the dataset. This could include setting up metadata files, preparing
+        the global output directory, or initializing any resources required for the write
+        operation. The working directory is temporarily set to the global directory during
+        this method.
 
         Args:
+            info (DatasetInfo): Information about the dataset to be written, including metadata
+                and configuration details.
+        """
+        ...  # pragma: not covered
+
+    def finalize(self, info: DatasetInfo) -> None:
+        """Finalize the global dataset write process.
+
+        This method is responsible for any cleanup tasks or final operations that should be
+        performed after all shards of the dataset have been processed and written to disk.
+        This could include writing final metadata files, closing any global resources, and
+        ensuring that all data is properly stored. The working directory is temporarily set
+        to the global save directory during this method.
+
+        Args:
+            info (DatasetInfo): Information about the dataset that was written, including metadata
+                and configuration details.
+        """
+        ...  # pragma: not covered
+
+    @abstractmethod
+    def initialize_shard(self, shard_id: int, info: DatasetInfo) -> None:
+        """Abstract method for initializing the write process for a new shard.
+
+        Any setup tasks specific to writing a new shard, such as creating necessary files or folders
+        for the shard, should take place here. The working directory is temporarily set to the save
+        directory during this method.
+
+        Args:
+            shard_id (int): The id of the shard being initialized.
             info (DatasetInfo): Information about the dataset to be written, including metadata
                 and configuration details.
         """
         ...
 
     @abstractmethod
-    def finalize(self, info: DatasetInfo) -> None:
-        """Abstract method for finalizing the write process.
+    def finalize_shard(self, shard_id: int, info: DatasetInfo) -> None:
+        """Abstract method for finalizing the write process for the current shard.
 
-        This method should handle any cleanup or final write operations after all samples
-        have been processed. The working directory is temporarily set to the save directory
-        during this method.
+        This method should handle any cleanup or final write operations after the samples for the
+        current shard have been processed. The working directory is temporarily set to the save
+        directory during this method.
 
         Args:
+            shard_id (int): The id of the shard being finalized.
             info (DatasetInfo): Information about the dataset to be written, including metadata
                 and configuration details.
         """
