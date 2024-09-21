@@ -8,6 +8,7 @@ This module optionally relies on PyTorch's worker information if the `torch`
 package is installed and used in a multiprocessing context.
 """
 
+import atexit
 import multiprocessing as mp
 from dataclasses import dataclass, field
 from multiprocessing.managers import SyncManager
@@ -25,13 +26,16 @@ def _sync_manager_factory() -> SyncManager:
     Returns:
         SyncManager: An instance of SyncManager.
     """
+    # create manager and start it
     manager = SyncManager(ctx=mp.context.DefaultContext)
     manager.start()
+    # register shutdown at exit
+    atexit.register(manager.shutdown)
     return manager
 
 
 # create global sync manager
-manager = LazyStaticInstance[SyncManager](_sync_manager_factory)
+manager: SyncManager = LazyStaticInstance[SyncManager](_sync_manager_factory)
 """Global multiprocessing manager"""
 
 
