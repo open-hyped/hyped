@@ -7,7 +7,7 @@ features into a feature collection for further processing in data flow graphs.
 from functools import wraps
 from typing import Any, Callable
 
-import hyped.processors._ops as ops
+import hyped.nodes._ops as ops
 from hyped.common._container import NestedContainer
 from hyped.core.nodes.const import Const
 from hyped.core.refs.ref import FeatureRef

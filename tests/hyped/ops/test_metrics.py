@@ -17,7 +17,7 @@ def test_prfs():
     )
 
     with (
-        patch("hyped.ops.metrics.aggregators.MultiLabelConfusionMatrix") as mcm_mock,
+        patch("hyped.ops.metrics.MultiLabelConfusionMatrix") as mcm_mock,
         patch("hyped.ops.metrics.PrecisionRecallFScoreSupport") as prfs_mock,
     ):
         # call the operator

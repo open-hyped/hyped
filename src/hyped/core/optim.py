@@ -31,7 +31,7 @@ from datasets import Features, Value
 
 from hyped.common.feature_key import FeatureKey
 from hyped.common.typing import NodeId
-from hyped.processors._ops.collect import CollectFeatures, NestedContainer
+from hyped.nodes._ops.collect import CollectFeatures, NestedContainer
 
 from .executor import DataFlowExecutor
 from .graph import DataFlowGraph

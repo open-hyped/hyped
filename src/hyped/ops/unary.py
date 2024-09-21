@@ -12,10 +12,9 @@ features versus scalar features.
 """
 from datasets import Value
 
-import hyped.aggregators._ops as agg_ops
-import hyped.processors._ops as proc_ops
 from hyped.common.feature_checks import check_feature_equals, check_feature_is_sequence
 from hyped.core.refs.ref import FeatureRef
+from hyped.nodes import _ops as ops
 
 
 def sum_(a: FeatureRef) -> FeatureRef:
@@ -28,9 +27,9 @@ def sum_(a: FeatureRef) -> FeatureRef:
         FeatureRef: A reference to the result of the sum operation.
     """
     if check_feature_is_sequence(a.feature_):
-        return proc_ops.SequenceSum().call(a=a).result
+        return ops.SequenceSum().call(a=a).result
     else:
-        return agg_ops.SumAggregator().call(x=a).value
+        return ops.SumAggregator().call(x=a).value
 
 
 def mean(a: FeatureRef) -> FeatureRef:
@@ -43,9 +42,9 @@ def mean(a: FeatureRef) -> FeatureRef:
         FeatureRef: A reference to the result of the mean operation.
     """
     if check_feature_is_sequence(a.feature_):
-        return proc_ops.SequenceMean().call(a=a).result
+        return ops.SequenceMean().call(a=a).result
     else:
-        return agg_ops.MeanAggregator().call(x=a).value
+        return ops.MeanAggregator().call(x=a).value
 
 
 def neg(a: FeatureRef) -> FeatureRef:
@@ -57,7 +56,7 @@ def neg(a: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the negated value of the input feature.
     """
-    return proc_ops.Neg().call(a=a).result
+    return ops.Neg().call(a=a).result
 
 
 def abs_(a: FeatureRef) -> FeatureRef:
@@ -69,7 +68,7 @@ def abs_(a: FeatureRef) -> FeatureRef:
     Returns:
         FeatureRef: A FeatureRef instance representing the absolute value of the input feature.
     """
-    return proc_ops.Abs().call(a=a).result
+    return ops.Abs().call(a=a).result
 
 
 def invert(a: FeatureRef) -> FeatureRef:
@@ -85,6 +84,6 @@ def invert(a: FeatureRef) -> FeatureRef:
     if check_feature_equals(a.feature_, Value("bool")) or check_feature_is_sequence(
         a.feature_, Value("bool")
     ):
-        return proc_ops.BooleanInvert().call(a=a).result
+        return ops.BooleanInvert().call(a=a).result
     else:
-        return proc_ops.Invert().call(a=a).result
+        return ops.Invert().call(a=a).result

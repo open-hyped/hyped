@@ -18,7 +18,7 @@ Key functionalities include:
 """
 from typing import Any
 
-import hyped.processors._ops as ops
+import hyped.nodes._ops as ops
 from hyped.common.feature_checks import (
     STRING_LIKE_TYPES,
     check_feature_equals,

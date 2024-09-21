@@ -10,7 +10,7 @@ from datasets.utils.file_utils import readline
 
 from hyped import DataFlow
 from hyped.common.typing import Batch
-from hyped.processors import JsonParser
+from hyped.nodes import JsonParser
 
 
 @dataclass

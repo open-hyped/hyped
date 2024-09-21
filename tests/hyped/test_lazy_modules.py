@@ -1,19 +1,15 @@
 import pytest
 
 import hyped
-import hyped.aggregators._ops
-import hyped.processors._ops
+import hyped.nodes._ops
 from hyped.common.lazy_module import LazyModule
 
 
 @pytest.mark.parametrize(
     "lazy_module",
     [
-        hyped.augmenters,
-        hyped.aggregators,
-        hyped.aggregators._ops,
-        hyped.processors,
-        hyped.processors._ops,
+        hyped.nodes,
+        hyped.nodes._ops,
         hyped.io.writers,
         hyped.ops,
         hyped.core,

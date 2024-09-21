@@ -10,8 +10,8 @@ from hyped.core.flow import DataFlow
 @pytest.mark.parametrize(
     "op, agg_type",
     [
-        (ops.sum_, "hyped.ops.unary.agg_ops.SumAggregator"),
-        (ops.mean, "hyped.ops.unary.agg_ops.MeanAggregator"),
+        (ops.sum_, "hyped.ops.unary.ops.SumAggregator"),
+        (ops.mean, "hyped.ops.unary.ops.MeanAggregator"),
     ],
 )
 def test_simple_aggregators(op, agg_type):
@@ -27,8 +27,8 @@ def test_simple_aggregators(op, agg_type):
 @pytest.mark.parametrize(
     "op, agg_type",
     [
-        (ops.sum_, "hyped.ops.unary.proc_ops.SequenceSum"),
-        (ops.mean, "hyped.ops.unary.proc_ops.SequenceMean"),
+        (ops.sum_, "hyped.ops.unary.ops.SequenceSum"),
+        (ops.mean, "hyped.ops.unary.ops.SequenceMean"),
     ],
 )
 def test_sequence_aggregators(op, agg_type):
@@ -44,9 +44,9 @@ def test_sequence_aggregators(op, agg_type):
 @pytest.mark.parametrize(
     "op, proc_type, dtype",
     [
-        (ops.neg, "hyped.ops.unary.proc_ops.Neg", "int32"),
-        (ops.abs_, "hyped.ops.unary.proc_ops.Abs", "int32"),
-        (ops.invert, "hyped.ops.unary.proc_ops.Invert", "int32"),
+        (ops.neg, "hyped.ops.unary.ops.Neg", "int32"),
+        (ops.abs_, "hyped.ops.unary.ops.Abs", "int32"),
+        (ops.invert, "hyped.ops.unary.ops.Invert", "int32"),
     ],
 )
 def test_unary_op(op, proc_type, dtype):

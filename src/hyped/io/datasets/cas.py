@@ -16,8 +16,8 @@ import datasets
 
 from hyped import DataFlow
 from hyped.common.typing import Sample
+from hyped.nodes import CasParser, FileLoader
 from hyped.ops import collect
-from hyped.processors import CasParser, FileLoader
 
 
 @dataclass
