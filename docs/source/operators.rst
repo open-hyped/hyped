@@ -16,7 +16,7 @@ To illustrate the `collect` operator, let's consider a scenario where we have a 
     import datasets
     from hyped import DataFlow
     from hyped.ops import collect
-    from hyped.processors import TransformersTokenizer
+    from hyped.nodes import TransformersTokenizer
 
     # load the imdb dataset
     ds = datasets("imdb", split="train")

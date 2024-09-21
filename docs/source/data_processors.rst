@@ -34,7 +34,7 @@ Let's consider the example of configuring a Transformers Tokenizer data processo
 
 .. code-block:: python
 
-    from hyped.processors import TransformersTokenizer
+    from hyped.nodes import TransformersTokenizer
 
     # Define the configuration for the Transformers Tokenizer
     tokenizer_config = TransformersTokenizer.Config(
