@@ -127,6 +127,11 @@ def set_worker_info(rank: Rank, num_workers: int, seed: int, **ctx: Any) -> Work
 
 
 def reset_worker_info() -> None:
+    """Resets the worker information for the current process.
+
+    This function clears any previously set worker information, both in the local context
+    and in the PyTorch multiprocessing worker info (if PyTorch is installed).
+    """
     global _worker_info
     _worker_info = None
 
