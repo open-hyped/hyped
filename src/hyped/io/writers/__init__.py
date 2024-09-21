@@ -7,8 +7,17 @@ These writers handle the logic for serializing and storing datasets efficiently.
 
 from typing import TYPE_CHECKING
 
+__all__ = (
+    "DatasetConsumer",
+    "ShardingStrategy",
+    "ArrowDatasetWriter",
+    "JsonDatasetWriter",
+)
+
 if TYPE_CHECKING:
-    pass
+    from .arrow import ArrowDatasetWriter
+    from .base import DatasetConsumer, ShardingStrategy
+    from .json import JsonDatasetWriter
 
 else:
     import sys
@@ -17,6 +26,7 @@ else:
 
     _lazy_imports = {
         "DatasetConsumer": "hyped.io.writers.base",
+        "ShardingStrategy": "hyped.io.writers.base",
         "ArrowDatasetWriter": "hyped.io.writers.arrow",
         "JsonDatasetWriter": "hyped.io.writers.json",
     }
