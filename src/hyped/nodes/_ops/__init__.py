@@ -42,9 +42,12 @@ __all__ = [
     "BooleanInvert",
     "Invert",
     "Neg",
+    "SumAggregator",
+    "MeanAggregator",
 ]
 
 if TYPE_CHECKING:
+    from .aggregate import MeanAggregator, SumAggregator
     from .binary import (
         Add,
         Equals,
