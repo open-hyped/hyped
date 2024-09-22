@@ -38,6 +38,7 @@ __all__ = [
     "SequenceLength",
     "SequenceMean",
     "SequenceSum",
+    "SequenceChunk",
     "Abs",
     "BooleanInvert",
     "Invert",
@@ -69,6 +70,7 @@ if TYPE_CHECKING:
     from .collect import CollectFeatures
     from .noop import NoOp
     from .sequence.access import BooleanIndexing, SequenceGetItem, SequenceSetItem
+    from .sequence.chunk import SequenceChunk
     from .sequence.multi import SequenceChain, SequenceZip
     from .sequence.query import SequenceContains, SequenceCountOf, SequenceIndexOf
     from .sequence.reduce import SequenceLength, SequenceMean, SequenceSum
@@ -113,6 +115,7 @@ else:
         "SequenceLength": "hyped.nodes._ops.sequence.reduce",
         "SequenceMean": "hyped.nodes._ops.sequence.reduce",
         "SequenceSum": "hyped.nodes._ops.sequence.reduce",
+        "SequenceChunk": "hyped.nodes._ops.sequence.chunk",
         # unary
         "Abs": "hyped.nodes._ops.unary",
         "BooleanInvert": "hyped.nodes._ops.unary",

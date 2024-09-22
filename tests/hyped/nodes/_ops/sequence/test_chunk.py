@@ -1,20 +1,20 @@
 from datasets import Features, Sequence, Value
 
-from hyped.nodes.utils.chunk import ChunkSequence
+from hyped.nodes._ops.sequence.chunk import SequenceChunk
 from tests.hyped.nodes.base import BaseDataAugmenterTest
 
 
-class TestChunkSequenceEmptyInputs(BaseDataAugmenterTest):
-    augmenter_type = ChunkSequence
-    augmenter_config = ChunkSequence.Config(chunk_size=2, stride=2)
+class TestSequenceChunkEmptyInputs(BaseDataAugmenterTest):
+    augmenter_type = SequenceChunk
+    augmenter_config = SequenceChunk.Config(chunk_size=2, stride=2)
 
     input_features = Features({"sequences": {}})
     expected_input_verification_error = RuntimeError
 
 
-class TestChunkSequenceInvalidInputs(BaseDataAugmenterTest):
-    augmenter_type = ChunkSequence
-    augmenter_config = ChunkSequence.Config(chunk_size=2, stride=2)
+class TestSequenceChunkInvalidInputs(BaseDataAugmenterTest):
+    augmenter_type = SequenceChunk
+    augmenter_config = SequenceChunk.Config(chunk_size=2, stride=2)
 
     input_features = Features(
         {
@@ -28,9 +28,9 @@ class TestChunkSequenceInvalidInputs(BaseDataAugmenterTest):
     expected_input_verification_error = RuntimeError
 
 
-class TestChunkSequenceFixedLength(BaseDataAugmenterTest):
-    augmenter_type = ChunkSequence
-    augmenter_config = ChunkSequence.Config(chunk_size=2, stride=2)
+class TestSequenceChunkFixedLength(BaseDataAugmenterTest):
+    augmenter_type = SequenceChunk
+    augmenter_config = SequenceChunk.Config(chunk_size=2, stride=2)
 
     input_features = Features(
         {
@@ -51,9 +51,9 @@ class TestChunkSequenceFixedLength(BaseDataAugmenterTest):
     )
 
 
-class TestChunkSequence(BaseDataAugmenterTest):
-    augmenter_type = ChunkSequence
-    augmenter_config = ChunkSequence.Config(chunk_size=2, stride=2)
+class TestSequenceChunk(BaseDataAugmenterTest):
+    augmenter_type = SequenceChunk
+    augmenter_config = SequenceChunk.Config(chunk_size=2, stride=2)
 
     input_features = Features(
         {
@@ -96,9 +96,9 @@ class TestChunkSequence(BaseDataAugmenterTest):
     }
 
 
-class TestChunkSequenceDifferentChunkSizeStride(BaseDataAugmenterTest):
-    augmenter_type = ChunkSequence
-    augmenter_config = ChunkSequence.Config(chunk_size=3, stride=2)
+class TestSequenceChunkDifferentChunkSizeStride(BaseDataAugmenterTest):
+    augmenter_type = SequenceChunk
+    augmenter_config = SequenceChunk.Config(chunk_size=3, stride=2)
 
     input_features = Features(
         {
@@ -144,9 +144,9 @@ class TestChunkSequenceDifferentChunkSizeStride(BaseDataAugmenterTest):
     }
 
 
-class TestChunkSequenceKeepLastTrueNoRemainder(BaseDataAugmenterTest):
-    augmenter_type = ChunkSequence
-    augmenter_config = ChunkSequence.Config(chunk_size=3, stride=2, keep_last=True)
+class TestSequenceChunkKeepLastTrueNoRemainder(BaseDataAugmenterTest):
+    augmenter_type = SequenceChunk
+    augmenter_config = SequenceChunk.Config(chunk_size=3, stride=2, keep_last=True)
 
     input_features = Features(
         {
@@ -184,9 +184,9 @@ class TestChunkSequenceKeepLastTrueNoRemainder(BaseDataAugmenterTest):
     }
 
 
-class TestChunkSequenceKeepLastTrueWithRemainder(BaseDataAugmenterTest):
-    augmenter_type = ChunkSequence
-    augmenter_config = ChunkSequence.Config(chunk_size=3, stride=2, keep_last=True)
+class TestSequenceChunkKeepLastTrueWithRemainder(BaseDataAugmenterTest):
+    augmenter_type = SequenceChunk
+    augmenter_config = SequenceChunk.Config(chunk_size=3, stride=2, keep_last=True)
 
     input_features = Features(
         {
