@@ -1074,6 +1074,8 @@ class DynamicMultiprocessingRunner(object):
         producer_workers = set()
         consumer_workers = set()
 
+        switching_worker: None | int = None
+
         def _create_producer():
             # create producer context
             ctx = (WorkerRole.PRODUCER, None, serializer.serialize, queue.put, False)
@@ -1084,9 +1086,27 @@ class DynamicMultiprocessingRunner(object):
                     processor_workers.remove(candidate_rank)
                     producer_workers.add(candidate_rank)
                     self._logger.info(f"Assigned worker {candidate_rank} as producer.")
-                    break
+                    return candidate_rank
 
                 self._logger.info(f"Worker {candidate_rank} did not accept producer context.")
+
+            return None
+        
+        def _create_processor():
+            # create producer context
+            ctx = (WorkerRole.PROCESSOR, None, processor, fn, False)
+            # find a worker that accepts the producer context
+            for candidate_rank in producer_workers:
+                # check if candidate accepts producer context
+                if workers[candidate_rank].send_ctx(*ctx, blocking=True):
+                    producer_workers.remove(candidate_rank)
+                    processor_workers.add(candidate_rank)
+                    self._logger.info(f"Assigned worker {candidate_rank} as processor.")
+                    return candidate_rank
+
+                self._logger.info(f"Worker {candidate_rank} did not accept processor context.")
+
+            return None
 
         done = False
         while not done:
@@ -1115,9 +1135,18 @@ class DynamicMultiprocessingRunner(object):
                 monitor._mark_worker_completed(rank)
                 monitor._mark_worker_idling(rank)
 
+                processor_workers -= {rank}
+                producer_workers -= {rank}
+                consumer_workers -= {rank}
+
+
             elif msg_type is MessageType.CTX_CANCELED:
                 monitor._mark_worker_canceled(rank)
                 monitor._mark_worker_idling(rank)
+                
+                processor_workers -= {rank}
+                producer_workers -= {rank}
+                consumer_workers -= {rank}
 
             elif msg_type is MessageType.CTX_SWITCH:
                 old_role, new_role = payload
@@ -1135,14 +1164,25 @@ class DynamicMultiprocessingRunner(object):
                 monitor._mark_worker_busy(rank, role)
                 self._logger.info(f"Worker {rank} started running role {role.name}.")
 
+                if rank == switching_worker:
+                    switching_worker = None
+
             elif msg_type is MessageType.CTX_REPORT:
                 monitor._report_progress(rank, report=payload)
 
-                registered_consumer_workers = monitor.get_workers_with_role(WorkerRole.CONSUMER)
-                consumer_avg_time = monitor.avg_times(registered_consumer_workers)["producer"]
+                if switching_worker is None:
 
-                if consumer_avg_time > 0.5:
-                    _create_producer()
+                    registered_consumer_workers = monitor.get_workers_with_role(WorkerRole.CONSUMER)
+                    get_queue_avg_time = monitor.avg_times(registered_consumer_workers)["producer"]
+                    
+                    registered_producer_workers = monitor.get_workers_with_role(WorkerRole.PRODUCER)
+                    put_queue_avg_time = monitor.avg_times(registered_producer_workers)["finalizer"]
+
+                    if get_queue_avg_time > 1.0:
+                        switching_worker = _create_producer()
+
+                    elif put_queue_avg_time > 1.0:
+                        switching_worker = _create_processor()
 
             elif msg_type is MessageType.CTX_REQUEST:
                 # worker must be idling
@@ -1170,8 +1210,8 @@ class DynamicMultiprocessingRunner(object):
                 else:
                     # Stage 2
                     # check if there is a producer
-                    if len(producer_workers) == 0:
-                        _create_producer()
+                    if (switching_worker is None) and len(producer_workers) == 0:
+                        switching_worker = _create_producer()
 
                     # assign worker as consumer
                     workers[rank].send_ctx(

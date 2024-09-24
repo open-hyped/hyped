@@ -220,7 +220,7 @@ def time_weighted_ema(measurements: dict[float, float], decay_rate: float) -> fl
 
         previous_timestamp = timestamp  # Update previous timestamp
 
-    return ema
+    return ema if ema is not None else 0.0
 
 
 @contextmanager
