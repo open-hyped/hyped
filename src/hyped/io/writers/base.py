@@ -192,7 +192,7 @@ class MessageType(Enum):
     EXCEPTION = 3
     CTX_REQUEST = 4
     CTX_STARTED = 5  # TODO: rename to CTX_RUNNING
-    CTX_PROGRESS = 6
+    CTX_REPORT = 6
     CTX_SWITCH = 7
     CTX_COMPLETE = 8
     CTX_CANCELED = 9
@@ -459,7 +459,7 @@ class Worker(mp.Process):
                                     "finalizer": timed_work_iter.total_time(),
                                 },
                             }
-                            self._send_msg(MessageType.CTX_PROGRESS, payload=payload)
+                            self._send_msg(MessageType.CTX_REPORT, payload=payload)
 
                         # main worker loop
                         for _ in timed_work_iter:
@@ -1074,6 +1074,20 @@ class DynamicMultiprocessingRunner(object):
         producer_workers = set()
         consumer_workers = set()
 
+        def _create_producer():
+            # create producer context
+            ctx = (WorkerRole.PRODUCER, None, serializer.serialize, queue.put, False)
+            # find a worker that accepts the producer context
+            for candidate_rank in processor_workers:
+                # check if candidate accepts producer context
+                if workers[candidate_rank].send_ctx(*ctx, blocking=True):
+                    processor_workers.remove(candidate_rank)
+                    producer_workers.add(candidate_rank)
+                    self._logger.info(f"Assigned worker {candidate_rank} as producer.")
+                    break
+
+                self._logger.info(f"Worker {candidate_rank} did not accept producer context.")
+
         done = False
         while not done:
             # receive message from worker
@@ -1121,9 +1135,14 @@ class DynamicMultiprocessingRunner(object):
                 monitor._mark_worker_busy(rank, role)
                 self._logger.info(f"Worker {rank} started running role {role.name}.")
 
-            elif msg_type is MessageType.CTX_PROGRESS:
+            elif msg_type is MessageType.CTX_REPORT:
                 monitor._report_progress(rank, report=payload)
-                print(monitor.avg_times(monitor.get_workers_with_role(WorkerRole.CONSUMER)))
+
+                registered_consumer_workers = monitor.get_workers_with_role(WorkerRole.CONSUMER)
+                consumer_avg_time = monitor.avg_times(registered_consumer_workers)["producer"]
+
+                if consumer_avg_time > 0.5:
+                    _create_producer()
 
             elif msg_type is MessageType.CTX_REQUEST:
                 # worker must be idling
@@ -1152,21 +1171,7 @@ class DynamicMultiprocessingRunner(object):
                     # Stage 2
                     # check if there is a producer
                     if len(producer_workers) == 0:
-                        # create producer context
-                        ctx = (WorkerRole.PRODUCER, None, serializer.serialize, queue.put, False)
-
-                        # find a worker that accepts the producer context
-                        for candidate_rank in processor_workers:
-                            # check if candidate accepts producer context
-                            if workers[candidate_rank].send_ctx(*ctx, blocking=True):
-                                processor_workers.remove(candidate_rank)
-                                producer_workers.add(candidate_rank)
-                                self._logger.info(f"Assigned worker {candidate_rank} as producer.")
-                                break
-
-                            self._logger.info(
-                                f"Worker {candidate_rank} did not accept producer context."
-                            )
+                        _create_producer()
 
                     # assign worker as consumer
                     workers[rank].send_ctx(
