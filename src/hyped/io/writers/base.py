@@ -12,6 +12,7 @@ import multiprocessing.connection  # noqa: F401
 import os
 import shutil
 import threading
+import traceback
 import warnings
 from abc import ABC, abstractmethod
 from collections import Counter, OrderedDict
@@ -69,7 +70,7 @@ class WorkerRole(Enum):
     and system needs.
     """
 
-    PROCESSOR = 0
+    PROCESSOR = 1
     """Role where the worker processes a shard of data independently. 
 
     In this role, the worker is responsible for processing its assigned shard of the dataset
@@ -77,7 +78,7 @@ class WorkerRole(Enum):
     a distinct shard.
     """
 
-    PRODUCER = 1
+    PRODUCER = 2
     """Role where the worker produces data and adds it to a shared queue. 
 
     In this role, the worker reads data from a shard and places it into the queue for further
@@ -85,7 +86,7 @@ class WorkerRole(Enum):
     processing of a single shard.
     """
 
-    CONSUMER = 2
+    CONSUMER = 3
     """Role where the worker consumes data from a shared queue for processing. 
 
     In this role, the worker retrieves data from the queue (populated by a PRODUCER) and processes
@@ -184,6 +185,19 @@ class ExamplesIterablePipeline(list[_BaseExamplesIterable]):
         return "[" + ", ".join([type(step).__name__ for step in self]) + "]"
 
 
+class MessageType(Enum):
+    READY = 1
+    DONE = 2
+    EXCEPTION = 3
+    CTX_REQUEST = 4
+    CTX_STARTED = 5  # TODO: rename to CTX_RUNNING
+    CTX_PROGRESS = 6
+    CTX_SWITCH = 7
+    CTX_COMPLETE = 8
+    CTX_CANCELED = 9
+    METRICS_UPDATE = 10
+    
+
 class Worker(mp.Process):
     """A worker process for parallel data processing.
 
@@ -195,9 +209,8 @@ class Worker(mp.Process):
         self,
         rank: Rank,
         num_workers: int,
-        req_ctx_conn: mp.connection.Connection,
-        tracker_conn: mp.connection.Connection,
-        tracker_update_interval: float = 0.1,
+        send_msg_conn: mp.connection.Connection,
+        progress_report_interval: float = 0.1,
         worker_init: Callable[[], Any] = _do_nothing,
         worker_finalize: Callable[[], Any] = _do_nothing,
     ) -> None:
@@ -221,13 +234,12 @@ class Worker(mp.Process):
         """
         super(Worker, self).__init__(daemon=True)
 
-        self._tracker_conn = tracker_conn
-        self._tracker_update_interval = tracker_update_interval
+        self._progress_report_interval = progress_report_interval
 
         self._rank = rank
         self._num_workers = num_workers
-        # context management connections
-        self._req_ctx_conn = req_ctx_conn
+        # connections
+        self._send_msg_conn = send_msg_conn
         self._parent_ctx_conn, self._child_ctx_conn = mp.Pipe(duplex=True)
         # worker initializer and finalizer
         self._worker_init = worker_init
@@ -256,6 +268,8 @@ class Worker(mp.Process):
         processor: Callable[[Iterable[T]], Iterable[U]] | None,
         finalizer: Callable[[U], Any] | None,
         done: bool,
+        *,
+        blocking: bool = True
     ) -> bool:
         """
         Send new processing context to the worker.
@@ -267,19 +281,42 @@ class Worker(mp.Process):
                 processor function.
             finalizer (Callable[[U], Any] | None): The finalizer function.
             done (bool): Whether the context change is final.
+            blocking (bool): Whether to block and wait for acceptance from the worker.
 
         Returns:
             bool: Boolean indicating whether the worker accepted the new context.
+            If not blocking, it always returns True.
         """
+        # clear connection
+        while self._parent_ctx_conn.poll():
+            self._parent_ctx_conn.recv()
         # send serialized context
         ctx = (role, producer, processor, finalizer, done)
         self._parent_ctx_conn.send_bytes(dill.dumps(ctx))
-        # wait for feedback from worker
-        accepted = self._parent_ctx_conn.recv()
-        self._logger.debug(
-            f"Sent new context to worker, worker {'accpeted' if accepted else 'refused'}."
-        )
-        return accepted
+
+        if blocking:
+            # wait for feedback from worker
+            accepted = self._parent_ctx_conn.recv()
+            self._logger.debug(
+                f"Sent new context to worker {self._rank}, worker {'accpeted' if accepted else 'refused'}."
+            )
+            return accepted
+        else:
+            self._logger.debug(
+                f"Sent new context to worker {self._rank} in non-blocking mode."
+            )
+            return True
+
+    def _send_msg(self, msg_type: MessageType, payload: None | Any = None) -> None:
+
+        msg = {
+            "rank": self._rank,
+            "type": msg_type.value,
+            "payload": payload
+        }
+        
+        msg = orjson.dumps(msg)
+        self._send_msg_conn.send_bytes(msg)
 
     def _request_new_ctx(self) -> bool:
         """Request new processing context from the main process.
@@ -288,9 +325,9 @@ class Worker(mp.Process):
             bool: Whether the worker has been instructed to stop.
         """
 
-        self._logger.debug("Requesting new context from main process.")
         # request new context from main process
-        self._req_ctx_conn.send(self._rank)
+        self._logger.debug("Requesting new context from main process.")
+        self._send_msg(MessageType.CTX_REQUEST)
 
         # wait for new context to be received
         ctx = self._recv_ctx()
@@ -360,21 +397,6 @@ class Worker(mp.Process):
 
         return done
 
-    def _report_progress(self, num_samples: int, producer_exhausted: bool, done: bool) -> None:
-        """Send a progress update to the tracker.
-
-        This function reports the progress of the current worker to the tracker by sending
-        information about the worker's role, number of processed samples, producer status,
-        and whether the worker has finished processing.
-
-        Args:
-            num_samples (int): The number of samples processed by the worker since the last update.
-            producer_exhausted (bool): Whether the producer has exhausted all samples.
-            done (bool): Whether the worker has finished processing.
-        """
-        self._tracker_conn.send((self._rank, self._role, num_samples, producer_exhausted, done))
-        self._logger.debug("Reported progress to tracker.")
-
     def run(self) -> None:
         """Start the worker process.
 
@@ -393,13 +415,13 @@ class Worker(mp.Process):
         try:
             # initialize worker
             self._worker_init()
+            self._send_msg(MessageType.READY)
             self._logger.info("Initialization complete.")
 
             done = False
             # request a processing context
             while (not done) and (not self._request_new_ctx()):
-                # report new context to tracker
-                self._report_progress(0, False, False)
+                
                 # create producer iterator to avoid resetting when
                 # new context is received during execution
                 producer_iter = iter(self._producer)
@@ -407,16 +429,18 @@ class Worker(mp.Process):
 
                 # exhaust producer
                 while not producer_exhausted:
+                
+                    self._send_msg(MessageType.CTX_STARTED, payload=self._role.value)
+                    self._logger.debug(f"Starting processing with role {self._role}.")
+                    
                     num_samples = 0
                     last_update = time()
-
+                    
                     # create a stoppable producer that allows to dynamically
                     # interrupt the execution and apply the new context
                     stoppable_producer = StoppableIterator(producer_iter)
-
+                    
                     try:
-                        self._logger.debug(f"Starting processing with role {self._role}.")
-
                         # apply the processor to the producer and apply the finalizer
                         samples_iter = self._processor(stoppable_producer)
                         work_iter = map(self._finalizer, samples_iter)
@@ -431,7 +455,7 @@ class Worker(mp.Process):
 
                                 # receive and unpack context
                                 ctx = self._recv_ctx()
-                                _, prod, _, _, done = ctx
+                                new_role, prod, _, _, done = ctx
 
                                 if prod is not None:
                                     # new context not accepted
@@ -452,41 +476,70 @@ class Worker(mp.Process):
                                     for _ in work_iter:
                                         num_samples += 1
 
-                                    # send progress to tracker
-                                    self._report_progress(num_samples, producer_exhausted, False)
-
-                                    # apply the new context
+                                    # send progress report before switching the context
+                                    self._send_msg(
+                                        MessageType.CTX_PROGRESS,
+                                        payload=num_samples
+                                    )
+                                    self._send_msg(
+                                        MessageType.CTX_SWITCH,
+                                        payload=(self._role.value, new_role.value)
+                                    )
                                     self._apply_ctx(ctx)
+                                    # recreate the work iterable
                                     break
 
                             # send continuous updates to tracker
                             if (num_samples > 0) and (
-                                time() - last_update > self._tracker_update_interval
+                                time() - last_update > self._progress_report_interval
                             ):
-                                self._report_progress(num_samples, producer_exhausted, False)
+                                self._send_msg(
+                                    MessageType.CTX_PROGRESS,
+                                    payload=num_samples
+                                )
                                 num_samples = 0
                                 last_update = time()
 
                         else:
                             # producer exhausted
-                            self._logger.info("Finished processing current context.")
                             producer_exhausted = True
+                            self._logger.info("Finished processing current context.")
+                            # send final progress update and completion message
+                            self._send_msg(
+                                MessageType.CTX_PROGRESS,
+                                payload=num_samples
+                            )
+                            self._send_msg(MessageType.CTX_COMPLETE)
 
                     except StopIteration:
                         # catch stop execution error
+                        self._send_msg(
+                            MessageType.CTX_PROGRESS,
+                            payload=num_samples
+                        )
+                        self._send_msg(MessageType.CTX_CANCELED)
                         producer_exhausted = True
+                        done = True
 
                     except KeyboardInterrupt:  # pragma: not covered
                         self._logger.warning("Worker interrupted by user.")
+                        self._send_msg(MessageType.CTX_CANCELED)
+                        producer_exhausted = True
+                        done = True
 
                     except Exception as e:
                         # gracefully handle exceptions without stopping the worker
                         self._logger.error(
                             f"Unexpected error during processing: {str(e)}.", exc_info=True
                         )
-
-                # send final progress update before new requesting context
-                self._report_progress(num_samples, producer_exhausted, False)
+                        self._send_msg(
+                            MessageType.EXCEPTION,
+                            payload={
+                                "error_type": str(type(e).__name__),
+                                "error_message": str(e),
+                                "stack_trace": traceback.format_exc()
+                            }
+                        )
 
         except KeyboardInterrupt:  # pragma: not covered
             self._logger.warning("Worker interrupted by user.")
@@ -494,6 +547,14 @@ class Worker(mp.Process):
         except Exception as e:
             # gracefully handle exception
             self._logger.error(f"Unexpected error during processing: {str(e)}.", exc_info=True)
+            self._send_msg(
+                MessageType.EXCEPTION,
+                payload={
+                    "error_type": str(type(e).__name__),
+                    "error_message": str(e),
+                    "stack_trace": traceback.format_exc()
+                }
+            )
 
         finally:
             try:
@@ -501,12 +562,19 @@ class Worker(mp.Process):
                 self._worker_finalize()
                 self._logger.info("Worker finalized successfully.")
             except Exception as e:
+                # log exception
                 self._logger.error(f"Error finalizing worker: {str(e)}.", exc_info=True)
-            finally:
-                # tell tracker that worker terminated
-                self._report_progress(0, False, True)
+                self._send_msg(
+                    MessageType.EXCEPTION,
+                    payload={
+                        "error_type": str(type(e).__name__),
+                        "error_message": str(e),
+                        "stack_trace": traceback.format_exc()
+                    }
+                )
 
-        self._logger.info("Worker finished.")
+        # send done message
+        self._send_msg(MessageType.DONE)
 
 
 class TqdmReporter(threading.Thread):
@@ -516,7 +584,7 @@ class TqdmReporter(threading.Thread):
     :class:`ProgressTracker`.
     """
 
-    def __init__(self, tracker: ProgressTracker, update_interval: float = 0.1) -> None:
+    def __init__(self, monitor: ProgressMonitor, update_interval: float = 0.1) -> None:
         """Initializes the :class:`TqdmReporter` thread.
 
         Args:
@@ -525,7 +593,7 @@ class TqdmReporter(threading.Thread):
                 to 0.1.
         """
         super(TqdmReporter, self).__init__(daemon=True)
-        self._tracker = tracker
+        self._monitor = monitor
         self._update_interval = update_interval
         self._logger = get_cls_logger(type(self))
 
@@ -539,9 +607,9 @@ class TqdmReporter(threading.Thread):
         Returns:
             str: A string describing the progress bar status.
         """
-        counts = Counter(self._tracker._roles)
+        counts = Counter(self._monitor._roles)
         return (
-            f"Workers {self._tracker.num_busy_workers}/{self._tracker._num_workers} "
+            f"Workers {len(self._monitor.alive_workers)}/{self._monitor.num_workers} "
             f"(S={counts[WorkerRole.PROCESSOR]}, "
             f"P={counts[WorkerRole.PRODUCER]}, "
             f"C={counts[WorkerRole.CONSUMER]})"
@@ -560,9 +628,9 @@ class TqdmReporter(threading.Thread):
         ema_dn = EMA(smoothing=0.3)
         ema_dt = EMA(smoothing=0.3)
 
-        with tqdm(total=self._tracker._num_shards, desc=self._pbar_desc) as pbar:
+        with tqdm(total=self._monitor._num_shards, desc=self._pbar_desc) as pbar:
             self._logger.debug(
-                f"Initialized tqdm progress bar with {self._tracker._num_shards} total shards."
+                f"Initialized tqdm progress bar with {self._monitor.num_shards} total shards."
             )
 
             prev_total_samples = 0
@@ -570,14 +638,14 @@ class TqdmReporter(threading.Thread):
 
             def _iter():
                 # iterate as long as the tracker is running
-                while not self._tracker._done.wait(timeout=self._update_interval):
+                while not self._monitor._done.wait(timeout=self._update_interval):
                     yield
                 # do a final update after the tracker finished
                 yield
 
             for _ in _iter():
                 # get current state
-                total_samples = self._tracker.total_consumed_samples
+                total_samples = self._monitor.num_samples_processed
                 update_time = pbar._time()
 
                 # compute sample throughput
@@ -585,10 +653,10 @@ class TqdmReporter(threading.Thread):
                 dt = update_time - prev_update_time
                 throughput = ema_dn(dn) / max(ema_dt(dt), 1e-5)
 
-                self._logger.debug(
-                    f"Updating progress: Total samples {total_samples}, "
-                    f"Throughput {throughput:.02f}ex/s"
-                )
+                #self._logger.debug(
+                #    f"Updating progress: Total samples {total_samples}, "
+                #    f"Throughput {throughput:.02f}ex/s"
+                #)
 
                 # format total samples
                 formatting_string = "%d" if total_samples < 10**6 else "%.2e"
@@ -597,34 +665,34 @@ class TqdmReporter(threading.Thread):
                 pbar.set_description(self._pbar_desc, refresh=False)
                 pbar.set_postfix_str(
                     (
-                        f"{self._tracker.num_buffered_samples}q, "
+                        f"{self._monitor.num_buffered_samples}q, "
                         f"{throughput:.02f}ex/s, "
                         f"{formatted_total_samples}ex"
                     ),
-                    refresh=False,
+                    refresh=True,
                 )
                 # update values
                 prev_total_samples = total_samples
                 prev_update_time = update_time
 
                 # update the progress bar
-                pbar.update(self._tracker._finished_shards - pbar.n)
+                pbar.update(len(self._monitor.completed_shards) - pbar.n)
 
         self._logger.info("Thread finished.")
 
 
-class ProgressTracker(threading.Thread):
-    """Progress Tracker Thread
 
-    A monitoring thread that tracks the state and progress of all workers in a centralized fashion.
+class ShardState(Enum):
 
-    The progress tracker monitors the number of processed and consumed samples by each worker,
-    updates the roles of the workers (processor, producer, consumer), and tracks the number of
-    finished shards.
-    """
+    PENDING = 0
+    IN_PROGRESS = 1
+    COMPLETED = 2
+    CANCELED = 3
+
+class ProgressMonitor(object):
 
     def __init__(self, num_shards: int, num_workers: int, queue: mp.Queue, item_size: int) -> None:
-        """Initializes the ProgressTracker.
+        """Initializes the ProgressMonitor.
 
         Args:
             num_shards (int): The total number of shards to process.
@@ -632,17 +700,21 @@ class ProgressTracker(threading.Thread):
             queue (mp.Queue): Sample queue filled by producer in stage 2.
             item_size (int): The number of samples contained within a queue item.
         """
-        super(ProgressTracker, self).__init__(daemon=True)
-
+        
+        self._stopping = threading.Event()
+        self._done = threading.Event()
+        # track buffer queue
         self._queue = queue
         self._item_size = item_size
         # track shards
         self._num_shards = num_shards
-        self._finished_shards = 0
+        self._shard_state = [ShardState.PENDING] * num_shards
         # track workers
         self._num_workers = num_workers
-        self._stopped_workers = 0
+        self._alive = [False] * num_workers
         self._roles = [None] * num_workers
+        self._shard = [None] * num_workers
+        
         # track samples generated by each worker in different roles
         self._num_samples = [
             {
@@ -652,12 +724,25 @@ class ProgressTracker(threading.Thread):
             }
             for _ in range(num_workers)
         ]
-        # connection to workers
-        self._recv_prog_conn, self._send_prog_conn = mp.Pipe(duplex=False)
-        # event set by worker indicating that the process has finished
-        self._done = threading.Event()
 
-        self._logger = get_cls_logger(type(self))
+    @property
+    def num_samples_processed(self) -> int:
+        return sum(
+            nums[WorkerRole.PROCESSOR] + nums[WorkerRole.CONSUMER]
+            for nums in self._num_samples
+        )
+
+    def _report_progress(self, rank: Rank, num_samples: int) -> None:
+        role = self._roles[rank]
+        self._num_samples[rank][role] += num_samples
+
+    @property
+    def num_shards(self) -> int:
+        return self._num_shards
+
+    @property
+    def num_workers(self) -> int:
+        return self._num_workers
 
     @property
     def num_buffered_samples(self) -> int:
@@ -670,104 +755,93 @@ class ProgressTracker(threading.Thread):
         Returns:
             int: The total number of samples currently buffered in the queue.
         """
-        return self._queue.qsize() * self._item_size
+        try:
+            return self._queue.qsize() * self._item_size
+        except (BrokenPipeError, ConnectionResetError):
+            # queue connection closed
+            return 0
 
-    @property
-    def total_produced_samples(self) -> int:
-        """Returns the total number of samples produced by all workers.
+    def _mark_as_stopping(self) -> None:
+        self._stopping.set()
 
-        This includes samples generated by workers in the :class:`WorkerRole.PROCESSOR` and
-        :class:`WorkerRole.PRODUCER` roles.
-
-        Returns:
-            int: Total number of produced samples.
-        """
-        return sum(samples[WorkerRole.PROCESSOR] for samples in self._num_samples) + sum(
-            samples[WorkerRole.PRODUCER] for samples in self._num_samples
-        )
-
-    @property
-    def total_consumed_samples(self) -> int:
-        """Returns the total number of samples consumed by all workers.
-
-        This includes samples generated by workers in the :class:`WorkerRole.PROCESSOR` and
-        :class:`WorkerRole.CONSUMER` roles.
-
-        Returns:
-            int: Total number of consumed samples.
-        """
-        return sum(samples[WorkerRole.PROCESSOR] for samples in self._num_samples) + sum(
-            samples[WorkerRole.CONSUMER] for samples in self._num_samples
-        )
-
-    def recv_progress(self) -> tuple[Rank, WorkerRole, int, bool, bool]:
-        """Receives progress updates from the workers through a multiprocessing pipe.
-
-        Returns:
-            tuple[Rank, WorkerRole, int, bool bool]: A tuple containing the worker
-            rank, role, number of samples processed, whether the producer is exhausted,
-            and whether the worker has terminated.
-        """
-        rank, role, num_samples, producer_exhausted, done = self._recv_prog_conn.recv()
-        self._logger.debug(
-            f"Received progress update: Rank {rank}, Role {role}, Samples {num_samples}, "
-            f"Producer exhausted {producer_exhausted}, Done {done}"
-        )
-        return rank, role, num_samples, producer_exhausted, done
-
-    @property
-    def num_busy_workers(self) -> int:
-        """Returns the number of workers that are currently busy.
-
-        A worker is considered busy if its role is not None.
-
-        Returns:
-            int: Number of busy workers.
-        """
-        return sum(role is not None for role in self._roles)
-
-    def run(self) -> None:
-        """Run progress tracker thread.
-
-        Starts the thread and updates the tqdm progress bar based on progress reports from workers.
-
-        It polls the progress pipe for updates, processes the reports, and computes throughput
-        statistics. The progress bar is updated with the number of finished shards and the
-        processing throughput.
-
-        The thread continues running until all workers have stopped.
-        """
-        self._logger.info("Thread started.")
-
-        while self._stopped_workers < self._num_workers:
-            if self._recv_prog_conn.poll(timeout=0.05):
-                # receive progress update
-                rank, role, num_samples, producer_exhausted, done = self.recv_progress()
-
-                if role is not None:
-                    # update worker role and number of processed samples
-                    self._roles[rank] = role
-                    self._num_samples[rank][role] += num_samples
-
-                if producer_exhausted and (role in {WorkerRole.PROCESSOR, WorkerRole.PRODUCER}):
-                    # update number of finished shards
-                    self._finished_shards += 1
-                    self._logger.debug(
-                        f"Finished shards incremented. Total finished shards: "
-                        f"{self._finished_shards}"
-                    )
-
-                if done:
-                    # update number of stopped workers
-                    self._stopped_workers += 1
-                    self._roles[rank] = None
-                    self._logger.debug(
-                        f"Worker {rank} stopped. Total stopped workers: {self._stopped_workers}."
-                    )
-
-        # set done event
+    def _mark_as_done(self) -> None:
         self._done.set()
-        self._logger.info("Thread finished.")
+
+    @property
+    def is_stopping(self) -> bool:
+        return self._stopping.is_set()
+
+    def _mark_shard_in_progress(self, rank: Rank, shard_id: int) -> None:
+        self._shard_state[shard_id] = ShardState.IN_PROGRESS
+        self._shard[rank] = shard_id
+
+    def _mark_shard_completed(self, shard_id: int) -> None:
+        self._shard_state[shard_id] = ShardState.COMPLETED
+
+    def _mark_shard_canceled(self, shard_id: int) -> None:
+        self._shard_state[shard_id] = ShardState.CANCELED
+
+    @property
+    def any_pending_shards(self) -> bool:
+        return ShardState.PENDING in set(self._shard_state)
+
+    @property
+    def pending_shards(self) -> set[int]:
+        return {i for i, state in enumerate(self._shard_state) if state is ShardState.PENDING}
+    
+    @property
+    def completed_shards(self) -> set[int]:
+        return {i for i, state in enumerate(self._shard_state) if state is ShardState.COMPLETED}
+
+    def _mark_worker_ready(self, rank: Rank) -> None:
+        self._alive[rank] = True
+
+    def _mark_worker_done(self, rank: Rank) -> None:
+        assert self._roles[rank] is None
+        self._alive[rank] = False
+
+    def _mark_worker_idling(self, rank: Rank) -> None:
+        assert self._alive[rank]
+        self._roles[rank] = None
+
+    def _mark_worker_busy(self, rank: Rank, role: WorkerRole) -> None:
+        assert self._alive[rank]
+        self._roles[rank] = role
+    
+    def _check_worker_busy(self, rank: Rank, role: WorkerRole) -> None:
+        assert self._alive[rank]
+        assert self._roles[rank] is role
+
+    def _mark_worker_completed(self, rank: Rank) -> None:
+        shard_id = self._shard[rank]
+        if shard_id is not None:
+            self._shard_state[shard_id] = ShardState.COMPLETED
+            self._shard[rank] = None
+
+    def _mark_worker_canceled(self, rank: Rank) -> None:
+        shard_id = self._shard[rank]
+        if shard_id is not None:
+            self._shard_state[shard_id] = ShardState.CANCELED
+            self._shard[rank] = None
+
+    @property
+    def any_worker_alive(self) -> bool:
+        return any(self._alive)
+
+    @property
+    def alive_workers(self) -> set[Rank]:
+        return {i for i, alive in enumerate(self._alive) if alive}
+
+    @property
+    def idle_workers(self) -> set[Rank]:
+        return {i for i, role in enumerate(self._roles) if role is None}
+
+    @property
+    def busy_workers(self) -> set[Rank]:
+        return {i for i, role in enumerate(self._roles) if role is not None}
+
+    def get_workers_with_role(self, role: WorkerRole) -> set[Rank]:
+        return {i for i, r in enumerate(self._roles) if r is role}
 
 
 class Serializer(object):
@@ -936,41 +1010,36 @@ class DynamicMultiprocessingRunner(object):
 
         # prepare the dataset
         ds, processor = self._prepare_dataset(ds)
-
-        num_shards = ds.n_shards
-        self._logger.info("Number of shards: %d", num_shards)
+        self._logger.info("Number of shards: %d", ds.n_shards)
 
         # create connection for workers to request new context
-        req_ctx_conn, worker_req_ctx_conn = mp.Pipe(duplex=False)
+        recv_msg_conn, worker_msg_conn = mp.Pipe(duplex=False)
 
         # create the serializer used in stage 2
         serializer = Serializer(batch_size=self._prefetch)
         # create sample queue used in stage 2 but required for tracker
         queue = _manager.Queue(maxsize=self._num_workers * 2)
-        queue_it = QueueIterator(queue, sentinel=None, timeout=None)
+        queue_it = QueueIterator(
+            queue, sentinel=None, timeout=1.0
+        )
 
-        # create the progress tracker, note that the serializer dumps a batch of samples
-        # into a single queue element with a batch size set to the prefetch factor, explaining
-        # the item_size=prefetch here
-        tracker = ProgressTracker(num_shards, self._num_workers, queue, serializer.batch_size)
-        tracker.start()
-        self._logger.info("Progress tracker started.")
+        # create the progress monitor, note that the serializer dumps a batch of samples
+        # into a single queue element with a batch size set to the prefetch factor
+        monitor = ProgressMonitor(
+            ds.n_shards, self._num_workers, queue, serializer.batch_size
+        )
 
-        # create the reporter if asked for
-        reporter: None | TqdmReporter
-        if not self._disable_progress_bar:
-            reporter = TqdmReporter(tracker, update_interval=self._progress_update_interval)
-            reporter.start()
-            self._logger.info("TqdmReporter started.")
+        # create the reporter thread
+        reporter = TqdmReporter(monitor, self._progress_update_interval)
+        reporter.start()
 
         # create all workers
         workers = [
             Worker(
                 rank=rank,
                 num_workers=self._num_workers,
-                req_ctx_conn=worker_req_ctx_conn,
-                tracker_conn=tracker._send_prog_conn,
-                tracker_update_interval=self._progress_update_interval,
+                send_msg_conn=worker_msg_conn,
+                progress_report_interval=self._progress_update_interval,
                 worker_init=self._worker_init,
                 worker_finalize=self._worker_finalize,
             )
@@ -984,95 +1053,132 @@ class DynamicMultiprocessingRunner(object):
 
         self._logger.info("All workers started.")
 
-        # keep track of all running workers
-        running_worker_ranks: set[int] = set()
+        processor_workers = set()
+        producer_workers = set()
+        consumer_workers = set()
 
-        self._logger.info("Starting Stage 1: Single-Shard Single-Worker")
-        # stage 1: shards available
-        # whenever a group is idleing give it a new shard to process
-        for shard_id in range(num_shards):
-            shard = ds.shard_data_sources(shard_id, num_shards)
-            # wait for worker to request new context
-            rank = req_ctx_conn.recv()
-            worker = workers[rank]
-            # send new context to worker
-            accepted = worker.send_ctx(WorkerRole.PROCESSOR, shard, processor, fn, False)
-            assert accepted, f"Worker {rank} unexpectedly refused the processor context."
-            running_worker_ranks.add(rank)
+        done = False
+        while not done:
 
-            self._logger.info(f"Assigned shard {shard_id} to worker {rank}.")
+            # receive message from worker
+            msg = recv_msg_conn.recv_bytes()
+            msg = orjson.loads(msg)
+            # unpack message
+            rank: Rank = msg["rank"]
+            msg_type = MessageType(msg["type"])
+            payload = msg["payload"]
 
-        # Stage 2: all shards being processed
-        self._logger.info("Starting Stage 2: Single-Shard Multiple-Workers")
+            # handle message
 
-        # keep track of producer and consumer workers
-        producer_worker_rank: None | int = None
-        consumer_worker_ranks: set[int] = set()
+            if msg_type is MessageType.READY:
+                monitor._mark_worker_ready(rank)
+                self._logger.debug(f"Worker {rank} ready.")
 
-        while len(running_worker_ranks) > 0:
-            # collect all idling workers
-            idling_worker_ranks = {req_ctx_conn.recv()}
-            while req_ctx_conn.poll(timeout=0.1):
-                idling_worker_ranks.add(req_ctx_conn.recv())
+            elif msg_type is MessageType.DONE:
+                workers[rank].join()
+                monitor._mark_worker_done(rank)
+                self._logger.debug(f"Worker {rank} done.")
+                # only keep going if there are any workers left
+                done = not monitor.any_worker_alive
 
-            self._logger.debug("Idling workers: %s", idling_worker_ranks)
+            elif msg_type is MessageType.CTX_COMPLETE:
+                monitor._mark_worker_completed(rank)
+                monitor._mark_worker_idling(rank)
+            
+            elif msg_type is MessageType.CTX_CANCELED:
+                monitor._mark_worker_canceled(rank)
+                monitor._mark_worker_idling(rank)
+            
+            elif msg_type is MessageType.CTX_SWITCH:
+                old_role, new_role = payload
+                old_role, new_role = WorkerRole(old_role), WorkerRole(new_role)
+                    
+                monitor._mark_worker_idling(rank)
+                monitor._mark_worker_busy(rank, new_role)
 
-            # update running ranks
-            running_worker_ranks -= idling_worker_ranks
+                self._logger.info(f"Worker {rank} switched context from {old_role.name} to {new_role.name}")
 
-            # use idling ranks as consumers
-            for rank in idling_worker_ranks:
-                workers[rank].send_ctx(
-                    WorkerRole.CONSUMER,
-                    queue_it,
-                    compose(processor, serializer.deserialize),
-                    fn,
-                    False,
-                )
-                self._logger.info(f"Assigned worker {rank} as consumer.")
+            elif msg_type is MessageType.CTX_STARTED:
+                role = WorkerRole(payload)
+                monitor._mark_worker_busy(rank, role)
+                self._logger.info(f"Worker {rank} started running role {role.name}.")
+                
 
-            # update consumer worker ranks
-            consumer_worker_ranks.update(idling_worker_ranks)
+            elif msg_type is MessageType.CTX_PROGRESS:
+                monitor._report_progress(rank, num_samples=payload)
 
-            if len(running_worker_ranks) > 0:
-                if (producer_worker_rank is None) or (producer_worker_rank in idling_worker_ranks):
-                    candidate_ranks = iter(running_worker_ranks)
-                    ctx = (WorkerRole.PRODUCER, None, serializer.serialize, queue.put, False)
+            elif msg_type is MessageType.CTX_REQUEST:
 
-                    try:
-                        # try to assign a producer worker
-                        # test running workers until one of them accepts the producer context
-                        while not workers[(rank := next(candidate_ranks))].send_ctx(*ctx):
-                            self._logger.info(f"Worker {rank} did not accept producer context.")
-                        self._logger.info(f"Assigned worker {producer_worker_rank} as producer.")
-                    except StopIteration:
-                        producer_worker_rank = None
+                # worker must be idling
+                assert rank in monitor.alive_workers
+                assert rank in monitor.idle_workers
 
-            else:
-                # no worker running that could act as producer
-                producer_worker_rank = None
+                if monitor.is_stopping:
+                    # send stop singal
+                    workers[rank].send_ctx(None, None, None, None, True, blocking=False)
 
-        self._logger.info("Sending sentinel signals to consumer workers.")
-        # put sentinel signal to queue, one per consumer worker
-        for _ in consumer_worker_ranks:
-            queue.put(None)
+                elif monitor.any_pending_shards:
+                
+                    # Stage 1
+                    shard_id = monitor.pending_shards.pop()
+                    # get shard and send processor context to worker
+                    shard = ds.shard_data_sources(shard_id, ds.n_shards)
+                    workers[rank].send_ctx(
+                        WorkerRole.PROCESSOR, shard, processor, fn, False, blocking=False
+                    )
+                    processor_workers.add(rank)
 
-        self._logger.info("Stopping all workers.")
-        # send stop signal to all workers
-        for _ in range(self._num_workers):
-            rank = req_ctx_conn.recv()
-            assert workers[rank].send_ctx(None, None, None, None, True)
+                    # mark shard as assigned to worker
+                    monitor._mark_shard_in_progress(rank, shard_id)
+                    self._logger.info(f"Assigned shard {shard_id} to worker {rank}.")
 
-        self._logger.info("Waiting for all workers to join.")
-        # wait for all workers to join
-        for worker in workers:
-            worker.join()
+                else:
 
-        self._logger.info("Waiting for tracker and reporter to join.")
-        # wait for tracker and reporter to join
-        tracker.join()
-        if not self._disable_progress_bar:
-            reporter.join()
+                    # Stage 2
+                    # check if there is a producer
+                    if len(producer_workers) == 0:
+
+                        # create producer context
+                        ctx = (WorkerRole.PRODUCER, None, serializer.serialize, queue.put, False)
+                       
+                        # find a worker that accepts the producer context
+                        for candidate_rank in processor_workers:
+
+                            # check if candidate accepts producer context
+                            if workers[candidate_rank].send_ctx(*ctx, blocking=True):
+                                processor_workers.remove(candidate_rank)
+                                producer_workers.add(candidate_rank)
+                                self._logger.info(f"Assigned worker {candidate_rank} as producer.")
+                                break
+                            
+                            self._logger.info(
+                                f"Worker {candidate_rank} did not accept producer context."
+                            )
+
+                    # assign worker as consumer
+                    workers[rank].send_ctx(
+                        WorkerRole.CONSUMER,
+                        queue_it,
+                        compose(processor, serializer.deserialize),
+                        fn,
+                        False,
+                        blocking=False
+                    )
+                    consumer_workers.add(rank)
+                    # mark worker as consumer
+                    self._logger.info(f"Assigned worker {rank} as consumer.")
+                
+                    # evenutally all workers are consumers
+                    if (
+                        (not monitor.any_pending_shards)
+                        and (monitor.alive_workers == consumer_workers)
+                    ):
+                        # this is the signal that gracefully stops the workers
+                        monitor._mark_as_stopping()
+                        self._logger.info("Stopping criteria reached, gracefully stopping workers.")
+
+        monitor._mark_as_done()
+        reporter.join()
 
         self._logger.info("Data processing completed.")
 
@@ -1528,8 +1634,8 @@ class ShardingController(object):
         """Finalize the current shard, reset its state, and invoke the finalization logic."""
         if self._shard_id is not None:
             self._finalize_shard()
-            self._reset_state()
             self._logger.info(f"Finalized shard with id {self._shard_id}")
+            self._reset_state()
 
 
 class BaseDatasetWriter(ABC):

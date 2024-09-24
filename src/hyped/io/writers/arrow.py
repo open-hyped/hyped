@@ -51,7 +51,7 @@ class ArrowDatasetWriter(BaseDatasetWriter):
         worker_info = get_worker_info()
         # open shard file
         worker_info.ctx.file_path = f"shard-{shard_id}.arrow"
-        worker_info.ctx.file = open(worker_info.ctx.file_path, "wb")
+        worker_info.ctx.file = open(worker_info.ctx.file_path, "wb", buffering=0)
         # build arrow schema from dataset features
         assert info.features is not None
         worker_info.ctx.schema = convert_features_to_arrow_schema(info.features)
