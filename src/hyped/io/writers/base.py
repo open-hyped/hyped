@@ -754,10 +754,12 @@ class ProgressMonitor(object):
     def avg_times(self, ranks: None | Iterable[Rank] = None) -> dict[str, float]:
         # sort ranks by timestamp
         ranks = ranks if ranks is not None else range(self.num_workers)
+        ranks = [r for r in ranks if self._time_ema[r]["producer"].timestamp is not None]
+        ranks = sorted(ranks, key=lambda r: self._time_ema[r]["producer"].timestamp)
 
         times = {}
         for key in ["producer", "processor", "finalizer"]:
-            global_ema = TimeWeightedEMA(decay_rate=math.log(2) / 10)
+            global_ema = TimeWeightedEMA(decay_rate=math.log(2) / 5)
 
             for rank in ranks:
                 local_ema = self._time_ema[rank][key]
@@ -1181,17 +1183,25 @@ class DynamicMultiprocessingRunner(object):
                 monitor._report_progress(rank, report=payload)
 
                 if switching_worker is None:
+                    # get the average time blocked for queue get operation
                     registered_consumer_workers = monitor.get_workers_with_role(WorkerRole.CONSUMER)
                     get_queue_avg_time = monitor.avg_times(registered_consumer_workers)["producer"]
-
+                    # get the average time blocked for queue put operation
                     registered_producer_workers = monitor.get_workers_with_role(WorkerRole.PRODUCER)
                     put_queue_avg_time = monitor.avg_times(registered_producer_workers)["finalizer"]
-
-                    if get_queue_avg_time > 1.0:
-                        switching_worker = _create_producer()
-
-                    elif put_queue_avg_time > 1.0:
-                        switching_worker = _create_processor()
+                    # compare put and get operation to see if there is a excess
+                    # of producers or consumers
+                    if abs(put_queue_avg_time - get_queue_avg_time) > 0.2:
+                        
+                        if get_queue_avg_time > put_queue_avg_time:
+                            # get operations take longer than put operations
+                            # queue get operation blocks because its empty
+                            switching_worker = _create_producer()
+                        
+                        elif len(producer_workers) > 1:
+                            # put operations take longer than get operations
+                            # queue put operation blocks because its full
+                            switching_worker = _create_processor()
 
             elif msg_type is MessageType.CTX_REQUEST:
                 # worker must be idling
