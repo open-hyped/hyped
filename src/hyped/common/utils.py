@@ -169,58 +169,69 @@ def deep_equal(obj1: Any, obj2: Any) -> bool:
     return obj1 == obj2
 
 
-def time_weighted_ema(measurements: dict[float, float], decay_rate: float) -> float:
-    """Calculate the time-weighted exponential moving average.
+class TimeWeightedEMA(object):
+    r"""Calculate the time-weighted exponential moving average (EMA).
 
-    This function assigns greater relevance to more recent measurements while accounting for the
-    time elapsed between measurements. Older measurements are progressively less relevant based on
-    their age relative to the most recent measurement.
+    The time-weighted EMA assigns greater relevance to more recent measurements while accounting
+    for the time elapsed between measurements. Older measurements are progressively less relevant
+    based on their age relative to the most recent measurement.
 
-    Args:
-        measurements (dict[float, float]):
-            A dictionary where keys are timestamps (in seconds) and values are the corresponding
-            measurements.
-        decay_rate (float):
-            The decay rate \( \lambda \) that controls the weight of past measurements. A higher
-            decay rate causes older measurements to lose influence more rapidly.
+    The weight of past measurements is controlled by the decay rate. A higher decay rate causes
+    older measurements to lose influence more rapidly.
 
-            The decay factor is calculated as:
-            .. math::
-                \text{decay}_t = e^{-\lambda \cdot \Delta t}
+    The decay factor is calculated as:
+    .. math::
+        \text{decay}_t = e^{-\lambda \cdot \Delta t}
 
-            where \( \Delta t \) is the time difference between the current timestamp and the
-            previous one.
+    where \( \Delta t \) is the time difference between the current timestamp and the
+    previous one.
 
-            The decay rate can be derived from a desired half-life using the formula:
-            .. math::
-                \lambda = \frac{\ln(2)}{\text{half-life}}
+    The decay rate can be derived from a desired half-life using the formula:
+    .. math::
+        \lambda = \frac{\ln(2)}{\text{half-life}}
 
-            where the half-life is the time period after which the measurement's weight is reduced
-            by half.
-
-    Returns:
-        float: The calculated time-weighted EMA based on the provided measurements.
+    where the half-life is the time period after which the measurement's weight is reduced
+    by half.
     """
-    ema = None
-    previous_timestamp = None
 
-    # Sort measurements by timestamp
-    sorted_measurements = sorted(measurements.items())
+    def __init__(self, decay_rate: float) -> None:
+        """Initialize the EMA
 
-    for timestamp, value in sorted_measurements:
-        if ema is None:
-            ema = value  # Initialize EMA with the first measurement
+        Args:
+            decay_rate (float): Decay rate controlling the weight of past measurements.
+        """
+        self.decay_rate = decay_rate
+        self.last_ema = None
+        self.previous_timestamp = None
+        self.calls = 0
+
+    @property
+    def value(self) -> float:
+        return self.last_ema if self.last_ema is not None else 0.0
+
+    @property
+    def timestamp(self) -> float:
+        return self.previous_timestamp
+
+    def __call__(self, timestamp: float, value: float) -> float:
+        self.update(timestamp, value)
+        return self.value
+
+    def update(self, timestamp: float, value: float) -> float:
+        if self.last_ema is None:
+            self.last_ema = value  # Initialize EMA with the first measurement
         else:
-            # Calculate the time difference
-            delta_t = timestamp - previous_timestamp
-            # Calculate decay factor based on the time difference
-            decay = math.exp(-decay_rate * delta_t)
-            # Update EMA considering time-weighted decay
-            ema = decay * value + (1 - decay) * ema
+            if self.previous_timestamp is not None:
+                # Calculate the time difference
+                delta_t = timestamp - self.previous_timestamp
+                # Calculate the decay factor based on the time difference
+                decay = math.exp(-self.decay_rate * delta_t)
+                # Update EMA considering time-weighted decay
+                self.last_ema = decay * value + (1 - decay) * self.last_ema
 
-        previous_timestamp = timestamp  # Update previous timestamp
-
-    return ema if ema is not None else 0.0
+        # Update state
+        self.previous_timestamp = timestamp
+        self.calls += 1
 
 
 @contextmanager

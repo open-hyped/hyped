@@ -7,12 +7,12 @@ import numpy as np
 import pytest
 
 from hyped.common.utils import (
+    TimeWeightedEMA,
     chdir,
     deep_equal,
     dict_of_lists_to_list_of_dicts,
     is_package_installed,
     list_of_dicts_to_dict_of_lists,
-    time_weighted_ema,
 )
 
 
@@ -155,13 +155,16 @@ def test_calculate_time_weighted_ema():
         1695420400: 250,  # 600 seconds later
     }
 
-    actual_ema = time_weighted_ema(measurements, decay_rate=0.001)
+    ema = TimeWeightedEMA(decay_rate=0.001)
+
+    for timestamp, value in measurements.items():
+        ema(timestamp, value)
 
     # Validate the result against expected values
-    assert actual_ema is not None
-    assert isinstance(actual_ema, float)
+    assert ema.value is not None
+    assert isinstance(ema.value, float)
     # Verify the calculated EMA
-    assert math.isclose(actual_ema, 215.00310219329043, rel_tol=1e-5)
+    assert math.isclose(ema.value, 215.00310219329043, rel_tol=1e-5)
 
 
 def test_is_package_installed_existing_package():
