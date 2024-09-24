@@ -1,3 +1,4 @@
+import math
 import os
 import tempfile
 from unittest.mock import patch
@@ -11,6 +12,7 @@ from hyped.common.utils import (
     dict_of_lists_to_list_of_dicts,
     is_package_installed,
     list_of_dicts_to_dict_of_lists,
+    time_weighted_ema,
 )
 
 
@@ -143,6 +145,23 @@ def _test_chdir_exception():
 
         # After exiting the context, should be back to temp_dir1
         assert os.getcwd().endswith(os.path.abspath(orig_dir))
+
+
+def test_calculate_time_weighted_ema():
+    measurements = {
+        1695419000: 100,  # Timestamp: 1695419000, Measurement: 100
+        1695419100: 150,  # 100 seconds later
+        1695419800: 200,  # 700 seconds later
+        1695420400: 250,  # 600 seconds later
+    }
+
+    actual_ema = time_weighted_ema(measurements, decay_rate=0.001)
+
+    # Validate the result against expected values
+    assert actual_ema is not None
+    assert isinstance(actual_ema, float)
+    # Verify the calculated EMA
+    assert math.isclose(actual_ema, 215.00310219329043, rel_tol=1e-5)
 
 
 def test_is_package_installed_existing_package():

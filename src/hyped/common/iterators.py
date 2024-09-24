@@ -7,7 +7,10 @@ import operator
 import sys
 from itertools import islice
 from queue import Empty, Queue
+from time import time
 from typing import Any, Callable, Generic, Iterable, Iterator, Tuple, TypeVar
+
+from tqdm.std import EMA
 
 if sys.version_info >= (3, 12):
     from itertools import batched
@@ -101,18 +104,21 @@ class QueueIterator:
             raise StopIteration
 
 
-class StoppableIterator(object):
+T = TypeVar("T")
+
+
+class StoppableIterator(Generic[T]):
     """An iterator that can be stopped manually.
 
     This iterator allows manual interruption of iteration by calling the :func:`stop`
     method, which causes the iterator to stop yielding items.
     """
 
-    def __init__(self, iterable: Iterable[Any]) -> None:
+    def __init__(self, iterable: Iterable[T]) -> None:
         """Initialize the stoppable iterator.
 
         Args:
-            iterable (Iterable[Any]): The iterable to iterate over.
+            iterable (Iterable[T]): The iterable to iterate over.
         """
         self.iterable = iter(iterable)
         self.stopped = False
@@ -124,19 +130,19 @@ class StoppableIterator(object):
         """
         self.stopped = True
 
-    def __iter__(self) -> Iterable[Any]:
+    def __iter__(self) -> Iterable[T]:
         """Return the iterator object itself.
 
         Returns:
-            Iterable[Any]: The iterator object itself.
+            Iterable[T]: The iterator object itself.
         """
         return self
 
-    def __next__(self) -> Any:
+    def __next__(self) -> T:
         """Retrieve the next item from the iterable.
 
         Returns:
-            Any: The next item from the iterable.
+            T: The next item from the iterable.
 
         Raises:
             StopIteration: If iteration is stopped or if the iterable is exhausted.
@@ -145,6 +151,35 @@ class StoppableIterator(object):
             raise StopIteration
 
         return next(self.iterable)
+
+
+T = TypeVar("T")
+
+
+class TimedIterator(Generic[T]):
+    def __init__(self, iterable: Iterable[T], smoothing: float = 0.3) -> None:
+        self.iterable = iterable
+        self.ema = EMA(smoothing=smoothing)
+        self.total = 0
+
+    def average_time(self) -> float:
+        return self.ema()
+
+    def total_time(self) -> float:
+        return self.total
+
+    def __iter__(self) -> Iterable[T]:
+        return self
+
+    def __next__(self) -> T:
+        # track time required for next item
+        st = time()
+        item = next(self.iterable)
+        # update average and return the item
+        dt = time() - st
+        self.ema(dt)
+        self.total += dt
+        return item
 
 
 T = TypeVar("T")
