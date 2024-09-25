@@ -735,6 +735,9 @@ class ProgressMonitor(object):
             for _ in range(num_workers)
         ]
 
+    def get_worker_role(self, rank: Rank) -> None | WorkerRole:
+        return self._roles[rank]
+
     @property
     def num_samples_processed(self) -> int:
         return sum(
@@ -1224,10 +1227,16 @@ class DynamicMultiprocessingRunner(object):
                 monitor._mark_worker_completed(rank)
                 monitor._mark_worker_idling(rank)
 
+                if monitor.get_worker_role(rank) is WorkerRole.PRODUCER:
+                    controller.try_switch_to_prodcuer()
+
             elif msg_type is MessageType.CTX_CANCELED:
                 controller.free_worker(rank)
                 monitor._mark_worker_canceled(rank)
                 monitor._mark_worker_idling(rank)
+                
+                if monitor.get_worker_role(rank) is WorkerRole.PRODUCER:
+                    controller.try_switch_to_prodcuer()
 
             elif msg_type is MessageType.CTX_SWITCH:
                 old_role, new_role = payload
