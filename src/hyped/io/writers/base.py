@@ -1268,7 +1268,7 @@ class DynamicMultiprocessingRunner(object):
                         elif len(controller.producer_ranks) > 1:
                             # put operations take longer than get operations
                             # queue put operation blocks because its full
-                            switching_worker = controller.try_switch_to_processor()
+                            switching_worker = controller.try_switch_to_processor(processor, fn)
 
             elif msg_type is MessageType.CTX_REQUEST:
                 # worker must be idling
