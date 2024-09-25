@@ -23,7 +23,7 @@ from enum import Enum
 from functools import partial
 from itertools import chain, count
 from time import time
-from typing import Any, Callable, Iterable, TypeAlias, TypeVar
+from typing import Any, Callable, Iterable, TypeAlias, TypedDict, TypeVar
 
 import datasets
 import dill
@@ -127,6 +127,22 @@ Elements:
 """
 
 
+class TimeReport(TypedDict):
+    producer: float
+    processor: float
+    finalizer: float
+
+
+class ProgressReport(TypedDict):
+    timestamp: float
+    elapsed_time: float
+
+    num_samples: int
+
+    average_time: TimeReport
+    total_time: TimeReport
+
+
 class ExamplesIterablePipeline(list[_BaseExamplesIterable]):
     """Pipeline of huggingface's :class:`_BaseExamplesIterable` blocks.
 
@@ -187,15 +203,53 @@ class ExamplesIterablePipeline(list[_BaseExamplesIterable]):
 
 
 class MessageType(Enum):
+    """Enum representing the various worker message types."""
+
     READY = 1
+    """
+    Indicates that a worker is ready to start processing or receive tasks.
+    """
+
     DONE = 2
+    """
+    Indicates that a worker has completed processing and terminates soon.
+    """
+
     EXCEPTION = 3
+    """
+    Indicates that an exception occurred during worker processing.
+    Used to signal errors or abnormal terminations in task execution.
+    """
+
     CTX_REQUEST = 4
-    CTX_STARTED = 5  # TODO: rename to CTX_RUNNING
+    """
+    Requests a new context for the worker.
+    """
+
+    CTX_STARTED = 5
+    """
+    Signals that a worker has started processing a given context.
+    """
+
     CTX_REPORT = 6
+    """
+    Provides status updates and progress reports for a worker's current context.
+    """
+
     CTX_SWITCH = 7
+    """
+    Indicates that the worker is requesting to switch to a different context.
+    """
+
     CTX_COMPLETE = 8
+    """
+    Signals that the worker has successfully completed its current context.
+    """
+
     CTX_CANCELED = 9
+    """
+    Indicates that the current context has been canceled before completion.
+    """
 
 
 class Worker(mp.Process):
@@ -444,21 +498,21 @@ class Worker(mp.Process):
                         timed_work_iter = TimedIterator(work_iter, smoothing=0.1)
 
                         def _report_progress(num_samples: int, last_report: float):
-                            payload = {
-                                "num_samples": num_samples,
-                                "elapsed_time": time() - last_report,
-                                "timestamp": time(),
-                                "average_time": {
-                                    "producer": timed_producer_iter.average_time(),
-                                    "processor": timed_samples_iter.average_time(),
-                                    "finalizer": timed_work_iter.average_time(),
-                                },
-                                "total_time": {
-                                    "producer": timed_producer_iter.total_time(),
-                                    "processor": timed_samples_iter.total_time(),
-                                    "finalizer": timed_work_iter.total_time(),
-                                },
-                            }
+                            payload = ProgressReport(
+                                timestamp=time(),
+                                elapsed_time=time() - last_report,
+                                num_samples=num_samples,
+                                average_time=TimeReport(
+                                    producer=timed_producer_iter.average_time(),
+                                    processor=timed_samples_iter.average_time(),
+                                    finalizer=timed_work_iter.average_time(),
+                                ),
+                                total_time=TimeReport(
+                                    producer=timed_producer_iter.total_time(),
+                                    processor=timed_samples_iter.total_time(),
+                                    finalizer=timed_work_iter.total_time(),
+                                ),
+                            )
                             self._send_msg(MessageType.CTX_REPORT, payload=payload)
 
                         # main worker loop
@@ -648,7 +702,7 @@ class TqdmReporter(threading.Thread):
 
             for _ in _iter():
                 # get current state
-                total_samples = self._monitor.num_samples_processed
+                total_samples = self._monitor.num_processed_samples
                 update_time = pbar._time()
 
                 # compute sample throughput
@@ -685,15 +739,39 @@ class TqdmReporter(threading.Thread):
 
 
 class ShardState(Enum):
-    PENDING = 0
-    IN_PROGRESS = 1
-    COMPLETED = 2
-    CANCELED = 3
+    """Enum representing the processing state of a dataset shard."""
+
+    PENDING = 1
+    """
+    Indicates that the shard is pending and has not yet been assigned to a worker.
+    """
+
+    IN_PROGRESS = 2
+    """
+    Indicates that the shard is currently being processed by a worker.
+    """
+
+    COMPLETED = 3
+    """
+    Indicates that the shard has been fully processed by a worker.
+    """
+
+    CANCELED = 4
+    """
+    Indicates that the processing of the shard has been canceled before completion.
+    """
 
 
 class ProgressMonitor(object):
+    """Monitors the state and progress of all workers.
+
+    The :class:`ProgressMonitor` tracks the state of each shard, the role and status of each
+    worker, and the number of samples processed, providing utilities for reporting progress and
+    checking worker and shard statuses.
+    """
+
     def __init__(self, num_shards: int, num_workers: int, queue: mp.Queue, item_size: int) -> None:
-        """Initializes the ProgressMonitor.
+        """Initializes the :class:`ProgressMonitor`.
 
         Args:
             num_shards (int): The total number of shards to process.
@@ -736,15 +814,40 @@ class ProgressMonitor(object):
         ]
 
     def get_worker_role(self, rank: Rank) -> None | WorkerRole:
+        """Returns the current role of a worker.
+
+        Args:
+            rank (Rank): The worker's rank.
+
+        Returns:
+            WorkerRole | None: The role of the worker or None if the worker has no assigned role.
+        """
         return self._roles[rank]
 
     @property
-    def num_samples_processed(self) -> int:
+    def num_processed_samples(self) -> int:
+        """Returns the total number of samples processed by all workers.
+
+        The count includes samples processed by both processors and consumers.
+        It excludes the samples processed by producers as these samples are not
+        finalized yet and would be counted twice, once by the producer and and
+        once by the consumer.
+
+        Returns:
+            int: The total number of processed samples.
+        """
         return sum(
             nums[WorkerRole.PROCESSOR] + nums[WorkerRole.CONSUMER] for nums in self._num_samples
         )
 
-    def _report_progress(self, rank: Rank, report: dict[str, Any]) -> None:
+    def _report_progress(self, rank: Rank, report: ProgressReport) -> None:
+        """Capture the progress report of a worker.
+
+        Args:
+            rank (Rank): The rank of the worker reporting progress.
+            report (dict): A dictionary containing the worker's report data, including
+                timestamps, average processing times, and the number of samples processed.
+        """
         ts = report["timestamp"]
         # save worker report
         self._time_ema[rank]["producer"].update(ts, report["average_time"]["producer"])
@@ -755,6 +858,24 @@ class ProgressMonitor(object):
         self._num_samples[rank][role] += report["num_samples"]
 
     def avg_times(self, ranks: None | Iterable[Rank] = None) -> dict[str, float]:
+        """Returns the average processing times for each worker task.
+
+        Recall that the process workflow of each worker has three stages, namely:
+
+        - :code:`producer`: produce the sample to be processed
+        - :code:`processor`: process the sample
+        - :code:`finalizer`: finalize the sample
+
+        These are not to be confused with the worker roles.
+
+        Args:
+            ranks (Iterable[Rank] | None): Optional list of worker ranks to calculate
+                average times for. If None, all workers are included.
+
+        Returns:
+            dict[str, float]: A dictionary mapping worker processing stages to their
+            respective average times.
+        """
         # sort ranks by timestamp
         ranks = ranks if ranks is not None else range(self.num_workers)
         ranks = [r for r in ranks if self._time_ema[r]["producer"].timestamp is not None]
@@ -774,10 +895,20 @@ class ProgressMonitor(object):
 
     @property
     def num_shards(self) -> int:
+        """Returns the total number of dataset shards to process.
+
+        Returns:
+            int: The total number of shards.
+        """
         return self._num_shards
 
     @property
     def num_workers(self) -> int:
+        """Returns the total number of workers.
+
+        Returns:
+            int: The total number of workers.
+        """
         return self._num_workers
 
     @property
@@ -798,85 +929,182 @@ class ProgressMonitor(object):
             return 0
 
     def _mark_as_stopping(self) -> None:
+        """Marks the process as stopping."""
         self._stopping.set()
 
     def _mark_as_done(self) -> None:
+        """Marks the process as done."""
         self._done.set()
 
     @property
     def is_stopping(self) -> bool:
+        """Checks if the process is in a stopping state.
+
+        Returns:
+            bool: True if the process is stopping, False otherwise.
+        """
         return self._stopping.is_set()
 
     def _mark_shard_in_progress(self, rank: Rank, shard_id: int) -> None:
+        """Marks a shard as being in progress, associating it with a worker.
+
+        Args:
+            rank (Rank): The rank of the worker processing the shard.
+            shard_id (int): The identifier of the shard being processed.
+        """
         self._shard_state[shard_id] = ShardState.IN_PROGRESS
         self._shard[rank] = shard_id
 
     def _mark_shard_completed(self, shard_id: int) -> None:
+        """Marks a shard as completed once processing is finished.
+
+        Args:
+            shard_id (int): The identifier of the shard that is completed.
+        """
         self._shard_state[shard_id] = ShardState.COMPLETED
 
     def _mark_shard_canceled(self, shard_id: int) -> None:
+        """Marks a shard as canceled.
+
+        Args:
+            shard_id (int): The identifier of the shard that is canceled.
+        """
         self._shard_state[shard_id] = ShardState.CANCELED
 
     @property
     def any_pending_shards(self) -> bool:
+        """Checks if there are any pending shards.
+
+        Returns:
+            bool: True if there are shards pending, False otherwise.
+        """
         return ShardState.PENDING in set(self._shard_state)
 
     @property
     def pending_shards(self) -> set[int]:
+        """Returns a set of shard IDs that are pending.
+
+        Returns:
+            set[int]: A set of shard IDs in the :code:`PENDING` state.
+        """
         return {i for i, state in enumerate(self._shard_state) if state is ShardState.PENDING}
 
     @property
     def completed_shards(self) -> set[int]:
+        """Returns a set of shard IDs that have been completed.
+
+        Returns:
+            set[int]: A set of shard IDs in the :code:`COMPLETED` state.
+        """
         return {i for i, state in enumerate(self._shard_state) if state is ShardState.COMPLETED}
 
     def _mark_worker_ready(self, rank: Rank) -> None:
+        """Marks a worker as ready to process tasks.
+
+        Args:
+            rank (Rank): The rank of the worker being marked as ready.
+        """
         self._alive[rank] = True
 
     def _mark_worker_done(self, rank: Rank) -> None:
+        """Marks a worker as done and no longer processing.
+
+        Args:
+            rank (Rank): The rank of the worker being marked as done.
+        """
         assert self._roles[rank] is None
         self._alive[rank] = False
 
     def _mark_worker_idling(self, rank: Rank) -> None:
+        """Marks a worker as idle, with no current role.
+
+        Args:
+            rank (Rank): The rank of the worker being marked as idle.
+        """
         assert self._alive[rank]
         self._roles[rank] = None
 
     def _mark_worker_busy(self, rank: Rank, role: WorkerRole) -> None:
+        """Marks a worker as busy with a specific role.
+
+        Args:
+            rank (Rank): The rank of the worker being marked as busy.
+            role (WorkerRole): The role that the worker is performing.
+        """
         assert self._alive[rank]
         self._roles[rank] = role
 
-    def _check_worker_busy(self, rank: Rank, role: WorkerRole) -> None:
-        assert self._alive[rank]
-        assert self._roles[rank] is role
-
     def _mark_worker_completed(self, rank: Rank) -> None:
+        """Marks a worker's current task as completed.
+
+        Also marks the corresponding shard as completed.
+
+        Args:
+            rank (Rank): The rank of the worker who has completed.
+        """
         shard_id = self._shard[rank]
         if shard_id is not None:
-            self._shard_state[shard_id] = ShardState.COMPLETED
+            self._mark_shard_completed(shard_id)
             self._shard[rank] = None
 
     def _mark_worker_canceled(self, rank: Rank) -> None:
+        """Marks a worker's current task as completed.
+
+        Also marks the corresponding shard as canceled.
+
+        Args:
+            rank (Rank): The rank of the worker who has canceled their task.
+        """
         shard_id = self._shard[rank]
         if shard_id is not None:
-            self._shard_state[shard_id] = ShardState.CANCELED
+            self._mark_shard_canceled(shard_id)
             self._shard[rank] = None
 
     @property
     def any_worker_alive(self) -> bool:
+        """Checks if any workers are currently alive.
+
+        Returns:
+            bool: True if any workers are alive, False otherwise.
+        """
         return any(self._alive)
 
     @property
     def alive_workers(self) -> set[Rank]:
+        """Returns a set of ranks of all workers that are currently alive.
+
+        Returns:
+            set[Rank]: A set of worker ranks that are alive.
+        """
         return {i for i, alive in enumerate(self._alive) if alive}
 
     @property
     def idle_workers(self) -> set[Rank]:
+        """Returns a set of ranks of workers that are currently idle.
+
+        Returns:
+            set[Rank]: A set of worker ranks that are idle (i.e., have no assigned role).
+        """
         return {i for i, role in enumerate(self._roles) if role is None}
 
     @property
     def busy_workers(self) -> set[Rank]:
+        """Returns a set of ranks of workers that are currently busy.
+
+        Returns:
+            set[Rank]: A set of worker ranks that are busy.
+        """
         return {i for i, role in enumerate(self._roles) if role is not None}
 
     def get_workers_with_role(self, role: WorkerRole) -> set[Rank]:
+        """Returns a set of ranks of workers assigned a specific role.
+
+        Args:
+            role (WorkerRole): The role to filter workers by.
+
+        Returns:
+            set[Rank]: A set of worker ranks that are assigned the specified role.
+        """
         return {i for i, r in enumerate(self._roles) if r is role}
 
 
@@ -925,32 +1153,52 @@ class Serializer(object):
 
 
 class WorkerController(object):
+    """Controller for managing worker processes and their roles.
+
+    Handles the assignment of workers to different roles (processors,
+    consumers, and producers) and manages task execution and worker
+    state transitions.
+    """
+
     def __init__(self, workers: list[Worker], serializer: Serializer) -> None:
+        """Initializes the WorkerController with the provided workers and serializer.
+
+        Args:
+            workers (list[Worker]): A list of workers to be controlled.
+            serializer (Serializer): A serializer instance for managing data formats.
+        """
         global _manager
 
         self.workers = workers
-        # create the serializer used in stage 2
         self.serializer = serializer
-        # create sample queue used in stage 2 but required for tracker
         self.queue = _manager.Queue(maxsize=self.num_workers)
         self.queue_it = QueueIterator(self.queue, sentinel=None, timeout=1.0)
-
-        self.processor_ranks: set[Rank] = set()
-        self.producer_ranks: set[Rank] = set()
-        self.consumer_ranks: set[Rank] = set()
-        self.joined_ranks: set[Rank] = set()
-
+        self.processor_ranks = set()
+        self.producer_ranks = set()
+        self.consumer_ranks = set()
+        self.joined_ranks = set()
         self._logger = get_cls_logger(type(self))
 
     @property
     def num_workers(self) -> int:
+        """Returns the number of workers being managed.
+
+        Returns:
+            int: Number of workers.
+        """
         return len(self.workers)
 
     @property
     def any_producers(self) -> bool:
+        """Checks if there are any workers assigned as producers.
+
+        Returns:
+            bool: True if any workers are assigned to the producer role, False otherwise.
+        """
         return len(self.producer_ranks) > 0
 
     def start(self) -> None:
+        """Starts all the worker processes. Logs the start of each worker."""
         for worker in self.workers:
             worker.start()
 
@@ -963,10 +1211,17 @@ class WorkerController(object):
         processor: Callable[[Iterable], Iterable] | None,
         fn: Callable[[Any], Any] | None,
     ) -> None:
+        """Assigns a worker the role of processor and provides the processing context.
+
+        Args:
+            rank (Rank): The rank of the worker to assign.
+            shard (Iterable): The data shard to be processed.
+            processor (Callable[[Iterable], Iterable] | None): The processing function.
+            fn (Callable[[Any], Any] | None): An additional function to be applied.
+        """
         self.workers[rank].send_ctx(
             WorkerRole.PROCESSOR, shard, processor, fn, False, blocking=False
         )
-        # mark worker as processor
         self.processor_ranks.add(rank)
         self._logger.info(f"Assigned worker {rank} as processor.")
 
@@ -976,7 +1231,14 @@ class WorkerController(object):
         processor: Callable[[Iterable], Iterable] | None,
         fn: Callable[[Any], Any] | None,
     ) -> None:
-        # assign worker as consumer
+        """Assigns a worker the role of consumer and provides the consumer context.
+
+        Args:
+            rank (Rank): The rank of the worker to assign.
+            processor (Callable[[Iterable], Iterable] | None): The processing function applied
+                before consuming.
+            fn (Callable[[Any], Any] | None): An additional function to be applied.
+        """
         self.workers[rank].send_ctx(
             WorkerRole.CONSUMER,
             self.queue_it,
@@ -985,43 +1247,77 @@ class WorkerController(object):
             False,
             blocking=False,
         )
-        # mark worker as consumer
         self.consumer_ranks.add(rank)
         self._logger.info(f"Assigned worker {rank} as consumer.")
 
-    def try_switch_to_producer(self) -> Rank | None:
-        # create producer context
+    def try_switch_processor_to_producer(self) -> Rank | None:
+        """Attempts to switch a processor to a producer role.
+
+        If successful, the processor rank is removed from the processor set and added to the
+        producer set.
+
+        Returns:
+            Rank | None: The rank of the worker if the switch is successful, None otherwise.
+        """
         ctx = (WorkerRole.PRODUCER, None, self.serializer.serialize, self.queue.put, False)
-        # find a worker that accepts the producer context
         for rank in self.processor_ranks:
-            # check if candidate accepts producer context
             if self.workers[rank].send_ctx(*ctx, blocking=True):
                 self.processor_ranks.remove(rank)
                 self.producer_ranks.add(rank)
-
                 self._logger.info(f"Assigned worker {rank} as producer.")
                 return rank
-
             self._logger.info(f"Worker {rank} did not accept producer context.")
 
-    def try_switch_to_processor(
+    def try_switch_producer_to_processor(
         self, processor: Callable[[Iterable], Iterable] | None, fn: Callable[[Any], Any] | None
     ) -> Rank | None:
-        # create producer context
+        """Attempts to switch a producer to a processor role.
+
+        If successful, the producer rank is removed from the producer set and added to the
+        processor set.
+
+        Args:
+            processor (Callable[[Iterable], Iterable] | None): The processing function.
+            fn (Callable[[Any], Any] | None): An additional function to be applied.
+
+        Returns:
+            Rank | None: The rank of the worker if the switch is successful, None otherwise.
+        """
         ctx = (WorkerRole.PROCESSOR, None, processor, fn, False)
-        # find a worker that accepts the producer context
         for rank in self.producer_ranks:
-            # check if candidate accepts producer context
             if self.workers[rank].send_ctx(*ctx, blocking=True):
                 self.producer_ranks.remove(rank)
                 self.processor_ranks.add(rank)
-
                 self._logger.info(f"Assigned worker {rank} as processor.")
                 return rank
-
             self._logger.info(f"Worker {rank} did not accept processor context.")
 
+    def free_worker(self, rank: Rank) -> None:
+        """Removes the worker from any active roles.
+
+        Args:
+            rank (Rank): The rank of the worker to free.
+        """
+        self.processor_ranks -= {rank}
+        self.producer_ranks -= {rank}
+        self.consumer_ranks -= {rank}
+
+    def stop_worker(self, rank: Rank) -> None:
+        """Sends a stop signal to a worker, indicating that it should cease operation.
+
+        Args:
+            rank (Rank): The rank of the worker to stop.
+        """
+        self.workers[rank].send_ctx(None, None, None, None, True, blocking=False)
+
     def join_worker(self, rank: Rank) -> None:
+        """Waits for a worker to complete execution and join the main thread.
+
+        Ensures the worker is no longer performing any roles.
+
+        Args:
+            rank (Rank): The rank of the worker to join.
+        """
         assert rank not in self.processor_ranks
         assert rank not in self.producer_ranks
         assert rank not in self.consumer_ranks
@@ -1029,15 +1325,10 @@ class WorkerController(object):
         self.joined_ranks.add(rank)
 
     def assert_all_workers_joined(self) -> None:
+        """
+        Asserts that all workers have completed execution and joined the main thread.
+        """
         assert len(self.joined_ranks) == len(self.workers)
-
-    def free_worker(self, rank: Rank) -> None:
-        self.processor_ranks -= {rank}
-        self.producer_ranks -= {rank}
-        self.consumer_ranks -= {rank}
-
-    def stop_worker(self, rank: Rank) -> None:
-        self.workers[rank].send_ctx(None, None, None, None, True, blocking=False)
 
 
 class DynamicMultiprocessingRunner(object):
@@ -1234,7 +1525,7 @@ class DynamicMultiprocessingRunner(object):
                 controller.free_worker(rank)
                 monitor._mark_worker_canceled(rank)
                 monitor._mark_worker_idling(rank)
-                
+
                 if monitor.get_worker_role(rank) is WorkerRole.PRODUCER:
                     controller.try_switch_to_prodcuer()
 
@@ -1253,7 +1544,7 @@ class DynamicMultiprocessingRunner(object):
                 role = WorkerRole(payload)
                 monitor._mark_worker_busy(rank, role)
                 self._logger.info(f"Worker {rank} started running role {role.name}.")
-                
+
                 if rank == switching_worker:
                     switching_worker = None
 
@@ -1273,15 +1564,16 @@ class DynamicMultiprocessingRunner(object):
                         if get_queue_avg_time > put_queue_avg_time:
                             # get operations take longer than put operations
                             # queue get operation blocks because its empty
-                            switching_worker = controller.try_switch_to_producer()
+                            switching_worker = controller.try_switch_processor_to_producer()
 
                         elif len(controller.producer_ranks) > 1:
                             # put operations take longer than get operations
                             # queue put operation blocks because its full
-                            switching_worker = controller.try_switch_to_processor(processor, fn)
+                            switching_worker = controller.try_switch_producer_to_processor(
+                                processor, fn
+                            )
 
                         last_switch = time()
-
 
             elif msg_type is MessageType.CTX_REQUEST:
                 # worker must be idling
@@ -1308,7 +1600,7 @@ class DynamicMultiprocessingRunner(object):
 
                     # check if there is a producer
                     if (switching_worker is None) and not controller.any_producers:
-                        switching_worker = controller.try_switch_to_producer()
+                        switching_worker = controller.try_switch_processor_to_producer()
 
                     # assign worker as consumer
                     controller.create_consumer(rank, processor, fn)
