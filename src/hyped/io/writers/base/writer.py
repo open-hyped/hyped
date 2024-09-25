@@ -201,7 +201,11 @@ class BaseDatasetWriter(ABC):
                     sharding_controller.initialize,
                     partial(self.initialize, ds.info),
                 ),
-                finalize=run_all(sharding_controller.finalize, partial(self.finalize, ds.info)),
+                finalize=run_all(
+                    buffered_write_fn.flush,
+                    sharding_controller.finalize,
+                    partial(self.finalize, ds.info),
+                ),
                 progress_report_interval=self._tqdm_update_interval,
                 disable_tqdm=self._disable_tqdm,
                 callbacks=self._callbacks,

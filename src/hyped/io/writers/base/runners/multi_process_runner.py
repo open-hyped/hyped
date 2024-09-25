@@ -302,6 +302,18 @@ class Worker(mp.Process):
             return True
 
     def _send_msg(self, msg_type: MessageType, payload: None | Any = None) -> None:
+        """Send a message from the worker to the manager process.
+
+        This function serializes and sends a message to the manager process through the
+        specified communication connection. The message includes the worker's rank,
+        the type of message, and an optional payload.
+
+        Args:
+            msg_type (MessageType): The type of message to send, indicating the nature
+                of the update or communication.
+            payload (None | Any, optional): Additional data or context to be sent along with
+                the message. Can be any serializable object. Default is `None`.
+        """
         msg = {"rank": self._rank, "type": msg_type.value, "payload": payload}
 
         msg = orjson.dumps(msg)
@@ -519,11 +531,9 @@ class Worker(mp.Process):
                         producer_exhausted = True
                         done = True
 
-                    except KeyboardInterrupt:  # pragma: not covered
-                        self._logger.warning("Worker interrupted by user.")
+                    except KeyboardInterrupt:
                         self._send_msg(MessageType.CTX_CANCELED)
-                        producer_exhausted = True
-                        done = True
+                        raise
 
                     except Exception as e:
                         # gracefully handle exceptions without stopping the worker
@@ -539,7 +549,7 @@ class Worker(mp.Process):
                             },
                         )
 
-        except KeyboardInterrupt:  # pragma: not covered
+        except KeyboardInterrupt:
             self._logger.warning("Worker interrupted by user.")
 
         except Exception as e:
@@ -1086,6 +1096,7 @@ class DynamicMultiprocessingRunner(BaseRunner):
                     # check if there is a producer
                     if (switching_worker is None) and not controller.any_producers:
                         switching_worker = controller.try_switch_processor_to_producer()
+                        last_switch = time()
 
                     # assign worker as consumer
                     controller.create_consumer(rank, processor, fn)

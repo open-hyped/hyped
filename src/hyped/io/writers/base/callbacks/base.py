@@ -26,7 +26,7 @@ class Callback(object):
             monitor (ProgressMonitor): The monitor tracking the task's progress.
             ds (IterableDataset): The dataset being processed.
         """
-        ...
+        ...  # pragma: not covered
 
     def on_shard_in_progress(self, monitor: ProgressMonitor, shard_id: int) -> None:
         """Called when a shard begins processing.
@@ -35,7 +35,7 @@ class Callback(object):
             monitor (ProgressMonitor): The monitor tracking the task's progress.
             shard_id (int): The identifier of the shard currently being processed.
         """
-        ...
+        ...  # pragma: not covered
 
     def on_shard_completed(self, monitor: ProgressMonitor, shard_id: int) -> None:
         """Called when a shard has completed processing.
@@ -44,7 +44,7 @@ class Callback(object):
             monitor (ProgressMonitor): The monitor tracking the task's progress.
             shard_id (int): The identifier of the completed shard.
         """
-        ...
+        ...  # pragma: not covered
 
     def on_shard_canceled(self, monitor: ProgressMonitor, shard_id: int) -> None:
         """Called when a shard is canceled.
@@ -53,7 +53,7 @@ class Callback(object):
             monitor (ProgressMonitor): The monitor tracking the task's progress.
             shard_id (int): The identifier of the canceled shard.
         """
-        ...
+        ...  # pragma: not covered
 
     def on_stopping(self, monitor: ProgressMonitor) -> None:
         """Called when processing is being stopped.
@@ -61,7 +61,7 @@ class Callback(object):
         Args:
             monitor (ProgressMonitor): The monitor tracking the task's progress.
         """
-        ...
+        ...  # pragma: not covered
 
     def on_done(self, monitor: ProgressMonitor) -> None:
         """Called when processing is complete.
@@ -69,7 +69,7 @@ class Callback(object):
         Args:
             monitor (ProgressMonitor): The monitor tracking the task's progress.
         """
-        ...
+        ...  # pragma: not covered
 
 
 class CallbackManager(Callback):

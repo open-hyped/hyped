@@ -153,10 +153,9 @@ class MainProcessRunner(BaseRunner):
                     # call shard complete when no error was detected
                     self._callback.on_shard_completed(monitor, shard_id)
 
-        except KeyboardInterrupt:  # pragma: not covered
+        except KeyboardInterrupt:
             logger.warning("Processing interrupted by user.")
             monitor._mark_worker_canceled(0)
-            raise
 
         finally:
             # report worker done

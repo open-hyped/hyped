@@ -16,8 +16,8 @@ from hyped.common.typing import Sample
 
 from .callbacks.base import Callback, CallbackManager
 from .callbacks.tqdm_reporter import TqdmReporterCallback
-from .runners.main_process import MainProcessRunner
-from .runners.multi_process import DynamicMultiprocessingRunner
+from .runners.main_process_runner import MainProcessRunner
+from .runners.multi_process_runner import DynamicMultiprocessingRunner
 
 logger = get_logger(__name__)
 
