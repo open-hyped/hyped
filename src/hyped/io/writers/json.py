@@ -37,7 +37,7 @@ class JsonDatasetWriter(BaseDatasetWriter):
                 and configuration details.
         """
         info = get_worker_info()
-        info.ctx.file_path = f"shard-{shard_id}.json"
+        info.ctx.file_path = f"shard-{shard_id:05}.json"
         info.ctx.file = open(info.ctx.file_path, "wb", buffering=0)
 
     def write_batch(self, batch: list[Sample]) -> int:
