@@ -921,6 +921,122 @@ class Serializer(object):
         return chain.from_iterable(map(orjson.loads, it))
 
 
+class WorkerController(object):
+    def __init__(self, workers: list[Worker], serializer: Serializer) -> None:
+        global _manager
+
+        self.workers = workers
+        # create the serializer used in stage 2
+        self.serializer = serializer
+        # create sample queue used in stage 2 but required for tracker
+        self.queue = _manager.Queue(maxsize=self.num_workers)
+        self.queue_it = QueueIterator(self.queue, sentinel=None, timeout=1.0)
+
+        self.processor_ranks: set[Rank] = set()
+        self.producer_ranks: set[Rank] = set()
+        self.consumer_ranks: set[Rank] = set()
+        self.joined_ranks: set[Rank] = set()
+
+        self._logger = get_cls_logger(type(self))
+
+    @property
+    def num_workers(self) -> int:
+        return len(self.workers)
+
+    @property
+    def any_producers(self) -> bool:
+        return len(self.producer_ranks) > 0
+
+    def start(self) -> None:
+        for worker in self.workers:
+            worker.start()
+
+        self._logger.info("All workers started.")
+
+    def create_processor(
+        self,
+        rank: Rank,
+        shard: Iterable,
+        processor: Callable[[Iterable], Iterable] | None,
+        fn: Callable[[Any], Any] | None,
+    ) -> None:
+        self.workers[rank].send_ctx(
+            WorkerRole.PROCESSOR, shard, processor, fn, False, blocking=False
+        )
+        # mark worker as processor
+        self.processor_ranks.add(rank)
+        self._logger.info(f"Assigned worker {rank} as processor.")
+
+    def create_consumer(
+        self,
+        rank: Rank,
+        processor: Callable[[Iterable], Iterable] | None,
+        fn: Callable[[Any], Any] | None,
+    ) -> None:
+        # assign worker as consumer
+        self.workers[rank].send_ctx(
+            WorkerRole.CONSUMER,
+            self.queue_it,
+            compose(processor, self.serializer.deserialize),
+            fn,
+            False,
+            blocking=False,
+        )
+        # mark worker as consumer
+        self.consumer_ranks.add(rank)
+        self._logger.info(f"Assigned worker {rank} as consumer.")
+
+    def try_switch_to_producer(self) -> Rank | None:
+        # create producer context
+        ctx = (WorkerRole.PRODUCER, None, self.serializer.serialize, self.queue.put, False)
+        # find a worker that accepts the producer context
+        for rank in self.processor_ranks:
+            # check if candidate accepts producer context
+            if self.workers[rank].send_ctx(*ctx, blocking=True):
+                self.processor_ranks.remove(rank)
+                self.producer_ranks.add(rank)
+
+                self._logger.info(f"Assigned worker {rank} as producer.")
+                return rank
+
+            self._logger.info(f"Worker {rank} did not accept producer context.")
+
+    def try_switch_to_processor(
+        self, processor: Callable[[Iterable], Iterable] | None, fn: Callable[[Any], Any] | None
+    ) -> Rank | None:
+        # create producer context
+        ctx = (WorkerRole.PROCESSOR, None, processor, fn, False)
+        # find a worker that accepts the producer context
+        for rank in self.producer_ranks:
+            # check if candidate accepts producer context
+            if self.workers[rank].send_ctx(*ctx, blocking=True):
+                self.producer_ranks.remove(rank)
+                self.processor_ranks.add(rank)
+
+                self._logger.info(f"Assigned worker {rank} as processor.")
+                return rank
+
+            self._logger.info(f"Worker {rank} did not accept processor context.")
+
+    def join_worker(self, rank: Rank) -> None:
+        assert rank not in self.processor_ranks
+        assert rank not in self.producer_ranks
+        assert rank not in self.consumer_ranks
+        self.workers[rank].join()
+        self.joined_ranks.add(rank)
+
+    def assert_all_workers_joined(self) -> None:
+        assert len(self.joined_ranks) == len(self.workers)
+
+    def free_worker(self, rank: Rank) -> None:
+        self.processor_ranks -= {rank}
+        self.producer_ranks -= {rank}
+        self.consumer_ranks -= {rank}
+
+    def stop_worker(self, rank: Rank) -> None:
+        self.workers[rank].send_ctx(None, None, None, None, True, blocking=False)
+
+
 class DynamicMultiprocessingRunner(object):
     """Manages and runs a set of worker processes to handle parallel data processing.
 
@@ -1038,7 +1154,6 @@ class DynamicMultiprocessingRunner(object):
             ds: (IterableDataset): The dataset to process.
             fn (Callable[[Sample], Any]): The function to apply to each sample in the dataset.
         """
-        global _manager
 
         self._logger.info("Starting data processing.")
 
@@ -1048,21 +1163,6 @@ class DynamicMultiprocessingRunner(object):
 
         # create connection for workers to request new context
         recv_msg_conn, worker_msg_conn = mp.Pipe(duplex=False)
-
-        # create the serializer used in stage 2
-        serializer = Serializer(batch_size=self._prefetch)
-        # create sample queue used in stage 2 but required for tracker
-        queue = _manager.Queue(maxsize=self._num_workers * 2)
-        queue_it = QueueIterator(queue, sentinel=None, timeout=1.0)
-
-        # create the progress monitor, note that the serializer dumps a batch of samples
-        # into a single queue element with a batch size set to the prefetch factor
-        monitor = ProgressMonitor(ds.n_shards, self._num_workers, queue, serializer.batch_size)
-
-        # create the reporter thread
-        reporter = TqdmReporter(monitor, self._progress_update_interval)
-        reporter.start()
-
         # create all workers
         workers = [
             Worker(
@@ -1075,51 +1175,26 @@ class DynamicMultiprocessingRunner(object):
             )
             for rank in range(self._num_workers)
         ]
-        self._logger.info(f"All {self._num_workers} workers created.")
 
-        # start all workers
-        for worker in workers:
-            worker.start()
+        # create the serializer used to serialize samples
+        # before putting them into the queue
+        serializer = Serializer(batch_size=self._prefetch)
+        # create controller
+        controller = WorkerController(workers, serializer)
+        controller.start()
 
-        self._logger.info("All workers started.")
+        # create the progress monitor, note that the serializer dumps a batch of samples
+        # into a single queue element with a batch size set to the prefetch factor
+        monitor = ProgressMonitor(
+            ds.n_shards, self._num_workers, controller.queue, controller.serializer.batch_size
+        )
+        # create the reporter thread
+        reporter = TqdmReporter(monitor, self._progress_update_interval)
+        reporter.start()
 
-        processor_workers = set()
-        producer_workers = set()
-        consumer_workers = set()
-
-        switching_worker: None | int = None
-
-        def _create_producer():
-            # create producer context
-            ctx = (WorkerRole.PRODUCER, None, serializer.serialize, queue.put, False)
-            # find a worker that accepts the producer context
-            for candidate_rank in processor_workers:
-                # check if candidate accepts producer context
-                if workers[candidate_rank].send_ctx(*ctx, blocking=True):
-                    processor_workers.remove(candidate_rank)
-                    producer_workers.add(candidate_rank)
-                    self._logger.info(f"Assigned worker {candidate_rank} as producer.")
-                    return candidate_rank
-
-                self._logger.info(f"Worker {candidate_rank} did not accept producer context.")
-
-            return None
-
-        def _create_processor():
-            # create producer context
-            ctx = (WorkerRole.PROCESSOR, None, processor, fn, False)
-            # find a worker that accepts the producer context
-            for candidate_rank in producer_workers:
-                # check if candidate accepts producer context
-                if workers[candidate_rank].send_ctx(*ctx, blocking=True):
-                    producer_workers.remove(candidate_rank)
-                    processor_workers.add(candidate_rank)
-                    self._logger.info(f"Assigned worker {candidate_rank} as processor.")
-                    return candidate_rank
-
-                self._logger.info(f"Worker {candidate_rank} did not accept processor context.")
-
-            return None
+        # mark a specific worker as switching
+        # used to avoid changing the context of too many workers simultaneously
+        switching_worker: None | Rank = None
 
         done = False
         while not done:
@@ -1132,33 +1207,26 @@ class DynamicMultiprocessingRunner(object):
             payload = msg["payload"]
 
             # handle message
-
             if msg_type is MessageType.READY:
                 monitor._mark_worker_ready(rank)
                 self._logger.debug(f"Worker {rank} ready.")
 
             elif msg_type is MessageType.DONE:
-                workers[rank].join()
+                controller.join_worker(rank)
                 monitor._mark_worker_done(rank)
                 self._logger.debug(f"Worker {rank} done.")
                 # only keep going if there are any workers left
                 done = not monitor.any_worker_alive
 
             elif msg_type is MessageType.CTX_COMPLETE:
+                controller.free_worker(rank)
                 monitor._mark_worker_completed(rank)
                 monitor._mark_worker_idling(rank)
 
-                processor_workers -= {rank}
-                producer_workers -= {rank}
-                consumer_workers -= {rank}
-
             elif msg_type is MessageType.CTX_CANCELED:
+                controller.free_worker(rank)
                 monitor._mark_worker_canceled(rank)
                 monitor._mark_worker_idling(rank)
-
-                processor_workers -= {rank}
-                producer_workers -= {rank}
-                consumer_workers -= {rank}
 
             elif msg_type is MessageType.CTX_SWITCH:
                 old_role, new_role = payload
@@ -1192,16 +1260,15 @@ class DynamicMultiprocessingRunner(object):
                     # compare put and get operation to see if there is a excess
                     # of producers or consumers
                     if abs(put_queue_avg_time - get_queue_avg_time) > 0.2:
-                        
                         if get_queue_avg_time > put_queue_avg_time:
                             # get operations take longer than put operations
                             # queue get operation blocks because its empty
-                            switching_worker = _create_producer()
-                        
-                        elif len(producer_workers) > 1:
+                            switching_worker = controller.try_switch_to_producer()
+
+                        elif len(controller.producer_ranks) > 1:
                             # put operations take longer than get operations
                             # queue put operation blocks because its full
-                            switching_worker = _create_processor()
+                            switching_worker = controller.try_switch_to_processor()
 
             elif msg_type is MessageType.CTX_REQUEST:
                 # worker must be idling
@@ -1210,17 +1277,14 @@ class DynamicMultiprocessingRunner(object):
 
                 if monitor.is_stopping:
                     # send stop singal
-                    workers[rank].send_ctx(None, None, None, None, True, blocking=False)
+                    controller.stop_worker(rank)
 
                 elif monitor.any_pending_shards:
                     # Stage 1
                     shard_id = monitor.pending_shards.pop()
                     # get shard and send processor context to worker
                     shard = ds.shard_data_sources(shard_id, ds.n_shards)
-                    workers[rank].send_ctx(
-                        WorkerRole.PROCESSOR, shard, processor, fn, False, blocking=False
-                    )
-                    processor_workers.add(rank)
+                    controller.create_processor(rank, shard, processor, fn)
 
                     # mark shard as assigned to worker
                     monitor._mark_shard_in_progress(rank, shard_id)
@@ -1228,33 +1292,23 @@ class DynamicMultiprocessingRunner(object):
 
                 else:
                     # Stage 2
+
                     # check if there is a producer
-                    if (switching_worker is None) and len(producer_workers) == 0:
-                        switching_worker = _create_producer()
+                    if (switching_worker is None) and not controller.any_producers:
+                        switching_worker = controller.try_switch_to_producer()
 
                     # assign worker as consumer
-                    workers[rank].send_ctx(
-                        WorkerRole.CONSUMER,
-                        queue_it,
-                        compose(processor, serializer.deserialize),
-                        fn,
-                        False,
-                        blocking=False,
-                    )
-                    consumer_workers.add(rank)
-                    # mark worker as consumer
-                    self._logger.info(f"Assigned worker {rank} as consumer.")
+                    controller.create_consumer(rank, processor, fn)
 
                     # evenutally all workers are consumers
-                    if (not monitor.any_pending_shards) and (
-                        monitor.alive_workers == consumer_workers
-                    ):
+                    if monitor.alive_workers == controller.consumer_ranks:
                         # this is the signal that gracefully stops the workers
                         monitor._mark_as_stopping()
                         self._logger.info("Stopping criteria reached, gracefully stopping workers.")
 
         monitor._mark_as_done()
         reporter.join()
+        controller.assert_all_workers_joined()
 
         self._logger.info("Data processing completed.")
 
