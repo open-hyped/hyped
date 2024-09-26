@@ -8,7 +8,6 @@ through callbacks.
 """
 
 from queue import Queue
-from time import time
 from typing import Any, Callable
 
 from datasets import IterableDataset
@@ -17,6 +16,7 @@ from hyped.common._worker import reset_worker_info, set_worker_info
 from hyped.common.iterators import TimedIterator, ith_entries
 from hyped.common.logging import get_logger
 from hyped.common.typing import Sample
+from hyped.common.utils import clock
 
 from ..callbacks.base import CallbackManager
 from ..monitor import ProgressMonitor, ProgressReport, TimeReport
@@ -91,7 +91,7 @@ class MainProcessRunner(BaseRunner):
             monitor._mark_worker_idling(0)
 
             num_samples = 0
-            last_report = time()
+            last_report = clock()
 
             for shard_id in range(ds.n_shards):
                 try:
@@ -111,16 +111,16 @@ class MainProcessRunner(BaseRunner):
                     for _ in timed_work_iter:
                         num_samples += 1
 
-                        now = time()
+                        now = clock()
                         if now - last_report > self._report_interval:
                             report = ProgressReport(
                                 timestamp=now,
                                 num_samples=num_samples,
                                 elapsed_time=now - last_report,
                                 average_time=TimeReport(
-                                    producer=timed_shard.average_time(),
-                                    processor=timed_shard.average_time(),
-                                    finalizer=timed_work_iter.average_time(),
+                                    producer=timed_shard.smooth_time(),
+                                    processor=timed_shard.smooth_time(),
+                                    finalizer=timed_work_iter.smooth_time(),
                                 ),
                                 total_time=TimeReport(
                                     producer=timed_shard.total_time(),
@@ -162,7 +162,7 @@ class MainProcessRunner(BaseRunner):
             logger.info("Processing completed. Finalizing worker.")
 
             if num_samples > 0:
-                now = time()
+                now = clock()
                 report = ProgressReport(
                     timestamp=now,
                     num_samples=num_samples,

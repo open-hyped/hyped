@@ -5,9 +5,14 @@ import math
 import os
 from contextlib import contextmanager
 from functools import cache, reduce
+from time import perf_counter
 from typing import Any, Callable, Hashable
 
 import numpy as np
+
+clock = perf_counter
+"""
+"""
 
 
 class compose(object):

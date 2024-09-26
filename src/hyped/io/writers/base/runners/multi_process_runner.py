@@ -21,7 +21,6 @@ from copy import copy
 from enum import Enum
 from functools import partial
 from itertools import chain
-from time import time
 from typing import Any, Callable, Iterable, TypeAlias, TypeVar
 
 import dill
@@ -45,7 +44,7 @@ from hyped.common.iterators import (
 )
 from hyped.common.logging import get_cls_logger
 from hyped.common.typing import Rank, Sample
-from hyped.common.utils import compose
+from hyped.common.utils import clock, compose
 
 from ..callbacks.base import CallbackManager
 from ..monitor import ProgressMonitor, ProgressReport, TimeReport
@@ -436,7 +435,7 @@ class Worker(mp.Process):
                     self._logger.debug(f"Starting processing with role {self._role}.")
 
                     num_samples = 0
-                    last_report = time()
+                    last_report = clock()
 
                     # create a stoppable producer that allows to dynamically
                     # interrupt the execution and apply the new context
@@ -450,15 +449,15 @@ class Worker(mp.Process):
                         work_iter = map(self._finalizer, timed_samples_iter)
                         timed_work_iter = TimedIterator(work_iter, smoothing=0.1)
 
-                        def _report_progress(num_samples: int, last_report: float):
+                        def _report_progress(now: float, num_samples: int, last_report: float):
                             payload = ProgressReport(
-                                timestamp=time(),
-                                elapsed_time=time() - last_report,
+                                timestamp=now,
+                                elapsed_time=now - last_report,
                                 num_samples=num_samples,
                                 average_time=TimeReport(
-                                    producer=timed_producer_iter.average_time(),
-                                    processor=timed_samples_iter.average_time(),
-                                    finalizer=timed_work_iter.average_time(),
+                                    producer=timed_producer_iter.smooth_time(),
+                                    processor=timed_samples_iter.smooth_time(),
+                                    finalizer=timed_work_iter.smooth_time(),
                                 ),
                                 total_time=TimeReport(
                                     producer=timed_producer_iter.total_time(),
@@ -500,7 +499,7 @@ class Worker(mp.Process):
                                         num_samples += 1
 
                                     # send progress report before switching the context
-                                    _report_progress(num_samples, last_report)
+                                    _report_progress(clock(), num_samples, last_report)
                                     self._send_msg(
                                         MessageType.CTX_SWITCH,
                                         payload=(self._role.value, new_role.value),
@@ -509,20 +508,21 @@ class Worker(mp.Process):
                                     # recreate the work iterable
                                     break
 
+                            now = clock()
                             # send continuous updates to tracker
                             if (num_samples > 0) and (
-                                time() - last_report > self._progress_report_interval
+                                now - last_report > self._progress_report_interval
                             ):
                                 # report progress report and reset tracking values
-                                _report_progress(num_samples, last_report)
-                                num_samples, last_report = 0, time()
+                                _report_progress(now, num_samples, last_report)
+                                num_samples, last_report = 0, now
 
                         else:
                             # producer exhausted
                             producer_exhausted = True
                             self._logger.info("Finished processing current context.")
                             # send final progress update and completion message
-                            _report_progress(num_samples, last_report)
+                            _report_progress(clock(), num_samples, last_report)
                             self._send_msg(MessageType.CTX_COMPLETE)
 
                     except StopIteration:
@@ -808,6 +808,38 @@ class WorkerController(object):
         assert len(self.joined_ranks) == len(self.workers)
 
 
+class ConsumerProducerBalancer(object):
+    class Action(Enum):
+        NO_ACTION = 1
+        ADD_PRODUCER = 2
+        REMOVE_PRODUCER = 3
+
+    def __init__(self, controller: WorkerController, monitor: ProgressMonitor) -> None:
+        self._controller = controller
+        self._monitor = monitor
+
+    def callback(self) -> Action:
+        # get the average time blocked for queue get operation
+        registered_consumer_workers = self._monitor.get_workers_with_role(WorkerRole.CONSUMER)
+        get_queue_avg_time = self._monitor.avg_times(registered_consumer_workers)["producer"]
+        # get the average time blocked for queue put operation
+        registered_producer_workers = self._monitor.get_workers_with_role(WorkerRole.PRODUCER)
+        put_queue_avg_time = self._monitor.avg_times(registered_producer_workers)["finalizer"]
+        # compare put and get operation to see if there is a excess
+        # of producers or consumers
+        if get_queue_avg_time >= 1.3 * put_queue_avg_time:
+            # get operations take longer than put operations
+            # queue get operation blocks because its empty
+            return ConsumerProducerBalancer.Action.ADD_PRODUCER
+
+        elif put_queue_avg_time >= 1.3 * get_queue_avg_time:
+            # put operations take longer than get operations
+            # queue put operation blocks because its full
+            return ConsumerProducerBalancer.Action.REMOVE_PRODUCER
+
+        return ConsumerProducerBalancer.Action.NO_ACTION
+
+
 class DynamicMultiprocessingRunner(BaseRunner):
     """Manages and runs a set of worker processes to handle parallel data processing.
 
@@ -956,13 +988,16 @@ class DynamicMultiprocessingRunner(BaseRunner):
             src_ds.n_shards, self._num_workers, controller.queue, controller.serializer.batch_size
         )
 
+        # create the consumer producer balancer
+        balancer = ConsumerProducerBalancer(controller, monitor)
+
         # run callbacks
         self._callback.on_start(monitor, ds)
 
         # mark a specific worker as switching
         # used to rate limit the context switches of workers
         switching_worker: None | Rank = None
-        last_switch = time()
+        last_switch = clock()
 
         done = False
         while not done:
@@ -1044,29 +1079,24 @@ class DynamicMultiprocessingRunner(BaseRunner):
             elif msg_type is MessageType.CTX_REPORT:
                 monitor._report_progress(rank, report=payload)
 
-                if (switching_worker is None) and (time() - last_switch) >= 5:
-                    # get the average time blocked for queue get operation
-                    registered_consumer_workers = monitor.get_workers_with_role(WorkerRole.CONSUMER)
-                    get_queue_avg_time = monitor.avg_times(registered_consumer_workers)["producer"]
-                    # get the average time blocked for queue put operation
-                    registered_producer_workers = monitor.get_workers_with_role(WorkerRole.PRODUCER)
-                    put_queue_avg_time = monitor.avg_times(registered_producer_workers)["finalizer"]
-                    # compare put and get operation to see if there is a excess
-                    # of producers or consumers
-                    if abs(put_queue_avg_time - get_queue_avg_time) > 0.1:
-                        if get_queue_avg_time > put_queue_avg_time:
-                            # get operations take longer than put operations
-                            # queue get operation blocks because its empty
-                            switching_worker = controller.try_switch_processor_to_producer()
+                now = clock()
+                if (switching_worker is None) and (now - last_switch > 5):
+                    # call balancer whenever there is a progress report update
+                    action = balancer.callback()
 
-                        elif len(controller.producer_ranks) > 1:
-                            # put operations take longer than get operations
-                            # queue put operation blocks because its full
-                            switching_worker = controller.try_switch_producer_to_processor(
-                                processor, fn
-                            )
+                    if action is ConsumerProducerBalancer.Action.ADD_PRODUCER:
+                        # try to convert an active processor to a producer
+                        switching_worker = self._controller.try_switch_processor_to_producer()
+                        last_switch = now
 
-                        last_switch = time()
+                    elif (action is ConsumerProducerBalancer.Action.REMOVE_PRODUCER) and (
+                        len(self._controller.producer_ranks) > 1
+                    ):
+                        # try to convert an active producer back to a processor
+                        switching_worker = self._controller.try_switch_producer_to_processor(
+                            processor, fn
+                        )
+                        last_switch = now
 
             elif msg_type is MessageType.CTX_REQUEST:
                 # worker must be idling
@@ -1094,9 +1124,8 @@ class DynamicMultiprocessingRunner(BaseRunner):
                     # Stage 2
 
                     # check if there is a producer
-                    if (switching_worker is None) and not controller.any_producers:
-                        switching_worker = controller.try_switch_processor_to_producer()
-                        last_switch = time()
+                    if not controller.any_producers:
+                        controller.try_switch_processor_to_producer()
 
                     # assign worker as consumer
                     controller.create_consumer(rank, processor, fn)

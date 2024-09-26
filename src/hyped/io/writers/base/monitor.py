@@ -10,11 +10,10 @@ import math
 import multiprocessing as mp
 import threading
 from enum import Enum
-from time import time
 from typing import Iterable, TypedDict
 
 from hyped.common.typing import Rank
-from hyped.common.utils import TimeWeightedEMA
+from hyped.common.utils import TimeWeightedEMA, clock
 
 from .runners.base import WorkerRole
 
@@ -207,7 +206,7 @@ class ProgressMonitor(object):
                 global_ema.update(local_ema.timestamp, local_ema.value)
 
             if len(ranks) > 0:
-                now = time()
+                now = clock()
                 local_ema = self._time_ema[ranks[0]][key]
                 global_ema.update(now, now - local_ema.timestamp)
 
