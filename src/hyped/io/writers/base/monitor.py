@@ -205,10 +205,10 @@ class ProgressMonitor(object):
                 local_ema = self._time_ema[rank][key]
                 global_ema.update(local_ema.timestamp, local_ema.value)
 
-            if len(ranks) > 0:
-                now = clock()
-                local_ema = self._time_ema[ranks[0]][key]
-                global_ema.update(now, now - local_ema.timestamp)
+            #if len(ranks) > 0:
+            #    now = clock()
+            #    local_ema = self._time_ema[ranks[0]][key]
+            #    global_ema.update(now, now - local_ema.timestamp)
 
             times[key] = global_ema.value
 

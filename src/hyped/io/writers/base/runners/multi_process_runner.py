@@ -807,6 +807,7 @@ class WorkerController(object):
         """
         assert len(self.joined_ranks) == len(self.workers)
 
+import threading
 
 class ConsumerProducerBalancer(object):
     class Action(Enum):
@@ -819,27 +820,30 @@ class ConsumerProducerBalancer(object):
         self._monitor = monitor
 
         self._queue_size = TimeWeightedEMA(decay_rate=0.01)
+        self._thread = threading.Thread(target=self._run_queue_size_monitor)
+        self._thread.start()
 
     def _run_queue_size_monitor(self) -> None:
-        while self._monitor._done.wait(timeout=0.01):
+        while not self._monitor._done.wait(timeout=0.01):
             self._queue_size.update(clock(), self._monitor.num_buffered_samples)
 
     def callback(self) -> Action:
         queue_size = self._queue_size.value / self._monitor.sample_buffer_size
+        
         # get registered producer and consumer workers
         registered_producer_workers = self._monitor.get_workers_with_role(WorkerRole.PRODUCER)
         registered_consumer_workers = self._monitor.get_workers_with_role(WorkerRole.CONSUMER)
         # get the average block times for producer and consumer group
-        producer_block_time = self._monitor.avg_times(registered_consumer_workers)["producer"]
-        consumer_block_time = self._monitor.avg_times(registered_producer_workers)["finalizer"]
+        producer_block_time = self._monitor.avg_times(registered_producer_workers)["finalizer"]
+        consumer_block_time = self._monitor.avg_times(registered_consumer_workers)["producer"]
 
         # of producers or consumers
-        if (queue_size < 0.2) and (producer_block_time >= 1.1 * consumer_block_time):
+        if (queue_size < 0.3) and (consumer_block_time >= 1.3 * producer_block_time):
             # get operations take longer than put operations
             # queue get operation blocks because its empty
             return ConsumerProducerBalancer.Action.ADD_PRODUCER
 
-        elif (queue_size > 0.8) and (consumer_block_time >= 1.1 * producer_block_time):
+        elif (queue_size > 0.7) and (producer_block_time >= 1.3 * consumer_block_time):
             # put operations take longer than get operations
             # queue put operation blocks because its full
             return ConsumerProducerBalancer.Action.REMOVE_PRODUCER
