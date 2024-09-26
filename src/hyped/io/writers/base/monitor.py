@@ -249,6 +249,10 @@ class ProgressMonitor(object):
             # queue connection closed
             return 0
 
+    @property
+    def sample_buffer_size(self) -> int:
+        return self.num_workers * self._item_size
+
     def _mark_as_stopping(self) -> None:
         """Marks the process as stopping."""
         self._stopping.set()

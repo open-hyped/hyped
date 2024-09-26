@@ -44,7 +44,7 @@ from hyped.common.iterators import (
 )
 from hyped.common.logging import get_cls_logger
 from hyped.common.typing import Rank, Sample
-from hyped.common.utils import clock, compose
+from hyped.common.utils import TimeWeightedEMA, clock, compose
 
 from ..callbacks.base import CallbackManager
 from ..monitor import ProgressMonitor, ProgressReport, TimeReport
@@ -818,21 +818,28 @@ class ConsumerProducerBalancer(object):
         self._controller = controller
         self._monitor = monitor
 
+        self._queue_size = TimeWeightedEMA(decay_rate=0.01)
+
+    def _run_queue_size_monitor(self) -> None:
+        while self._monitor._done.wait(timeout=0.01):
+            self._queue_size.update(clock(), self._monitor.num_buffered_samples)
+
     def callback(self) -> Action:
-        # get the average time blocked for queue get operation
-        registered_consumer_workers = self._monitor.get_workers_with_role(WorkerRole.CONSUMER)
-        get_queue_avg_time = self._monitor.avg_times(registered_consumer_workers)["producer"]
-        # get the average time blocked for queue put operation
+        queue_size = self._queue_size.value / self._monitor.sample_buffer_size
+        # get registered producer and consumer workers
         registered_producer_workers = self._monitor.get_workers_with_role(WorkerRole.PRODUCER)
-        put_queue_avg_time = self._monitor.avg_times(registered_producer_workers)["finalizer"]
-        # compare put and get operation to see if there is a excess
+        registered_consumer_workers = self._monitor.get_workers_with_role(WorkerRole.CONSUMER)
+        # get the average block times for producer and consumer group
+        producer_block_time = self._monitor.avg_times(registered_consumer_workers)["producer"]
+        consumer_block_time = self._monitor.avg_times(registered_producer_workers)["finalizer"]
+
         # of producers or consumers
-        if get_queue_avg_time >= 1.3 * put_queue_avg_time:
+        if (queue_size < 0.2) and (producer_block_time >= 1.1 * consumer_block_time):
             # get operations take longer than put operations
             # queue get operation blocks because its empty
             return ConsumerProducerBalancer.Action.ADD_PRODUCER
 
-        elif put_queue_avg_time >= 1.3 * get_queue_avg_time:
+        elif (queue_size > 0.8) and (consumer_block_time >= 1.1 * producer_block_time):
             # put operations take longer than get operations
             # queue put operation blocks because its full
             return ConsumerProducerBalancer.Action.REMOVE_PRODUCER
@@ -1086,14 +1093,14 @@ class DynamicMultiprocessingRunner(BaseRunner):
 
                     if action is ConsumerProducerBalancer.Action.ADD_PRODUCER:
                         # try to convert an active processor to a producer
-                        switching_worker = self._controller.try_switch_processor_to_producer()
+                        switching_worker = controller.try_switch_processor_to_producer()
                         last_switch = now
 
                     elif (action is ConsumerProducerBalancer.Action.REMOVE_PRODUCER) and (
-                        len(self._controller.producer_ranks) > 1
+                        len(controller.producer_ranks) > 1
                     ):
                         # try to convert an active producer back to a processor
-                        switching_worker = self._controller.try_switch_producer_to_processor(
+                        switching_worker = controller.try_switch_producer_to_processor(
                             processor, fn
                         )
                         last_switch = now
