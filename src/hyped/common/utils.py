@@ -11,7 +11,11 @@ from typing import Any, Callable, Hashable
 import numpy as np
 
 clock = perf_counter
-"""
+"""A clock function used to retrieve the current time.
+
+Returns:
+    float: The current time in fractional seconds since an arbitrary point
+    (typically the program's start or some system-defined moment).
 """
 
 
@@ -174,6 +178,76 @@ def deep_equal(obj1: Any, obj2: Any) -> bool:
     return obj1 == obj2
 
 
+class EMA(object):
+    r"""Calculate the exponential moving average (EMA).
+
+    The EMA assigns progressively lower weights to older values, giving more
+    significance to recent measurements. It smooths out fluctuations by
+    applying a smoothing factor to the most recent value, combining it with
+    the previous EMA result.
+
+    The weight of past values is controlled by the smoothing factor. A higher
+    smoothing factor gives more influence to recent values and less to older ones.
+
+    The smoothing factor, \( \alpha \), is in the range [0, 1], where:
+    - \( \alpha = 0 \) retains the old value entirely.
+    - \( \alpha = 1 \) adopts the new value entirely.
+    """
+
+    def __init__(self, smoothing: float = 0.3) -> None:
+        """Initialize the EMA.
+
+        Args:
+            smoothing (float): Smoothing factor controlling the
+                weight of recent values. Default is 0.3.
+        """
+        self.alpha = smoothing
+        self.last_ema = None
+        self.calls = 0
+
+    @property
+    def value(self) -> float:
+        """Return the current EMA value.
+
+        Returns:
+            float: The current EMA value or 0.0 if no values have been recorded.
+        """
+        # apply the initialization bias normalization
+        beta = 1 - self.alpha
+        return 0 if self.last_ema is None else (self.last_ema / (1 - beta**self.calls))
+
+    def __call__(self, value: float) -> float:
+        """Update the EMA with a new value and return the updated value.
+
+        Args:
+            value (float): New value to include in the EMA.
+
+        Returns:
+            float: The updated EMA value after incorporating the new value.
+        """
+        self.update(value)
+        return self.value
+
+    def update(self, value: float) -> float:
+        """Update the EMA with a new value.
+
+        This method incorporates the new value with the previous EMA using
+        the smoothing factor.
+
+        Args:
+            value (float): The new measured value to update the EMA.
+
+        Returns:
+            float: The updated EMA value.
+        """
+        beta = 1 - self.alpha
+        # update the ema
+        self.last_ema = (
+            value if self.last_ema is None else self.alpha * value + beta * self.last_ema
+        )
+        self.calls += 1
+
+
 class TimeWeightedEMA(object):
     r"""Calculate the time-weighted exponential moving average (EMA).
 
@@ -200,7 +274,7 @@ class TimeWeightedEMA(object):
     """
 
     def __init__(self, decay_rate: float) -> None:
-        """Initialize the EMA
+        """Initialize the EMA with a given decay rate.
 
         Args:
             decay_rate (float): Decay rate controlling the weight of past measurements.
@@ -209,22 +283,58 @@ class TimeWeightedEMA(object):
         self.last_ema = None
         self.previous_timestamp = None
         self.calls = 0
+        self.norm_factor = 1.0
 
     @property
     def value(self) -> float:
-        return self.last_ema if self.last_ema is not None else 0.0
+        """Get the current EMA value.
+
+        Returns:
+            float: The current EMA value or 0.0 if no measurements have been recorded.
+        """
+        return (self.last_ema / self.norm_factor) if self.last_ema is not None else 0.0
 
     @property
     def timestamp(self) -> float:
+        """Get the timestamp of the last update.
+
+        Returns:
+            float: The timestamp of the previous update or None if no updates have been made.
+        """
         return self.previous_timestamp
 
     def __call__(self, timestamp: float, value: float) -> float:
+        """Update the EMA with a new value and return the updated EMA.
+
+        This method allows the object to be called like a function, updating the EMA
+        and returning the new value.
+
+        Args:
+            timestamp (float): The current time when the value is measured.
+            value (float): The new measured value to update the EMA.
+
+        Returns:
+            float: The updated EMA value.
+        """
         self.update(timestamp, value)
         return self.value
 
     def update(self, timestamp: float, value: float) -> float:
+        """Update the EMA with a new value, considering the time-weighted decay.
+
+        The method calculates the decay factor based on the time elapsed between the
+        current and previous measurements, then applies the decay to update the EMA.
+
+        Args:
+            timestamp (float): The current time when the value is measured.
+            value (float): The new measured value to update the EMA.
+
+        Returns:
+            float: The updated EMA value.
+        """
         if self.last_ema is None:
-            self.last_ema = value  # Initialize EMA with the first measurement
+            # Initialize EMA with the first measurement
+            self.last_ema = value
         else:
             if self.previous_timestamp is not None:
                 # Calculate the time difference
@@ -233,6 +343,8 @@ class TimeWeightedEMA(object):
                 decay = math.exp(-self.decay_rate * delta_t)
                 # Update EMA considering time-weighted decay
                 self.last_ema = decay * value + (1 - decay) * self.last_ema
+                # Update cumulative weight
+                self.norm_factor = decay + (1 - decay) * self.norm_factor
 
         # Update state
         self.previous_timestamp = timestamp

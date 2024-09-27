@@ -41,7 +41,7 @@ class DatasetConsumer(object):
         prefetch_factor: int = 128,
         initialize: Callable[[], Any] = _do_nothing,
         finalize: Callable[[], Any] = _do_nothing,
-        progress_report_interval: float = 0.1,
+        progress_report_interval: float = 0.5,
         disable_tqdm: bool = False,
         callbacks: list[Callback] = [],
     ) -> None:

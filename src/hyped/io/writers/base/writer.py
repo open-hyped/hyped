@@ -48,7 +48,7 @@ class BaseDatasetWriter(ABC):
         num_proc: int = mp.cpu_count(),
         prefetch_factor: int = 128,
         write_batch_size: int = 256,
-        tqdm_update_interval: float = 0.1,
+        tqdm_update_interval: float = 0.5,
         disable_tqdm: bool = False,
         sharding_strategy: ShardingStrategy = ShardingStrategy.FILE_SIZE,
         max_shard_size: None | int | str = "5GB",

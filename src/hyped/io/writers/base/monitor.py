@@ -14,7 +14,7 @@ from enum import Enum
 from typing import Iterable, TypeAlias, TypedDict
 
 from hyped.common.typing import Rank
-from hyped.common.utils import TimeWeightedEMA, clock
+from hyped.common.utils import EMA, TimeWeightedEMA, clock
 
 from .runners.base import WorkerProcessingStage, WorkerRole
 
@@ -66,20 +66,6 @@ class ShardState(Enum):
     """
 
 
-def _run_queue_size_monitor(monitor: ProgressMonitor) -> None:
-    assert monitor._queue is not None
-
-    try:
-        while not monitor._done.wait(timeout=0.01):
-            # compute queue size and update the moving average
-            qsize = monitor._queue.qsize() * monitor._item_size
-            monitor._ema_queue_size.update(clock(), qsize)
-
-    except (BrokenPipeError, ConnectionResetError):
-        # queue connection closed
-        return
-
-
 class ProgressMonitor(object):
     """Monitors the state and progress of all workers.
 
@@ -115,6 +101,11 @@ class ProgressMonitor(object):
         self._roles = [None] * num_workers
         self._shard = [None] * num_workers
 
+        # capture smooth throughput
+        self._last_report = clock()
+        self._smooth_dn = EMA(smoothing=0.3)
+        self._smooth_dt = EMA(smoothing=0.3)
+
         # track worker metrics
         self._time_ema = [
             {
@@ -127,86 +118,8 @@ class ProgressMonitor(object):
 
         self._monitor_thread: None | threading.Thread = None
         if self._queue is not None:
-            self._monitor_thread = threading.Thread(target=_run_queue_size_monitor, args=(self,))
+            self._monitor_thread = threading.Thread(target=self._monitor_queue)
             self._monitor_thread.start()
-
-    def get_worker_role(self, rank: Rank) -> None | WorkerRole:
-        """Returns the current role of a worker.
-
-        Args:
-            rank (Rank): The worker's rank.
-
-        Returns:
-            WorkerRole | None: The role of the worker or None if the worker has no assigned role.
-        """
-        return self._roles[rank]
-
-    @property
-    def num_processed_samples(self) -> int:
-        """Returns the total number of samples processed by all workers.
-
-        The count includes samples processed by both processors and consumers.
-        It excludes the samples processed by producers as these samples are not
-        finalized yet and would be counted twice, once by the producer and and
-        once by the consumer.
-
-        Returns:
-            int: The total number of processed samples.
-        """
-        return sum(
-            nums[WorkerRole.STANDALONE] + nums[WorkerRole.CONSUMER] for nums in self._num_samples
-        )
-
-    def _report_progress(self, rank: Rank, report: ProgressReport) -> None:
-        """Capture the progress report of a worker.
-
-        Args:
-            rank (Rank): The rank of the worker reporting progress.
-            report (dict): A dictionary containing the worker's report data, including
-                timestamps, average processing times, and the number of samples processed.
-        """
-        ts = report["timestamp"]
-        # update average time spend in each stage
-        time_report = report["average_elapsed_time"]
-        for stage, elapsed_time in time_report.items():
-            self._time_ema[rank][stage].update(ts, elapsed_time)
-        # update processed samples
-        role = self._roles[rank]
-        self._num_samples[rank][role] += report["num_samples"]
-
-    def average_elapsed_time_at_stage(self, ranks: None | Iterable[Rank] = None) -> TimeReport:
-        """Returns the average elapsed time at each stage of the worker pipeline.
-
-        The times of measured by each worker are accumulated using a time-weighted
-        exponential moving average with a half-life time of one second.
-
-        Args:
-            ranks (Iterable[Rank] | None): Optional list of worker ranks to calculate
-                average times for. If None, all workers are included.
-
-        Returns:
-            TimeReport: A dictionary mapping worker processing stages to their
-            respective average elapsed times.
-        """
-        ranks = ranks if ranks is not None else range(self.num_workers)
-
-        elapsed_times = {}
-        for stage in WorkerProcessingStage:
-            # filter and sort ranks by timestamp
-            def get_timestamp(r):
-                return self._time_ema[r][stage].timestamp
-
-            valid_ranks = sorted(filter(get_timestamp, ranks), key=get_timestamp)
-
-            global_stage_ema = TimeWeightedEMA(math.log(2) / 1.0)
-
-            for rank in valid_ranks:
-                local_ema = self._time_ema[rank][stage]
-                global_stage_ema.update(local_ema.timestamp, local_ema.value)
-
-            elapsed_times[stage] = global_stage_ema.value
-
-        return elapsed_times
 
     @property
     def num_shards(self) -> int:
@@ -227,31 +140,6 @@ class ProgressMonitor(object):
         return self._num_workers
 
     @property
-    def num_buffered_samples(self) -> int:
-        """Returns the number of samples currently buffered in the queue awaiting processing.
-
-        This property calculates the total number of samples that are waiting in the queue by
-        multiplying the number of items in the queue by the item size (the number of samples
-        contained in each item).
-
-        Returns:
-            int: The total number of samples currently buffered in the queue.
-        """
-        return int(self._ema_queue_size.value) if self._queue is not None else 0
-
-    def _mark_as_stopping(self) -> None:
-        """Marks the process as stopping."""
-        self._stopping.set()
-
-    def _mark_as_done(self) -> None:
-        """Marks the process as done."""
-        self._done.set()
-
-        if self._monitor_thread is not None:
-            # wait for the monitor thread to terminate
-            self._monitor_thread.join()
-
-    @property
     def is_stopping(self) -> bool:
         """Checks if the process is in a stopping state.
 
@@ -259,45 +147,6 @@ class ProgressMonitor(object):
             bool: True if the process is stopping, False otherwise.
         """
         return self._stopping.is_set()
-
-    def get_worker_shard(self, rank: Rank) -> None | int:
-        """Retrieves the shard currently assigned to the worker.
-
-        Args:
-            rank (Rank): The rank of the worker whose assigned shard is to be retrieved.
-
-        Returns:
-            None | int: The shard ID assigned to the worker, or None if no shard is currently
-            assigned to the worker.
-        """
-
-        return self._shard[rank]
-
-    def _mark_shard_in_progress(self, rank: Rank, shard_id: int) -> None:
-        """Marks a shard as being in progress, associating it with a worker.
-
-        Args:
-            rank (Rank): The rank of the worker processing the shard.
-            shard_id (int): The identifier of the shard being processed.
-        """
-        self._shard_state[shard_id] = ShardState.IN_PROGRESS
-        self._shard[rank] = shard_id
-
-    def _mark_shard_completed(self, shard_id: int) -> None:
-        """Marks a shard as completed once processing is finished.
-
-        Args:
-            shard_id (int): The identifier of the shard that is completed.
-        """
-        self._shard_state[shard_id] = ShardState.COMPLETED
-
-    def _mark_shard_canceled(self, shard_id: int) -> None:
-        """Marks a shard as canceled.
-
-        Args:
-            shard_id (int): The identifier of the shard that is canceled.
-        """
-        self._shard_state[shard_id] = ShardState.CANCELED
 
     @property
     def any_pending_shards(self) -> bool:
@@ -325,6 +174,243 @@ class ProgressMonitor(object):
             set[int]: A set of shard IDs in the :code:`COMPLETED` state.
         """
         return {i for i, state in enumerate(self._shard_state) if state is ShardState.COMPLETED}
+
+    @property
+    def any_worker_alive(self) -> bool:
+        """Checks if any workers are currently alive.
+
+        Returns:
+            bool: True if any workers are alive, False otherwise.
+        """
+        return any(self._alive)
+
+    @property
+    def alive_workers(self) -> set[Rank]:
+        """Returns a set of ranks of all workers that are currently alive.
+
+        Returns:
+            set[Rank]: A set of worker ranks that are alive.
+        """
+        return {i for i, alive in enumerate(self._alive) if alive}
+
+    @property
+    def idle_workers(self) -> set[Rank]:
+        """Returns a set of ranks of workers that are currently idle.
+
+        Returns:
+            set[Rank]: A set of worker ranks that are idle (i.e., have no assigned role).
+        """
+        return {i for i, role in enumerate(self._roles) if role is None}
+
+    @property
+    def busy_workers(self) -> set[Rank]:
+        """Returns a set of ranks of workers that are currently busy.
+
+        Returns:
+            set[Rank]: A set of worker ranks that are busy.
+        """
+        return {i for i, role in enumerate(self._roles) if role is not None}
+
+    @property
+    def num_buffered_samples(self) -> int:
+        """Returns the number of samples currently buffered in the queue awaiting processing.
+
+        This property calculates the total number of samples that are waiting in the queue by
+        multiplying the number of items in the queue by the item size (the number of samples
+        contained in each item).
+
+        Returns:
+            int: The total number of samples currently buffered in the queue.
+        """
+        return int(self._ema_queue_size.value) if self._queue is not None else 0
+
+    @property
+    def num_processed_samples(self) -> int:
+        """Returns the total number of samples processed by all workers.
+
+        The count includes samples processed by both processors and consumers.
+        It excludes the samples processed by producers as these samples are not
+        finalized yet and would be counted twice, once by the producer and and
+        once by the consumer.
+
+        Returns:
+            int: The total number of processed samples.
+        """
+        return sum(
+            nums[WorkerRole.STANDALONE] + nums[WorkerRole.CONSUMER] for nums in self._num_samples
+        )
+
+    @property
+    def samples_per_second(self) -> float:
+        """Calculate the throughput as the ratio of processed samples to time.
+
+        This method computes the throughput by dividing the smoothed number of
+        processed samples by the smoothed elapsed time between the current and
+        previous progress reports.
+
+        Returns:
+            float: The calculated throughput, representing the number of processed
+            samples per unit of time.
+        """
+        return self._smooth_dn.value / max(self._smooth_dt.value, 1e-5)
+
+    def get_worker_shard(self, rank: Rank) -> None | int:
+        """Retrieves the shard currently assigned to the worker.
+
+        Args:
+            rank (Rank): The rank of the worker whose assigned shard is to be retrieved.
+
+        Returns:
+            None | int: The shard ID assigned to the worker, or None if no shard is currently
+            assigned to the worker.
+        """
+
+        return self._shard[rank]
+
+    def get_worker_role(self, rank: Rank) -> None | WorkerRole:
+        """Returns the current role of a worker.
+
+        Args:
+            rank (Rank): The worker's rank.
+
+        Returns:
+            WorkerRole | None: The role of the worker or None if the worker has no assigned role.
+        """
+        return self._roles[rank]
+
+    def get_workers_with_role(self, role: WorkerRole) -> set[Rank]:
+        """Returns a set of ranks of workers assigned a specific role.
+
+        Args:
+            role (WorkerRole): The role to filter workers by.
+
+        Returns:
+            set[Rank]: A set of worker ranks that are assigned the specified role.
+        """
+        return {i for i, r in enumerate(self._roles) if r is role}
+
+    def elapsed_time_averages(self, ranks: None | Iterable[Rank] = None) -> TimeReport:
+        """Returns the average elapsed time for each stage of the worker pipeline.
+
+        The times of measured by each worker are accumulated using a time-weighted
+        exponential moving average with a half-life time of one second.
+
+        Args:
+            ranks (Iterable[Rank] | None): Optional list of worker ranks to calculate
+                average times for. If None, all workers are included.
+
+        Returns:
+            TimeReport: A dictionary mapping worker processing stages to their
+            respective average elapsed times.
+        """
+        ranks = ranks if ranks is not None else range(self.num_workers)
+
+        elapsed_times = {}
+        for stage in WorkerProcessingStage:
+            # filter and sort ranks by timestamp
+            def get_timestamp(r):
+                return self._time_ema[r][stage].timestamp
+
+            # get the valid ranks for the given stage and sort them
+            valid_ranks = filter(get_timestamp, ranks)
+            valid_ranks = sorted(valid_ranks, key=get_timestamp)
+
+            global_stage_ema = TimeWeightedEMA(math.log(2) / 1.0)
+            # accumulate the elapsed times of each worker into a
+            # global time-weighted average
+            for rank in valid_ranks:
+                local_ema = self._time_ema[rank][stage]
+                global_stage_ema.update(local_ema.timestamp, local_ema.value)
+
+            elapsed_times[stage] = global_stage_ema.value
+
+        return elapsed_times
+
+    def _monitor_queue(self) -> None:
+        """Monitor and track the processing queue over time.
+
+        This method continuously monitors the size of the sample queue used by the workers,
+        updating the time-weighted exponential moving average (EMA) of the queue size. It runs
+        in a separate thread and regularly samples the queue size at short intervals,
+        scaling the queue size by the number of items it can hold (:code:`_item_size`).
+
+        The method will stop monitoring when the :code:`_done` event is set, and handles
+        exceptions that might occur if the queue connection is lost.
+
+        Raises:
+            BrokenPipeError: If the queue connection is broken.
+            ConnectionResetError: If the queue connection is reset.
+        """
+        assert self._queue is not None
+
+        try:
+            while not self._done.wait(timeout=0.01):
+                # compute queue size and update the moving average
+                qsize = self._queue.qsize() * self._item_size
+                self._ema_queue_size.update(clock(), qsize)
+
+        except (BrokenPipeError, ConnectionResetError):
+            # queue connection closed
+            return
+
+    def _report_progress(self, rank: Rank, report: ProgressReport) -> None:
+        """Capture the progress report of a worker.
+
+        Args:
+            rank (Rank): The rank of the worker reporting progress.
+            report (dict): A dictionary containing the worker's report data, including
+                timestamps, average processing times, and the number of samples processed.
+        """
+        ts = report["timestamp"]
+        # update average time spend in each stage
+        time_report = report["average_elapsed_time"]
+        for stage, elapsed_time in time_report.items():
+            self._time_ema[rank][stage].update(ts, elapsed_time)
+        # update processed samples
+        role = self._roles[rank]
+        self._num_samples[rank][role] += report["num_samples"]
+        # update smooth deltas
+        self._smooth_dn.update(report["num_samples"])
+        self._smooth_dt.update(ts - self._last_report)
+        self._last_report = ts
+
+    def _mark_as_stopping(self) -> None:
+        """Marks the process as stopping."""
+        self._stopping.set()
+
+    def _mark_as_done(self) -> None:
+        """Marks the process as done."""
+        self._done.set()
+
+        if self._monitor_thread is not None:
+            # wait for the monitor thread to terminate
+            self._monitor_thread.join()
+
+    def _mark_shard_in_progress(self, rank: Rank, shard_id: int) -> None:
+        """Marks a shard as being in progress, associating it with a worker.
+
+        Args:
+            rank (Rank): The rank of the worker processing the shard.
+            shard_id (int): The identifier of the shard being processed.
+        """
+        self._shard_state[shard_id] = ShardState.IN_PROGRESS
+        self._shard[rank] = shard_id
+
+    def _mark_shard_completed(self, shard_id: int) -> None:
+        """Marks a shard as completed once processing is finished.
+
+        Args:
+            shard_id (int): The identifier of the shard that is completed.
+        """
+        self._shard_state[shard_id] = ShardState.COMPLETED
+
+    def _mark_shard_canceled(self, shard_id: int) -> None:
+        """Marks a shard as canceled.
+
+        Args:
+            shard_id (int): The identifier of the shard that is canceled.
+        """
+        self._shard_state[shard_id] = ShardState.CANCELED
 
     def _mark_worker_ready(self, rank: Rank) -> None:
         """Marks a worker as ready to process tasks.
@@ -387,50 +473,3 @@ class ProgressMonitor(object):
         if shard_id is not None:
             self._mark_shard_canceled(shard_id)
             self._shard[rank] = None
-
-    @property
-    def any_worker_alive(self) -> bool:
-        """Checks if any workers are currently alive.
-
-        Returns:
-            bool: True if any workers are alive, False otherwise.
-        """
-        return any(self._alive)
-
-    @property
-    def alive_workers(self) -> set[Rank]:
-        """Returns a set of ranks of all workers that are currently alive.
-
-        Returns:
-            set[Rank]: A set of worker ranks that are alive.
-        """
-        return {i for i, alive in enumerate(self._alive) if alive}
-
-    @property
-    def idle_workers(self) -> set[Rank]:
-        """Returns a set of ranks of workers that are currently idle.
-
-        Returns:
-            set[Rank]: A set of worker ranks that are idle (i.e., have no assigned role).
-        """
-        return {i for i, role in enumerate(self._roles) if role is None}
-
-    @property
-    def busy_workers(self) -> set[Rank]:
-        """Returns a set of ranks of workers that are currently busy.
-
-        Returns:
-            set[Rank]: A set of worker ranks that are busy.
-        """
-        return {i for i, role in enumerate(self._roles) if role is not None}
-
-    def get_workers_with_role(self, role: WorkerRole) -> set[Rank]:
-        """Returns a set of ranks of workers assigned a specific role.
-
-        Args:
-            role (WorkerRole): The role to filter workers by.
-
-        Returns:
-            set[Rank]: A set of worker ranks that are assigned the specified role.
-        """
-        return {i for i, r in enumerate(self._roles) if r is role}

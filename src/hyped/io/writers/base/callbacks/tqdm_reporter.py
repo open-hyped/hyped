@@ -9,7 +9,6 @@ from typing import Any
 
 from datasets import IterableDataset
 from tqdm.auto import tqdm
-from tqdm.std import EMA
 
 from hyped.common.logging import get_logger
 
@@ -45,14 +44,8 @@ def _run_tqdm(monitor: ProgressMonitor, update_interval: float, **kwargs: Any) -
             f"C={counts[WorkerRole.CONSUMER]})"
         )
 
-    ema_dn = EMA(smoothing=0.3)
-    ema_dt = EMA(smoothing=0.3)
-
     with tqdm(total=monitor._num_shards, desc=build_desc_str(), unit="sh", **kwargs) as pbar:
         logger.debug(f"Initialized tqdm progress bar with {monitor.num_shards} total shards.")
-
-        prev_total_samples = 0
-        prev_update_time = pbar._time()
 
         def _iter():
             # iterate as long as the tracker is running
@@ -62,37 +55,27 @@ def _run_tqdm(monitor: ProgressMonitor, update_interval: float, **kwargs: Any) -
             yield
 
         for _ in _iter():
-            # get current state
+            # get current total samples and throughput
             total_samples = monitor.num_processed_samples
-            update_time = pbar._time()
-            # compute sample and time deltas
-            dn = total_samples - prev_total_samples
-            dt = update_time - prev_update_time
+            throughput = monitor.samples_per_second
+            # log
+            logger.debug(
+                f"Updating progress: Total samples {total_samples}, "
+                f"Throughput {throughput:.02f}it/s"
+            )
+            # format total samples
+            formatting_string = "%d" if total_samples < 10**6 else "%.2e"
+            formatted_total_samples = formatting_string % total_samples
+            # update progress bar
+            pbar.set_postfix_str(
+                (
+                    f"{monitor.num_buffered_samples}q, "
+                    f"{throughput:.02f}it/s, "
+                    f"{formatted_total_samples}it"
+                ),
+                refresh=False,
+            )
 
-            if dn > 0:
-                # compute smoothed throughput
-                throughput = ema_dn(dn) / max(ema_dt(dt), 1e-5)
-                # log
-                logger.debug(
-                    f"Updating progress: Total samples {total_samples}, "
-                    f"Throughput {throughput:.02f}it/s"
-                )
-                # format total samples
-                formatting_string = "%d" if total_samples < 10**6 else "%.2e"
-                formatted_total_samples = formatting_string % total_samples
-                # update progress bar
-                pbar.set_postfix_str(
-                    (
-                        f"{monitor.num_buffered_samples}q, "
-                        f"{throughput:.02f}it/s, "
-                        f"{formatted_total_samples}it"
-                    ),
-                    refresh=False,
-                )
-
-            # update values
-            prev_total_samples = total_samples
-            prev_update_time = update_time
             # update the progress bar
             pbar.set_description(build_desc_str(), refresh=True)
             pbar.update(len(monitor.completed_shards) - pbar.n)

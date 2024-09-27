@@ -871,12 +871,12 @@ class ConsumerProducerBalancer(object):
         registered_producer_workers = self._monitor.get_workers_with_role(WorkerRole.PRODUCER)
         registered_consumer_workers = self._monitor.get_workers_with_role(WorkerRole.CONSUMER)
         # get the average block times for producer and consumer group
-        producer_block_time = self._monitor.average_elapsed_time_at_stage(
-            registered_producer_workers
-        )[Stages.FINALIZE]
-        consumer_block_time = self._monitor.average_elapsed_time_at_stage(
-            registered_consumer_workers
-        )[Stages.STREAM]
+        producer_block_time = self._monitor.elapsed_time_averages(registered_producer_workers)[
+            Stages.FINALIZE
+        ]
+        consumer_block_time = self._monitor.elapsed_time_averages(registered_consumer_workers)[
+            Stages.STREAM
+        ]
 
         # of producers or consumers
         if (queue_size < 0.3) and (consumer_block_time >= 1.3 * producer_block_time):
