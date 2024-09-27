@@ -40,7 +40,7 @@ def _run_tqdm(monitor: ProgressMonitor, update_interval: float, **kwargs: Any) -
         counts = Counter(monitor._roles)
         return (
             f"Workers {len(monitor.alive_workers)}/{monitor.num_workers} "
-            f"(S={counts[WorkerRole.PROCESSOR]}, "
+            f"(S={counts[WorkerRole.STANDALONE]}, "
             f"P={counts[WorkerRole.PRODUCER]}, "
             f"C={counts[WorkerRole.CONSUMER]})"
         )

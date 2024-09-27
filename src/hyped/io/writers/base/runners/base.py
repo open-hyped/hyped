@@ -14,36 +14,49 @@ from datasets import IterableDataset
 from hyped.common.typing import Sample
 
 
-class WorkerRole(Enum):
+class WorkerRole(str, Enum):
     """Enumeration of different roles a worker can assume during multiprocessing.
 
     Workers can dynamically switch between these roles based on the current processing stage
     and system needs.
     """
 
-    PROCESSOR = 1
-    """Role where the worker processes a shard of data independently. 
+    STANDALONE = "standalone"
+    """Role where the worker processes a data shard independently.
 
-    In this role, the worker is responsible for processing its assigned shard of the dataset
-    without interacting with other workers. This occurs in Stage 1 where each worker processes
-    a distinct shard.
+    In this role, the worker is responsible for both loading and processing a shard of the dataset
+    without interacting with other workers.
     """
 
-    PRODUCER = 2
+    PRODUCER = "producer"
     """Role where the worker produces data and adds it to a shared queue. 
 
     In this role, the worker reads data from a shard and places it into the queue for further
-    processing by other workers. This occurs in Stage 2 when the system shifts to multi-worker
-    processing of a single shard.
+    processing by other workers.
     """
 
-    CONSUMER = 3
+    CONSUMER = "consumer"
     """Role where the worker consumes data from a shared queue for processing. 
 
     In this role, the worker retrieves data from the queue (populated by a PRODUCER) and processes
-    it. This role is also part of Stage 2, where multiple workers collaborate on processing data
-    from a single shard.
+    it.
     """
+
+
+class WorkerProcessingStage(str, Enum):
+    """Enumeration of different stages in the worker processing pipeline.
+
+    Each stage represents a distinct phase in the data processing workflow.
+    """
+
+    STREAM = "stream"
+    """Stage where the worker loads data from its data stream."""
+
+    TRANSFORM = "transform"
+    """Stage where the worker applies a transformations or workloads to the loaded data."""
+
+    FINALIZE = "finalize"
+    """Stage where the worker performs finalization tasks on the processed data."""
 
 
 class BaseRunner(ABC):

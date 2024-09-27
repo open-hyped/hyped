@@ -7,7 +7,6 @@ bar. The runner manages initialization and finalization tasks and handles progre
 through callbacks.
 """
 
-from queue import Queue
 from typing import Any, Callable
 
 from datasets import IterableDataset
@@ -15,14 +14,16 @@ from datasets import IterableDataset
 from hyped.common._worker import reset_worker_info, set_worker_info
 from hyped.common.iterators import TimedIterator, ith_entries
 from hyped.common.logging import get_logger
-from hyped.common.typing import Sample
+from hyped.common.typing import Sample, TypeAlias
 from hyped.common.utils import clock
 
 from ..callbacks.base import CallbackManager
-from ..monitor import ProgressMonitor, ProgressReport, TimeReport
-from .base import BaseRunner, WorkerRole
+from ..monitor import ProgressMonitor, ProgressReport
+from .base import BaseRunner, WorkerProcessingStage, WorkerRole
 
 logger = get_logger(__name__)
+
+Stages: TypeAlias = WorkerProcessingStage
 
 
 class MainProcessRunner(BaseRunner):
@@ -77,7 +78,7 @@ class MainProcessRunner(BaseRunner):
         logger.info(f"Dataset prepared with {ds.n_shards} shards.")
 
         # create the progress monitor
-        monitor = ProgressMonitor(ds.n_shards, 1, Queue(), 0)
+        monitor = ProgressMonitor(ds.n_shards, 1, None, 0)
 
         try:
             # call start callback
@@ -96,19 +97,19 @@ class MainProcessRunner(BaseRunner):
             for shard_id in range(ds.n_shards):
                 try:
                     monitor._mark_shard_in_progress(0, shard_id)
-                    monitor._mark_worker_busy(0, WorkerRole.PROCESSOR)
+                    monitor._mark_worker_busy(0, WorkerRole.STANDALONE)
                     self._callback.on_shard_in_progress(monitor, shard_id)
 
                     # get the dataset shard and time it
                     shard = ds.shard_data_sources(shard_id, ds.n_shards)
-                    timed_shard = TimedIterator(iter(shard), smoothing=0.1)
+                    stream = TimedIterator(iter(shard), smoothing=0.1)
 
                     # apply the function
-                    work_iter = map(fn, ith_entries(timed_shard, i=1))
-                    timed_work_iter = TimedIterator(iter(work_iter), smoothing=0.1)
+                    work_iterator = map(fn, ith_entries(stream, i=1))
+                    work_iterator = TimedIterator(iter(work_iterator), smoothing=0.1)
 
                     # main worker loop
-                    for _ in timed_work_iter:
+                    for _ in work_iterator:
                         num_samples += 1
 
                         now = clock()
@@ -117,16 +118,16 @@ class MainProcessRunner(BaseRunner):
                                 timestamp=now,
                                 num_samples=num_samples,
                                 elapsed_time=now - last_report,
-                                average_time=TimeReport(
-                                    producer=timed_shard.smooth_time(),
-                                    processor=timed_shard.smooth_time(),
-                                    finalizer=timed_work_iter.smooth_time(),
-                                ),
-                                total_time=TimeReport(
-                                    producer=timed_shard.total_time(),
-                                    processor=timed_shard.total_time(),
-                                    finalizer=timed_work_iter.total_time(),
-                                ),
+                                average_elapsed_time={
+                                    Stages.STREAM.value: stream.smooth_time(),
+                                    Stages.TRANSFORM.value: stream.smooth_time(),
+                                    Stages.FINALIZE.value: work_iterator.smooth_time(),
+                                },
+                                total_elapsed_time={
+                                    Stages.STREAM.value: stream.total_time(),
+                                    Stages.TRANSFORM.value: stream.total_time(),
+                                    Stages.FINALIZE.value: work_iterator.total_time(),
+                                },
                             )
                             monitor._report_progress(0, report)
                             # reset
@@ -167,8 +168,8 @@ class MainProcessRunner(BaseRunner):
                     timestamp=now,
                     num_samples=num_samples,
                     elapsed_time=now - last_report,
-                    average_time=TimeReport(producer=0, processor=0, finalizer=0),
-                    total_time=TimeReport(producer=0, processor=0, finalizer=0),
+                    average_elapsed_time={stage: 0 for stage in Stages},
+                    total_elapsed_time={stage: 0 for stage in Stages},
                 )
                 monitor._report_progress(0, report)
 
