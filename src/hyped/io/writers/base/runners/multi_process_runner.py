@@ -44,7 +44,7 @@ from hyped.common.iterators import (
 )
 from hyped.common.logging import get_cls_logger
 from hyped.common.typing import Rank, Sample
-from hyped.common.utils import TimeWeightedEMA, clock, compose
+from hyped.common.utils import clock, compose
 
 from ..callbacks.base import CallbackManager
 from ..monitor import ProgressMonitor, ProgressReport, TimeReport
@@ -807,7 +807,6 @@ class WorkerController(object):
         """
         assert len(self.joined_ranks) == len(self.workers)
 
-import threading
 
 class ConsumerProducerBalancer(object):
     class Action(Enum):
@@ -819,17 +818,12 @@ class ConsumerProducerBalancer(object):
         self._controller = controller
         self._monitor = monitor
 
-        self._queue_size = TimeWeightedEMA(decay_rate=0.01)
-        self._thread = threading.Thread(target=self._run_queue_size_monitor)
-        self._thread.start()
-
-    def _run_queue_size_monitor(self) -> None:
-        while not self._monitor._done.wait(timeout=0.01):
-            self._queue_size.update(clock(), self._monitor.num_buffered_samples)
-
     def callback(self) -> Action:
-        queue_size = self._queue_size.value / self._monitor.sample_buffer_size
-        
+        # compute the queue size with respect to the target queue size
+        # which is one item per worker (matching the maximum queue size)
+        target_size = self._monitor._item_size * self._controller.num_workers
+        queue_size = self._monitor.num_buffered_samples / target_size
+
         # get registered producer and consumer workers
         registered_producer_workers = self._monitor.get_workers_with_role(WorkerRole.PRODUCER)
         registered_consumer_workers = self._monitor.get_workers_with_role(WorkerRole.CONSUMER)

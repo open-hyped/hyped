@@ -5,6 +5,7 @@ This module provides the :class:`ProgressMonitor` class, which is designed to tr
 processing tasks. It serves as a centralized mechanism to monitor the state and progression
 of workers.
 """
+from __future__ import annotations
 
 import math
 import multiprocessing as mp
@@ -78,6 +79,22 @@ class ShardState(Enum):
     """
 
 
+def _run_queue_size_monitor(monitor: ProgressMonitor) -> None:
+    assert monitor._queue is not None
+
+    try:
+        while not monitor._done.wait(timeout=0.01):
+            # compute queue size and update the moving average
+            qsize = monitor._queue.qsize() * monitor._item_size
+            monitor._ema_queue_size.update(clock(), qsize)
+
+            print("UPDATE")
+
+    except (BrokenPipeError, ConnectionResetError):
+        # queue connection closed
+        return
+
+
 class ProgressMonitor(object):
     """Monitors the state and progress of all workers.
 
@@ -86,13 +103,15 @@ class ProgressMonitor(object):
     checking worker and shard statuses.
     """
 
-    def __init__(self, num_shards: int, num_workers: int, queue: mp.Queue, item_size: int) -> None:
+    def __init__(
+        self, num_shards: int, num_workers: int, queue: mp.Queue | None, item_size: int
+    ) -> None:
         """Initializes the :class:`ProgressMonitor`.
 
         Args:
             num_shards (int): The total number of shards to process.
             num_workers (int): The number of workers processing the data.
-            queue (mp.Queue): Sample queue filled by producer in stage 2.
+            queue (None | mp.Queue): Sample queue filled by producer workers.
             item_size (int): The number of samples contained within a queue item.
         """
 
@@ -101,6 +120,7 @@ class ProgressMonitor(object):
         # track buffer queue
         self._queue = queue
         self._item_size = item_size
+        self._ema_queue_size = TimeWeightedEMA(decay_rate=math.log(2) * 0.01)
         # track shards
         self._num_shards = num_shards
         self._shard_state = [ShardState.PENDING] * num_shards
@@ -128,6 +148,11 @@ class ProgressMonitor(object):
             }
             for _ in range(num_workers)
         ]
+
+        self._monitor_thread: None | threading.Thread = None
+        if self._queue is not None:
+            self._monitor_thread = threading.Thread(target=_run_queue_size_monitor, args=(self,))
+            self._monitor_thread.start()
 
     def get_worker_role(self, rank: Rank) -> None | WorkerRole:
         """Returns the current role of a worker.
@@ -200,15 +225,10 @@ class ProgressMonitor(object):
         times = {}
         for key in ["producer", "processor", "finalizer"]:
             global_ema = TimeWeightedEMA(decay_rate=math.log(2) / 1)
-
+            # accumulate the time measures for each worker
             for rank in ranks:
                 local_ema = self._time_ema[rank][key]
                 global_ema.update(local_ema.timestamp, local_ema.value)
-
-            #if len(ranks) > 0:
-            #    now = clock()
-            #    local_ema = self._time_ema[ranks[0]][key]
-            #    global_ema.update(now, now - local_ema.timestamp)
 
             times[key] = global_ema.value
 
@@ -243,15 +263,7 @@ class ProgressMonitor(object):
         Returns:
             int: The total number of samples currently buffered in the queue.
         """
-        try:
-            return self._queue.qsize() * self._item_size
-        except (BrokenPipeError, ConnectionResetError):
-            # queue connection closed
-            return 0
-
-    @property
-    def sample_buffer_size(self) -> int:
-        return self.num_workers * self._item_size
+        return int(self._ema_queue_size.value) if self._queue is not None else 0
 
     def _mark_as_stopping(self) -> None:
         """Marks the process as stopping."""
@@ -260,6 +272,10 @@ class ProgressMonitor(object):
     def _mark_as_done(self) -> None:
         """Marks the process as done."""
         self._done.set()
+
+        if self._monitor_thread is not None:
+            # wait for the monitor thread to terminate
+            self._monitor_thread.join()
 
     @property
     def is_stopping(self) -> bool:
