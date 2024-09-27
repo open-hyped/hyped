@@ -38,7 +38,7 @@ class DatasetConsumer(object):
         self,
         fn: Callable[[Sample], Any],
         num_proc: int = mp.cpu_count(),
-        prefetch_factor: int = 8,
+        prefetch_factor: int = 128,
         initialize: Callable[[], Any] = _do_nothing,
         finalize: Callable[[], Any] = _do_nothing,
         progress_report_interval: float = 0.1,

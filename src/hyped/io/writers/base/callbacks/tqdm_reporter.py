@@ -65,35 +65,36 @@ def _run_tqdm(monitor: ProgressMonitor, update_interval: float, **kwargs: Any) -
             # get current state
             total_samples = monitor.num_processed_samples
             update_time = pbar._time()
-
-            # compute sample throughput
+            # compute sample and time deltas
             dn = total_samples - prev_total_samples
             dt = update_time - prev_update_time
-            throughput = ema_dn(dn) / max(ema_dt(dt), 1e-5)
 
-            logger.debug(
-                f"Updating progress: Total samples {total_samples}, "
-                f"Throughput {throughput:.02f}it/s"
-            )
+            if dn > 0:
+                # compute smoothed throughput
+                throughput = ema_dn(dn) / max(ema_dt(dt), 1e-5)
+                # log
+                logger.debug(
+                    f"Updating progress: Total samples {total_samples}, "
+                    f"Throughput {throughput:.02f}it/s"
+                )
+                # format total samples
+                formatting_string = "%d" if total_samples < 10**6 else "%.2e"
+                formatted_total_samples = formatting_string % total_samples
+                # update progress bar
+                pbar.set_postfix_str(
+                    (
+                        f"{monitor.num_buffered_samples}q, "
+                        f"{throughput:.02f}it/s, "
+                        f"{formatted_total_samples}it"
+                    ),
+                    refresh=False,
+                )
 
-            # format total samples
-            formatting_string = "%d" if total_samples < 10**6 else "%.2e"
-            formatted_total_samples = formatting_string % total_samples
-            # update progress bar
-            pbar.set_description(build_desc_str(), refresh=False)
-            pbar.set_postfix_str(
-                (
-                    f"{monitor.num_buffered_samples}q, "
-                    f"{throughput:.02f}it/s, "
-                    f"{formatted_total_samples}it"
-                ),
-                refresh=True,
-            )
             # update values
             prev_total_samples = total_samples
             prev_update_time = update_time
-
             # update the progress bar
+            pbar.set_description(build_desc_str(), refresh=True)
             pbar.update(len(monitor.completed_shards) - pbar.n)
 
     logger.info("Thread finished.")
