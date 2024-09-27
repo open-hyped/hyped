@@ -483,6 +483,7 @@ class Worker(mp.Process):
 
                                 elif ctx.stop:
                                     # stop worker
+                                    self._apply_ctx(ctx)
                                     self._logger.info(
                                         "Received stop signal from context, stopping."
                                     )
@@ -646,7 +647,7 @@ class WorkerController(object):
         self.serializer = serializer
         self.queue = _manager.Queue(maxsize=self.num_workers)
         self.queue_it = QueueIterator(self.queue, sentinel=None, timeout=1.0)
-        self.processor_ranks = set()
+        self.standalone_ranks = set()
         self.producer_ranks = set()
         self.consumer_ranks = set()
         self.joined_ranks = set()
@@ -699,7 +700,7 @@ class WorkerController(object):
             data_finalizer=fn,
         )
         self.workers[rank].send_ctx(ctx, blocking=False)
-        self.processor_ranks.add(rank)
+        self.standalone_ranks.add(rank)
         self._logger.info(f"Assigned worker {rank} as standalone worker.")
 
     def create_consumer(
@@ -739,9 +740,9 @@ class WorkerController(object):
             data_transform=self.serializer.serialize,
             data_finalizer=self.queue.put,
         )
-        for rank in self.processor_ranks:
+        for rank in self.standalone_ranks:
             if self.workers[rank].send_ctx(ctx_update, blocking=True):
-                self.processor_ranks.remove(rank)
+                self.standalone_ranks.remove(rank)
                 self.producer_ranks.add(rank)
                 self._logger.info(f"Assigned worker {rank} as producer.")
                 return rank
@@ -768,7 +769,7 @@ class WorkerController(object):
         for rank in self.producer_ranks:
             if self.workers[rank].send_ctx(ctx_update, blocking=True):
                 self.producer_ranks.remove(rank)
-                self.processor_ranks.add(rank)
+                self.standalone_ranks.add(rank)
                 self._logger.info(f"Assigned worker {rank} as processor.")
                 return rank
             self._logger.info(f"Worker {rank} did not accept processor context.")
@@ -779,7 +780,7 @@ class WorkerController(object):
         Args:
             rank (Rank): The rank of the worker to free.
         """
-        self.processor_ranks -= {rank}
+        self.standalone_ranks -= {rank}
         self.producer_ranks -= {rank}
         self.consumer_ranks -= {rank}
 
@@ -791,6 +792,13 @@ class WorkerController(object):
         """
         self.workers[rank].send_ctx(WorkerContext(stop=True), blocking=False)
 
+    def stop_all(self) -> None:
+        """Sends a stopping signal to all alive workers."""
+        # send stop singal to all alive workers
+        for rank in range(self.num_workers):
+            if self.workers[rank].is_alive():
+                self.stop_worker(rank)
+
     def join_worker(self, rank: Rank) -> None:
         """Waits for a worker to complete execution and join the main thread.
 
@@ -799,7 +807,7 @@ class WorkerController(object):
         Args:
             rank (Rank): The rank of the worker to join.
         """
-        assert rank not in self.processor_ranks
+        assert rank not in self.standalone_ranks
         assert rank not in self.producer_ranks
         assert rank not in self.consumer_ranks
         self.workers[rank].join()
@@ -990,53 +998,41 @@ class DynamicMultiprocessingRunner(BaseRunner):
 
         return ex_iterable, processor
 
-    def run(self, ds: IterableDataset, fn: Callable[[Sample], Any]) -> None:
-        """Execute data processing using the worker processes.
+    def _handle_message_loop(
+        self,
+        src_ds: IterableDataset,
+        transform: Callable[[Iterable[T]], Iterable[U]],
+        fn: Callable[[Sample], Any],
+        recv_msg_conn: mp.connection.Connection,
+        monitor: ProgressMonitor,
+        controller: WorkerController,
+        balancer: ConsumerProducerBalancer,
+    ) -> None:
+        """Handles the message loop for communication between worker processes.
+
+        This method listens for messages from worker processes via the given connection.
+        It processes various types of messages related to worker states, including
+        readiness, completion, context switching, and progress reporting.
 
         Args:
-            ds: (IterableDataset): The dataset to process.
-            fn (Callable[[Sample], Any]): The function to apply to each sample in the dataset.
+            src_ds (IterableDataset): The source dataset from which shards are drawn for
+                processing.
+            transform (Callable[[Iterable[T]], Iterable[U]]): A transformation function that
+                processes a shard of data.
+            fn (Callable[[Sample], Any]): A function that handles each sample after it has been
+                transformed.
+            recv_msg_conn (mp.connection.Connection): The connection object used to receive messages
+                from worker processes.
+            monitor (ProgressMonitor): An object responsible for tracking the progress and state
+                of the workers and the overall processing.
+            controller (WorkerController): The controller managing worker assignments and roles.
+            balancer (ConsumerProducerBalancer): An object that balances the number of producer
+                and consumer workers based on the current state of the system.
+
+        Returns:
+            None: This method operates in a loop until all workers are done, updating their
+            status and managing context switches as necessary.
         """
-
-        self._logger.info("Starting data processing.")
-
-        # prepare the dataset
-        src_ds, processor = self._prepare_dataset(ds)
-        self._logger.info(f"Dataset prepared with {src_ds.n_shards} shards.")
-
-        # create connection for workers to request new context
-        recv_msg_conn, worker_msg_conn = mp.Pipe(duplex=False)
-        # create all workers
-        workers = [
-            Worker(
-                rank=rank,
-                num_workers=self._num_workers,
-                send_msg_conn=worker_msg_conn,
-                progress_report_interval=self._report_interval,
-                worker_init=self._worker_init,
-                worker_finalize=self._worker_finalize,
-            )
-            for rank in range(self._num_workers)
-        ]
-
-        # create the serializer used to serialize samples
-        # before putting them into the queue
-        serializer = Serializer(batch_size=self._prefetch)
-        # create controller
-        controller = WorkerController(workers, serializer)
-        controller.start()
-
-        # create the progress monitor, note that the serializer dumps a batch of samples
-        # into a single queue element with a batch size set to the prefetch factor
-        monitor = ProgressMonitor(
-            src_ds.n_shards, self._num_workers, controller.queue, controller.serializer.batch_size
-        )
-
-        # create the consumer producer balancer
-        balancer = ConsumerProducerBalancer(controller, monitor)
-
-        # run callbacks
-        self._callback.on_start(monitor, ds)
 
         # mark a specific worker as switching
         # used to rate limit the context switches of workers
@@ -1062,7 +1058,7 @@ class DynamicMultiprocessingRunner(BaseRunner):
                 controller.join_worker(rank)
                 monitor._mark_worker_done(rank)
                 self._logger.debug(f"Worker {rank} done.")
-                # only keep going if there are any workers left
+                #
                 done = not monitor.any_worker_alive
 
             elif msg_type is MessageType.CTX_STARTED:
@@ -1138,7 +1134,7 @@ class DynamicMultiprocessingRunner(BaseRunner):
                     ):
                         # try to convert an active producer back to a processor
                         switching_worker = controller.try_switch_producer_to_standalone(
-                            processor, fn
+                            transform, fn
                         )
                         last_switch = now
 
@@ -1155,8 +1151,8 @@ class DynamicMultiprocessingRunner(BaseRunner):
                     # Stage 1
                     shard_id = monitor.pending_shards.pop()
                     # get shard and send processor context to worker
-                    shard = src_ds.shard_data_sources(shard_id, src_ds.n_shards)
-                    controller.create_processor(rank, shard, processor, fn)
+                    shard = src_ds.shard_data_sources(shard_id, monitor.num_shards)
+                    controller.create_processor(rank, shard, transform, fn)
                     # run callback
                     self._callback.on_shard_in_progress(monitor, shard_id)
 
@@ -1172,7 +1168,7 @@ class DynamicMultiprocessingRunner(BaseRunner):
                         controller.try_switch_standalone_to_producer()
 
                     # assign worker as consumer
-                    controller.create_consumer(rank, processor, fn)
+                    controller.create_consumer(rank, transform, fn)
 
                     # evenutally all workers are consumers
                     if monitor.alive_workers == controller.consumer_ranks:
@@ -1181,9 +1177,78 @@ class DynamicMultiprocessingRunner(BaseRunner):
                         self._callback.on_stopping(monitor)
                         self._logger.info("Stopping criteria reached, gracefully stopping workers.")
 
-        # shutdown
-        monitor._mark_as_done()
-        self._callback.on_done(monitor)
-        controller.assert_all_workers_joined()
+    def run(self, ds: IterableDataset, fn: Callable[[Sample], Any]) -> None:
+        """Execute data processing using the worker processes.
 
-        self._logger.info("Runner shutdown complete.")
+        Args:
+            ds: (IterableDataset): The dataset to process.
+            fn (Callable[[Sample], Any]): The function to apply to each sample in the dataset.
+        """
+
+        self._logger.info("Starting data processing.")
+
+        # prepare the dataset
+        src_ds, transform = self._prepare_dataset(ds)
+        self._logger.info(f"Dataset prepared with {src_ds.n_shards} shards.")
+
+        # create connection for workers to request new context
+        recv_msg_conn, worker_msg_conn = mp.Pipe(duplex=False)
+        # create all workers
+        workers = [
+            Worker(
+                rank=rank,
+                num_workers=self._num_workers,
+                send_msg_conn=worker_msg_conn,
+                progress_report_interval=self._report_interval,
+                worker_init=self._worker_init,
+                worker_finalize=self._worker_finalize,
+            )
+            for rank in range(self._num_workers)
+        ]
+
+        # create the serializer used to serialize samples
+        # before putting them into the queue
+        serializer = Serializer(batch_size=self._prefetch)
+        # create controller
+        controller = WorkerController(workers, serializer)
+        controller.start()
+
+        # create the progress monitor, note that the serializer dumps a batch of samples
+        # into a single queue element with a batch size set to the prefetch factor
+        monitor = ProgressMonitor(
+            src_ds.n_shards, self._num_workers, controller.queue, controller.serializer.batch_size
+        )
+
+        # create the consumer producer balancer
+        balancer = ConsumerProducerBalancer(controller, monitor)
+
+        # bind handle message loop to all arguments
+        message_handler = partial(
+            self._handle_message_loop,
+            recv_msg_conn=recv_msg_conn,
+            src_ds=src_ds,
+            transform=transform,
+            fn=fn,
+            monitor=monitor,
+            controller=controller,
+            balancer=balancer,
+        )
+
+        try:
+            # run start callback and start message handle loop
+            self._callback.on_start(monitor, ds)
+            message_handler()
+
+        except KeyboardInterrupt:
+            self._logger.warning("Processing interrupted by user.")
+            # stop all workers and start message handler again
+            controller.stop_all()
+            message_handler()
+
+        finally:
+            # shutdown
+            monitor._mark_as_done()
+            self._callback.on_done(monitor)
+            controller.assert_all_workers_joined()
+
+        self._logger.info("Runner complete.")
