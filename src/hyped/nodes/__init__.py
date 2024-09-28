@@ -19,6 +19,8 @@ __all__ = [
     "MultiLabelConfusionMatrixConfig",
     "JsonParser",
     "JsonParserConfig",
+    "FastJsonParser",
+    "FastJsonParserConfig",
     "CasParser",
     "CasParserConfig",
     "BioTags",
@@ -43,6 +45,7 @@ if TYPE_CHECKING:
     from .metrics.confusion import MultiLabelConfusionMatrix, MultiLabelConfusionMatrixConfig
     from .metrics.prfs import PrecisionRecallFScoreSupport, PrecisionRecallFScoreSupportConfig
     from .parsers.cas import CasParser, CasParserConfig
+    from .parsers.fast_json import FastJsonParser, FastJsonParserConfig
     from .parsers.json import JsonParser, JsonParserConfig
     from .spans.bio_tags import BioTags, BioTagsConfig
     from .spans.chr_to_tok import ChrToTokSpans, ChrToTokSpansConfig
@@ -70,6 +73,8 @@ else:
         # parsers
         "JsonParser": "hyped.nodes.parsers.json",
         "JsonParserConfig": "hyped.nodes.parsers.json",
+        "FastJsonParser": "hyped.nodes.parsers.fast_json",
+        "FastJsonParserConfig": "hyped.nodes.parsers.fast_json",
         "CasParser": "hyped.nodes.parsers.cas",
         "CasParserConfig": "hyped.nodes.parsers.cas",
         # spans

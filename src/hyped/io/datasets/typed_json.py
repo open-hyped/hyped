@@ -44,14 +44,20 @@ class TypedJsonDataset(Json):
     Typically used by call to :func:`datasets.load_dataset with appropriate
     keyword arguments (see :class:`TypedJsonDatasetConfig` for defails)
 
-    ```python
-    datasets.load_dataset('hyped.io.datasets.typed_json', **kwargs)
-    ```
+    .. code-block:: python
+
+        datasets.load_dataset('hyped.io.datasets.typed_json', **kwargs)
+
     """
 
     BUILDER_CONFIG_CLASS = TypedJsonDatasetConfig
 
     def _build_flow(self) -> DataFlow:
+        """Provides dataset metadata.
+
+        Returns:
+            datasets.DatasetInfo: Information about the dataset, including its features.
+        """
         payload = datasets.Features({"payload": datasets.Value("string")})
         flow = DataFlow(payload)
         # add the json parser
@@ -63,6 +69,15 @@ class TypedJsonDataset(Json):
         return flow
 
     def _generate_tables(self, files):
+        """Yields batches of data parsed from the input files as :code:`pyarrow` Tables.
+
+        Args:
+            files (iterable): An iterable of file paths for each split.
+
+        Yields:
+            Tuple[Tuple[int, int], pa.Table]: A tuple containing file index and chunk index,
+            and the corresponding pyarrow Table with lines as data.
+        """
         flow = self._build_flow()
 
         for fidx, fpath in enumerate(chain.from_iterable(files)):

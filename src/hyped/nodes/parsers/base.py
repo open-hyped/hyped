@@ -30,8 +30,8 @@ class BaseParserConfig(BaseDataProcessorConfig):
 class BaseParserInputRefs(InputRefs):
     """Base class for input references used by parsers."""
 
-    payload: Annotated[FeatureRef, CheckFeatureEquals(Value("string"))]
-    """A reference to the input payload, which is expected to be a string."""
+    payload: Annotated[FeatureRef, CheckFeatureEquals([Value("string"), Value("binary")])]
+    """A reference to the input payload, which is expected to be a string or bytes."""
 
 
 class BaseParserOutputRefs(OutputRefs):

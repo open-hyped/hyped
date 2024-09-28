@@ -30,7 +30,7 @@ from .base import (
 class JsonParserInputRefs(BaseParserInputRefs):
     """Holds references to the input features for the JSON parser."""
 
-    payload: Annotated[FeatureRef, CheckFeatureEquals(Value("string"))]
+    payload: Annotated[FeatureRef, CheckFeatureEquals([Value("string"), Value("binary")])]
     """The input payload expected to be a serialized json string."""
 
 
@@ -121,9 +121,14 @@ class JsonParser(BaseParser[JsonParserConfig, JsonParserInputRefs, JsonParserOut
             individual samples that failed validation.
         """
 
+        batch_json_string = (
+            (b'{"parsed_batch": [%b]}' % b",".join(inputs["payload"]))
+            if io.inputs["payload"].dtype == "binary"
+            else ('{"parsed_batch": [%s]}' % ",".join(inputs["payload"]))
+        )
+
         try:
             # try to load the batch in one operation
-            batch_json_string = '{"parsed_batch": [%s]}' % ",".join(inputs["payload"])
             batch_model = self._batch_feature_model.model_validate_json(batch_json_string)
             return Batch(
                 obj=batch_model.model_dump()["parsed_batch"], exception=[None] * len(index)
@@ -154,9 +159,15 @@ class JsonParser(BaseParser[JsonParserConfig, JsonParserInputRefs, JsonParserOut
             ParserException: If validation of the JSON string fails and
                 :code:`config.catch_validation_errors` is False.
         """
+
+        json_string = (
+            (b'{"parsed": %b}' % inputs["payload"])
+            if io.inputs["payload"].dtype == "binary"
+            else ('{"parsed": %s}' % inputs["payload"])
+        )
+
         try:
             # try to parse the json string
-            json_string = f'{{"parsed": {inputs["payload"]}}}'
             model = self._feature_model.model_validate_json(json_string)
             return model.model_dump()["parsed"]
         except ValidationError as e:
