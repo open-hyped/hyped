@@ -1,3 +1,6 @@
+import importlib
+from unittest.mock import patch
+
 import pytest
 
 import hyped
@@ -22,3 +25,6 @@ def test_lazy_imports(lazy_module):
             getattr(lazy_module, name)
         except (ImportError, AttributeError):
             pytest.fail(f"Cannot import '{name}' from lazy module '{lazy_module}'.")
+
+    with patch("typing.TYPE_CHECKING", True):
+        importlib.reload(lazy_module)
