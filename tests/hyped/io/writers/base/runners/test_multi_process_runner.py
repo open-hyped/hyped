@@ -7,12 +7,14 @@ from datasets import Dataset
 from sharedmock.mock import SharedMock
 
 from hyped.io.writers.base.callbacks.base import CallbackManager
-from hyped.io.writers.base.runners.base import WorkerRole
+from hyped.io.writers.base.runners.base import WorkerProcessingStage, WorkerRole
 from hyped.io.writers.base.runners.multi_process_runner import (
+    ConsumerProducerBalancer,
     DynamicMultiprocessingRunner,
     MessageType,
     Serializer,
     Worker,
+    WorkerContext,
 )
 
 
@@ -30,10 +32,24 @@ class TestWorker:
         return mp.Pipe(duplex=False)
 
     @pytest.fixture
-    def worker(self, msg_pipe, worker_init, worker_finalizer):
+    def transform(self):
+        return MagicMock()
+
+    @pytest.fixture
+    def context(self, transform):
+        return WorkerContext(
+            role=WorkerRole.STANDALONE,
+            data_stream=[MagicMock(), MagicMock(), MagicMock()],
+            data_transform=lambda x: map(transform, x),
+            data_finalizer=MagicMock(),
+            stop=False,
+        )
+
+    @pytest.fixture
+    def worker(self, msg_pipe, worker_init, worker_finalizer, context):
         _, send_msg_conn = msg_pipe
 
-        return Worker(
+        worker = Worker(
             rank=0,
             num_workers=1,
             send_msg_conn=send_msg_conn,
@@ -41,19 +57,23 @@ class TestWorker:
             worker_init=worker_init,
             worker_finalize=worker_finalizer,
         )
+        worker._ctx = context
+        return worker
 
     def test_request_new_ctx(self, msg_pipe, worker):
         recv_msg, _ = msg_pipe
 
-        role = WorkerRole.PRODUCER
-        producer = "PRODUCER"
-        processor = "PROCESSOR"
-        finalizer = "FINALIZER"
-
+        ctx = WorkerContext(
+            role=WorkerRole.STANDALONE,
+            data_stream="STREAM",
+            data_transform="TRANSFORM",
+            data_finalizer="FINALIZE",
+            stop=False,
+        )
         # mock context conn receiver to avoid deadlock
         worker._parent_ctx_conn.recv = MagicMock()
         # send new context before worker request to avoid deadlock in worker
-        worker.send_ctx(role, producer, processor, finalizer, False)
+        worker.send_ctx(ctx)
         worker._parent_ctx_conn.recv.assert_called_once()
 
         # request new context
@@ -66,91 +86,69 @@ class TestWorker:
         assert msg["type"] == MessageType.CTX_REQUEST.value
 
         # check if new context was applied
-        assert worker._role == role
-        assert worker._producer == producer
-        assert worker._processor == processor
-        assert worker._finalizer == finalizer
+        assert worker._ctx == ctx
 
     @patch("hyped.io.writers.base.runners.multi_process_runner.set_worker_info")
-    def test_run(self, mock_set_worker_info, worker):
-        processor_marker = MagicMock()
-
-        # set up worker
-        worker._role = WorkerRole.PROCESSOR
-        worker._producer = [MagicMock(), MagicMock(), MagicMock()]
-        worker._processor = lambda x: map(processor_marker, x)
-        worker._finalizer = MagicMock()
+    def test_run(self, mock_set_worker_info, worker, transform):
         # mock request new context
         worker._request_new_ctx = MagicMock(side_effect=[True, False].pop)
-
         # run worker
         worker.run()
 
         mock_set_worker_info.assert_called_once()
         # make sure all samples have been processed
-        worker._finalizer.assert_has_calls(
-            [call(processor_marker(x)) for x in worker._producer], any_order=True
+        worker._ctx.data_finalizer.assert_has_calls(
+            [call(transform(x)) for x in worker._ctx.data_stream], any_order=True
         )
         worker._worker_init.assert_called_once()
         worker._worker_finalize.assert_called_once()
 
     @patch("hyped.io.writers.base.runners.multi_process_runner.set_worker_info")
-    def test_run_with_ctx_update(self, mock_set_worker_info, worker):
-        processor_marker = MagicMock()
-        # set up worker
-        worker._role = WorkerRole.PROCESSOR
-        worker._producer = [MagicMock(), MagicMock(), MagicMock()]
-        worker._processor = lambda x: map(processor_marker, x)
-        worker._finalizer = MagicMock()
+    def test_run_with_ctx_update(self, mock_set_worker_info, worker, transform):
         # mock request new and check context
         worker._request_new_ctx = MagicMock(side_effect=[True, False].pop)
-
+        # mock context connection
         worker._child_ctx_conn = MagicMock()
         worker._child_ctx_conn.poll = MagicMock(return_value=True)
-
-        worker._recv_ctx = MagicMock(return_value=(WorkerRole.PROCESSOR, None, None, None, False))
+        # mock receive context function
+        ctx_update = WorkerContext(role=WorkerRole.STANDALONE, stop=False)
+        worker._recv_ctx = MagicMock(return_value=ctx_update)
 
         worker.run()
 
         mock_set_worker_info.assert_called_once()
         # make sure all samples have been processed
         assert len(worker._recv_ctx.mock_calls) == 3
-        worker._finalizer.assert_has_calls(
-            [call(processor_marker(x)) for x in worker._producer], any_order=True
+        worker._ctx.data_finalizer.assert_has_calls(
+            [call(transform(x)) for x in worker._ctx.data_stream], any_order=True
         )
+        worker._worker_init.assert_called_once()
+        worker._worker_finalize.assert_called_once()
 
     @patch("hyped.io.writers.base.runners.multi_process_runner.set_worker_info")
-    def test_run_with_abort(self, mock_set_worker_info, worker):
-        processor_marker = MagicMock()
-        # set up worker
-        worker._role = WorkerRole.PROCESSOR
-        worker._producer = [MagicMock(), MagicMock(), MagicMock()]
-        worker._processor = lambda x: map(processor_marker, x)
-        worker._finalizer = MagicMock()
+    def test_run_with_abort(self, mock_set_worker_info, worker, transform):
         # mock request new and check context
         worker._request_new_ctx = MagicMock(side_effect=[True, False].pop)
-
+        # mock context connection
         worker._child_ctx_conn = MagicMock()
         worker._child_ctx_conn.poll = MagicMock(return_value=True)
-
-        worker._recv_ctx = MagicMock(return_value=(None, None, None, None, True))
+        # mock receive context function
+        ctx_update = WorkerContext(role=WorkerRole.STANDALONE, stop=True)
+        worker._recv_ctx = MagicMock(return_value=ctx_update)
 
         worker.run()
 
         mock_set_worker_info.assert_called_once()
         # make sure all samples have been processed
         assert len(worker._recv_ctx.mock_calls) == 1
-        worker._finalizer.assert_has_calls(
-            [call(processor_marker(worker._producer[0]))], any_order=True
+        worker._ctx.data_finalizer.assert_has_calls(
+            [call(transform(worker._ctx.data_stream[0]))], any_order=True
         )
 
     @patch("hyped.io.writers.base.runners.multi_process_runner.set_worker_info")
     def test_error_logging(self, mock_set_worker_info, worker):
-        # set up worker
-        worker._role = WorkerRole.PROCESSOR
-        worker._producer = [MagicMock(), MagicMock(), MagicMock()]
-        worker._processor = lambda x: x
-        worker._finalizer = MagicMock(side_effect=RuntimeError)
+        # mock finalizer to throw runtime error
+        worker._ctx.data_finalizer = MagicMock(side_effect=RuntimeError)
         # mock request new and check context
         worker._logger = MagicMock()
         worker._logger.error = MagicMock()
@@ -188,6 +186,64 @@ class TestSerializer:
 
         # Check that the deserialized output matches the original samples
         assert deserialized == samples, "Deserialized output does not match the original samples"
+
+
+class TestConsumerProducerBalancer(object):
+    @pytest.fixture
+    def mock_controller(self):
+        """Fixture to create a mocked WorkerController."""
+        controller = MagicMock()
+        controller.num_workers = 10
+        return controller
+
+    @pytest.fixture
+    def mock_monitor(self):
+        """Fixture to create a mocked ProgressMonitor."""
+        monitor = MagicMock()
+        monitor.num_buffered_samples = 100  # Default queue size
+        monitor._item_size = 10  # Size of queue items
+        return monitor
+
+    @pytest.fixture
+    def balancer(self, mock_controller, mock_monitor):
+        """Fixture to create the ConsumerProducerBalancer with mocked dependencies."""
+        return ConsumerProducerBalancer(controller=mock_controller, monitor=mock_monitor)
+
+    def test_callback_add_producer(self, balancer, mock_monitor):
+        """Test callback when producers should be added."""
+        # Simulate a low queue size (below 30%) and longer consumer block time
+        mock_monitor.num_buffered_samples = 20
+        mock_monitor.elapsed_time_averages.side_effect = lambda _: {
+            WorkerProcessingStage.FINALIZE: 1.0,  # Producer block time
+            WorkerProcessingStage.STREAM: 2.0,  # Consumer block time
+        }
+
+        action = balancer.callback()
+        assert action == ConsumerProducerBalancer.Action.ADD_PRODUCER
+
+    def test_callback_remove_producer(self, balancer, mock_monitor):
+        """Test callback when producers should be removed."""
+        # Simulate a high queue size (above 70%) and longer producer block time
+        mock_monitor.num_buffered_samples = 80
+        mock_monitor.elapsed_time_averages.side_effect = lambda _: {
+            WorkerProcessingStage.FINALIZE: 2.0,  # Producer block time
+            WorkerProcessingStage.STREAM: 1.0,  # Consumer block time
+        }
+
+        action = balancer.callback()
+        assert action == ConsumerProducerBalancer.Action.REMOVE_PRODUCER
+
+    def test_callback_no_action(self, balancer, mock_monitor):
+        """Test callback when no action should be taken."""
+        # Simulate balanced queue size and block times
+        mock_monitor.num_buffered_samples = 50
+        mock_monitor.elapsed_time_averages.side_effect = lambda _: {
+            WorkerProcessingStage.FINALIZE: 1.0,  # Producer block time
+            WorkerProcessingStage.STREAM: 1.0,  # Consumer block time
+        }
+
+        action = balancer.callback()
+        assert action == ConsumerProducerBalancer.Action.NO_ACTION
 
 
 def _double_fn(x):
