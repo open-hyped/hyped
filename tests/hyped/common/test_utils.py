@@ -1,3 +1,4 @@
+import math
 import os
 import tempfile
 from unittest.mock import patch
@@ -6,6 +7,8 @@ import numpy as np
 import pytest
 
 from hyped.common.utils import (
+    EMA,
+    TimeWeightedEMA,
     chdir,
     deep_equal,
     dict_of_lists_to_list_of_dicts,
@@ -143,6 +146,41 @@ def _test_chdir_exception():
 
         # After exiting the context, should be back to temp_dir1
         assert os.getcwd().endswith(os.path.abspath(orig_dir))
+
+
+def test_calculate_ema():
+    measurements = [100, 150, 200, 250]  # Measurements taken over time
+
+    ema = EMA(smoothing=0.3)
+
+    for value in measurements:
+        ema(value)
+
+    # Validate the result against expected values
+    assert ema.value is not None
+    assert isinstance(ema.value, float)
+    # Verify the calculated EMA against an expected value
+    assert math.isclose(ema.value, 228.12212133175416, rel_tol=1e-5)
+
+
+def test_calculate_time_weighted_ema():
+    measurements = {
+        1695419000: 100,  # Timestamp: 1695419000, Measurement: 100
+        1695419100: 150,  # 100 seconds later
+        1695419800: 200,  # 700 seconds later
+        1695420400: 250,  # 600 seconds later
+    }
+
+    ema = TimeWeightedEMA(decay_rate=0.001)
+
+    for timestamp, value in measurements.items():
+        ema(timestamp, value)
+
+    # Validate the result against expected values
+    assert ema.value is not None
+    assert isinstance(ema.value, float)
+    # Verify the calculated EMA
+    assert math.isclose(ema.value, 215.00310219329043, rel_tol=1e-5)
 
 
 def test_is_package_installed_existing_package():

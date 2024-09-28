@@ -2,7 +2,7 @@ from datasets import Dataset, DatasetDict, load_from_disk
 
 from hyped.io.writers.arrow import ArrowDatasetWriter
 
-from .base import BaseTestDatasetWriter
+from .base_test import BaseTestDatasetWriter
 
 
 class TestArrowDatasetWriter(BaseTestDatasetWriter):

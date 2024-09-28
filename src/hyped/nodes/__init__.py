@@ -36,8 +36,6 @@ __all__ = [
     "ToClassLabelConfig",
     "FileLoader",
     "FileLoaderConfig",
-    "FileChunkLoader",
-    "FileChunkLoaderConfig",
 ]
 
 if TYPE_CHECKING:
@@ -92,8 +90,6 @@ else:
         "ToClassLabelConfig": "hyped.nodes.utils.to_class_label",
         "FileLoader": "hyped.nodes.utils.file_loader",
         "FileLoaderConfig": "hyped.nodes.utils.file_loader",
-        "ChunkSequence": "hyped.nodes.utils.chunk",
-        "ChunkSequenceConfig": "hyped.nodes.utils.chunk",
     }
 
     sys.modules[__name__] = LazyModule(

@@ -9,6 +9,10 @@ from itertools import islice
 from queue import Empty, Queue
 from typing import Any, Callable, Generic, Iterable, Iterator, Tuple, TypeVar
 
+from tqdm.std import EMA
+
+from .utils import clock
+
 if sys.version_info >= (3, 12):
     from itertools import batched
 
@@ -101,18 +105,21 @@ class QueueIterator:
             raise StopIteration
 
 
-class StoppableIterator(object):
+T = TypeVar("T")
+
+
+class StoppableIterator(Generic[T]):
     """An iterator that can be stopped manually.
 
     This iterator allows manual interruption of iteration by calling the :func:`stop`
     method, which causes the iterator to stop yielding items.
     """
 
-    def __init__(self, iterable: Iterable[Any]) -> None:
+    def __init__(self, iterable: Iterable[T]) -> None:
         """Initialize the stoppable iterator.
 
         Args:
-            iterable (Iterable[Any]): The iterable to iterate over.
+            iterable (Iterable[T]): The iterable to iterate over.
         """
         self.iterable = iter(iterable)
         self.stopped = False
@@ -124,19 +131,19 @@ class StoppableIterator(object):
         """
         self.stopped = True
 
-    def __iter__(self) -> Iterable[Any]:
+    def __iter__(self) -> Iterable[T]:
         """Return the iterator object itself.
 
         Returns:
-            Iterable[Any]: The iterator object itself.
+            Iterable[T]: The iterator object itself.
         """
         return self
 
-    def __next__(self) -> Any:
+    def __next__(self) -> T:
         """Retrieve the next item from the iterable.
 
         Returns:
-            Any: The next item from the iterable.
+            T: The next item from the iterable.
 
         Raises:
             StopIteration: If iteration is stopped or if the iterable is exhausted.
@@ -145,6 +152,75 @@ class StoppableIterator(object):
             raise StopIteration
 
         return next(self.iterable)
+
+
+T = TypeVar("T")
+
+
+class TimedIterator(Generic[T]):
+    """An iterator wrapper that tracks the total and smoothed average time per iteration.
+
+    An iterator wrapper that tracks the time taken to iterate over elements
+    of an iterable. It provides the total time and the smoothed average time
+    per iteration using an Exponential Moving Average (EMA).
+    """
+
+    def __init__(self, iterable: Iterable[T], smoothing: float = 0.3) -> None:
+        """Initializes the :class:`TimedIterator`.
+
+        Args:
+            iterable (Iterable[T]): The iterable object to track.
+            smoothing (float, optional): The smoothing factor used for the EMA calculation.
+                Defaults to 0.3.
+        """
+        self.iterable = iterable
+        self.ema = EMA(smoothing=smoothing)
+        self.total = 0
+
+    def smooth_time(self) -> float:
+        """Returns the smoothed average time per iteration.
+
+        Returns:
+            float: The average time per iteration based on the EMA.
+        """
+        return self.ema()
+
+    def total_time(self) -> float:
+        """Returns the total accumulated time spent iterating.
+
+        Returns:
+            float: The total time spent iterating over the iterable.
+        """
+        return self.total
+
+    def __iter__(self) -> Iterable[T]:
+        """Returns an iterator object.
+
+        Returns:
+            Iterable[T]: The TimedIterator itself.
+        """
+        return self
+
+    def __next__(self) -> T:
+        """Returns the next element from the iterable and updates the time statistics.
+
+        Tracks the time taken to retrieve the next item, updates the EMA and total time,
+        and returns the next item.
+
+        Returns:
+            T: The next item from the iterable.
+
+        Raises:
+            StopIteration: When the iterable is exhausted.
+        """
+        # track time required for next item
+        st = clock()
+        item = next(self.iterable)
+        # update average and return the item
+        dt = clock() - st
+        self.ema(dt)
+        self.total += dt
+        return item
 
 
 T = TypeVar("T")

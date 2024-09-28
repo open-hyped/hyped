@@ -12,11 +12,13 @@ __all__ = (
     "ShardingStrategy",
     "ArrowDatasetWriter",
     "JsonDatasetWriter",
+    "Callback",
+    "TqdmReporterCallback",
 )
 
 if TYPE_CHECKING:
     from .arrow import ArrowDatasetWriter
-    from .base import DatasetConsumer, ShardingStrategy
+    from .base import Callback, DatasetConsumer, ShardingStrategy, TqdmReporterCallback
     from .json import JsonDatasetWriter
 
 else:
@@ -29,6 +31,8 @@ else:
         "ShardingStrategy": "hyped.io.writers.base",
         "ArrowDatasetWriter": "hyped.io.writers.arrow",
         "JsonDatasetWriter": "hyped.io.writers.json",
+        "Callback": "hyped.io.writers.base",
+        "TqdmReporterCallback": "hyped.io.writers.base",
     }
 
     sys.modules[__name__] = LazyModule(
