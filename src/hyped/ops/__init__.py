@@ -62,6 +62,7 @@ __all__ = [
     "xor_",
     "precision_recall_fscore_support",
     "chain",
+    "chunk",
     "compress",
     "contains",
     "count_of",
@@ -100,6 +101,7 @@ if TYPE_CHECKING:
     from .metrics import precision_recall_fscore_support
     from .sequence import (
         chain,
+        chunk,
         compress,
         contains,
         count_of,
@@ -141,6 +143,7 @@ else:
         "precision_recall_fscore_support": "hyped.ops.metrics",
         # sequence operations
         "chain": "hyped.ops.sequence",
+        "chunk": "hyped.ops.sequence",
         "compress": "hyped.ops.sequence",
         "contains": "hyped.ops.sequence",
         "count_of": "hyped.ops.sequence",

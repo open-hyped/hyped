@@ -2,8 +2,8 @@
 
 This package provides a comprehensive framework for constructing, managing,
 and executing complex data processing pipelines. The framework is designed
-to be modular and flexible, allowing users to define data flows, processors,
-and augmenters to handle a wide variety of data processing tasks.
+to be modular and flexible, allowing users to define data flows to handle
+a wide variety of data processing tasks.
 
 Example:
     Define a data flow for processing text data:
@@ -12,7 +12,7 @@ Example:
 
         import datasets
         from hyped import DataFlow
-        from hyped.processors import TransformersTokenizer
+        from hyped.nodes import TransformersTokenizer
 
         # create the data flow instance
         features = datasets.Features({"text": datasets.Value("string")})
@@ -31,15 +31,13 @@ from .__version__ import __version__, __version_tuple__  # noqa: F401
 
 __all__ = [
     # modules
-    "aggregators",
-    "augmenters",
     "io",
     "ops",
-    "processors",
+    "nodes",
     "core",
     # core
     "DataFlow",
 ]
 
-from . import aggregators, augmenters, core, io, ops, processors
+from . import core, io, nodes, ops
 from .core.flow import DataFlow

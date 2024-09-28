@@ -11,7 +11,7 @@ applied to features in the data flow. These functions are decorated to support
 constant values, converting them into feature references when necessary.
 """
 
-import hyped.processors._ops as ops
+import hyped.nodes._ops as ops
 from hyped.core.refs.ref import FeatureRef
 from hyped.ops.utils import _handle_constant_inputs_for_binary_op
 

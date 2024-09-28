@@ -61,7 +61,7 @@ Let's consider the example of configuring a Sum Aggregator. This aggregator is r
 
 .. code-block:: python
 
-    from hyped.aggregators._ops.sum import SumAggregator
+    from hyped.nodes._ops import SumAggregator
 
     # Define the configuration for the Sum Aggregator
     sum_config = SumAggregator.Config(
@@ -114,9 +114,8 @@ In this example, we demonstrate how to invoke multiple aggregators within a data
 
 .. code-block:: python
 
-    from hyped.ops import collect
-    from hyped.aggregators._ops.sum import SumAggregator
-    from hyped.aggregators._ops.mean import MeanAggregator
+    from hyped.nodes._ops import SumAggregator
+    from hyped.nodes._ops import MeanAggregator
 
     # Capture total and average text length over the whole dataset
     total_text_length = SumAggregator().call(x=len(flow.src_features["text"]))
@@ -124,12 +123,10 @@ In this example, we demonstrate how to invoke multiple aggregators within a data
 
     # Execute the data flow with multiple aggregation features
     _, statistics = flow.apply(
-        ds, collect=flow.src_features, aggregate=collect(
-            {
-                "total": total_text_length.value,
-                "avg": average_text_length.value
-            }
-        )
+        ds, collect=flow.src_features, aggregate={
+            "total": total_text_length.value,
+            "avg": average_text_length.value
+        }
     )
 
     print(statistics["total"])
@@ -143,17 +140,16 @@ To illustrate how aggregated values computed within a data flow can undergo furt
 
 .. code-block:: python
 
-    from hyped.ops import collect
-    from hyped.aggregators._ops.sum import SumAggregator
-    from hyped.aggregators._ops.mean import MeanAggregator
+    from hyped.nodes._ops.sum import SumAggregator
+    from hyped.nodes._ops.mean import MeanAggregator
 
     double_total = total_text_length.value * 2
 
     # Execute the data flow with multiple aggregation features
     _, statistics = flow.apply(
-        ds, collect=flow.src_features, aggregate=collect(
-            {"double_total": double_total}
-        )
+        ds, collect=flow.src_features, aggregate={
+            "double_total": double_total
+        }
     )
 
 After computing the total text length using a :code:`SumAggregator`, the aggregated value is then doubled using the :code:`Mul` processor added under the hood by the magic operator for multiplication.
@@ -173,7 +169,7 @@ Let's illustrate this process with an example where we calculate the sum of a nu
 
     from datasets import load_dataset
     from hyped import DataFlow
-    from hyped.aggregators._ops import SumAggregator
+    from hyped.nodes._ops import SumAggregator
 
     # Load multiple datasets
     ds1 = load_dataset("imdb", split="train[:10%]")

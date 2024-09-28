@@ -6,7 +6,7 @@ from hyped.core.graph import DataFlowGraph
 from hyped.core.nodes.const import Const
 from hyped.core.optim import DataFlowGraphOptimizer
 from hyped.core.refs.ref import FeatureRef
-from hyped.processors._ops.collect import CollectFeatures, NestedContainer
+from hyped.nodes._ops.collect import CollectFeatures, NestedContainer
 
 from .mock import MockProcessor, mock_input_refs_validator
 

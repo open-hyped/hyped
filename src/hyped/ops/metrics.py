@@ -26,9 +26,9 @@ Key functionalities include:
 """
 from typing import Literal
 
-import hyped.aggregators as aggregators
 from hyped.core.refs.ref import FeatureRef
-from hyped.processors.metrics.prfs import (
+from hyped.nodes.metrics.confusion import MultiLabelConfusionMatrix
+from hyped.nodes.metrics.prfs import (
     PrecisionRecallFScoreSupport,
     PrecisionRecallFScoreSupportOutputRefs,
 )
@@ -108,7 +108,7 @@ def precision_recall_fscore_support(
         TypeError: If the features are of unexpected types.
     """
     multilabel_confusion_matrix = (
-        aggregators.MultiLabelConfusionMatrix()
+        MultiLabelConfusionMatrix()
         .call(
             y_true=y_true,
             y_pred=y_pred,

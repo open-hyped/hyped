@@ -8,6 +8,7 @@ This module optionally relies on PyTorch's worker information if the `torch`
 package is installed and used in a multiprocessing context.
 """
 
+import atexit
 import multiprocessing as mp
 from dataclasses import dataclass, field
 from multiprocessing.managers import SyncManager
@@ -25,13 +26,16 @@ def _sync_manager_factory() -> SyncManager:
     Returns:
         SyncManager: An instance of SyncManager.
     """
+    # create manager and start it
     manager = SyncManager(ctx=mp.context.DefaultContext)
     manager.start()
+    # register shutdown at exit
+    atexit.register(manager.shutdown)
     return manager
 
 
 # create global sync manager
-manager = LazyStaticInstance[SyncManager](_sync_manager_factory)
+manager: SyncManager = LazyStaticInstance[SyncManager](_sync_manager_factory)
 """Global multiprocessing manager"""
 
 
@@ -123,6 +127,11 @@ def set_worker_info(rank: Rank, num_workers: int, seed: int, **ctx: Any) -> Work
 
 
 def reset_worker_info() -> None:
+    """Resets the worker information for the current process.
+
+    This function clears any previously set worker information, both in the local context
+    and in the PyTorch multiprocessing worker info (if PyTorch is installed).
+    """
     global _worker_info
     _worker_info = None
 

@@ -1655,8 +1655,12 @@ class BaseDatasetWriter(ABC):
 
         self._logger.info(f"Writing dataset split {ds.split} to {os.getcwd()}.")
 
-        if ds.info is None:
-            warnings.warn("", UserWarning)  # TODO
+        if ds.features is None:
+            warnings.warn(
+                "The dataset features are not defined. Some dataset writers may require features "
+                "to be specified.",
+                UserWarning,
+            )
 
         # create sharding controller
         sharding_controller = ShardingController(

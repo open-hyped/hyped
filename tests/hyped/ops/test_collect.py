@@ -3,7 +3,7 @@ from datasets import Features, Sequence, Value
 from hyped import ops
 from hyped.core.flow import DataFlow
 from hyped.core.graph import DataFlowGraph
-from hyped.processors._ops.collect import CollectFeatures
+from hyped.nodes._ops.collect import CollectFeatures
 
 
 def test_collect():

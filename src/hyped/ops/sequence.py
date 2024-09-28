@@ -16,9 +16,9 @@ Key functionalities include:
 - **Sequence Manipulation** (:func:`chain`, :func:`zip_`): Combine multiple sequences 
   together through concatenation or zipping.
 """
-from typing import Any
+from typing import Any, Iterable
 
-import hyped.processors._ops as ops
+import hyped.nodes._ops as ops
 from hyped.common.feature_checks import (
     STRING_LIKE_TYPES,
     check_feature_equals,
@@ -240,3 +240,69 @@ def zip_(*sequences: FeatureRef) -> FeatureRef:
     seq_container = collect({str(i): seq for i, seq in enumerate(sequences)})
     # zip collected sequences
     return ops.SequenceZip().call(sequences=seq_container).result
+
+
+def chunk(
+    sequences: FeatureRef | Iterable[FeatureRef],
+    chunk_size: int,
+    stride: None | int = None,
+    keep_last: bool = True,
+) -> tuple[FeatureRef, ...]:
+    """Splits one or more sequences into smaller chunks.
+
+    This function takes one or more sequences (assumed to have the same length) and divides
+    them into sub-sequences (chunks) of length :code:`chunk_size`. It can also control whether
+    these chunks overlap by specifying a :code:`stride` value, and it can optionally keep or
+    discard the final chunk if it is smaller than :code:`chunk_size`.
+
+    Args:
+        sequences (FeatureRef | Iterable[FeatureRef]): One or more sequences to be chunked.
+            If a single sequence is provided, it will be wrapped in a list. Each sequence
+            should be of the same length.
+        chunk_size (int): The number of elements in each chunk. This is the size of
+            the sub-sequences that will be created.
+        stride (None | int, optional): The step size between the start of consecutive chunks.
+            If :code:`None`, it defaults to :code:`chunk_size` (non-overlapping chunks). A smaller
+            stride value creates overlapping chunks. Defaults to `None`.
+        keep_last (bool, optional): Determines whether to keep the last chunk if it contains
+            fewer elements than :code:`chunk_size`. If :code:`True`, the last chunk is included
+            even if it is smaller than :code:`chunk_size`. If :code:`False`, the incomplete final
+            chunk is discarded. Defaults to :code:`True`.
+
+    Returns:
+        tuple[FeatureRef, ...]: A tuple of chunked sequences, where each sequence is split
+            in parallel with others into chunks based on the `chunk_size` and `stride` values.
+
+    Example:
+        .. code-block:: python
+
+            seq1: FeatureRef  # [1, 2, 3, 4, 5, 6]
+            seq2: FeatureRef  # [10, 20, 30, 40, 50, 60]
+            chunks1, chunks2 = chunk([seq1, seq2], chunk_size=2)
+
+        The resulting chunks will be:
+
+        - chunks1: :code:`(1, 2), (3, 4), (5, 6)`
+        - chunks2: :code:`(10, 20), (30, 40), (50, 60)`
+
+        With :code:`stride=1`, the chunks overlap:
+
+        .. code-block:: python
+
+            chunks1: :code:`(1, 2), (2, 3), (3, 4), (4, 5), (5, 6)`
+            chunks2: :code:`(10, 20), (20, 30), (30, 40), (40, 50), (50, 60)`
+    """
+
+    if isinstance(sequences, FeatureRef):
+        sequences = [sequences]
+
+    # create sequence chunker object
+    chunker = ops.SequenceChunk(
+        chunk_size=chunk_size, stride=stride or chunk_size, keep_last=keep_last
+    )
+    # collect all sequences into a single feature and apply chunker
+    sequences = collect({str(i): s for i, s in enumerate(sequences)})
+    chunks = chunker.call(sequences)
+
+    # output each chunk
+    return tuple(chunks[k] for k in chunks.feature_.keys())

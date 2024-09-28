@@ -214,3 +214,39 @@ def test_multi_sequence_op(op, proc_type):
         )
         # and the processor is called on the collected features
         proc_mock().call.assert_called_once_with(sequences=collect_mock())
+
+
+def test_chunk_op():
+    flow = DataFlow(
+        Features(
+            {
+                "a": Sequence(Value("string")),
+                "b": Sequence(Value("string")),
+                "c": Sequence(Value("string")),
+            }
+        )
+    )
+
+    with (
+        patch("hyped.ops.sequence.ops.SequenceChunk") as proc_mock,
+        patch("hyped.ops.sequence.collect") as collect_mock,
+    ):
+        # call the operator
+        ops.chunk(
+            [
+                flow.src_features.a,
+                flow.src_features.b,
+                flow.src_features.c,
+            ],
+            chunk_size=3,
+        )
+        # make sure the features are collected before
+        collect_mock.assert_called_once_with(
+            {
+                "0": flow.src_features.a,
+                "1": flow.src_features.b,
+                "2": flow.src_features.c,
+            }
+        )
+        # and the processor is called on the collected features
+        proc_mock().call.assert_called_once_with(collect_mock())

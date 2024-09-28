@@ -135,7 +135,7 @@ Once you have initialized a :class:`DataFlow` instance, you can enhance it by ad
 
 .. code-block:: python
 
-   from hyped.processors import TransformersTokenizer
+   from hyped.nodes import TransformersTokenizer
 
    # Define a tokenizer processor
    tokenizer = TransformersTokenizer(model_name="bert-base-uncased")
@@ -215,28 +215,6 @@ Data parallelism enhances data processing throughput by concurrently processing 
 
 Adjust the :code:`num_proc` parameter to optimize parallelism based on available resources and workload characteristics.
 
-
-Streaming Data for Large Datasets
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-For handling datasets larger than available memory, Hyped provides support for streaming data processing. This allows you to efficiently process datasets in a streaming fashion, reading and processing data in smaller, manageable chunks without loading the entire dataset into memory at once.
-
-.. code-block:: python
-
-   from hyped.io.writers.json import JsonDatasetWriter
-
-   # Load dataset with streaming enabled
-   ds = datasets.load_dataset("imdb", split="train", streaming=True)
-
-   # Apply data pipeline (lazy processing for streamed datasets)
-   ds = flow.apply(ds, collect=tokenized_features)
-
-   # Write processed examples to disk using 4 worker processes
-   JsonDatasetWriter("dump/", num_proc=4).consume(ds)
-
-In this example, the :code:`load_dataset` function is called with the :code:`streaming=True` argument, enabling streaming mode for dataset loading. The apply method is then used to apply the data flow pipeline to the streamed dataset. Since the dataset is streamed, the processing is performed lazily as the data is read, allowing for efficient memory usage.
-
-Finally, the processed examples are written to disk using the :class:`JsonDatasetWriter`, which supports parallel processing with the specified number of worker processes (:code:`num_proc=4`). This enables efficient writing of processed data to disk while leveraging multiple CPU cores for faster execution.
 
 Visualizing Data Flows
 ~~~~~~~~~~~~~~~~~~~~~~

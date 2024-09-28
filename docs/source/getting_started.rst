@@ -36,10 +36,7 @@ Start by importing the necessary modules and classes:
 
     import datasets
     from hyped import DataFlow
-    from hyped.transformers import (
-        TransformersTokenizer,
-        TransformersTokenizerConfig
-    )
+    from hyped.nodes import TransformersTokenizer
 
 Next, load your dataset using the datasets library. In this example, we load the IMDb dataset:
 
@@ -80,7 +77,7 @@ Each data processor in Hyped can be configured with specific parameters to tailo
 
 .. code-block:: python
 
-    config = TransformersTokenizerConfig(
+    config = TransformersTokenizer.Config(
         tokenizer="bert-base-uncased",
         max_length=128,
         padding=True,
@@ -103,7 +100,7 @@ Hyped supports streaming data directly from and to disk, enabling efficient proc
 
 .. code-block:: python
 
-    from hyped.io.writers.json import JsonDatasetWriter
+    from hyped.io.writers import JsonDatasetWriter
 
     # Load dataset with streaming enabled
     ds = datasets.load_dataset("imdb", split="train", streaming=True)
@@ -112,5 +109,5 @@ Hyped supports streaming data directly from and to disk, enabling efficient proc
     ds, _ = flow.apply(ds)
 
     # Write processed examples to disk using 4 worker processes
-    JsonDatasetWriter("dump/", num_proc=4).consume(ds)
+    JsonDatasetWriter("dump/", num_proc=4).write(ds)
 
