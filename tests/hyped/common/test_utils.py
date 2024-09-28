@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from hyped.common.utils import (
+    EMA,
     TimeWeightedEMA,
     chdir,
     deep_equal,
@@ -145,6 +146,21 @@ def _test_chdir_exception():
 
         # After exiting the context, should be back to temp_dir1
         assert os.getcwd().endswith(os.path.abspath(orig_dir))
+
+
+def test_calculate_ema():
+    measurements = [100, 150, 200, 250]  # Measurements taken over time
+
+    ema = EMA(smoothing=0.3)
+
+    for value in measurements:
+        ema(value)
+
+    # Validate the result against expected values
+    assert ema.value is not None
+    assert isinstance(ema.value, float)
+    # Verify the calculated EMA against an expected value
+    assert math.isclose(ema.value, 228.12212133175416, rel_tol=1e-5)
 
 
 def test_calculate_time_weighted_ema():

@@ -102,9 +102,9 @@ class ProgressMonitor(object):
         self._shard = [None] * num_workers
 
         # capture smooth throughput
-        self._last_report = clock()
-        self._smooth_dn = EMA(smoothing=0.3)
-        self._smooth_dt = EMA(smoothing=0.3)
+        self._last_report = {role: clock() for role in WorkerRole}
+        self._smooth_dn = {role: EMA(smoothing=0.3) for role in WorkerRole}
+        self._smooth_dt = {role: EMA(smoothing=0.3) for role in WorkerRole}
 
         # track worker metrics
         self._time_ema = [
@@ -147,6 +147,15 @@ class ProgressMonitor(object):
             bool: True if the process is stopping, False otherwise.
         """
         return self._stopping.is_set()
+
+    @property
+    def is_done(self) -> bool:
+        """Checks if the process is done.
+
+        Returns:
+            bool: True if the process is done, False otherwise.
+        """
+        return self._done.is_set()
 
     @property
     def any_pending_shards(self) -> bool:
@@ -252,7 +261,13 @@ class ProgressMonitor(object):
             float: The calculated throughput, representing the number of processed
             samples per unit of time.
         """
-        return self._smooth_dn.value / max(self._smooth_dt.value, 1e-5)
+        return (
+            self._smooth_dn[WorkerRole.STANDALONE].value
+            / max(self._smooth_dt[WorkerRole.STANDALONE].value, 1e-5)
+        ) + (
+            self._smooth_dn[WorkerRole.CONSUMER].value
+            / max(self._smooth_dt[WorkerRole.CONSUMER].value, 1e-5)
+        )
 
     def get_worker_shard(self, rank: Rank) -> None | int:
         """Retrieves the shard currently assigned to the worker.
@@ -349,18 +364,30 @@ class ProgressMonitor(object):
                 qsize = self._queue.qsize() * self._item_size
                 self._ema_queue_size.update(clock(), qsize)
 
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError):  # pragme: not covered
             # queue connection closed
             return
 
     def _report_progress(self, rank: Rank, report: ProgressReport) -> None:
         """Capture the progress report of a worker.
 
+        This method updates the time-weighted averages of worker progress,
+        the number of samples processed, and the time elapsed between reports.
+
         Args:
             rank (Rank): The rank of the worker reporting progress.
-            report (dict): A dictionary containing the worker's report data, including
+            report (ProgressReport): A dictionary containing the worker's report data, including
                 timestamps, average processing times, and the number of samples processed.
+
+        Raises:
+            AssertionError: If the worker's role is None, indicating the worker is not assigned
+                a valid role during progress reporting.
         """
+        role = self.get_worker_role(rank)
+        assert (
+            role is not None
+        ), f"Worker {rank} does not have an assigned role during progress reporting."
+
         ts = report["timestamp"]
         # update average time spend in each stage
         time_report = report["average_elapsed_time"]
@@ -370,9 +397,9 @@ class ProgressMonitor(object):
         role = self._roles[rank]
         self._num_samples[rank][role] += report["num_samples"]
         # update smooth deltas
-        self._smooth_dn.update(report["num_samples"])
-        self._smooth_dt.update(ts - self._last_report)
-        self._last_report = ts
+        self._smooth_dn[role].update(report["num_samples"])
+        self._smooth_dt[role].update(ts - self._last_report[role])
+        self._last_report[role] = ts
 
     def _mark_as_stopping(self) -> None:
         """Marks the process as stopping."""
