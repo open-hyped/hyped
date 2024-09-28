@@ -5,8 +5,16 @@ multiprocessing system. It includes utilities for managing worker processes, tra
 and implementing custom dataset writers.
 """
 
-__all__ = ["ShardingStrategy", "DatasetConsumer", "BaseDatasetWriter"]
+__all__ = [
+    "ShardingStrategy",
+    "DatasetConsumer",
+    "BaseDatasetWriter",
+    "Callback",
+    "TqdmReporterCallback",
+]
 
+from .callbacks.base import Callback
+from .callbacks.tqdm_reporter import TqdmReporterCallback
 from .consumer import DatasetConsumer
 from .sharding import ShardingStrategy
 from .writer import BaseDatasetWriter
