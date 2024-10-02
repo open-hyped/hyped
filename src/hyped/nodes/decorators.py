@@ -72,14 +72,14 @@ def as_processor(func: Callable[P, T]) -> Callable[P, FeatureRef]:
     output_annotation = Annotated[FeatureRef, OutputFeature(output_feature)]
 
     # create the configuration, input refs and output refs type
-    config_t = type(f"function_processor_config_t_{func.__name__}", (BaseDataProcessorConfig,), {})
+    config_t = type(f"{func.__name__}_function_processor_config", (BaseDataProcessorConfig,), {})
     inputs_t = type(
-        f"function_processor_input_refs_{func.__name__}",
+        f"{func.__name__}_processor_input_refs",
         (InputRefs,),
         {"__annotations__": input_dict},
     )
     output_t = pydantic.create_model(
-        f"function_processor_output_refs_{func.__name__}",
+        f"{func.__name__}_processor_output_refs",
         __base__=OutputRefs,
         output=(output_annotation, None),
     )
@@ -87,6 +87,8 @@ def as_processor(func: Callable[P, T]) -> Callable[P, FeatureRef]:
     if inspect.iscoroutinefunction(func):
 
         class AsyncFunctionProcessor(BaseDataProcessor[config_t, inputs_t, output_t]):
+            __name__ = f"{func.__name__}_processor"
+
             async def process(self, inputs, index, rank, io):
                 return {"output": await func(**inputs)}
 
@@ -95,6 +97,8 @@ def as_processor(func: Callable[P, T]) -> Callable[P, FeatureRef]:
     else:
 
         class FunctionProcessor(BaseDataProcessor[config_t, inputs_t, output_t]):
+            __name__ = f"{func.__name__}_processor"
+
             def process(self, inputs, index, rank, io):
                 return {"output": func(**inputs)}
 
