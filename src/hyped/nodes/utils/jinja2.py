@@ -3,7 +3,7 @@ from functools import partial
 from typing import Annotated
 
 from datasets import Features, Value
-from jinja2 import Environment, Template
+from jinja2 import Environment
 from typing_extensions import Unpack
 
 from hyped.common.lazy_instance import LazyInstance
@@ -26,7 +26,7 @@ class Jinja2InputRefs(InputRefs):
         featA = "The feature of B is {{ inputs['Name with whitespace'] }}."
     """
 
-    features: Annotated[FeatureRef, CheckFeatureEquals(Features)]
+    inputs: Annotated[FeatureRef, CheckFeatureEquals(Features)]
     """The features that are accessable in the template. Access multiple
     features by collecting them. E.g.
 
@@ -34,6 +34,8 @@ class Jinja2InputRefs(InputRefs):
     
         features = collect(...)
     """
+
+    template: Annotated[FeatureRef, CheckFeatureEquals(Value("string"))]
 
 
 class Jinja2OutputRefs(OutputRefs):
@@ -45,17 +47,6 @@ class Jinja2OutputRefs(OutputRefs):
 
 class Jinja2Config(BaseDataProcessorConfig):
     """Configuration for the Jinja2 processor."""
-
-    template: str
-    """The Jinja2 template to parse."""
-
-
-def _setup_jinja_env(template_str: str) -> Template:
-    """Helper function setting up the jinja environment."""
-    # set up the jinja environment
-    env = Environment(enable_async=True)
-    # create template
-    return env.from_string(template_str)
 
 
 class Jinja2(
@@ -76,7 +67,7 @@ class Jinja2(
                 or create a new configuration if none is provided.
         """
         super(Jinja2, self).__init__(config, **kwargs)
-        self.template = LazyInstance(partial(_setup_jinja_env, self.config.template))
+        self.env = LazyInstance(partial(Environment, enable_async=True))
 
     async def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
         """Process example.
@@ -93,7 +84,8 @@ class Jinja2(
         Returns:
             Sample: Output sample containing the rendered template string.
         """
-        return Sample(rendered=await self.template.render_async(inputs=inputs["features"]))
+        template = self.env.from_string(source=inputs["template"])
+        return Sample(rendered=await template.render_async(inputs=inputs["inputs"]))
 
     def call(self, **kwargs: Unpack[Jinja2InputRefs]) -> Jinja2OutputRefs:
         """Execute the Jinja2 processor.
