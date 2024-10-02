@@ -36,6 +36,7 @@ class Jinja2InputRefs(InputRefs):
     """
 
     template: Annotated[FeatureRef, CheckFeatureEquals(Value("string"))]
+    """The Jinja2 template to parse."""
 
 
 class Jinja2OutputRefs(OutputRefs):

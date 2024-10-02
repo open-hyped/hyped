@@ -8,22 +8,28 @@ class TestJinja2(BaseDataProcessorTest):
     # processor type
     processor_type = Jinja2
     # processor config
-    processor_config = Jinja2Config(template="""A is {{ inputs.A }}, B is {{ inputs.B }}""")
+    processor_config = Jinja2Config()
     # input
     input_features = Features(
         {
-            "features": {
+            "inputs": {
                 "A": Value("int64"),
                 "B": Value("string"),
-            }
+            },
+            "template": Value("string"),
         }
     )
     input_data = {
-        "features": [
+        "inputs": [
             {"A": 0, "B": "a"},
             {"A": 1, "B": "b"},
             {"A": 2, "B": "c"},
-        ]
+        ],
+        "template": [
+            "A is {{ inputs.A }}, B is {{ inputs.B }}",
+            "A is {{ inputs.A }}, B is {{ inputs.B }}",
+            "A is {{ inputs.A }}, B is {{ inputs.B }}",
+        ],
     }
     input_index = [0, 1, 2]
     # expected output

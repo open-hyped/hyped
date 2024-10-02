@@ -10,6 +10,7 @@ from random import choice
 from datasets import Sequence, Value  # noqa: F401
 from typing_extensions import Annotated, Unpack
 
+from hyped.common.feature_checks import get_sequence_feature  # noqa: F401
 from hyped.common.typing import Batch, IndexList, Rank
 from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, IOContext
 from hyped.core.refs.inputs import CheckFeatureIsSequence, InputRefs
