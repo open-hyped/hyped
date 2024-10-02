@@ -306,3 +306,22 @@ def chunk(
 
     # output each chunk
     return tuple(chunks[k] for k in chunks.feature_.keys())
+
+
+def choice(sequence: FeatureRef) -> FeatureRef:
+    """Apply random choice on a sequence feature.
+
+    Args:
+        sequence (FeatureRef): The input sequence feature from which to randomly choose an item.
+
+    Returns:
+        FeatureRef: A FeatureRef instance representing the randomly chosen item.
+
+    Raises:
+        TypeError: If the input is of an unexpected type.
+    """
+    # Ensure the input is valid
+    (sequence,) = _check_args(sequence)
+
+    # Apply the random choice processor
+    return ops.SequenceChoice().call(sequence=sequence).result
