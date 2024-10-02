@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, call
 import datasets
 
 from hyped.core.flow import DataFlow
-from hyped.nodes.decorators import as_augmenter, as_processor
+from hyped.nodes.decorators import as_aggregator, as_augmenter, as_processor
 
 
 def test_as_processor():
@@ -91,3 +91,47 @@ def test_async_as_augmenter():
     # check mock object has been called for each sample and output matches expectation
     mock.assert_has_calls(calls=[call(i) for i in range(10)], any_order=True)
     assert len(out_ds) == 2 * len(ds)
+
+
+def test_as_aggregator():
+    # create a mock object to track the function calls
+    mock = MagicMock()
+
+    @as_aggregator
+    def mock_func(value: None | int, ctx: None, x: int) -> tuple[int, None]:
+        mock(x)
+        value = value or 0
+        return x + value, None
+
+    # create a dummy dataset
+    features = datasets.Features({"x": datasets.Value("int32")})
+    ds = datasets.Dataset.from_dict({"x": range(10)}, features=features)
+    # create flow and apply to dummy dataset
+    flow = DataFlow(ds.features)
+    out = mock_func(x=flow.src_features.x)
+    _, agg = flow.apply(ds, collect=flow.src_features, aggregate={"out": out})
+    # check mock object has been called for each sample and output matches expectation
+    mock.assert_has_calls(calls=[call(i) for i in range(10)], any_order=True)
+    assert agg["out"] == sum(range(10))
+
+
+def test_async_as_aggregator():
+    # create a mock object to track the function calls
+    mock = MagicMock()
+
+    @as_aggregator
+    async def mock_func(value: None | int, ctx: None, x: int) -> tuple[int, None]:
+        mock(x)
+        value = value or 0
+        return x + value, None
+
+    # create a dummy dataset
+    features = datasets.Features({"x": datasets.Value("int32")})
+    ds = datasets.Dataset.from_dict({"x": range(10)}, features=features)
+    # create flow and apply to dummy dataset
+    flow = DataFlow(ds.features)
+    out = mock_func(x=flow.src_features.x)
+    _, agg = flow.apply(ds, collect=flow.src_features, aggregate={"out": out})
+    # check mock object has been called for each sample and output matches expectation
+    mock.assert_has_calls(calls=[call(i) for i in range(10)], any_order=True)
+    assert agg["out"] == sum(range(10))

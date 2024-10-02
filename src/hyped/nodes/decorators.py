@@ -1,9 +1,12 @@
 import inspect
-from typing import Annotated, Callable, Iterable, ParamSpec, TypeVar
+from types import UnionType
+from typing import Annotated, Callable, ParamSpec, TypeVar, Union, get_args, get_origin
 
 import pydantic
 
 from hyped.common._features import type_hint_to_feature
+from hyped.common.utils import dict_of_lists_to_list_of_dicts
+from hyped.core.nodes.aggregator import BaseDataAggregator, BaseDataAggregatorConfig
 from hyped.core.nodes.augmenter import BaseDataAugmenter, BaseDataAugmenterConfig
 from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig
 from hyped.core.refs.inputs import CheckFeatureEquals, InputRefs
@@ -181,23 +184,6 @@ def as_augmenter(func: Callable[P, T]) -> Callable[P, FeatureRef]:
     config_t = type(f"{func.__name__}_config", (BaseDataAugmenterConfig,), {})
 
     try:
-        if (not inspect.isgeneratorfunction(func)) and (not inspect.isasyncgenfunction(func)):
-            raise ValueError(f"The function '{func.__qualname__}' must be a generator function.")
-
-        if not isinstance(signature.return_annotation, Iterable):
-            raise ValueError(
-                f"The return type of the function '{func.__qualname__}' must be an "
-                f"iterable type, but got '{signature.return_annotation}'."
-            )
-
-        if not (
-            hasattr(signature.return_annotation, "__args__")
-            and (len(signature.return_annotation.__args__) > 0)
-        ):
-            raise ValueError(
-                f"Cannot determine the item type of the iterable '{signature.return_annotation}'."
-            )
-
         # create the config, input refs input output refs types
         inputs_t, output_t = _create_in_out_types(
             func.__name__, signature.parameters, signature.return_annotation.__args__[0]
@@ -225,3 +211,186 @@ def as_augmenter(func: Callable[P, T]) -> Callable[P, FeatureRef]:
                 yield from ({"output": val} for val in func(**inputs))
 
         return lambda *args, **kwargs: FunctionAugmenter().call(*args, **kwargs).output
+
+
+P = ParamSpec("P")
+T = TypeVar("T")
+
+
+def as_aggregator(func: Callable[P, T]) -> Callable[P, FeatureRef]:
+    """Wraps a user-defined function to create a data aggregator.
+
+    This decorator transforms a given function into a data aggregator by generating
+    appropriate configuration and input/output reference types. The wrapped function
+    must follow specific signature constraints: it must accept :code:`value` and
+    :code:`ctx` as arguments, and its return type must be a tuple containing exactly
+    two items, representing the aggregated value and aggregation context.
+
+    The decorator performs the following steps:
+    1. Ensures the function includes :code:`value` and :code:`ctx` parameters.
+    2. Validates that the return type is a tuple with exactly two elements: the value
+       and the context.
+    3. Ensures that the :code:`value` parameter is an optional type that matches the first
+       element of the return tuple.
+    4. Ensures that the :code:`ctx` parameter matches the second element of the return tuple.
+    5. Constructs input reference types based on the function's remaining parameters.
+    6. Constructs output reference types based on the return type.
+
+    Args:
+        func (Callable[P, T]): The function to be wrapped. This function should define
+            its input parameters (including :code:`value` and :code:`ctx`) and return type
+            with appropriate type hints.
+
+    Returns:
+        Callable[P, FeatureRef]: A callable that, when invoked, creates an instance of
+        the generated aggregator class and executes the wrapped function with the
+        provided inputs, returning the aggregated value and updated context.
+
+    Raises:
+        ValueError: If the function does not include :code:`value` or :code:`ctx` as parameters.
+        ValueError: If the function's return type is not a tuple with exactly two elements.
+        ValueError: If the :code:`value` parameter type does not match the first element of the
+            return tuple.
+        ValueError: If the :code:`ctx` parameter type does not match the second element of the
+            return tuple.
+
+    Example:
+        Here is an example of using :func:`as_aggregator` to compute the average value of an
+        integer.
+
+        .. code-block:: python
+
+            from typing import Optional
+
+            @as_aggregator
+            def f(value: Optional[float], ctx: Optional[int], x: int) -> tuple[float, int]:
+                \"\"\"
+                Aggregates the average of a sequence of integers.
+
+                Args:
+                    value (Optional[float]): The current aggregated value (or None if starting).
+                    ctx (Optional[int]): The current count of aggregated values.
+                    x (int): The next integer to include in the aggregation.
+
+                Returns:
+                    tuple[float, int]: The updated average and the new count.
+                \"\"\"
+
+                if value is None:
+                    # initialize the value and aggregation context
+                    value = 0
+                    ctx = 0
+
+                # compute the running average and increment the count
+                return (ctx * value + x) / (ctx + 1), ctx + 1
+
+            # Now, calling f would use the aggregator logic.
+    """
+
+    signature = inspect.signature(func)
+    # create config type
+    config_t = type(f"{func.__name__}_config", (BaseDataAggregatorConfig,), {})
+
+    try:
+        # must contain value and state
+        if ("value" not in signature.parameters) or ("ctx" not in signature.parameters):
+            raise ValueError("The function must include 'value' and 'ctx' parameters.")
+
+        # Get the origin and args of the return annotation
+        origin = get_origin(signature.return_annotation)
+        args = get_args(signature.return_annotation)
+        # Check if the return annotation is a tuple and has exactly two items
+        if origin is not tuple or len(args) != 2:
+            raise ValueError(
+                "The return type of the function must be a tuple containing exactly two "
+                "items, namely the value and the context."
+            )
+
+        # get the annotation of the value
+        value_return_annotation, ctx_return_annotation = args
+
+        # make sure the input value annotation matches the value return annotation
+        value_origin = get_origin(signature.parameters["value"].annotation)
+        value_args = get_args(signature.parameters["value"].annotation)
+
+        if not (
+            (value_origin in (Union, UnionType))
+            and (value_return_annotation in value_args)
+            and (type(None) in value_args)
+        ):
+            raise ValueError(
+                "The 'value' parameter must be of the same type as the first element of "
+                "the return type and must be an optional type (i.e., Union[Type, None])."
+            )
+
+        if signature.parameters["ctx"].annotation is not None:
+            # make sure the input value annotation matches the value return annotation
+            ctx_origin = get_origin(signature.parameters["ctx"].annotation)
+            ctx_args = get_args(signature.parameters["ctx"].annotation)
+
+            if not (
+                (ctx_origin in (Union, UnionType))
+                and (ctx_return_annotation in ctx_args)
+                and (type(None) in ctx_args)
+            ):
+                raise ValueError(
+                    "The 'ctx' parameter must be of the same type as the second element of "
+                    "the return type and must be an optional type (i.e., Union[Type, None])."
+                )
+
+        elif ctx_return_annotation is not None:
+            # make sure the input state annotation matches the state return annotation
+            raise ValueError(
+                "The 'ctx' parameter type hint must match the second element of the return type."
+            )
+
+        # get remaining params
+        params = signature.parameters.copy()
+        params.pop("value")
+        params.pop("ctx")
+
+        # create the config, input refs input output refs types
+        inputs_t, output_t = _create_in_out_types(
+            func.__name__, params, signature.return_annotation.__args__[0]
+        )
+
+    except ValueError as e:
+        raise ValueError(f"Error parsing function '{func.__qualname__}'.") from e
+
+    if inspect.iscoroutinefunction(func):
+
+        class AsyncFunctionAggregator(BaseDataAggregator[config_t, inputs_t, output_t]):
+            __name__ = f"{func.__name__}_aggregator"
+
+            def initialize(self, io):
+                return {"output": None}, None
+
+            async def extract(self, inputs, index, rank, io):
+                return inputs
+
+            async def update(self, val, state, ctx, io):
+                val = val["output"]
+                for item in dict_of_lists_to_list_of_dicts(state):
+                    val, ctx = await func(value=val, ctx=ctx, **item)
+                return {"output": val}, ctx
+
+        return lambda *args, **kwargs: AsyncFunctionAggregator().call(*args, **kwargs).output
+
+    else:
+
+        class FunctionAggregator(BaseDataAggregator[config_t, inputs_t, output_t]):
+            __name__ = f"{func.__name__}_aggregator"
+
+            def initialize(self, io):
+                return {"output": None}, None
+
+            async def extract(self, inputs, index, rank, io):
+                return inputs
+
+            async def update(self, val, state, ctx, io):
+                val = val["output"]
+                for item in dict_of_lists_to_list_of_dicts(state):
+                    val, ctx = func(value=val, ctx=ctx, **item)
+                return {"output": val}, ctx
+
+        return lambda *args, **kwargs: FunctionAggregator().call(*args, **kwargs).output  #
