@@ -6,7 +6,7 @@ import pyarrow as pa
 from datasets import Features, Sequence, Value
 from datasets.features.features import FeatureType
 
-from ._arrow import convert_features_to_arrow_schema
+from ._features import convert_features_to_arrow_schema
 
 INT_TYPES = [
     Value("int8"),

@@ -23,7 +23,7 @@ import pyarrow as pa
 from datasets.features.features import FeatureType
 from matplotlib import colormaps
 
-from hyped.common._arrow import convert_features_to_arrow_schema
+from hyped.common._features import convert_features_to_arrow_schema
 from hyped.common._worker import get_worker_info
 from hyped.common.feature_checks import check_feature_equals
 from hyped.common.feature_key import FeatureKey

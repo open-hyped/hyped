@@ -7,7 +7,7 @@ with each worker writing a separate shard.
 import pyarrow as pa
 from datasets import DatasetInfo
 
-from hyped.common._arrow import convert_features_to_arrow_schema
+from hyped.common._features import convert_features_to_arrow_schema
 from hyped.common._worker import get_worker_info
 from hyped.common.typing import Sample
 
