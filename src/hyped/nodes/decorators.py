@@ -1,3 +1,12 @@
+"""This module provides decorators for transforming user-defined functions into nodes.
+
+It validates function signatures, generates appropriate input/output reference types, and
+dynamically creates specialized subclasses for processing data in workflows. The decorators
+handle synchronous and asynchronous functions, support type annotations for parameters and
+return values, and ensure compatibility with specific pipeline stages by enforcing required
+function signature constraints.
+"""
+
 import inspect
 from types import UnionType
 from typing import Annotated, Callable, ParamSpec, TypeVar, Union, get_args, get_origin
