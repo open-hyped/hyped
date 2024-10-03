@@ -9,7 +9,7 @@ function signature constraints.
 
 import inspect
 from types import UnionType
-from typing import Annotated, Callable, ParamSpec, TypeVar, Union, get_args, get_origin
+from typing import Annotated, Callable, Iterable, ParamSpec, TypeVar, Union, get_args, get_origin
 
 import pydantic
 
@@ -126,7 +126,7 @@ def as_processor(func: Callable[P, T]) -> Callable[P, FeatureRef]:
         inputs_t, output_t = _create_in_out_types(
             func.__name__, signature.parameters, signature.return_annotation
         )
-    except ValueError as e:
+    except ValueError as e:  # pragma: not covered
         raise ValueError(f"Error parsing function '{func.__qualname__}'.") from e
 
     if inspect.iscoroutinefunction(func):
@@ -193,6 +193,18 @@ def as_augmenter(func: Callable[P, T]) -> Callable[P, FeatureRef]:
     config_t = type(f"{func.__name__}_config", (BaseDataAugmenterConfig,), {})
 
     try:
+        if (not inspect.isgeneratorfunction(func)) and (not inspect.isasyncgenfunction(func)):
+            raise ValueError(f"The function '{func.__qualname__}' must be a generator function.")
+
+        if not isinstance(signature.return_annotation, Iterable):
+            raise ValueError(
+                f"The return type of the function '{func.__qualname__}' must be an "
+                f"iterable type, but got '{signature.return_annotation}'."
+            )
+
+        assert hasattr(signature.return_annotation, "__args__")
+        assert len(signature.return_annotation.__args__) > 0
+
         # create the config, input refs input output refs types
         inputs_t, output_t = _create_in_out_types(
             func.__name__, signature.parameters, signature.return_annotation.__args__[0]
