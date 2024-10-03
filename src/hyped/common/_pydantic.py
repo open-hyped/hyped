@@ -121,9 +121,9 @@ def pydantic_model_from_features(
 class validate_type_meta(ModelMetaclass):
     """Metaclass that calls the classes type_validator before creating the class."""
 
-    def __new__(cls, name, bases, attrs) -> type:
+    def __new__(cls, name, bases, attrs, **kwargs) -> type:
         """Validates the class and creates it."""
-        T = super().__new__(cls, name, bases, attrs)
+        T = super().__new__(cls, name, bases, attrs, **kwargs)
         T.type_validator()
         return T
 

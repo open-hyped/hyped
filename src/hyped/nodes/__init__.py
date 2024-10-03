@@ -36,10 +36,14 @@ __all__ = [
     "ToClassLabelConfig",
     "FileLoader",
     "FileLoaderConfig",
+    "as_processor",
+    "as_augmenter",
+    "as_aggregator",
 ]
 
 if TYPE_CHECKING:
     from .api.openai_chat import OpenAIChatCompletion, OpenAIChatCompletionConfig
+    from .decorators import as_aggregator, as_augmenter, as_processor
     from .metrics.confusion import MultiLabelConfusionMatrix, MultiLabelConfusionMatrixConfig
     from .metrics.prfs import PrecisionRecallFScoreSupport, PrecisionRecallFScoreSupportConfig
     from .parsers.cas import CasParser, CasParserConfig
@@ -90,6 +94,10 @@ else:
         "ToClassLabelConfig": "hyped.nodes.utils.to_class_label",
         "FileLoader": "hyped.nodes.utils.file_loader",
         "FileLoaderConfig": "hyped.nodes.utils.file_loader",
+        # decorators
+        "as_processor": "hyped.nodes.decorators",
+        "as_augmenter": "hyped.nodes.decorators",
+        "as_aggregator": "hyped.nodes.decorators",
     }
 
     sys.modules[__name__] = LazyModule(
