@@ -69,6 +69,16 @@ class IOContext:
 class BaseNodeConfig(BaseConfig):
     """Base configuration class for nodes in a data flow graph."""
 
+    is_deterministic: bool = True
+    """Mark the processor as determinstic.
+
+    When enabled, the node is assumed to be determinstic (i.e., always produces the same output for
+    the same inputs). This allows the optimizer to pre-compute the output value at graph
+    construction time if inputs are constants.
+    
+    Defaults to :code:`True`.
+    """
+
 
 C = TypeVar("C", bound=BaseNodeConfig)
 I = TypeVar("I", bound=None | InputRefs)

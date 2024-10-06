@@ -5,6 +5,7 @@ import pytest
 from datasets import Features, Value
 
 from hyped.core.graph import DataFlowGraph, _build_dependency_graph, _compute_node_depth
+from hyped.core.nodes.base import BaseNodeConfig
 from hyped.core.nodes.const import Const
 from hyped.core.refs.ref import FeatureRef
 
@@ -775,35 +776,45 @@ class TestDataFlowGraph:
 
         # source nodes should always be part of the default partition
         assert (
-            graph.infer_node_partition(DataFlowGraph.NodeType.SOURCE, [])
+            graph.infer_node_partition(DataFlowGraph.NodeType.SOURCE, None, [])
             == DataFlowGraph.PredefinedPartition.DEFAULT.value
         )
 
         # constant nodes should always be part of the constant partition
         assert (
-            graph.infer_node_partition(DataFlowGraph.NodeType.CONST, [])
+            graph.infer_node_partition(DataFlowGraph.NodeType.CONST, None, [])
             == DataFlowGraph.PredefinedPartition.CONST.value
         )
 
         # cannot infer node partition without valid inputs
         with pytest.raises(AssertionError):
-            graph.infer_node_partition(DataFlowGraph.NodeType.DATA_PROCESSOR, [])
+            graph.infer_node_partition(DataFlowGraph.NodeType.DATA_PROCESSOR, None, [])
 
     @pytest.mark.parametrize(
-        "input_partitions,expected_partition",
+        "input_partitions,config,expected_partition",
         [
             (
                 [
                     DataFlowGraph.PredefinedPartition.CONST.value,
                     DataFlowGraph.PredefinedPartition.CONST.value,
                 ],
+                BaseNodeConfig(),
                 DataFlowGraph.PredefinedPartition.CONST.value,
             ),
             (
                 [
+                    DataFlowGraph.PredefinedPartition.CONST.value,
+                    DataFlowGraph.PredefinedPartition.CONST.value,
+                ],
+                BaseNodeConfig(is_deterministic=False),
+                DataFlowGraph.PredefinedPartition.DEFAULT.value,
+            ),
+            (
+                [
                     DataFlowGraph.PredefinedPartition.AGGREGATED.value,
                     DataFlowGraph.PredefinedPartition.AGGREGATED.value,
                 ],
+                BaseNodeConfig(),
                 DataFlowGraph.PredefinedPartition.AGGREGATED.value,
             ),
             (
@@ -811,6 +822,7 @@ class TestDataFlowGraph:
                     DataFlowGraph.PredefinedPartition.CONST.value,
                     DataFlowGraph.PredefinedPartition.AGGREGATED.value,
                 ],
+                BaseNodeConfig(),
                 DataFlowGraph.PredefinedPartition.AGGREGATED.value,
             ),
             (
@@ -818,6 +830,7 @@ class TestDataFlowGraph:
                     DataFlowGraph.PredefinedPartition.DEFAULT.value,
                     DataFlowGraph.PredefinedPartition.DEFAULT.value,
                 ],
+                BaseNodeConfig(),
                 DataFlowGraph.PredefinedPartition.DEFAULT.value,
             ),
             (
@@ -825,11 +838,12 @@ class TestDataFlowGraph:
                     DataFlowGraph.PredefinedPartition.CONST.value,
                     DataFlowGraph.PredefinedPartition.DEFAULT.value,
                 ],
+                BaseNodeConfig(),
                 DataFlowGraph.PredefinedPartition.DEFAULT.value,
             ),
         ],
     )
-    def test_infer_node_partition_simple(self, input_partitions, expected_partition):
+    def test_infer_node_partition_simple(self, input_partitions, config, expected_partition):
         mock_input_refs = [MagicMock() for _ in range(len(input_partitions))]
         mock_input_refs_partitions = {
             mock.node_id_: part for mock, part in zip(mock_input_refs, input_partitions)
@@ -843,7 +857,7 @@ class TestDataFlowGraph:
             mock_node_output_partition,
         ):
             partition = DataFlowGraph().infer_node_partition(
-                DataFlowGraph.NodeType.DATA_PROCESSOR, mock_input_refs
+                DataFlowGraph.NodeType.DATA_PROCESSOR, config, mock_input_refs
             )
             assert partition == expected_partition
             mock_node_output_partition.assert_has_calls(
@@ -876,7 +890,7 @@ class TestDataFlowGraph:
         ):
             # infer the partition from the inputs
             partition = graph.infer_node_partition(
-                DataFlowGraph.NodeType.DATA_PROCESSOR, mock_input_refs
+                DataFlowGraph.NodeType.DATA_PROCESSOR, BaseNodeConfig(), mock_input_refs
             )
             # make sure the selected partition is the input partition
             # that is deepest in the path
@@ -893,4 +907,6 @@ class TestDataFlowGraph:
             mock_input_refs_partitions.get,
         ):
             with pytest.raises(RuntimeError):
-                graph.infer_node_partition(DataFlowGraph.NodeType.DATA_PROCESSOR, mock_input_refs)
+                graph.infer_node_partition(
+                    DataFlowGraph.NodeType.DATA_PROCESSOR, BaseNodeConfig(), mock_input_refs
+                )
