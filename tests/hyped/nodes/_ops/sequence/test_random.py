@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from datasets import Features, Sequence, Value
@@ -9,7 +9,9 @@ from tests.hyped.nodes.base import BaseDataProcessorTest
 
 @pytest.fixture(autouse=True)
 def patch_random_choice():
-    with patch("hyped.nodes._ops.sequence.random.choice", lambda x: x[0]):
+    mock_rng = MagicMock()
+    mock_rng.choice = MagicMock(side_effect=lambda x, size=None, replace=True, p=None: x[0])
+    with patch("hyped.nodes._ops.sequence.random._rng", mock_rng):
         yield
 
 

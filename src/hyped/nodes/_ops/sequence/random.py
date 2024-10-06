@@ -5,8 +5,7 @@ including retrieving random items from a sequence.
 """
 from __future__ import annotations
 
-from random import choice
-
+import numpy as np
 from datasets import Sequence, Value  # noqa: F401
 from typing_extensions import Annotated, Unpack
 
@@ -16,6 +15,8 @@ from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfi
 from hyped.core.refs.inputs import CheckFeatureIsSequence, InputRefs
 from hyped.core.refs.outputs import LambdaOutputFeature, OutputRefs
 from hyped.core.refs.ref import FeatureRef
+
+_rng = np.random.Generator(np.random.PCG64())
 
 
 class SequenceChoiceInputRefs(InputRefs):
@@ -37,6 +38,9 @@ class SequenceChoiceOutputRefs(OutputRefs):
 
 class SequenceChoiceConfig(BaseDataProcessorConfig):
     """Configuration class for the Random Choice operation."""
+
+    # random processors are not deterministic
+    is_deterministic: bool = False
 
 
 class SequenceChoice(
@@ -65,7 +69,8 @@ class SequenceChoice(
         Returns:
             Batch: The batch containing the randomly chosen item.
         """
-        return {"result": [choice(seq) for seq in inputs["sequence"]]}
+        global _rng
+        return {"result": [_rng.choice(seq, size=None) for seq in inputs["sequence"]]}
 
     def call(self, **kwargs: Unpack[SequenceChoiceInputRefs]) -> SequenceChoiceOutputRefs:
         """Add the Random Choice node to the data flow.
