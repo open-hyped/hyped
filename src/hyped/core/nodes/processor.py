@@ -31,7 +31,7 @@ Usage Example:
 
         class CustomOutputRefs(OutputRefs):
             y: Annotated[FeatureRef, OutputFeature(Value("string"))]
-        
+
         class CustomConfig(BaseDataProcessorConfig):
             k: int
 
@@ -53,6 +53,9 @@ import inspect
 from abc import ABC
 from typing import TypeVar, overload
 
+import pyarrow as pa
+
+from hyped.common._features import convert_features_to_arrow_schema
 from hyped.common.typing import Batch, Index, IndexList, Rank, Sample
 
 from ..refs.inputs import InputRefs
@@ -102,6 +105,27 @@ class BaseDataProcessor(BaseNode[C, I, O], ABC):
         super(BaseDataProcessor, self).__init__(config, **kwargs)
         # check whether the process function is a coroutine
         self._is_process_async = inspect.iscoroutinefunction(self.process)
+
+    async def arrow_process(
+        self, inputs: pa.Table, index: IndexList, rank: Rank, io: IOContext
+    ) -> pa.Table:
+        """Processes a batch of inputs and returns the corresponding batch of outputs.
+
+        Args:
+            inputs (Batch): The batch of input samples.
+            index (IndexList): The indices associated with the input samples.
+            rank (Rank): The rank of the processor in a distributed setting.
+            io (IOContext): Context information for the data processors execution.
+
+        Returns:
+            Batch: The batch of output samples, must keep the order of the input batch.
+        """
+        output_schema = convert_features_to_arrow_schema(io.outputs)
+
+        input_batch = inputs.to_pydict()
+        output_batch = await self.batch_process(input_batch, index, rank, io)
+
+        return pa.table(output_batch, schema=output_schema)
 
     async def batch_process(
         self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext

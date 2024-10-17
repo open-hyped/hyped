@@ -1,7 +1,7 @@
 """Provides the FeatureKey class.
 
 This module defines the FeatureKey class, which is used to index features and examples
-within a dataset. The FeatureKey class supports indexing with strings, integers, and 
+within a dataset. The FeatureKey class supports indexing with strings, integers, and
 slices, and integrates with pydantic for schema validation.
 """
 
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import pyarrow as pa
 from datasets.features.features import Features, FeatureType, Sequence
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
@@ -19,8 +20,7 @@ from .feature_checks import (
     raise_feature_equals,
     raise_feature_is_sequence,
 )
-from .typing import Batch, FeatureKeyAlias, Sample
-from .utils import dict_of_lists_to_list_of_dicts
+from .typing import FeatureKeyAlias
 
 
 class FeatureKey(FeatureKeyAlias):
@@ -159,44 +159,29 @@ class FeatureKey(FeatureKeyAlias):
 
         return features
 
-    def index_example(self, example: Sample) -> Any:
-        """Index the example with the key and retrieve the value.
-
-        Arguments:
-            example (Sample): The example to index.
-
-        Returns:
-            Any: The value of the example at the given key.
-        """
-        for i, key_entry in enumerate(self):
-            if isinstance(key_entry, slice):
-                assert isinstance(example, list)
-                # recurse on all examples indexed by the slice
-                # create a new subkey for recursion while avoiding
-                # key checks asserting that the key must start with
-                # a string entry
-                key = tuple.__new__(FeatureKey, self[i + 1 :])
-                return list(map(key.index_example, example[key_entry]))
-
-            # index the example
-            example = example[key_entry]
-
-        return example
-
-    def index_batch(self, batch: Batch) -> list[Any]:
+    def index_batch(self, batch: pa.Table) -> pa.Array:
         """Index a batch of examples with the given key and retrieve the batch of values.
 
         Arguments:
-            batch (Batch): Batch of examples to index.
+            batch (Table): Batch of examples to index.
 
         Returns:
-            list[Any]: The batch of values of the examples at the given key.
+            Array: The batch of values of the examples at the given key.
         """
-        return (
-            dict_of_lists_to_list_of_dicts(batch)
-            if (len(self) == 0)
-            else FeatureKey(self[0], slice(None), *self[1:]).index_example(batch)
-        )
+        gathered_batch = batch.to_struct_array()
+        for key_entry in self:
+            if isinstance(key_entry, str):
+                gathered_batch = pa.compute.struct_field(gathered_batch, key_entry)
+
+            elif isinstance(key_entry, int):
+                gathered_batch = pa.compute.list_element(gathered_batch, key_entry)
+
+            elif isinstance(key_entry, slice):
+                start = key_entry.start if key_entry.start is not None else 0
+                step = key_entry.step if key_entry.step is not None else 1
+                gathered_batch = pa.compute.list_slice(gathered_batch, start, key_entry.stop, step)
+
+        return gathered_batch
 
     def __hash__(self) -> int:
         """Compute the hash value of the feature key.

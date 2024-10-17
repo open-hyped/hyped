@@ -23,12 +23,11 @@ import pyarrow as pa
 from datasets.features.features import FeatureType
 from matplotlib import colormaps
 
-from hyped.common._features import convert_features_to_arrow_schema
 from hyped.common._worker import get_worker_info
 from hyped.common.feature_checks import check_feature_equals
 from hyped.common.feature_key import FeatureKey
 from hyped.common.lazy_instance import LazyInstance
-from hyped.common.typing import Aggregate, Batch, IndexList, Rank
+from hyped.common.typing import Aggregate, IndexList, Rank
 
 from .executor import DataFlowExecutor
 from .graph import DataFlowGraph
@@ -433,21 +432,26 @@ class DataFlow(object):
 
         return flow, flow.aggregates
 
-    def batch_process(self, batch: Batch, index: IndexList, rank: None | Rank = None) -> Batch:
+    def batch_process(
+        self, batch: dict[str, list[Any]], index: IndexList, rank: None | Rank = None
+    ) -> pa.Table:
         """Process a batch of data.
 
         Args:
-            batch (Batch): The batch of data to process.
+            batch (dict[str, list[Any]]): The batch of data to process.
             index (IndexList): The index of the batch.
             rank (None | Rank): The rank of the process in a distributed setting.
 
         Returns:
-            Batch: The processed batch of data.
+            Table: The processed batch of data as a PyArrow Table.
 
         Raises:
             AssertionError: If the flow has not been build yet.
         """
         assert self._executor is not None, "Flow has not been build yet."
+
+        if isinstance(batch, datasets.formatting.formatting.LazyBatch):
+            batch = dict(batch)
 
         if rank is None:
             # try to get multiprocessing rank from worker info
@@ -457,37 +461,32 @@ class DataFlow(object):
         # create a new event loop to execute the flow in
         loop = asyncio.new_event_loop()
         # schedule the execution for the current batch
-        future = self._executor.execute(batch, index, rank)
+        record_batch = pa.table(batch, schema=self.src_features.feature_.arrow_schema)
+        future = self._executor.execute(record_batch, index, rank)
         out = loop.run_until_complete(future)
         # close the event loop
         loop.close()
 
         return out
 
-    def _batch_process_to_pyarrow(
+    def _batch_process_to_pydict(
         self,
-        batch: Batch,
+        batch: dict[str, list[Any]],
         index: IndexList,
         rank: None | Rank = None,
-    ) -> pa.Table:
-        """Process a batch of data and convert to a PyArrow table.
+    ) -> dict[str, list[Any]]:
+        """Process a batch of data and convert to a python dictionary.
 
         Args:
-            batch (Batch): The batch of data to process.
+            batch (dict[str, list[Any]]): The batch of data to process.
             index (IndexList): The index of the batch.
             rank (None | Rank): The rank of the process in a
                 multiprocessing setting.
 
         Returns:
-            pa.Table: The processed data as a PyArrow table.
+            dict: The processed data as a python dictionary
         """
-        if isinstance(batch, datasets.formatting.formatting.LazyBatch):
-            batch = dict(batch)
-        # convert to pyarrow table with correct schema
-        return pa.table(
-            data=self.batch_process(batch, index, rank),
-            schema=convert_features_to_arrow_schema(self._executor.collect.feature_),
-        )
+        return self.batch_process(batch, index, rank).to_pydict()
 
     def apply(
         self,
@@ -599,14 +598,14 @@ class DataFlow(object):
             # use pyarrow table as output format for in-memory
             # datasets that support caching since it includes
             # the output feature information
-            return ds.map(self._batch_process_to_pyarrow, **kwargs)
+            return ds.map(self.batch_process, **kwargs)
 
         elif isinstance(ds, (datasets.IterableDataset, datasets.IterableDatasetDict)):
             # iterable dataset class doesn't support pyarrow
             # outputs in map function, but it also doesn't cache
             # and thus doesn't need the features while processing
             return ds.map(
-                self.batch_process,
+                self._batch_process_to_pydict,
                 remove_columns=set(self.src_features.feature_.keys())
                 - set(self._executor.collect.feature_.keys()),
                 **kwargs,
