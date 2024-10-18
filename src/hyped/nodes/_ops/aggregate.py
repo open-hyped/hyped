@@ -8,6 +8,7 @@ useful for tasks where an average of certain features is required.
 
 from typing import Annotated
 
+import pyarrow as pa
 from datasets import Value
 from pydantic import Field
 from typing_extensions import Unpack
@@ -99,7 +100,7 @@ class MeanAggregator(
             tuple[float, int]: The sum of the input feature :code:`x` and the count
             of items in the batch.
         """
-        return sum(inputs["x"]), len(index)
+        return pa.compute.sum(inputs["x"]), len(index)
 
     async def update(
         self, val: float, ctx: tuple[float, int], state: float, io: IOContext
@@ -176,7 +177,7 @@ class SumAggregator(
         Returns:
             float: The sum of the input feature :code:`x` for the current batch.
         """
-        return sum(inputs["x"])
+        return pa.compute.sum(inputs["x"]).as_py()
 
     async def update(
         self, val: float, ctx: float, state: None, io: IOContext

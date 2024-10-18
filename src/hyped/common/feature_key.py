@@ -20,7 +20,7 @@ from .feature_checks import (
     raise_feature_equals,
     raise_feature_is_sequence,
 )
-from .typing import FeatureKeyAlias
+from .typing import Batch, FeatureKeyAlias
 
 
 class FeatureKey(FeatureKeyAlias):
@@ -159,7 +159,7 @@ class FeatureKey(FeatureKeyAlias):
 
         return features
 
-    def index_batch(self, batch: pa.Table) -> pa.Array:
+    def index_batch(self, batch: Batch) -> pa.Array:
         """Index a batch of examples with the given key and retrieve the batch of values.
 
         Arguments:

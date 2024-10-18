@@ -6,11 +6,13 @@ using Pydantic for deserialization and validation.
 import json
 from typing import Annotated
 
+import pyarrow as pa
 from datasets.features.features import Features, FeatureType, Sequence, Value
 from pydantic import BeforeValidator, ConfigDict, PlainSerializer
 from pydantic_core import ValidationError
 from typing_extensions import Unpack
 
+from hyped.common._features import convert_features_to_arrow_schema
 from hyped.common._pydantic import pydantic_model_from_features
 from hyped.common.typing import Batch, Index, IndexList, Rank, Sample
 from hyped.core.refs.inputs import CheckFeatureEquals
@@ -120,14 +122,19 @@ class JsonParser(BaseParser[JsonParserConfig, JsonParserInputRefs, JsonParserOut
             Batch: A batch containing the parsed objects or a list of exceptions for
             individual samples that failed validation.
         """
+        output_schema = convert_features_to_arrow_schema(io.outputs)
 
         try:
             # try to load the batch in one operation
-            batch_json_string = '{"parsed_batch": [%s]}' % ",".join(inputs["payload"])
+            batch_json_string = '{"parsed_batch": [%s]}' % ",".join(inputs["payload"].to_pylist())
             batch_model = self._batch_feature_model.model_validate_json(batch_json_string)
-            return Batch(
+
+            output_batch = dict(
                 obj=batch_model.model_dump()["parsed_batch"], exception=[None] * len(index)
             )
+
+            return pa.table(output_batch, schema=output_schema)
+
         except ValidationError:
             # fallback to processing each sample individually and identify the
             # samples that raise the validation error

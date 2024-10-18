@@ -1,9 +1,9 @@
 """Manages lazy evaluation and caching of data flow outputs.
 
-This module provides the :class:`LazyFlowOutput` class, which is responsible for lazily 
-evaluating and caching the results of a data flow execution. The class wraps 
-around a read-only dictionary-like proxy of input data and a data flow executor. 
-It ensures that the computation is executed only once per set of input values 
+This module provides the :class:`LazyFlowOutput` class, which is responsible for lazily
+evaluating and caching the results of a data flow execution. The class wraps
+around a read-only dictionary-like proxy of input data and a data flow executor.
+It ensures that the computation is executed only once per set of input values
 and caches the result for subsequent accesses.
 """
 
@@ -11,6 +11,8 @@ import asyncio
 from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Any, Hashable, Iterable
+
+import pyarrow as pa
 
 from hyped.common.utils import deep_equal
 
@@ -61,7 +63,7 @@ class LazyFlowOutput(Mapping):
 
         if (self._proxy_snapshot is None) or not deep_equal(proxy_snapshot, self._proxy_snapshot):
             # build batch of inputs
-            inputs = {k: [v] for k, v in proxy_snapshot.items()}
+            inputs = pa.table({k: [v] for k, v in proxy_snapshot.items()})
             # execute the flow executor on the inputs
             loop = asyncio.new_event_loop()
             future = self._executor.execute(inputs, index=[0], rank=0)
@@ -70,7 +72,7 @@ class LazyFlowOutput(Mapping):
             loop.close()
             # parse the outputs and store them as the snapshot
             self._proxy_snapshot = proxy_snapshot
-            self._out_snapshot = {k: v[0] for k, v in output.items()}
+            self._out_snapshot = {k: v[0] for k, v in output.to_pydict().items()}
 
         return MappingProxyType(self._out_snapshot)
 

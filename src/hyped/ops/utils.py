@@ -1,7 +1,7 @@
 """Utilities for handling feature references and constants in data flows.
 
-This module provides functions to validate and convert constants to feature references, 
-decorators for binary operations on feature references, and a method to collect 
+This module provides functions to validate and convert constants to feature references,
+decorators for binary operations on feature references, and a method to collect
 features into a feature collection for further processing in data flow graphs.
 """
 from functools import wraps

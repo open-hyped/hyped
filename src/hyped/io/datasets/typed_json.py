@@ -95,7 +95,7 @@ class TypedJsonDataset(Json):
 
                         # finish current line
                         chunk += f.readline() if has_readline else readline(f)
-                        chunk = Batch(payload=chunk.strip().split("\n"))
+                        chunk = Batch(payload=chunk.strip().split("\n"))  # TODO: pyarrow
                         # parse chunk using dataflow flow
                         index = range(len(chunk["payload"]))
                         chunk = flow.batch_process(batch=chunk, index=index, rank=0)

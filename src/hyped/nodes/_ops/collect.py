@@ -21,10 +21,12 @@ graph.
 from functools import cache
 from typing import Any, Hashable
 
+import pyarrow as pa
 from datasets.features.features import Features, FeatureType, Sequence
 from typing_extensions import Annotated
 
 from hyped.common._container import NestedContainer
+from hyped.common._features import convert_features_to_arrow_schema
 from hyped.common.feature_checks import check_feature_equals, get_sequence_length
 from hyped.common.typing import Batch, IndexList, Rank
 from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, IOContext
@@ -192,12 +194,6 @@ class CollectFeatures(
         Returns:
             Batch: The processed batch.
         """
-        # convert dict of lists to list of dicts
-        keys = inputs.keys()
-        samples = [dict(zip(keys, values)) for values in zip(*inputs.values())]
-        # collect values from each sample
-        return {
-            "collected": [
-                self._lookup(io).map(lambda _, key: sample[key], Any).unpack() for sample in samples
-            ]
-        }
+        output_schema = convert_features_to_arrow_schema(io.outputs)
+        collected = self._lookup(io).map(lambda _, key: inputs[key], Any).unpack()
+        return pa.table({"collected": pa.table(collected).to_struct_array()}, schema=output_schema)

@@ -106,27 +106,6 @@ class BaseDataProcessor(BaseNode[C, I, O], ABC):
         # check whether the process function is a coroutine
         self._is_process_async = inspect.iscoroutinefunction(self.process)
 
-    async def arrow_process(
-        self, inputs: pa.Table, index: IndexList, rank: Rank, io: IOContext
-    ) -> pa.Table:
-        """Processes a batch of inputs and returns the corresponding batch of outputs.
-
-        Args:
-            inputs (Batch): The batch of input samples.
-            index (IndexList): The indices associated with the input samples.
-            rank (Rank): The rank of the processor in a distributed setting.
-            io (IOContext): Context information for the data processors execution.
-
-        Returns:
-            Batch: The batch of output samples, must keep the order of the input batch.
-        """
-        output_schema = convert_features_to_arrow_schema(io.outputs)
-
-        input_batch = inputs.to_pydict()
-        output_batch = await self.batch_process(input_batch, index, rank, io)
-
-        return pa.table(output_batch, schema=output_schema)
-
     async def batch_process(
         self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
     ) -> Batch:
@@ -141,19 +120,18 @@ class BaseDataProcessor(BaseNode[C, I, O], ABC):
         Returns:
             Batch: The batch of output samples, must keep the order of the input batch.
         """
+        output_schema = convert_features_to_arrow_schema(io.outputs)
+
         # apply process function to each sample in the input batch
-        keys = inputs.keys()
-        outputs = [
-            self.process(dict(zip(keys, values)), i, rank, io)
-            for i, values in zip(index, zip(*inputs.values()))
-        ]
+        batch: list[Sample] = inputs.to_pylist()
+        outputs = [self.process(sample, i, rank, io) for i, sample in zip(index, batch)]
+
         # gather all outputs in case the process function
         # is a coroutine
         if self._is_process_async:
             outputs = await asyncio.gather(*outputs)
 
-        # pack output samples to batch format
-        return {key: [d[key] for d in outputs] for key in io.outputs.keys()}
+        return pa.table(outputs, schema=output_schema)
 
     @overload
     async def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:

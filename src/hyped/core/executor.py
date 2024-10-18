@@ -11,7 +11,6 @@ Classes:
 """
 import asyncio
 from collections import defaultdict
-from typing import Any
 
 import datasets
 import networkx as nx
@@ -27,10 +26,6 @@ from .nodes.base import IOContext
 from .refs.ref import FeatureRef
 
 
-def _gather(values: list[Any], pos: list[int]) -> list[Any]:
-    return [values[i] for i in pos]
-
-
 class ExecutionState(object):
     """Tracks the state during the execution of a data flow graph.
 
@@ -42,7 +37,7 @@ class ExecutionState(object):
         self,
         graph: DataFlowGraph,
         p_graph: nx.DiGraph,
-        batch: pa.Table,
+        batch: Batch,
         index: IndexList,
         rank: Rank,
     ):
@@ -90,8 +85,8 @@ class ExecutionState(object):
             await self.ready[node_id].wait()
 
     def trace_through_partition_path(
-        self, values: list[list[Any]], src: str, tgt: str
-    ) -> list[list[Any]]:
+        self, values: list[pa.Array], src: str, tgt: str
+    ) -> list[pa.Array]:
         """Apply trace indices through the partition path to transform the provided values.
 
         This method traces the path in the partition graph from the source partition to the
@@ -131,7 +126,7 @@ class ExecutionState(object):
             _, src = edge
 
         # apply the final trace index to the given values
-        return [_gather(vals, trace_index) for vals in values]
+        return [vals.take(trace_index) for vals in values]
 
     def register_partition_trace(
         self, node_id: NodeId, trace_index: TraceIndexList, index: IndexList
@@ -161,7 +156,7 @@ class ExecutionState(object):
         ), f"No edge between partitions '{u}' and '{v}' in the partition graph."
         # register trace and index
         self.traces[(u, v)] = np.asarray(trace_index)
-        self.index[v] = self.trace_through_partition_path([index], src=u, tgt=v)[0]
+        self.index[v] = self.trace_through_partition_path([pa.array(index)], src=u, tgt=v)[0]
 
     def collect_value(self, ref: FeatureRef) -> Batch:
         """Collect the values requested by the feature reference.
@@ -183,7 +178,7 @@ class ExecutionState(object):
         batch = ref.key_.index_batch(self.outputs[ref.node_id_])
         return pa.table(batch)
 
-    def collect_inputs(self, node_id: NodeId) -> tuple[pa.Table, IndexList]:
+    def collect_inputs(self, node_id: NodeId) -> tuple[Batch, IndexList]:
         """Collect inputs for a given node.
 
         Args:
@@ -224,19 +219,18 @@ class ExecutionState(object):
         for name in src_partitions.pop(DataFlowGraph.PredefinedPartition.CONST, []):
             inputs[name] = pa.chunked_array([inputs[name]] * len(index))
 
-        # # TODO
-        # for src, names in src_partitions.items():
-        #     # trace values from their origin partition to the target partition
-        #     values = [inputs[name] for name in names]
-        #     values = self.trace_through_partition_path(values, src=src, tgt=tgt_partition)
-        #     # update the values in the inputs
-        #     inputs.update(dict(zip(names, values)))
+        for src, names in src_partitions.items():
+            # trace values from their origin partition to the target partition
+            values = [inputs[name] for name in names]
+            values = self.trace_through_partition_path(values, src=src, tgt=tgt_partition)
+            # update the values in the inputs
+            inputs.update(dict(zip(names, values)))
 
         input_batch = pa.table(list(inputs.values()), names=list(inputs.keys()))
 
         return input_batch, index
 
-    def capture_output(self, node_id: NodeId, output: pa.Table) -> None:
+    def capture_output(self, node_id: NodeId, output: Batch) -> None:
         """Capture the output of a node.
 
         Args:
@@ -328,14 +322,14 @@ class DataFlowExecutor(object):
 
         if node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
             # run processor and check the output batch size
-            out = await node_obj.arrow_process(inputs, index, state.rank, io)
+            out = await node_obj.batch_process(inputs, index, state.rank, io)
             assert out.num_rows == len(index), "Output values length does not match index length."
             # capture output in execution state
             state.capture_output(node_id, out)
 
         elif node_type == DataFlowGraph.NodeType.DATA_AUGMENTER:
             # run processor and check the output batch size
-            out, trace_index = await node_obj.arrow_process(inputs, index, state.rank, io)
+            out, trace_index = await node_obj.batch_process(inputs, index, state.rank, io)
             # register output partition and capture output in execution state
             state.register_partition_trace(node_id, trace_index, index)
             state.capture_output(node_id, out)
@@ -344,7 +338,7 @@ class DataFlowExecutor(object):
             # run aggregator
             await self.aggregation_manager.aggregate(node_obj, inputs, index, state.rank, io)
 
-    async def execute(self, batch: pa.Table, index: IndexList, rank: Rank) -> Batch:
+    async def execute(self, batch: Batch, index: IndexList, rank: Rank) -> Batch:
         """Execute the entire data flow graph.
 
         Args:

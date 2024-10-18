@@ -1,19 +1,19 @@
 """Provides sequence operations on feature references.
 
 This module provides a set of operations specifically designed for handling
-sequence-based features within a data flow. Sequences are features that 
+sequence-based features within a data flow. Sequences are features that
 contain ordered collections of elements (e.g. :code:`Sequence` or :code:`Value("string")`), and
 the operations in this module allow for manipulation and querying of these sequences.
 
 Key functionalities include:
 
-- **Length Calculation** (:func:`len_`): Determine the length of a sequence or 
+- **Length Calculation** (:func:`len_`): Determine the length of a sequence or
   string-like feature.
-- **Element Access and Mutation** (:func:`get_item`, :func:`set_item`): Retrieve or set 
+- **Element Access and Mutation** (:func:`get_item`, :func:`set_item`): Retrieve or set
   elements at specific indices within a sequence.
 - **Filtering and Searching** (:func:`compress`, :func:`contains`, :func:`count_of`,
   :func:`index_of`): Apply masks to sequences, or search for specific elements within them.
-- **Sequence Manipulation** (:func:`chain`, :func:`zip_`): Combine multiple sequences 
+- **Sequence Manipulation** (:func:`chain`, :func:`zip_`): Combine multiple sequences
   together through concatenation or zipping.
 """
 from typing import Any, Iterable
@@ -302,7 +302,10 @@ def chunk(
     )
     # collect all sequences into a single feature and apply chunker
     sequences = collect({str(i): s for i, s in enumerate(sequences)})
-    chunks = chunker.call(sequences)
+    chunks = chunker.call(sequences=sequences)
 
     # output each chunk
-    return tuple(chunks[k] for k in chunks.feature_.keys())
+    if isinstance(sequences, FeatureRef):
+        return chunks[next(iter(chunks.feature_.keys()))]
+    else:
+        return tuple(chunks[k] for k in chunks.feature_.keys())

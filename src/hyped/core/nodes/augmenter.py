@@ -50,8 +50,10 @@ from abc import ABC
 from itertools import chain
 from typing import AsyncIterable, Iterable, TypeVar, overload
 
+import pyarrow as pa
+
+from hyped.common._features import convert_features_to_arrow_schema
 from hyped.common.typing import Batch, Index, IndexList, Rank, Sample, TraceIndexList
-from hyped.common.utils import list_of_dicts_to_dict_of_lists
 
 from ..refs.inputs import InputRefs
 from ..refs.outputs import OutputRefs
@@ -110,11 +112,12 @@ class BaseDataAugmenter(BaseNode[C, I, O], ABC):
                   from the trace_index[i]-th input example.
         """
         # apply process function to each sample in the input batch
-        keys = inputs.keys()
-        samples = (dict(zip(keys, values)) for values in zip(*inputs.values()))
+        output_schema = convert_features_to_arrow_schema(io.outputs)
 
+        # apply process function to each sample in the input batch
+        batch: list[Sample] = inputs.to_pylist()
         # apply process function to each sample
-        calls = (self.process(sample, i, rank, io) for (i, sample) in zip(index, samples))
+        calls = (self.process(sample, i, rank, io) for (i, sample) in zip(index, batch))
 
         # collect all outputs
         if self._is_process_async:
@@ -133,9 +136,8 @@ class BaseDataAugmenter(BaseNode[C, I, O], ABC):
         outputs = list(chain.from_iterable(outputs))
         trace_index = list(chain.from_iterable(trace_index))
 
-        # back outputs to batch format
-        batch = list_of_dicts_to_dict_of_lists(outputs, keys=io.outputs.keys())
-        return batch, trace_index
+        output_batch = pa.Table.from_pylist(outputs, schema=output_schema)
+        return output_batch, trace_index
 
     @overload
     async def process(

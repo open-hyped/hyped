@@ -27,7 +27,7 @@ from hyped.common._worker import get_worker_info
 from hyped.common.feature_checks import check_feature_equals
 from hyped.common.feature_key import FeatureKey
 from hyped.common.lazy_instance import LazyInstance
-from hyped.common.typing import Aggregate, IndexList, Rank
+from hyped.common.typing import Aggregate, Batch, IndexList, Rank
 
 from .executor import DataFlowExecutor
 from .graph import DataFlowGraph
@@ -434,7 +434,7 @@ class DataFlow(object):
 
     def batch_process(
         self, batch: dict[str, list[Any]], index: IndexList, rank: None | Rank = None
-    ) -> pa.Table:
+    ) -> Batch:
         """Process a batch of data.
 
         Args:

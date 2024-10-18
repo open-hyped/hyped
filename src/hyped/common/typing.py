@@ -2,11 +2,11 @@
 
 Type aliases are used to improve code readability and maintainability by providing descriptive
 names for commonly used complex data structures or concepts within the codebase. These aliases
-allow developers to quickly understand the intent and structure of data being passed around 
+allow developers to quickly understand the intent and structure of data being passed around
 without needing to parse through detailed type definitions.
 
-The type aliases in this module cover a variety of concepts, including dataset samples, batches, 
-indices, partitions in data flow graphs, and more. They help to standardize the type annotations 
+The type aliases in this module cover a variety of concepts, including dataset samples, batches,
+indices, partitions in data flow graphs, and more. They help to standardize the type annotations
 used across different parts of the project, making the code more consistent and easier to manage.
 """
 
@@ -14,6 +14,7 @@ used across different parts of the project, making the code more consistent and 
 from typing import Any
 
 from datasets import Dataset, DatasetDict, IterableDataset, IterableDatasetDict
+from pyarrow import Table
 from typing_extensions import TypeAlias
 
 Sample: TypeAlias = dict[str, Any]
@@ -24,7 +25,7 @@ The keys are strings representing feature names, and the values can be of any ty
 (e.g., integers, floats, strings, or more complex data structures).
 """
 
-Batch: TypeAlias = dict[str, list[Any]]
+Batch: TypeAlias = Table
 """A batch of samples from the dataset.
 
 Represents a collection of samples, structured as a dictionary where the keys are feature names,
@@ -41,7 +42,7 @@ to retrieve or reference a particular sample from a dataset.
 IndexList: TypeAlias = list[Index]
 """A list of dataset indices, usually corresponding to a batch.
 
-Contains integer indices that refer to specific samples within the dataset. 
+Contains integer indices that refer to specific samples within the dataset.
 This is typically used to track which samples are included in a particular
 batch or subset of the dataset.
 """
@@ -57,7 +58,7 @@ or distributed environment, where each process is assigned a unique rank.
 Aggregate: TypeAlias = dict[str, Any]
 """Dataset-wide aggregates.
 
-Represents aggregated statistics or summary information across the entire dataset. This is the 
+Represents aggregated statistics or summary information across the entire dataset. This is the
 output type of aggregators structured as a dictionary where the keys represent different aggregate
 metrics or summary types, and the values can be of any type, depending on the nature of the
 aggregate.
@@ -143,6 +144,6 @@ Alias for the different dataset types supported, including:
 - :class:`IterableDataset`: A dataset that is lazily loaded, allowing for streaming data processing.
 - :class:`IterableDatasetDict`: A dictionary-like structure containing multiple iterable datasets.
 
-This type alias is used to represent any of the aforementioned dataset types when processing or 
+This type alias is used to represent any of the aforementioned dataset types when processing or
 consuming datasets in various contexts.
 """
