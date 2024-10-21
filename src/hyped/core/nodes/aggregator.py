@@ -73,13 +73,15 @@ class DataAggregationManager(object):
         """
         return MappingProxyType(self._value_buffer)
 
-    async def _safe_update(self, io: IOContext, aggregator: BaseDataAggregator, ctx: Any) -> None:
+    async def _safe_update(
+        self, io: IOContext, aggregator: BaseDataAggregator, extracted: Any
+    ) -> None:
         """Safely update an aggregation value.
 
         Args:
             io (IOContext): The io context object indicating the specific node to execute.
             aggregator (BaseDataAggregator): The aggregator object.
-            ctx (Any): The context values extracted from the input batch.
+            extracted (Any): The values extracted from the input batch.
         """
         assert io.node_id in self._value_buffer
         # get the running event loop
@@ -90,7 +92,7 @@ class DataAggregationManager(object):
         value = self._value_buffer[io.node_id]
         state = self._state_buffer[io.node_id]
         # compute udpated value and context
-        value, state = await aggregator.update(value, ctx, state, io)
+        value, state = await aggregator.update(value, state, extracted, io)
         # write new values to buffers
         self._value_buffer[io.node_id] = value
         self._state_buffer[io.node_id] = state
@@ -116,8 +118,8 @@ class DataAggregationManager(object):
         """
         # extract values required for update from current input batch
         # and update the aggregated value and state
-        ctx = await aggregator.extract(inputs, index, rank, io)
-        await self._safe_update(io, aggregator, ctx)
+        extracted = await aggregator.extract(inputs, index, rank, io)
+        await self._safe_update(io, aggregator, extracted)
 
 
 class BaseDataAggregatorConfig(BaseNodeConfig):
@@ -133,6 +135,9 @@ C = TypeVar("C", bound=BaseDataAggregatorConfig)
 I = TypeVar("I", bound=InputRefs)
 O = TypeVar("O", bound=OutputRefs)
 
+E = TypeVar("E")
+S = TypeVar("S")
+
 
 class BaseDataAggregator(BaseNode[C, I, O], ABC):
     """Base class for data aggregators.
@@ -146,7 +151,7 @@ class BaseDataAggregator(BaseNode[C, I, O], ABC):
     """
 
     @abstractmethod
-    def initialize(self, io: IOContext) -> tuple[Aggregate, Any]:
+    def initialize(self, io: IOContext) -> tuple[Aggregate, S]:
         """Initialize the aggregator with the given features.
 
         Args:
@@ -159,7 +164,7 @@ class BaseDataAggregator(BaseNode[C, I, O], ABC):
         ...
 
     @abstractmethod
-    async def extract(self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext) -> Any:
+    async def extract(self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext) -> E:
         """Extract necessary values from the inputs for aggregation.
 
         Args:
@@ -174,16 +179,16 @@ class BaseDataAggregator(BaseNode[C, I, O], ABC):
         ...
 
     @abstractmethod
-    async def update(self, val: I, state: Any, ctx: Any, io: IOContext) -> tuple[Aggregate, Any]:
+    async def update(self, val: I, state: S, extracted: E, io: IOContext) -> tuple[I, S]:
         """Update the aggregation value and context.
 
         Args:
             val (I): The current aggregation value.
-            state (Any): The current aggregation state.
-            ctx (Any): The context values extracted from the input batch.
+            state (S): The current aggregation state.
+            extracted (E): The values extracted from the input batch.
             io (IOContext): Context information for the aggregator execution.
 
         Returns:
-            tuple[Aggregate, Any]: The updated aggregation value and state.
+            tuple[I, Any]: The updated aggregation value and state.
         """
         ...

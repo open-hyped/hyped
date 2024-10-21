@@ -6,7 +6,7 @@ source nodes that generate fixed values as their output. The module
 includes configurations, output references, and the constant node
 implementation itself.
 
-To add constants to the data flow, use the :code:`DataFlow.const` function. 
+To add constants to the data flow, use the :code:`DataFlow.const` function.
 This function provides a high-level interface to create and add constant
 nodes to the data flow graph.
 
@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
+import pyarrow as pa
 from datasets import Dataset
 from datasets.features.features import FeatureType
 from pydantic import model_validator
@@ -48,7 +49,7 @@ class ConstConfig(BaseNodeConfig):
 
     feature: None | FeatureType = None
     """The type of the feature.
-    
+
     If not provided, the feature type is inferred from the value.
     """
 
@@ -87,7 +88,7 @@ class Const(BaseNode[ConstConfig, None, ConstOutputRefs]):
     This type of node introduces a constant value into the data flow graph.
     """
 
-    def get_const_batch(self, batch_size: int) -> list[Any]:
+    def get_const_batch(self, batch_size: int) -> pa.Table:
         """Returns a batch of the constant value.
 
         Args:
@@ -97,7 +98,8 @@ class Const(BaseNode[ConstConfig, None, ConstOutputRefs]):
             list[Any]: A list containing the constant value repeated
             :code:`batch_size` times.
         """
-        return {"value": [self.config.value] * batch_size}
+        data = pa.array([self.config.value])
+        return pa.table({"value": pa.chunked_array([data] * batch_size)})
 
     def call(self, flow: object) -> ConstOutputRefs:
         """Adds the constant node to the data flow graph.

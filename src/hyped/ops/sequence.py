@@ -302,7 +302,7 @@ def chunk(
     )
     # collect all sequences into a single feature and apply chunker
     sequences = collect({str(i): s for i, s in enumerate(sequences)})
-    chunks = chunker.call(sequences=sequences)
+    chunks = chunker.call(sequences=sequences).chunks
 
     # output each chunk
     if isinstance(sequences, FeatureRef):

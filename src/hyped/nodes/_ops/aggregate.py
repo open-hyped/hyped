@@ -87,7 +87,7 @@ class MeanAggregator(
 
     async def extract(
         self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
-    ) -> tuple[float, int]:
+    ) -> tuple[pa.Int64Scalar, int]:
         """Extracts the sum of the input feature :code:`x` and the count of items in the batch.
 
         Args:
@@ -103,23 +103,25 @@ class MeanAggregator(
         return pa.compute.sum(inputs["x"]), len(index)
 
     async def update(
-        self, val: float, ctx: tuple[float, int], state: float, io: IOContext
-    ) -> tuple[Aggregate, float]:
+        self, val: Aggregate, state: int, extracted: tuple[pa.Int64Scalar, int], io: IOContext
+    ) -> tuple[Aggregate, int]:
         """Updates the running mean with the extracted value and count.
 
         Args:
-            val (float): The current running mean.
-            ctx (tuple[float, int]): The extracted sum and count from the current batch.
+            val (Aggregate): The current running mean.
+            ctx (tuple[pa.Int64Scalar, int]): The extracted sum and count from the current batch.
             state (float): The current count of items.
             io (IOContext): Context information for the aggregator execution.
 
         Returns:
             tuple[Aggregate, float]: The updated running mean and the new count of items.
         """
-        ext_val, ext_count = ctx
-        return {"value": (val["value"] * state + ext_val) / (state + ext_count)}, (
-            state + ext_count
+        ext_val, ext_count = extracted
+        new_state = state + ext_count
+        new_val = pa.compute.divide(
+            pa.compute.add(pa.compute.multiply(val["value"], state), ext_val), state + ext_count
         )
+        return {"value": new_val}, new_state
 
     def call(self, **kwargs: Unpack[SimpleAggregatorInputRefs]) -> SimpleAggregatorOutputRefs:
         """Execute the MeanAggregator to compute the mean value.
@@ -180,7 +182,7 @@ class SumAggregator(
         return pa.compute.sum(inputs["x"]).as_py()
 
     async def update(
-        self, val: float, ctx: float, state: None, io: IOContext
+        self, val: pa.Scalar, ctx: float, state: None, io: IOContext
     ) -> tuple[Aggregate, None]:
         """Updates the running total with the extracted value.
 
