@@ -95,13 +95,7 @@ class CollectFeaturesOutputRefs(OutputRefs):
     """Reference to the collected feature."""
 
 
-class CollectFeatures(
-    BaseDataProcessor[
-        CollectFeaturesConfig,
-        None,
-        CollectFeaturesOutputRefs,
-    ]
-):
+class CollectFeatures(BaseDataProcessor[CollectFeaturesConfig,]):
     """Data processor for collecting features into a new (nested) feature.
 
     This processor collects features from a nested structure defined by a

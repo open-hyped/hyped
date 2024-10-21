@@ -139,7 +139,7 @@ E = TypeVar("E")
 S = TypeVar("S")
 
 
-class BaseDataAggregator(BaseNode[C, I, O], ABC):
+class BaseDataAggregator(BaseNode[C], ABC):
     """Base class for data aggregators.
 
     This class serves as the base for all data aggregators, defining the necessary

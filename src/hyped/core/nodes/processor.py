@@ -3,64 +3,32 @@
 This module defines the base class for data processors, which represent
 nodes in a data flow graph. It includes generic classes for defining
 data processors with configurable input and output types.
-
-Classes:
-    - :class:`BaseDataProcessorConfig`: Base class for data processor configurations.
-    - :class:`BaseDataProcessor`: Base class for data processors in a data flow graph.
-
-Usage Example:
-    Define a custom data processor by subclassing :class:`BaseDataProcessor`:
-
-    .. code-block:: python
-
-        # Import necessary classes from the module
-        from hyped.core.nodes.processor import (
-            BaseDataProcessor, BaseDataProcessorConfig
-        )
-        from hyped.core.refs.inputs import (
-            InputRefs, CheckFeatureEquals
-        )
-        from hyped.core.refs.outputs import (
-            OutputRefs, OutputFeature
-        )
-        from datasets.features.features import Value
-        from typing_extensions import Annotated
-
-        class CustomInputRefs(InputRefs):
-            x: Annotated[FeatureRef, CheckFeatureEquals(Value("int32"))]
-
-        class CustomOutputRefs(OutputRefs):
-            y: Annotated[FeatureRef, OutputFeature(Value("string"))]
-
-        class CustomConfig(BaseDataProcessorConfig):
-            k: int
-
-        # Define a custom data processor class
-        class CustomProcessor(
-            BaseDataProcessor[CustomConfig, CustomInputRefs, CustomOutputRefs]
-        ):
-            async def process(self, inputs, index, rank, io):
-                # Define processing logic here
-                return str(inputs["x"]) * self.config.k
-
-    In this example, :class:`CustomDataProcessor` extends :class:`BaseDataProcessor` and
-    implements the :class:`BaseDataProcessor.process` method to define custom processing logic.
 """
 from __future__ import annotations
 
-import asyncio
 import inspect
-from abc import ABC
-from typing import TypeVar, overload
+from abc import ABC, abstractmethod
+from typing import Any, Concatenate, Generic, ParamSpec, Protocol, TypeVar, overload
 
-import pyarrow as pa
+from typing_extensions import Self
 
-from hyped.common._features import convert_features_to_arrow_schema
-from hyped.common.typing import Batch, Index, IndexList, Rank, Sample
+from ..abstract import AbstractDataFlow
+from ..typing import Feature, Sequence, _Feature
+from ..typing.engine import TypeEngine
+from .base import BaseNode, BaseNodeConfig, CallableProtocol, RunContext
 
-from ..refs.inputs import InputRefs
-from ..refs.outputs import OutputRefs
-from .base import BaseNode, BaseNodeConfig, IOContext
+Params = ParamSpec("Params")
+Return = TypeVar("Return", covariant=True)
+
+
+# TODO: legacy code
+class IOContext:
+    pass
+
+
+class _ProcessFunctionProtocol(Protocol, Generic[Params, Return]):
+    def process(self, *args: Params.args, **kwargs: Params.kwargs) -> Return:
+        ...
 
 
 class BaseDataProcessorConfig(BaseNodeConfig):
@@ -73,11 +41,9 @@ class BaseDataProcessorConfig(BaseNodeConfig):
 
 
 C = TypeVar("C", bound=BaseDataProcessorConfig)
-I = TypeVar("I", bound=InputRefs)
-O = TypeVar("O", bound=OutputRefs)
 
 
-class BaseDataProcessor(BaseNode[C, I, O], ABC):
+class BaseDataProcessor(BaseNode[C], ABC):
     """Base class for data processors in a data flow graph.
 
     This class serves as the base for all data processors, representing nodes in a data flow graph.
@@ -89,6 +55,13 @@ class BaseDataProcessor(BaseNode[C, I, O], ABC):
         _is_process_async (bool): A flag indicating whether the :class:`BaseDataProcessor.process`
             function is asynchronous.
     """
+
+    def __new__(
+        cls: _ProcessFunctionProtocol[Concatenate[Self, RunContext, Params], Return],
+        *args: Any,
+        **kwargs: Any,
+    ) -> CallableProtocol[Params, Return]:
+        return super().__new__(cls, *args, **kwargs)
 
     def __init__(self, config: None | C = None, **kwargs) -> None:
         """Initialize the data processor.
@@ -106,51 +79,31 @@ class BaseDataProcessor(BaseNode[C, I, O], ABC):
         # check whether the process function is a coroutine
         self._is_process_async = inspect.iscoroutinefunction(self.process)
 
-    async def batch_process(
-        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
-    ) -> Batch:
-        """Processes a batch of inputs and returns the corresponding batch of outputs.
+    def _call(
+        self, flow: AbstractDataFlow, args: tuple[Feature], kwargs: dict[str, Feature]
+    ) -> _Feature:
+        name = ".".join([type(self).__qualname__, "process"])
+        engine = TypeEngine(name, self.config, self.process, {"ctx"})
+        # validate the process signature and arguments
+        engine.validate_signature()
+        engine.validate_arguments(*args, **kwargs)
+        # get input features and constants to the call function
+        inputs, consts, factories = engine.get_inputs_and_consts(*args, **kwargs)
 
-        Args:
-            inputs (Batch): The batch of input samples.
-            index (IndexList): The indices associated with the input samples.
-            rank (Rank): The rank of the processor in a distributed setting.
-            io (IOContext): Context information for the data processors execution.
+        if len(consts) > 0:
+            raise NotImplementedError
 
-        Returns:
-            Batch: The batch of output samples, must keep the order of the input batch.
-        """
-        output_schema = convert_features_to_arrow_schema(io.outputs)
-
-        # apply process function to each sample in the input batch
-        batch: list[Sample] = inputs.to_pylist()
-        outputs = [self.process(sample, i, rank, io) for i, sample in zip(index, batch)]
-
-        # gather all outputs in case the process function
-        # is a coroutine
-        if self._is_process_async:
-            outputs = await asyncio.gather(*outputs)
-
-        return pa.table(outputs, schema=output_schema)
+        exit()
 
     @overload
-    async def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
+    async def process(self, ctx: RunContext, *args: Feature, **kwargs: Feature) -> Feature:
         ...
 
-    def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Sample:
-        """Processes a single input sample synchronously.
+    @abstractmethod
+    def process(self, ctx: RunContext, *args: Feature, **kwargs: Feature) -> Feature:
+        ...
 
-        Asynchronous processing is also supported by defining this function as :code:`async`.
-
-        This method should be overridden by subclasses to define the processing logic.
-
-        Args:
-            inputs (Sample): The input sample to be processed.
-            index (Index): The index associated with the input sample.
-            rank (Rank): The rank of the processor in a distributed setting.
-            io (IOContext): Context information for the data processors execution.
-
-        Returns:
-            Sample: The processed output sample.
-        """
-        raise NotImplementedError()
+    async def batch_process(
+        self, ctx: RunContext, *args: Sequence[Feature], **kwargs: Sequence[Feature]
+    ) -> Feature:
+        ...

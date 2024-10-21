@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import typing
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, fields
-from functools import partial
+from dataclasses import dataclass
 from types import GenericAlias
-from typing import TYPE_CHECKING, Annotated, Any, Callable, TypeAlias, get_type_hints
+from typing import TYPE_CHECKING, Annotated, Any, get_type_hints
 
 import pyarrow as pa
 from pydantic import BaseModel, Field, GetCoreSchemaHandler, TypeAdapter, create_model
@@ -15,6 +14,8 @@ from typing_extensions import Self
 from hyped.common.feature_key import FeatureKey
 from hyped.common.typing import DataFlowGraphAlias, NodeId
 from hyped.common.utils import is_python_version_less_than
+
+from .factories import BaseTypeFactory, TypeFactoryFromInstance
 
 if is_python_version_less_than(3, 11):
 
@@ -26,7 +27,7 @@ if is_python_version_less_than(3, 11):
             raise TypeError(f"Expected an instance of type, not {type(cls).__name__!r}") from None
 
 else:
-    from types import get_original_bases
+    from types import get_original_bases  # noqa:
 
 if not TYPE_CHECKING:
 
@@ -46,7 +47,7 @@ if not TYPE_CHECKING:
         return _T
 
 else:
-    pass
+    from typing import TypeVar  # noqa:
 
 
 @dataclass(eq=True, frozen=True)
@@ -161,21 +162,13 @@ class _Float64(_Primitive):
         return pa.float64()
 
 
-_Type = typing.TypeVar("_Type", bound=_Feature)
-_TypeFactory: TypeAlias = Callable[[FeatureKey, NodeId, DataFlowGraphAlias], _Type]
-
-
-def _factory_from_instance(inst: _Type) -> _TypeFactory[_Type]:
-    _ignore_keys = set([field.name for field in fields(_Feature)])
-    kwargs = {field.name: getattr(inst, field.name) for field in fields(inst)}
-    kwargs = {key: val for key, val in kwargs.items() if key not in _ignore_keys}
-    return partial(inst._type_hint, **kwargs)
+_Type = TypeVar("_Type", bound=_Feature)
 
 
 @dataclass(eq=True, frozen=True)
 class Sequence(typing.Sequence[_Type], _Feature):
     _itemtype: type[_Type]
-    _factory: _TypeFactory[_Type]
+    _factory: BaseTypeFactory[_Type]
     _length: int
 
     @property
@@ -216,7 +209,7 @@ class Sequence(typing.Sequence[_Type], _Feature):
                 item = validator.validate_python(inst, context=info.context)
                 inst = cls(
                     **inst,
-                    _factory=_factory_from_instance(item),
+                    _factory=TypeFactoryFromInstance(item),
                     _itemtype=item._type_hint,
                     _length=-1,
                 )
@@ -258,7 +251,7 @@ else:
 
     @dataclass(eq=True, frozen=True)
     class Mapping(typing.Mapping, _Feature):
-        _factories: dict[str, _TypeFactory[_Feature]]
+        _factories: dict[str, BaseTypeFactory]
 
         @property
         def _pa_type(self) -> pa.lib.DataType:
@@ -345,7 +338,7 @@ else:
                     members = {key: inst for key in validator.model_fields.keys()}
                     members = validator.model_validate(members, context=info.context)
                     # create the factories from the inferred members
-                    factories = {key: _factory_from_instance(item) for key, item in members}
+                    factories = {key: TypeFactoryFromInstance(item) for key, item in members}
                     inst = cls(**inst, _factories=factories)
 
                 strict = (info.context or {}).get("strict", False)

@@ -12,7 +12,7 @@ import re
 from functools import partial
 from itertools import chain, groupby
 from types import MappingProxyType
-from typing import Any, Literal, TypeVar
+from typing import Any, Generic, Literal, TypeVar, get_args
 
 import datasets
 import matplotlib.pyplot as plt
@@ -23,12 +23,14 @@ import pyarrow as pa
 from datasets.features.features import FeatureType
 from matplotlib import colormaps
 
+from hyped.common._features import TypeFactoryFromFeature
 from hyped.common._worker import get_worker_info
 from hyped.common.feature_checks import check_feature_equals
 from hyped.common.feature_key import FeatureKey
 from hyped.common.lazy_instance import LazyInstance
 from hyped.common.typing import Aggregate, Batch, IndexList, Rank
 
+from .abstract import AbstractDataFlow
 from .executor import DataFlowExecutor
 from .graph import DataFlowGraph
 from .lazy import LazyFlowOutput
@@ -37,6 +39,8 @@ from .nodes.base import IOContext
 from .nodes.const import Const
 from .optim import DataFlowGraphOptimizer
 from .refs.ref import FeatureRef
+from .typing import _Feature
+from .typing.factories import BaseTypeFactory, DefaultTypeFactory
 
 D = TypeVar(
     "D",
@@ -57,7 +61,10 @@ except ValueError:  # pragma: not covered
     pass
 
 
-class DataFlow(object):
+T = TypeVar("T", bound=_Feature)
+
+
+class DataFlow(AbstractDataFlow, Generic[T]):
     """High-level interface for defining and executing data processing workflows.
 
     The DataFlow class allows users to create and manage directed acyclic graphs
@@ -72,18 +79,58 @@ class DataFlow(object):
     ensure efficient and accurate data processing.
     """
 
-    def __init__(self, features: datasets.Features) -> None:
+    def __init__(self, features: None | datasets.Features = None) -> None:
         """Initialize the DataFlow.
 
         Args:
             features (datasets.Features): The features of the source node.
         """
-        # create graph and add the source node
+
+        # create the flow graph instance
         self._graph = DataFlowGraph()
-        self._graph.add_source_node(features)
+        self._hf_source_features = features
+        self._source_type: None | T = None
         # lazy executor instance, set in build
         self._executor: None | LazyInstance[DataFlowExecutor] = None
         self._aggregates: None | LazyFlowOutput = None
+
+    @property
+    def _is_initialized(self) -> None:
+        return self._graph.src_node_id is not None
+
+    def _initialize(self) -> None:
+        # make sure the flow is not initialized yet
+        assert not self._is_initialized
+
+        # try to get the source type from the type variable
+        src_type_annotation: None | type[T] = (
+            None if not hasattr(self, "__orig_class__") else get_args(self.__orig_class__)[0]
+        )
+
+        # build the source type factory for the
+        src_type_factory: BaseTypeFactory
+
+        if self._hf_source_features is not None:
+            # create the source type from the given source features
+            src_type_factory = TypeFactoryFromFeature[src_type_annotation](self._hf_source_features)
+
+        elif src_type_annotation is not None:
+            # infer type from type annotation using default type resolvers
+            src_type_factory = DefaultTypeFactory[src_type_annotation]()
+
+        else:
+            # no input specified, at least argument or type hint is required
+            raise RuntimeError()
+
+        # TODO: get arrow type from source type factory
+        # TODO: graph works on source type level
+
+        # create an instance of the source type
+        src_node_id = DataFlowGraph.create_random_node_id()
+        self._source_type = src_type_factory(FeatureKey(), src_node_id, self._graph)
+        # add the source node to the graph with the node id
+        node_id = self._graph.add_source_node(self._source_type._pa_type, src_node_id)
+        assert src_node_id == node_id
 
     @property
     def depth(self) -> int:
@@ -112,20 +159,18 @@ class DataFlow(object):
         return self._graph.width
 
     @property
-    def src_features(self) -> FeatureRef:
+    def source(self) -> T:
         """Get the source features.
 
         Returns:
-            FeatureRef: The reference to the source features.
+            T: The reference to the source features.
         """
-        return FeatureRef(
-            key_=tuple(),
-            feature_=self._graph.nodes[self._graph.src_node_id][
-                DataFlowGraph.NodeAttribute.OUT_FEATURES
-            ],
-            node_id_=self._graph.src_node_id,
-            flow_=self._graph,
-        )
+
+        if not self._is_initialized:
+            self._initialize()
+
+        print("TODO")
+        exit()
 
     @property
     def out_features(self) -> FeatureRef:

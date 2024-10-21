@@ -82,7 +82,7 @@ class ConstOutputRefs(OutputRefs):
     """The output feature reference for the constant value."""
 
 
-class Const(BaseNode[ConstConfig, None, ConstOutputRefs]):
+class Const(BaseNode[ConstConfig]):
     """Constant node class.
 
     This type of node introduces a constant value into the data flow graph.

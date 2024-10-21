@@ -14,12 +14,6 @@ from datasets.features.features import Features, FeatureType, Sequence
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
 
-from .feature_checks import (
-    get_sequence_feature,
-    get_sequence_length,
-    raise_feature_equals,
-    raise_feature_is_sequence,
-)
 from .typing import Batch, FeatureKeyAlias
 
 
@@ -118,6 +112,13 @@ class FeatureKey(FeatureKeyAlias):
         Returns:
             FeatureType: The extracted feature type at the given key.
         """
+        from .feature_checks import (
+            get_sequence_feature,
+            get_sequence_length,
+            raise_feature_equals,
+            raise_feature_is_sequence,
+        )
+
         for i, key_entry in enumerate(self):
             if isinstance(key_entry, str):
                 # check feature type

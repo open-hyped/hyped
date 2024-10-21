@@ -18,14 +18,16 @@ import datasets
 import networkx as nx
 
 from hyped.common.typing import NodeId, PartitionId
-from hyped.core.nodes.aggregator import BaseDataAggregator
-from hyped.core.nodes.augmenter import BaseDataAugmenter
-from hyped.core.nodes.base import BaseNode
-from hyped.core.nodes.const import Const
-from hyped.core.nodes.processor import BaseDataProcessor
-from hyped.core.refs.inputs import InputRefsContainer
-from hyped.core.refs.outputs import OutputRefs
-from hyped.core.refs.ref import FeatureRef
+
+from .abstract import AbstractDataFlowGraph
+from .nodes.aggregator import BaseDataAggregator
+from .nodes.augmenter import BaseDataAugmenter
+from .nodes.base import BaseNode
+from .nodes.const import Const
+from .nodes.processor import BaseDataProcessor
+from .refs.inputs import InputRefsContainer
+from .refs.outputs import OutputRefs
+from .refs.ref import FeatureRef
 
 
 def _compute_node_depth(G: nx.DiGraph) -> dict[Hashable, int]:
@@ -88,7 +90,7 @@ def _build_dependency_graph(G: nx.DiGraph, nodes: set[Hashable]) -> nx.DiGraph:
     return G.subgraph(visited)
 
 
-class DataFlowGraph(nx.MultiDiGraph):
+class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
     """A multi-directed graph representing a data flow of data processors.
 
     This class is used internally to define a directed acyclic graph (DAG)
@@ -271,6 +273,10 @@ class DataFlowGraph(nx.MultiDiGraph):
         is flowing through the edge. It defines the particular feature that is being
         transmitted from one node to another in the data flow graph.
         """
+
+    @staticmethod
+    def create_random_node_id() -> str:
+        return str(uuid.uuid4())
 
     @wraps(nx.MultiDiGraph)
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -649,8 +655,7 @@ class DataFlowGraph(nx.MultiDiGraph):
             )
 
         # create the node id if it was not provided
-        if node_id is None:
-            node_id = str(uuid.uuid4())
+        node_id = node_id if node_id is not None else DataFlowGraph.create_random_node_id()
 
         # add the node to the graph
         self.add_node(

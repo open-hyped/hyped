@@ -74,7 +74,7 @@ I = TypeVar("I", bound=InputRefs)
 O = TypeVar("O", bound=OutputRefs)
 
 
-class BaseDataAugmenter(BaseNode[C, I, O], ABC):
+class BaseDataAugmenter(BaseNode[C], ABC):
     """Base class for data augmenters in a data flow graph.
 
     This class represents a data augmenter node in a data flow graph. Data augmenters

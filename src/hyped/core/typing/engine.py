@@ -7,53 +7,17 @@ handle model validation.
 """
 import inspect
 from contextlib import contextmanager
-from dataclasses import dataclass
 from functools import partial
 from types import GenericAlias
-from typing import Any, Callable, Generator, Generic, TypeVar, get_args, get_type_hints
-from uuid import UUID, uuid4
+from typing import Any, Callable, Generator, TypeVar, get_args, get_type_hints
+from uuid import uuid4
 
 import pydantic
 
 from hyped._registry.config import BaseConfig
-from hyped.common.feature_key import FeatureKey
-from hyped.common.typing import DataFlowGraphAlias, NodeId
 
-from .types import _Feature, _TypeFactory
-
-_Type = TypeVar("_Type")
-
-
-@dataclass
-class _Factory(Generic[_Type]):
-    """A factory class to instantiate and validate objects based on a type hint, using Pydantic."""
-
-    hint: type[_Type]
-    """The expected type of the instance."""
-
-    config: BaseConfig
-    """Configuration related to the data flow."""
-
-    inputs: dict[str, _Feature]
-    """Input data features used in validation."""
-
-    session_id: UUID
-    """Unique identifier for the validation session."""
-
-    def __call__(self, _ptr: FeatureKey, _node_id: NodeId, _flow: DataFlowGraphAlias) -> _Type:
-        """Create and validate an instance based on the provided arguments.
-
-        Args:
-            _ptr (FeatureKey): Key representing the feature pointer.
-            _node_id (NodeId): The ID of the node in the data flow graph.
-            _flow (DataFlowGraphAlias): Alias for the data flow graph.
-
-        Returns:
-            _Type: An instance of the validated type.
-        """
-        inst = {"_ptr": _ptr, "_node_id": _node_id, "_flow": _flow}
-        context = {"config": self.config, "inputs": self.inputs, "session_id": self.session_id}
-        return pydantic.TypeAdapter(self.hint).validate_python(inst, context=context)
+from .factories import DefaultTypeFactory
+from .types import _Feature
 
 
 class TypeVarRegister(object):
@@ -126,20 +90,33 @@ type_var_register = TypeVarRegister()
 
 
 class TypeEngine(object):
-    def __init__(self, name: str, config: BaseConfig, func: Callable) -> None:
+    def __init__(
+        self, name: str, config: BaseConfig, func: Callable, ignore_keys: set[str]
+    ) -> None:
         """Initialize the TypeEngine with a function and a configuration.
 
         Args:
             name (str): A name used as an identifier for context in logs and errors.
             config (BaseConfig): A configuration object provided as context during validation.
             func (Callable): The callable to analyse.
+            ignore_keys (set[str]): A set of argument names to be ignored by the type engine.
         """
 
         self.name = name
         self.config = config
+
         # parse the function
         self.signature = inspect.signature(func)
         self.hints = get_type_hints(func, include_extras=True)
+
+        # remove the ignore keys from the signature
+        params = self.signature.parameters.values()
+        params = [param for param in params if param.name not in ignore_keys]
+        self.signature = self.signature.replace(parameters=params)
+        # remove the ignore keys from the type hints
+        for key in ignore_keys:
+            self.hints.pop(key, None)
+
         # create the validation model
         self.session_id = uuid4()
         self.validator = self._build_validator(func)
@@ -240,7 +217,7 @@ class TypeEngine(object):
 
     def get_inputs_and_consts(
         self, *args: Any, **kwargs: Any
-    ) -> tuple[dict[str, _Feature], dict[str, Any], dict[str, _TypeFactory]]:
+    ) -> tuple[dict[str, _Feature], dict[str, Any], dict[str, DefaultTypeFactory]]:
         """
         Separate input features and constants from the arguments.
 
@@ -249,7 +226,7 @@ class TypeEngine(object):
             **kwargs (Any): Keyword arguments.
 
         Returns:
-            tuple[dict[str, _Feature], dict[str, Any], dict[str, _TypeFactory]]: Tuple containing
+            tuple[dict[str, _Feature], dict[str, Any], dict[str, TypeFactory]]: Tuple containing
             input features and constants.
         """
 
@@ -270,18 +247,20 @@ class TypeEngine(object):
 
         return inputs, consts, const_factories
 
-    def get_return_factory(self, inputs: dict[str, _Feature]) -> _TypeFactory:
+    def get_return_factory(self, inputs: dict[str, _Feature]) -> DefaultTypeFactory:
         """Build a type factory for the return type based on the inputs.
 
         Args:
             inputs (dict[str, _Feature]): Input features for return type validation.
 
         Returns:
-            _TypeFactory: A factory class for the return type.
+            DefaultTypeFactory: A factory class for the return type.
         """
         return self._build_type_factory(self.hints["return"], inputs)
 
-    def _build_type_factory(self, hint: type, inputs: None | dict[str, Any] = None) -> _TypeFactory:
+    def _build_type_factory(
+        self, hint: type, inputs: None | dict[str, Any] = None
+    ) -> DefaultTypeFactory:
         """Build a factory for a type based on the given hint and input features.
 
         Args:
@@ -289,7 +268,7 @@ class TypeEngine(object):
             inputs (Optional[dict[str, Any]]): Input features used in validation.
 
         Returns:
-            _TypeFactory: Factory class for creating instances of the specified type.
+            DefaultTypeFactory: Factory class for creating instances of the specified type.
 
         Raises:
             TypeError: If the type hint provided is invalid or not supported.
@@ -299,13 +278,13 @@ class TypeEngine(object):
             args = get_args(hint)
             args = list(self.vars_mapping[arg] for arg in args if isinstance(arg, TypeVar))
             hint = hint.__class_getitem__(*args) if len(args) > 0 else hint
-            return _Factory(hint, config=self.config, inputs=inputs, session_id=self.session_id)
+            return DefaultTypeFactory[hint](self.config, inputs, self.session_id)
 
         if isinstance(hint, TypeVar):
             return self.build_type_factory(self.vars_mapping[hint], inputs=inputs)
 
         if issubclass(hint, _Feature):
-            return _Factory(hint, config=self.config, inputs=inputs, session_id=self.session_id)
+            return DefaultTypeFactory[hint](self.config, inputs, self.session_id)
 
         raise TypeError(
             f"Invalid type hint '{hint}' provided in function '{self.name}'. "
