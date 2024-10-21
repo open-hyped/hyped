@@ -3,6 +3,7 @@
 import importlib.util
 import math
 import os
+import sys
 from contextlib import contextmanager
 from functools import cache, reduce
 from time import perf_counter
@@ -382,3 +383,19 @@ def is_package_installed(package_name: str) -> bool:
     """
     package_spec = importlib.util.find_spec(package_name)
     return package_spec is not None
+
+
+def is_python_version_less_than(major, minor: int = 0, micro: int = 0):
+    """Check if the current Python version is less than the provided version.
+
+    Args:
+        major (int): Major version to compare.
+        minor (int): Minor version to compare. Defaults to 0.
+        micro (int): Micro version to compare. Defaults to 0.
+
+    Returns:
+        bool: True if the current Python version is less than the provided version.
+    """
+    current_version = sys.version_info
+    target_version = (major, minor, micro)
+    return current_version < target_version

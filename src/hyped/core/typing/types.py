@@ -1,17 +1,32 @@
 from __future__ import annotations
 
 import typing
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, fields
 from functools import partial
-from types import GenericAlias, get_original_bases
+from types import GenericAlias
 from typing import TYPE_CHECKING, Annotated, Any, Callable, TypeAlias, get_type_hints
 
+import pyarrow as pa
 from pydantic import BaseModel, Field, GetCoreSchemaHandler, TypeAdapter, create_model
 from pydantic_core import core_schema
 from typing_extensions import Self
 
 from hyped.common.feature_key import FeatureKey
 from hyped.common.typing import DataFlowGraphAlias, NodeId
+from hyped.common.utils import is_python_version_less_than
+
+if is_python_version_less_than(3, 11):
+
+    def get_original_bases(cls, /):
+        """Return the class's "original" bases prior to modification by `__mro_entries__`."""
+        try:
+            return cls.__dict__.get("__orig_bases__", cls.__bases__)
+        except AttributeError:
+            raise TypeError(f"Expected an instance of type, not {type(cls).__name__!r}") from None
+
+else:
+    from types import get_original_bases
 
 if not TYPE_CHECKING:
 
@@ -35,10 +50,15 @@ else:
 
 
 @dataclass(eq=True, frozen=True)
-class _Feature(object):
+class _Feature(ABC):
     _ptr: FeatureKey
     _node_id: NodeId
     _flow: DataFlowGraphAlias
+
+    @property
+    @abstractmethod
+    def _pa_type(self) -> pa.lib.DataType:
+        ...
 
     @property
     def _type_hint(self) -> type[Self]:
@@ -52,47 +72,93 @@ class _Primitive(_Feature):
 
 @dataclass(eq=True, frozen=True)
 class _String(_Primitive):
-    ...
+    @property
+    def _pa_type(self) -> pa.lib.DataType:
+        return pa.string()
 
 
 @dataclass(eq=True, frozen=True)
 class _Bool(_Primitive):
-    ...
+    @property
+    def _pa_type(self) -> pa.lib.DataType:
+        return pa.bool_()
 
 
 @dataclass(eq=True, frozen=True)
 class _Int8(_Primitive):
-    ...
+    @property
+    def _pa_type(self) -> pa.lib.DataType:
+        return pa.int8()
 
 
 @dataclass(eq=True, frozen=True)
 class _Int16(_Primitive):
-    ...
+    @property
+    def _pa_type(self) -> pa.lib.DataType:
+        return pa.int16()
 
 
 @dataclass(eq=True, frozen=True)
 class _Int32(_Primitive):
-    ...
+    @property
+    def _pa_type(self) -> pa.lib.DataType:
+        return pa.int32()
 
 
 @dataclass(eq=True, frozen=True)
 class _Int64(_Primitive):
-    ...
+    @property
+    def _pa_type(self) -> pa.lib.DataType:
+        return pa.int64()
+
+
+@dataclass(eq=True, frozen=True)
+class _UInt8(_Primitive):
+    @property
+    def _pa_type(self) -> pa.lib.DataType:
+        return pa.uint8()
+
+
+@dataclass(eq=True, frozen=True)
+class _UInt16(_Primitive):
+    @property
+    def _pa_type(self) -> pa.lib.DataType:
+        return pa.uint16()
+
+
+@dataclass(eq=True, frozen=True)
+class _UInt32(_Primitive):
+    @property
+    def _pa_type(self) -> pa.lib.DataType:
+        return pa.uint32()
+
+
+@dataclass(eq=True, frozen=True)
+class _UInt64(_Primitive):
+    @property
+    def _pa_type(self) -> pa.lib.DataType:
+        return pa.uint64()
 
 
 @dataclass(eq=True, frozen=True)
 class _Float16(_Primitive):
-    ...
+    @property
+    def _pa_type(self) -> pa.lib.DataType:
+        return pa.float16()
 
 
 @dataclass(eq=True, frozen=True)
 class _Float32(_Primitive):
-    ...
+    @property
+    def _pa_type(self) -> pa.lib.DataType:
+        return pa.float32()
 
 
 @dataclass(eq=True, frozen=True)
 class _Float64(_Primitive):
-    ...
+    @property
+    def _pa_type(self) -> pa.lib.DataType:
+        return pa.float64()
 
 
 _Type = typing.TypeVar("_Type", bound=_Feature)
@@ -111,6 +177,11 @@ class Sequence(typing.Sequence[_Type], _Feature):
     _itemtype: type[_Type]
     _factory: _TypeFactory[_Type]
     _length: int
+
+    @property
+    def _pa_type(self) -> pa.lib.DataType:
+        itemtype = self._factory(("key",), self._node_id, self._flow)
+        return pa.list_(itemtype._pa_type)
 
     @property
     def _type_hint(self) -> type[Self]:
@@ -189,6 +260,10 @@ else:
     class Mapping(typing.Mapping, _Feature):
         _factories: dict[str, _TypeFactory[_Feature]]
 
+        @property
+        def _pa_type(self) -> pa.lib.DataType:
+            return pa.struct([(key, feat._pa_type) for key, feat in self.items()])
+
         def __post_init__(self) -> None:
             # get the set of valid keys
             valid_keys = set(get_type_hints(type(self)).keys()) - set(
@@ -239,7 +314,8 @@ else:
                 }
                 # prepare the bsae classes
                 bases = get_original_bases(cls)
-                bases = tuple(map(build_validator_model, bases))
+                bases = map(build_validator_model, bases)
+                bases = tuple(b for b in bases if b is not typing.Mapping)
                 # add the pydantic base model as a base class
                 if not any(
                     isinstance(base, type) and issubclass(base, BaseModel) for base in bases
