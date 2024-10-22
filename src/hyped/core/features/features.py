@@ -159,16 +159,26 @@ class Sequence(typing.Sequence[_Type], _Feature):
         return Sequence[self._itemtype]
 
     def __getitem__(self, index: int | slice) -> _Type:
-        if self._length >= 0:
-            if isinstance(index, int) and (index >= self._length):
-                raise IndexError("Index out of bounds")  # TODO: add information about the key
+        if isinstance(index, slice):
+            # assume the length of the sequence is dynamic
+            new_length = -1
 
-            elif isinstance(index, slice):
-                # there is really nothing to check for slices
-                pass
+            if self._length >= 0:
+                # compute length of the subsequence
+                start, stop, step = index.indices(self._length)
+                new_length = (stop - start) // step
 
-            else:
-                raise TypeError()
+            return Sequence(
+                FeatureKey(*self._key, index),
+                self._node_id,
+                self._graph,
+                self._itemtype,
+                self._factory,
+                new_length,
+            )
+
+        if (self._length >= 0) and (index >= self._length):
+            raise IndexError("Index out of bounds")  # TODO: add information about the key
 
         return self._factory(FeatureKey(*self._key, index), self._node_id, self._graph)
 
