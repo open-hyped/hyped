@@ -7,14 +7,14 @@ and :class:`BeforeValidator` to enforce validation and type resolution logic.
 
 
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, TypeVar
 from uuid import UUID
 
 from pydantic import AfterValidator, BeforeValidator, TypeAdapter, ValidationInfo
 
 from hyped._registry.config import BaseConfig
 
-from .types import Sequence, _Feature
+from .features import Sequence, _Feature
 
 
 @dataclass(eq=True, frozen=True)
@@ -76,14 +76,23 @@ class TypeResolver(BeforeValidator):
                 or ("config" not in info.context)
                 or ("inputs" not in info.context)
                 or ("session_id" not in info.context)
+                # or ("typevars" not in info.context)
             ):
-                raise RuntimeError()
+                raise RuntimeError("Missing context")
 
             # create an instance of the target type
             target_type = resolver(
                 info.context["config"], info.context["inputs"], info.context["session_id"]
             )
-            return TypeAdapter(target_type).validate_python(val)
+
+            # resolve type variable
+            if isinstance(target_type, TypeVar):
+                if target_type not in info.context["typevars"].keys():
+                    raise RuntimeError(f"Invalid TypeVar {target_type}")
+
+                target_type = info.context["typevars"][target_type]
+
+            return TypeAdapter(target_type).validate_python(val, context=info.context)
 
         super(TypeResolver, self).__init__(wrapped_resolver)
 

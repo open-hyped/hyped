@@ -1,6 +1,6 @@
 from typing import Annotated, Any, TypeAlias, Union
 
-from .types import (
+from .features import (
     Mapping,
     Sequence,
     TypeVar,

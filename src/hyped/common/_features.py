@@ -10,8 +10,8 @@ import pydantic
 from datasets.features.features import FeatureType
 
 from hyped.core.abstract import AbstractDataFlowGraph
-from hyped.core.typing.factories import BaseTypeFactory
-from hyped.core.typing.types import (
+from hyped.core.features.factories import BaseFeatureFactory
+from hyped.core.features.features import (
     Mapping,
     Sequence,
     _Bool,
@@ -218,23 +218,23 @@ T = TypeVar("T", bound=_Feature)
 
 
 @dataclass
-class TypeFactoryFromFeature(BaseTypeFactory[T]):
+class TypeFactoryFromFeature(BaseFeatureFactory[T]):
     feature: FeatureType
 
     def _create_instance(
-        self, _ptr: FeatureKey, _node_id: NodeId, _flow: AbstractDataFlowGraph
+        self, _key: FeatureKey, _node_id: NodeId, _graph: AbstractDataFlowGraph
     ) -> Any:
         if isinstance(self.feature, datasets.Value):
             # create instance for primitives
-            return _build_type_from_feature(self.feature)(_ptr, _node_id, _flow)
+            return _build_type_from_feature(self.feature)(_key, _node_id, _graph)
 
         if isinstance(self.feature, datasets.Sequence):
             item_feature = get_sequence_feature(self.feature)
             item_type = _build_type_from_feature(item_feature)
             return Sequence[item_type](
-                _ptr=_ptr,
+                _key=_key,
                 _node_id=_node_id,
-                _flow=_flow,
+                _graph=_graph,
                 _itemtype=item_type,
                 _factory=TypeFactoryFromFeature(item_feature),
                 _length=get_sequence_length(self.feature),
@@ -243,15 +243,15 @@ class TypeFactoryFromFeature(BaseTypeFactory[T]):
         if isinstance(self.feature, datasets.Features):
             mapping_type = _build_type_from_feature(self.feature)
             return mapping_type(
-                _ptr=_ptr,
+                _key=_key,
                 _node_id=_node_id,
-                _flow=_flow,
+                _graph=_graph,
                 _factories={
                     key: TypeFactoryFromFeature(feature) for key, feature in self.feature.items()
                 },
             )
 
-    def __call__(self, _ptr: FeatureKey, _node_id: NodeId, _flow: AbstractDataFlowGraph) -> T:
+    def __call__(self, _key: FeatureKey, _node_id: NodeId, _graph: AbstractDataFlowGraph) -> T:
         # get the type hint if it is provided
         hint = getattr(self, "__orig_class__", None)
         hint = get_args(hint) if hint is not None else []
@@ -259,7 +259,7 @@ class TypeFactoryFromFeature(BaseTypeFactory[T]):
         assert (hint is None) or (not isinstance(hint, TypeVar))
 
         # create the instance
-        inst = self._create_instance(_ptr, _node_id, _flow)
+        inst = self._create_instance(_key, _node_id, _graph)
 
         if hint is None:
             # no validation

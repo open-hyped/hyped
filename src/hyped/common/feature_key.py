@@ -10,11 +10,10 @@ from __future__ import annotations
 from typing import Any
 
 import pyarrow as pa
-from datasets.features.features import Features, FeatureType, Sequence
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
 
-from .typing import Batch, FeatureKeyAlias
+from .typing import ArrowType, Batch, FeatureKeyAlias
 
 
 class FeatureKey(FeatureKeyAlias):
@@ -103,62 +102,53 @@ class FeatureKey(FeatureKeyAlias):
         """
         return core_schema.no_info_after_validator_function(cls, handler(str | tuple))
 
-    def index_features(self, features: Features) -> FeatureType:
-        """Get the feature type of the feature indexed by the key.
+    def index_type(self, pa_type: ArrowType) -> ArrowType:
+        for i, key in enumerate(self):
+            if isinstance(key, str):
+                # make sure the arrow type is a struct
+                if not isinstance(pa_type, pa.StructType):
+                    raise TypeError()
+                # get the type of the field referenced by the key
+                pa_type = pa_type.field(key).type
 
-        Arguments:
-            features (Features): The feature mapping to index with the given key.
+            elif isinstance(key, int):
+                if isinstance(pa_type, pa.FixedShapeTensorType):
+                    # make sure the type is a one-dimensional list
+                    if len(pa_type.shape) != 1:
+                        raise TypeError()
+                    # we don't do any boundaty checks here
+                    # boundary checks are handled by the feature
+                    pa_type = pa_type.value_type
 
-        Returns:
-            FeatureType: The extracted feature type at the given key.
-        """
-        from .feature_checks import (
-            get_sequence_feature,
-            get_sequence_length,
-            raise_feature_equals,
-            raise_feature_is_sequence,
-        )
+                elif isinstance(pa_type, pa.ListType):
+                    # get the value type of the list
+                    pa_type = pa_type.value_type
 
-        for i, key_entry in enumerate(self):
-            if isinstance(key_entry, str):
-                # check feature type
-                raise_feature_equals(self[:i], features, [Features, dict])
-                # check key entry is present in features
-                if key_entry not in features.keys():
-                    raise KeyError(
-                        "Key `%s` not present in features at `%s`, "
-                        "valid keys are %s" % (key_entry, self[:i], list(features.keys()))
-                    )
-                # get the feature at the key entry
-                features = features[key_entry]
+                else:
+                    raise TypeError()
 
-            elif isinstance(key_entry, (int, slice)):
-                # check feature type
-                raise_feature_is_sequence(self[:i], features)
-                # get sequence feature and length
-                length = get_sequence_length(features)
-                features = get_sequence_feature(features)
+            elif isinstance(key, slice):
+                sub_key = tuple.__new__(FeatureKey, self[i + 1 :])
 
-                if isinstance(key_entry, int) and (
-                    (length == 0) or ((length > 0) and (key_entry >= length))
-                ):
-                    raise IndexError(
-                        "Index `%i` out of bounds for sequence of "
-                        "length `%i` of feature at key %s" % (key_entry, length, self[:i])
-                    )
+                if isinstance(pa_type, pa.FixedShapeTensorType):
+                    if len(pa_type.shape) != 1:
+                        raise TypeError()
 
-                if isinstance(key_entry, slice):
-                    if length >= 0:
-                        # get length of remaining sequence after slicing
-                        start, stop, step = key_entry.indices(length)
-                        length = (stop - start) // step
+                    (length,) = pa_type.shape
 
-                    # get features and pack them into a sequence of
-                    # appropriate length
-                    key = tuple.__new__(FeatureKey, self[i + 1 :])
-                    return Sequence(key.index_features(features), length=length)
+                    start, stop, step = key.indices(length)
+                    new_length = (stop - start) // step
 
-        return features
+                    sub_key = tuple.__new__(FeatureKey, self[i + 1 :])
+                    value_type = sub_key.index_type(pa_type.value_type)
+
+                    return pa.fixed_shape_tensor(value_type, [new_length])
+
+                elif isinstance(pa_type, pa.ListType):
+                    sub_key = tuple.__new__(FeatureKey, self[i + 1 :])
+                    return pa.list_(sub_key.index_type(pa_type.value_type))
+
+        return pa_type
 
     def index_batch(self, batch: Batch) -> pa.Array:
         """Index a batch of examples with the given key and retrieve the batch of values.

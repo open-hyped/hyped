@@ -33,8 +33,8 @@ class TestExecutionState:
                 DataFlowGraph.NodeAttribute.NODE_TYPE: DataFlowGraph.NodeType.SOURCE,
                 DataFlowGraph.NodeAttribute.NODE_OBJ: None,  # no node object for source nodes
                 DataFlowGraph.NodeAttribute.PARTITION: DataFlowGraph.PredefinedPartition.DEFAULT,
-                DataFlowGraph.NodeAttribute.IN_FEATURES: None,
-                DataFlowGraph.NodeAttribute.OUT_FEATURES: Features({"x": Value("int64")}),
+                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs: None,
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: Features({"x": Value("int64")}),
             },
         )
 
@@ -46,8 +46,8 @@ class TestExecutionState:
                 DataFlowGraph.NodeAttribute.NODE_TYPE: DataFlowGraph.NodeType.CONST,
                 DataFlowGraph.NodeAttribute.NODE_OBJ: MagicMock(),
                 DataFlowGraph.NodeAttribute.PARTITION: DataFlowGraph.PredefinedPartition.CONST,
-                DataFlowGraph.NodeAttribute.IN_FEATURES: None,
-                DataFlowGraph.NodeAttribute.OUT_FEATURES: Features({"value": Value("int64")}),
+                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs: None,
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: Features({"value": Value("int64")}),
             },
         )
 
@@ -60,8 +60,8 @@ class TestExecutionState:
                 DataFlowGraph.NodeAttribute.PARTITION: (
                     DataFlowGraph.PredefinedPartition.DEFAULT.value
                 ),
-                DataFlowGraph.NodeAttribute.IN_FEATURES: mock_in_features,
-                DataFlowGraph.NodeAttribute.OUT_FEATURES: mock_out_features,
+                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs: mock_in_features,
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: mock_out_features,
             },
         )
         for name in ("a", "b"):
@@ -84,8 +84,8 @@ class TestExecutionState:
                 DataFlowGraph.NodeAttribute.PARTITION: (
                     DataFlowGraph.PredefinedPartition.DEFAULT.value
                 ),
-                DataFlowGraph.NodeAttribute.IN_FEATURES: mock_in_features,
-                DataFlowGraph.NodeAttribute.OUT_FEATURES: mock_out_features,
+                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs: mock_in_features,
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: mock_out_features,
             },
         )
         for name in ("a", "b"):
@@ -106,8 +106,8 @@ class TestExecutionState:
                 DataFlowGraph.NodeAttribute.NODE_TYPE: DataFlowGraph.NodeType.DATA_PROCESSOR,
                 DataFlowGraph.NodeAttribute.NODE_OBJ: MagicMock(),
                 DataFlowGraph.NodeAttribute.PARTITION: "AUGMENTER_NODE",
-                DataFlowGraph.NodeAttribute.IN_FEATURES: mock_in_features,
-                DataFlowGraph.NodeAttribute.OUT_FEATURES: mock_out_features,
+                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs: mock_in_features,
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: mock_out_features,
             },
         )
         for name in ("a", "b"):
@@ -128,8 +128,8 @@ class TestExecutionState:
                 DataFlowGraph.NodeAttribute.NODE_TYPE: DataFlowGraph.NodeType.DATA_AUGMENTER,
                 DataFlowGraph.NodeAttribute.NODE_OBJ: MagicMock(),
                 DataFlowGraph.NodeAttribute.PARTITION: "AUGMENTER_NODE",
-                DataFlowGraph.NodeAttribute.IN_FEATURES: mock_in_features,
-                DataFlowGraph.NodeAttribute.OUT_FEATURES: mock_out_features,
+                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs: mock_in_features,
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: mock_out_features,
             },
         )
         for name in ("a", "b"):
@@ -150,8 +150,8 @@ class TestExecutionState:
                 DataFlowGraph.NodeAttribute.NODE_TYPE: DataFlowGraph.NodeType.DATA_PROCESSOR,
                 DataFlowGraph.NodeAttribute.NODE_OBJ: MagicMock(),
                 DataFlowGraph.NodeAttribute.PARTITION: "AUGMENTER_NODE_2",
-                DataFlowGraph.NodeAttribute.IN_FEATURES: mock_in_features,
-                DataFlowGraph.NodeAttribute.OUT_FEATURES: mock_out_features,
+                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs: mock_in_features,
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: mock_out_features,
             },
         )
         for name in ("a", "b"):
@@ -559,8 +559,8 @@ class TestDataFlowExecutor:
             node_id: {
                 DataFlowGraph.NodeAttribute.NODE_TYPE: None,
                 DataFlowGraph.NodeAttribute.NODE_OBJ: mock_node_obj,
-                DataFlowGraph.NodeAttribute.IN_FEATURES: mock_in_features,
-                DataFlowGraph.NodeAttribute.OUT_FEATURES: mock_out_features,
+                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs: mock_in_features,
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: mock_out_features,
             }
         }
 
@@ -668,8 +668,8 @@ class TestDataFlowExecutor:
             mock_execution_state.rank,
             IOContext(
                 node_id="NODE_ID",
-                inputs=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURES],
-                outputs=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURES],
+                inputs=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs],
+                outputs=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
             ),
         )
         mock_execution_state.capture_output.assert_called_once_with("NODE_ID", expected_output)
@@ -703,8 +703,8 @@ class TestDataFlowExecutor:
             mock_execution_state.rank,
             IOContext(
                 node_id="NODE_ID",
-                inputs=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURES],
-                outputs=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURES],
+                inputs=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs],
+                outputs=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
             ),
         )
         mock_execution_state.capture_output.assert_called_once_with("NODE_ID", expected_output)
@@ -736,8 +736,8 @@ class TestDataFlowExecutor:
             mock_execution_state.rank,
             IOContext(
                 node_id="NODE_ID",
-                inputs=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURES],
-                outputs=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURES],
+                inputs=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs],
+                outputs=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
             ),
         )
 

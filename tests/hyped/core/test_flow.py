@@ -72,13 +72,13 @@ class TestDataFlow:
         return [
             IOContext(
                 node_id=proc_node,
-                inputs=graph.nodes[proc_node][DataFlowGraph.NodeAttribute.IN_FEATURES],
-                outputs=graph.nodes[proc_node][DataFlowGraph.NodeAttribute.OUT_FEATURES],
+                inputs=graph.nodes[proc_node][DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs],
+                outputs=graph.nodes[proc_node][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
             ),
             IOContext(
                 node_id=agg_node,
-                inputs=graph.nodes[agg_node][DataFlowGraph.NodeAttribute.IN_FEATURES],
-                outputs=graph.nodes[agg_node][DataFlowGraph.NodeAttribute.OUT_FEATURES],
+                inputs=graph.nodes[agg_node][DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs],
+                outputs=graph.nodes[agg_node][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
             ),
         ]
 
@@ -138,7 +138,7 @@ class TestDataFlow:
 
         def get_feature(graph, ref):
             return ref.key_.index_features(
-                graph.nodes[ref.node_id_][DataFlowGraph.NodeAttribute.OUT_FEATURES]
+                graph.nodes[ref.node_id_][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
             )
 
         mock_lazy_flow_output.reset_mock()
@@ -158,7 +158,9 @@ class TestDataFlow:
         # make sure the source node contains the output of the aggregator node
         assert (
             agg_ref.node_id_
-            in lazy_graph.nodes[lazy_graph.src_node_id][DataFlowGraph.NodeAttribute.OUT_FEATURES]
+            in lazy_graph.nodes[lazy_graph.src_node_id][
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
+            ]
         )
 
         mock_lazy_flow_output.reset_mock()
@@ -182,7 +184,9 @@ class TestDataFlow:
         # make sure the source node contains the output of the aggregator node
         assert (
             agg_ref.node_id_
-            in lazy_graph.nodes[lazy_graph.src_node_id][DataFlowGraph.NodeAttribute.OUT_FEATURES]
+            in lazy_graph.nodes[lazy_graph.src_node_id][
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
+            ]
         )
 
         mock_lazy_flow_output.reset_mock()
@@ -208,7 +212,9 @@ class TestDataFlow:
         # make sure the source node contains the output of the aggregator node
         assert (
             agg_ref.node_id_
-            in lazy_graph.nodes[lazy_graph.src_node_id][DataFlowGraph.NodeAttribute.OUT_FEATURES]
+            in lazy_graph.nodes[lazy_graph.src_node_id][
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
+            ]
         )
 
     def test_batch_process(self, setup_flow, io_contexts, mock_manager):

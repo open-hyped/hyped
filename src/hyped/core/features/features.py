@@ -4,7 +4,7 @@ import typing
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from types import GenericAlias
-from typing import TYPE_CHECKING, Annotated, Any, get_type_hints
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, get_type_hints
 
 import pyarrow as pa
 from pydantic import BaseModel, Field, GetCoreSchemaHandler, TypeAdapter, create_model
@@ -12,10 +12,11 @@ from pydantic_core import core_schema
 from typing_extensions import Self
 
 from hyped.common.feature_key import FeatureKey
-from hyped.common.typing import DataFlowGraphAlias, NodeId
+from hyped.common.typing import ArrowType
 from hyped.common.utils import is_python_version_less_than
 
-from .factories import BaseTypeFactory, TypeFactoryFromInstance
+from .factories import BaseFeatureFactory, FeatureFactoryFromInstance
+from .reference import Reference
 
 if is_python_version_less_than(3, 11):
 
@@ -51,14 +52,10 @@ else:
 
 
 @dataclass(eq=True, frozen=True)
-class _Feature(ABC):
-    _ptr: FeatureKey
-    _node_id: NodeId
-    _flow: DataFlowGraphAlias
-
+class _Feature(ABC, Reference):
     @property
     @abstractmethod
-    def _pa_type(self) -> pa.lib.DataType:
+    def _pa_type(self) -> ArrowType:
         ...
 
     @property
@@ -68,98 +65,76 @@ class _Feature(ABC):
 
 @dataclass(eq=True, frozen=True)
 class _Primitive(_Feature):
-    ...
+    _primitive_pa_type: ClassVar[ArrowType]
+
+    @property
+    def _pa_type(self) -> ArrowType:
+        return type(self)._primitive_pa_type
 
 
 @dataclass(eq=True, frozen=True)
 class _String(_Primitive):
-    @property
-    def _pa_type(self) -> pa.lib.DataType:
-        return pa.string()
+    _primitive_pa_type = pa.string()
 
 
 @dataclass(eq=True, frozen=True)
 class _Bool(_Primitive):
-    @property
-    def _pa_type(self) -> pa.lib.DataType:
-        return pa.bool_()
+    _primitive_pa_type = pa.bool_()
 
 
 @dataclass(eq=True, frozen=True)
 class _Int8(_Primitive):
-    @property
-    def _pa_type(self) -> pa.lib.DataType:
-        return pa.int8()
+    _primitive_pa_type = pa.int8()
 
 
 @dataclass(eq=True, frozen=True)
 class _Int16(_Primitive):
-    @property
-    def _pa_type(self) -> pa.lib.DataType:
-        return pa.int16()
+    _primitive_pa_type = pa.int16()
 
 
 @dataclass(eq=True, frozen=True)
 class _Int32(_Primitive):
-    @property
-    def _pa_type(self) -> pa.lib.DataType:
-        return pa.int32()
+    _primitive_pa_type = pa.int32()
 
 
 @dataclass(eq=True, frozen=True)
 class _Int64(_Primitive):
-    @property
-    def _pa_type(self) -> pa.lib.DataType:
-        return pa.int64()
+    _primitive_pa_type = pa.int64()
 
 
 @dataclass(eq=True, frozen=True)
 class _UInt8(_Primitive):
-    @property
-    def _pa_type(self) -> pa.lib.DataType:
-        return pa.uint8()
+    _primitive_pa_type = pa.uint8()
 
 
 @dataclass(eq=True, frozen=True)
 class _UInt16(_Primitive):
-    @property
-    def _pa_type(self) -> pa.lib.DataType:
-        return pa.uint16()
+    _primitive_pa_type = pa.uint16()
 
 
 @dataclass(eq=True, frozen=True)
 class _UInt32(_Primitive):
-    @property
-    def _pa_type(self) -> pa.lib.DataType:
-        return pa.uint32()
+    _primitive_pa_type = pa.uint32()
 
 
 @dataclass(eq=True, frozen=True)
 class _UInt64(_Primitive):
-    @property
-    def _pa_type(self) -> pa.lib.DataType:
-        return pa.uint64()
+    _primitive_pa_type = pa.uint64()
 
 
 @dataclass(eq=True, frozen=True)
 class _Float16(_Primitive):
-    @property
-    def _pa_type(self) -> pa.lib.DataType:
-        return pa.float16()
+    _primitive_pa_type = pa.float16()
 
 
 @dataclass(eq=True, frozen=True)
 class _Float32(_Primitive):
-    @property
-    def _pa_type(self) -> pa.lib.DataType:
-        return pa.float32()
+    _primitive_pa_type = pa.float32()
 
 
 @dataclass(eq=True, frozen=True)
 class _Float64(_Primitive):
-    @property
-    def _pa_type(self) -> pa.lib.DataType:
-        return pa.float64()
+    _primitive_pa_type = pa.float64()
 
 
 _Type = TypeVar("_Type", bound=_Feature)
@@ -168,23 +143,34 @@ _Type = TypeVar("_Type", bound=_Feature)
 @dataclass(eq=True, frozen=True)
 class Sequence(typing.Sequence[_Type], _Feature):
     _itemtype: type[_Type]
-    _factory: BaseTypeFactory[_Type]
+    _factory: BaseFeatureFactory[_Type]
     _length: int
 
     @property
-    def _pa_type(self) -> pa.lib.DataType:
-        itemtype = self._factory(("key",), self._node_id, self._flow)
-        return pa.list_(itemtype._pa_type)
+    def _pa_type(self) -> ArrowType:
+        return (
+            pa.list_(self._factory._pa_type)
+            if self._length == -1
+            else pa.fixed_shape_tensor(self._factory._pa_type, [self._length])
+        )
 
     @property
     def _type_hint(self) -> type[Self]:
         return Sequence[self._itemtype]
 
-    def __getitem__(self, index: int) -> _Type:
-        if index >= self._length:
-            raise IndexError()
+    def __getitem__(self, index: int | slice) -> _Type:
+        if self._length >= 0:
+            if isinstance(index, int) and (index >= self._length):
+                raise IndexError("Index out of bounds")  # TODO: add information about the key
 
-        return self._factory(FeatureKey(*self._ptr, index), self._node_id, self._flow)
+            elif isinstance(index, slice):
+                # there is really nothing to check for slices
+                pass
+
+            else:
+                raise TypeError()
+
+        return self._factory(FeatureKey(*self._key, index), self._node_id, self._graph)
 
     def __len__(self) -> int:
         return self._length
@@ -209,13 +195,13 @@ class Sequence(typing.Sequence[_Type], _Feature):
                 item = validator.validate_python(inst, context=info.context)
                 inst = cls(
                     **inst,
-                    _factory=TypeFactoryFromInstance(item),
+                    _factory=FeatureFactoryFromInstance(item),
                     _itemtype=item._type_hint,
                     _length=-1,
                 )
 
             # validate the item type of the instance
-            item = inst._factory(("key",), inst._node_id, inst._flow)
+            item = inst._factory(("key",), inst._node_id, inst._graph)
             validator.validate_python(item, context=info.context)
             # return the instance
             return inst
@@ -251,11 +237,11 @@ else:
 
     @dataclass(eq=True, frozen=True)
     class Mapping(typing.Mapping, _Feature):
-        _factories: dict[str, BaseTypeFactory]
+        _factories: dict[str, BaseFeatureFactory]
 
         @property
-        def _pa_type(self) -> pa.lib.DataType:
-            return pa.struct([(key, feat._pa_type) for key, feat in self.items()])
+        def _pa_type(self) -> ArrowType:
+            return pa.struct([(key, factory._pa_type) for key, factory in self._factories.items()])
 
         def __post_init__(self) -> None:
             # get the set of valid keys
@@ -275,7 +261,7 @@ else:
                 raise MissingKeyError(f"Missing Keys: {missing_keys}", missing_keys=missing_keys)
 
         def __getitem__(self, key: str) -> _Feature:
-            return self._factories[key](FeatureKey(*self._ptr, key), self._node_id, self._flow)
+            return self._factories[key](FeatureKey(*self._key, key), self._node_id, self._graph)
 
         def __len__(self) -> int:
             return len(self._factories)
@@ -297,7 +283,8 @@ else:
                         and issubclass(typing.get_origin(cls), Mapping)
                     )
                 ):
-                    # trivial case: the class is not a subclass of mapping or the base class itself
+                    # trivial case: the class is not a subclass
+                    # of mapping or the base class itself
                     return cls
 
                 # get the annotations of only this type
@@ -338,7 +325,7 @@ else:
                     members = {key: inst for key in validator.model_fields.keys()}
                     members = validator.model_validate(members, context=info.context)
                     # create the factories from the inferred members
-                    factories = {key: TypeFactoryFromInstance(item) for key, item in members}
+                    factories = {key: FeatureFactoryFromInstance(item) for key, item in members}
                     inst = cls(**inst, _factories=factories)
 
                 strict = (info.context or {}).get("strict", False)
@@ -351,7 +338,7 @@ else:
                 return (
                     inst
                     if isinstance(inst, cls) or not strict
-                    else cls(inst._ptr, inst._node_id, inst._flow, inst._factories)
+                    else cls(inst._key, inst._node_id, inst._graph, inst._factories)
                 )
 
             # apply the validator function before the schema to

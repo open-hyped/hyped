@@ -7,22 +7,32 @@ import pydantic
 
 from hyped._registry.config import BaseConfig
 from hyped.common.feature_key import FeatureKey
-from hyped.common.typing import NodeId
+from hyped.common.typing import ArrowType, NodeId
 
 from ..abstract import AbstractDataFlowGraph
 
 T = TypeVar("T")
 
 
-class BaseTypeFactory(ABC, Generic[T]):
+class _DummyDataFlowGraph(AbstractDataFlowGraph):
+    def __init__(self):
+        pass
+
+
+class BaseFeatureFactory(ABC, Generic[T]):
+    @property
+    def _pa_type(self) -> ArrowType:
+        graph = _DummyDataFlowGraph()
+        return self(FeatureKey(), "NodeId", graph)._pa_type
+
     @abstractmethod
-    def __call__(self, _ptr: FeatureKey, _node_id: NodeId, _flow: AbstractDataFlowGraph) -> T:
+    def __call__(self, _key: FeatureKey, _node_id: NodeId, _graph: AbstractDataFlowGraph) -> T:
         """Create and validate an instance based on the provided arguments.
 
         Args:
-            _ptr (FeatureKey): Key representing the feature pointer.
+            _key (FeatureKey): Key representing the feature pointer.
             _node_id (NodeId): The ID of the node in the data flow graph.
-            _flow (DataFlowGraphAlias): Alias for the data flow graph.
+            _graph (AbstractDataFlowGraph): The data flow graph containing the Feature.
 
         Returns:
             T: The type instance generated from the arguments.
@@ -31,7 +41,7 @@ class BaseTypeFactory(ABC, Generic[T]):
 
 
 @dataclass
-class DefaultTypeFactory(BaseTypeFactory[T]):
+class DefaultFeatureFactory(BaseFeatureFactory[T]):
     config: BaseConfig = field(default_factory=BaseConfig)
     """Configuration related to the data flow."""
 
@@ -41,25 +51,37 @@ class DefaultTypeFactory(BaseTypeFactory[T]):
     session_id: UUID = field(default_factory=uuid4)
     """Unique identifier for the validation session."""
 
-    def __call__(self, _ptr: FeatureKey, _node_id: NodeId, _flow: AbstractDataFlowGraph) -> T:
+    typevars: dict[TypeVar, type] = field(default_factory=dict)
+    """Typevar lookup used in type resolvers when typevars occur."""
+
+    def __call__(self, _key: FeatureKey, _node_id: NodeId, _graph: AbstractDataFlowGraph) -> T:
         (hint,) = get_args(self.__orig_class__)
         assert not isinstance(hint, TypeVar)
 
-        inst = {"_ptr": _ptr, "_node_id": _node_id, "_flow": _flow}
-        context = {"config": self.config, "inputs": self.inputs, "session_id": self.session_id}
+        inst = {"_key": _key, "_node_id": _node_id, "_graph": _graph}
+        context = {
+            "config": self.config,
+            "inputs": self.inputs,
+            "session_id": self.session_id,
+            "typevars": self.typevars,
+        }
         return pydantic.TypeAdapter(hint).validate_python(inst, context=context)
 
 
 @dataclass
-class TypeFactoryFromInstance(BaseTypeFactory[T]):
+class FeatureFactoryFromInstance(BaseFeatureFactory[T]):
     inst: T
 
-    def __call__(self, _ptr: FeatureKey, _node_id: NodeId, _flow: AbstractDataFlowGraph) -> T:
+    @property
+    def _pa_type(self) -> ArrowType:
+        return self.inst._pa_type
+
+    def __call__(self, _key: FeatureKey, _node_id: NodeId, _graph: AbstractDataFlowGraph) -> T:
         # get all fields from the dataclass instance
         kwargs = {field.name: getattr(self.inst, field.name) for field in fields(self.inst)}
         # overwrite the arguments
-        kwargs["_ptr"] = _ptr
+        kwargs["_key"] = _key
         kwargs["_node_id"] = _node_id
-        kwargs["_flow"] = _flow
+        kwargs["_graph"] = _graph
         # create a new instance using the keyword arguments
         return self.inst._type_hint(**kwargs)

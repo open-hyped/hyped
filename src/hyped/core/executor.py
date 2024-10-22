@@ -316,8 +316,8 @@ class DataFlowExecutor(object):
         # build the io context
         io = IOContext(
             node_id=node_id,
-            inputs=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURES],
-            outputs=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURES],
+            inputs=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs],
+            outputs=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
         )
 
         if node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:

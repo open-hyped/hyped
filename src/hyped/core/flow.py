@@ -32,6 +32,8 @@ from hyped.common.typing import Aggregate, Batch, IndexList, Rank
 
 from .abstract import AbstractDataFlow
 from .executor import DataFlowExecutor
+from .features import _Feature
+from .features.factories import BaseFeatureFactory, DefaultFeatureFactory
 from .graph import DataFlowGraph
 from .lazy import LazyFlowOutput
 from .nodes.aggregator import DataAggregationManager
@@ -39,8 +41,6 @@ from .nodes.base import IOContext
 from .nodes.const import Const
 from .optim import DataFlowGraphOptimizer
 from .refs.ref import FeatureRef
-from .typing import _Feature
-from .typing.factories import BaseTypeFactory, DefaultTypeFactory
 
 D = TypeVar(
     "D",
@@ -108,7 +108,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         )
 
         # build the source type factory for the
-        src_type_factory: BaseTypeFactory
+        src_type_factory: BaseFeatureFactory
 
         if self._hf_source_features is not None:
             # create the source type from the given source features
@@ -116,21 +116,15 @@ class DataFlow(AbstractDataFlow, Generic[T]):
 
         elif src_type_annotation is not None:
             # infer type from type annotation using default type resolvers
-            src_type_factory = DefaultTypeFactory[src_type_annotation]()
+            src_type_factory = DefaultFeatureFactory[src_type_annotation]()
 
         else:
             # no input specified, at least argument or type hint is required
             raise RuntimeError()
 
-        # TODO: get arrow type from source type factory
-        # TODO: graph works on source type level
-
-        # create an instance of the source type
-        src_node_id = DataFlowGraph.create_random_node_id()
-        self._source_type = src_type_factory(FeatureKey(), src_node_id, self._graph)
         # add the source node to the graph with the node id
-        node_id = self._graph.add_source_node(self._source_type._pa_type, src_node_id)
-        assert src_node_id == node_id
+        node_id = self._graph.add_source_node(src_type_factory._pa_type)
+        self._source_type = src_type_factory(FeatureKey(), node_id, self._graph)
 
     @property
     def depth(self) -> int:
@@ -169,8 +163,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         if not self._is_initialized:
             self._initialize()
 
-        print("TODO")
-        exit()
+        return self._source_type
 
     @property
     def out_features(self) -> FeatureRef:
@@ -349,8 +342,10 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             io_ctxs = [
                 IOContext(
                     node_id=node_id,
-                    inputs=optim_graph.nodes[node_id][DataFlowGraph.NodeAttribute.IN_FEATURES],
-                    outputs=optim_graph.nodes[node_id][DataFlowGraph.NodeAttribute.OUT_FEATURES],
+                    inputs=optim_graph.nodes[node_id][DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs],
+                    outputs=optim_graph.nodes[node_id][
+                        DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
+                    ],
                 )
                 for node_id in aggregator_node_ids
             ]

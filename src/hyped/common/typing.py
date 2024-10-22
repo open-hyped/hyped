@@ -13,9 +13,12 @@ used across different parts of the project, making the code more consistent and 
 
 from typing import Any
 
+import pyarrow as pa
 from datasets import Dataset, DatasetDict, IterableDataset, IterableDatasetDict
-from pyarrow import Table
 from typing_extensions import TypeAlias
+
+ArrowType: TypeAlias = pa.lib.DataType
+
 
 Sample: TypeAlias = dict[str, Any]
 """A sample of the dataset.
@@ -25,7 +28,7 @@ The keys are strings representing feature names, and the values can be of any ty
 (e.g., integers, floats, strings, or more complex data structures).
 """
 
-Batch: TypeAlias = Table
+Batch: TypeAlias = pa.Table
 """A batch of samples from the dataset.
 
 Represents a collection of samples, structured as a dictionary where the keys are feature names,
@@ -120,6 +123,7 @@ Represents a tuple that serves as a key for accessing specific features of a nod
 the data flow graph.
 """
 
+# TODO: depricated, use hyped.core.features.pointer.Pointer instead
 Pointer: TypeAlias = tuple[NodeId, FeatureKeyAlias, DataFlowGraphAlias]
 """Pointer pointing to output features of a node in the data flow graph.
 

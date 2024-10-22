@@ -12,10 +12,8 @@ from typing import Any, Concatenate, Generic, ParamSpec, Protocol, TypeVar, over
 
 from typing_extensions import Self
 
-from ..abstract import AbstractDataFlow
-from ..typing import Feature, Sequence, _Feature
-from ..typing.engine import TypeEngine
-from .base import BaseNode, BaseNodeConfig, CallableProtocol, RunContext
+from ..features import Feature, Sequence
+from .base import BaseNode, BaseNodeConfig, NodeProtocol, RunContext
 
 Params = ParamSpec("Params")
 Return = TypeVar("Return", covariant=True)
@@ -60,7 +58,7 @@ class BaseDataProcessor(BaseNode[C], ABC):
         cls: _ProcessFunctionProtocol[Concatenate[Self, RunContext, Params], Return],
         *args: Any,
         **kwargs: Any,
-    ) -> CallableProtocol[Params, Return]:
+    ) -> NodeProtocol[Params, Return]:
         return super().__new__(cls, *args, **kwargs)
 
     def __init__(self, config: None | C = None, **kwargs) -> None:
@@ -79,21 +77,14 @@ class BaseDataProcessor(BaseNode[C], ABC):
         # check whether the process function is a coroutine
         self._is_process_async = inspect.iscoroutinefunction(self.process)
 
-    def _call(
-        self, flow: AbstractDataFlow, args: tuple[Feature], kwargs: dict[str, Feature]
-    ) -> _Feature:
-        name = ".".join([type(self).__qualname__, "process"])
-        engine = TypeEngine(name, self.config, self.process, {"ctx"})
-        # validate the process signature and arguments
-        engine.validate_signature()
-        engine.validate_arguments(*args, **kwargs)
-        # get input features and constants to the call function
-        inputs, consts, factories = engine.get_inputs_and_consts(*args, **kwargs)
-
-        if len(consts) > 0:
-            raise NotImplementedError
-
-        exit()
+    @property
+    def signature(self) -> inspect.Signature:
+        signature = inspect.signature(self.process)
+        # remove the ctx argument of the process function
+        params = signature.parameters.values()
+        params = [param for param in params if param.name != "ctx"]
+        # return the signature containing the remaining parameters
+        return signature.replace(parameters=params)
 
     @overload
     async def process(self, ctx: RunContext, *args: Feature, **kwargs: Feature) -> Feature:

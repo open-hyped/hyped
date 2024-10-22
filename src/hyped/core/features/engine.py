@@ -9,15 +9,16 @@ import inspect
 from contextlib import contextmanager
 from functools import partial
 from types import GenericAlias
-from typing import Any, Callable, Generator, TypeVar, get_args, get_type_hints
+from typing import Any, Generator, TypeVar, _GenericAlias
 from uuid import uuid4
 
 import pydantic
 
 from hyped._registry.config import BaseConfig
 
-from .factories import DefaultTypeFactory
-from .types import _Feature
+from .factories import DefaultFeatureFactory
+from .features import _Feature
+from .reference import Reference
 
 
 class TypeVarRegister(object):
@@ -90,36 +91,22 @@ type_var_register = TypeVarRegister()
 
 
 class TypeEngine(object):
-    def __init__(
-        self, name: str, config: BaseConfig, func: Callable, ignore_keys: set[str]
-    ) -> None:
+    def __init__(self, name: str, config: BaseConfig, signature: inspect.Signature) -> None:
         """Initialize the TypeEngine with a function and a configuration.
 
         Args:
             name (str): A name used as an identifier for context in logs and errors.
             config (BaseConfig): A configuration object provided as context during validation.
-            func (Callable): The callable to analyse.
-            ignore_keys (set[str]): A set of argument names to be ignored by the type engine.
+            signature (inspect.Signature): The function signature to consider for type checking.
         """
 
         self.name = name
         self.config = config
 
-        # parse the function
-        self.signature = inspect.signature(func)
-        self.hints = get_type_hints(func, include_extras=True)
-
-        # remove the ignore keys from the signature
-        params = self.signature.parameters.values()
-        params = [param for param in params if param.name not in ignore_keys]
-        self.signature = self.signature.replace(parameters=params)
-        # remove the ignore keys from the type hints
-        for key in ignore_keys:
-            self.hints.pop(key, None)
-
+        self.signature = signature
         # create the validation model
         self.session_id = uuid4()
-        self.validator = self._build_validator(func)
+        self.validator = self._build_validator()
         # track the type variable assingment while validating
         self.vars_mapping: None | dict[TypeVar, Any] = None
 
@@ -138,34 +125,27 @@ class TypeEngine(object):
             None,
         )
 
-    def _build_validator(self, func: Callable) -> pydantic.BaseModel:
+    def _build_validator(self) -> pydantic.BaseModel:
         """Build a Pydantic model to validate function arguments based on type hints.
-
-        Args:
-            func (Callable): The function whose arguments are being validated.
 
         Returns:
             pydantic.BaseModel: The argument validator model.
         """
 
-        # get all input argument type hints
-        hints = self.hints.copy()
-        hints.pop("return")
-
         arguments = {}
         # build arguments from type annotations
-        for name, annotation in hints.items():
-            param = self.signature.parameters[name]
+        for name, param in self.signature.parameters.items():
             annotation = (
-                list[annotation]
+                list[param.annotation]
                 if param.kind is inspect._ParameterKind.VAR_POSITIONAL
-                else dict[str, annotation]
+                else dict[str, param.annotation]
                 if param.kind is inspect._ParameterKind.VAR_KEYWORD
-                else annotation
+                else param.annotation
             )
             arguments[name] = (annotation, pydantic.Field())
+
         # build input argument validator model
-        return pydantic.create_model(f"ArgumentValidator({func.__name__})", **arguments)
+        return pydantic.create_model(f"ArgumentValidator({self.name})", **arguments)
 
     def validate_signature(self) -> None:
         """Validate that the function signature has all necessary type annotations.
@@ -185,15 +165,12 @@ class TypeEngine(object):
                     "All parameters must have type annotations to ensure proper validation."
                 )
 
-    def validate_arguments(self, *args: Any, **kwargs: Any) -> dict[str, _Feature]:
+    def validate_arguments(self, *args: Any, **kwargs: Any) -> None:
         """Validate the arguments passed to the function based on its signature.
 
         Args:
             *args (Any): Positional arguments.
             **kwargs (Any): Keyword arguments.
-
-        Returns:
-            dict[str, _Feature]: Validated input features.
 
         Raises:
             TypeError: If the arguments provided are invalid or do not match the expected types.
@@ -215,11 +192,11 @@ class TypeEngine(object):
                 f"Invalid argument types provided in the call to '{self.name}'. "
             ) from e
 
-    def get_inputs_and_consts(
+    def get_references_and_consts(
         self, *args: Any, **kwargs: Any
-    ) -> tuple[dict[str, _Feature], dict[str, Any], dict[str, DefaultTypeFactory]]:
+    ) -> tuple[dict[str, _Feature], dict[str, Any], dict[str, DefaultFeatureFactory]]:
         """
-        Separate input features and constants from the arguments.
+        Separate input feature references and constants from the arguments.
 
         Args:
             *args (Any): Positional arguments.
@@ -234,20 +211,23 @@ class TypeEngine(object):
         kwargs = arguments.pop(self.kwargs_param.name) if self.kwargs_param is not None else {}
         arguments.update(kwargs)
         # separate all feature and constant inputs
-        inputs = {key: val for key, val in arguments.items() if isinstance(val, _Feature)}
-        consts = {key: val for key, val in arguments.items() if not isinstance(val, _Feature)}
+        inputs = {key: val for key, val in arguments.items() if isinstance(val, Reference)}
+        consts = {key: val for key, val in arguments.items() if not isinstance(val, Reference)}
         # get the type hints for the constants from the signature
-        const_factories = {
-            key: self.hints[key if key not in kwargs else self.kwargs_param.name]
+        const_annotations = {
+            key: self.signature.parameters[
+                key if key not in kwargs else self.kwargs_param.name
+            ].annotation
             for key in consts.keys()
         }
         const_factories = {
-            key: self._build_type_factory(hint, arguments) for key, hint in const_factories.items()
+            key: self._build_type_factory(hint, arguments)
+            for key, hint in const_annotations.items()
         }
 
         return inputs, consts, const_factories
 
-    def get_return_factory(self, inputs: dict[str, _Feature]) -> DefaultTypeFactory:
+    def get_return_factory(self, inputs: dict[str, _Feature]) -> DefaultFeatureFactory:
         """Build a type factory for the return type based on the inputs.
 
         Args:
@@ -256,15 +236,15 @@ class TypeEngine(object):
         Returns:
             DefaultTypeFactory: A factory class for the return type.
         """
-        return self._build_type_factory(self.hints["return"], inputs)
+        return self._build_type_factory(self.signature.return_annotation, inputs)
 
     def _build_type_factory(
-        self, hint: type, inputs: None | dict[str, Any] = None
-    ) -> DefaultTypeFactory:
+        self, hint: Any, inputs: None | dict[str, Any] = None
+    ) -> DefaultFeatureFactory:
         """Build a factory for a type based on the given hint and input features.
 
         Args:
-            hint (type): Type hint for the factory.
+            hint (Any): Type hint for the factory.
             inputs (Optional[dict[str, Any]]): Input features used in validation.
 
         Returns:
@@ -274,17 +254,21 @@ class TypeEngine(object):
             TypeError: If the type hint provided is invalid or not supported.
         """
 
-        if isinstance(hint, GenericAlias):
-            args = get_args(hint)
-            args = list(self.vars_mapping[arg] for arg in args if isinstance(arg, TypeVar))
-            hint = hint.__class_getitem__(*args) if len(args) > 0 else hint
-            return DefaultTypeFactory[hint](self.config, inputs, self.session_id)
+        if isinstance(hint, (GenericAlias, _GenericAlias)):
+            params = [self.vars_mapping[p] for p in hint.__parameters__]
+            # TODO: this is not supported in python 3.10
+            hint = hint[*params] if len(params) > 0 else hint  # noqa:
+            return DefaultFeatureFactory[hint](
+                self.config, inputs, self.session_id, self.vars_mapping
+            )
 
         if isinstance(hint, TypeVar):
-            return self.build_type_factory(self.vars_mapping[hint], inputs=inputs)
+            return self._build_type_factory(self.vars_mapping[hint], inputs=inputs)
 
-        if issubclass(hint, _Feature):
-            return DefaultTypeFactory[hint](self.config, inputs, self.session_id)
+        if isinstance(hint, type) and issubclass(hint, _Feature):
+            return DefaultFeatureFactory[hint](
+                self.config, inputs, self.session_id, self.vars_mapping
+            )
 
         raise TypeError(
             f"Invalid type hint '{hint}' provided in function '{self.name}'. "

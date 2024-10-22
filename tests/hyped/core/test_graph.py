@@ -261,8 +261,8 @@ class TestDataFlowGraph:
         node = graph.nodes[src_node_id]
         assert node[DataFlowGraph.NodeAttribute.NODE_OBJ] is None
         assert node[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.SOURCE
-        assert node[DataFlowGraph.NodeAttribute.IN_FEATURES] is None
-        assert node[DataFlowGraph.NodeAttribute.OUT_FEATURES] == src_features
+        assert node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs] is None
+        assert node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] == src_features
 
         # try to add another source node
         with pytest.raises(RuntimeError):
@@ -299,8 +299,8 @@ class TestDataFlowGraph:
         node = graph.nodes[node_id]
         assert node[DataFlowGraph.NodeAttribute.NODE_OBJ] == p
         assert node[DataFlowGraph.NodeAttribute.NODE_TYPE] == node_type
-        assert node[DataFlowGraph.NodeAttribute.IN_FEATURES] == i.features_
-        assert node[DataFlowGraph.NodeAttribute.OUT_FEATURES] == o
+        assert node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs] == i.features_
+        assert node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] == o
         # check edges
         assert graph.has_edge(src_node_id, node_id)
         for n, r in i.named_refs.items():

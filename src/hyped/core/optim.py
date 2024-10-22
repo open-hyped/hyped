@@ -142,8 +142,8 @@ class DataFlowGraphOptimizer(object):
 
                 else:
                     # read node feature properties
-                    in_features = node_data[DataFlowGraph.NodeAttribute.IN_FEATURES]
-                    out_features = node_data[DataFlowGraph.NodeAttribute.OUT_FEATURES]
+                    in_features = node_data[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs]
+                    out_features = node_data[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
 
                     if obj is None:
                         # add source node to optimized graph
@@ -255,7 +255,7 @@ class DataFlowGraphOptimizer(object):
                 if (const_node_id, key) not in const_lookup:
                     # get the feature type of the constant referenced by the edge
                     feature = const_graph.nodes[const_node_id][
-                        DataFlowGraph.NodeAttribute.OUT_FEATURES
+                        DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
                     ]
                     dtype = key.index_features(feature)
                     # get the constant value referenced by the edge
