@@ -17,8 +17,8 @@ import networkx as nx
 import numpy as np
 import pyarrow as pa
 
-from hyped.common.feature_key import FeatureKey
 from hyped.common.typing import Batch, IndexList, NodeId, Rank, TraceIndexList
+from hyped.core.features.feature_key import FeatureKey
 
 from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager

@@ -11,9 +11,9 @@ from pydantic import BaseModel, Field, GetCoreSchemaHandler, TypeAdapter, create
 from pydantic_core import core_schema
 from typing_extensions import Self
 
-from hyped.common.feature_key import FeatureKey
 from hyped.common.typing import ArrowType
 from hyped.common.utils import is_python_version_less_than
+from hyped.core.features.feature_key import FeatureKey
 
 from .factories import BaseFeatureFactory, FeatureFactoryFromInstance
 from .reference import Reference

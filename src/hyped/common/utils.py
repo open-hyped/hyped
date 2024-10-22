@@ -105,6 +105,7 @@ class run_all(object):
             f(*args, **kwargs)
 
 
+# TODO: potential legacy code
 def list_of_dicts_to_dict_of_lists(
     dicts: list[dict[Hashable, Any]], keys: list[Hashable], default: Any = None
 ) -> dict[Hashable, list[Any]]:
@@ -121,6 +122,7 @@ def list_of_dicts_to_dict_of_lists(
     return {key: [d.get(key, default) for d in dicts] for key in keys}
 
 
+# TODO: potential legacy code
 def dict_of_lists_to_list_of_dicts(
     dict_of_lists: dict[Hashable, list[Any]]
 ) -> list[dict[Hashable, Any]]:
@@ -147,6 +149,7 @@ def dict_of_lists_to_list_of_dicts(
     return [dict(zip(keys, vals)) for vals in zip(*dict_of_lists.values())]
 
 
+# TODO: potential legacy code
 def deep_equal(obj1: Any, obj2: Any) -> bool:
     """Recursively checks if two objects (which may be nested) are equal.
 

@@ -26,9 +26,9 @@ from matplotlib import colormaps
 from hyped.common._features import TypeFactoryFromFeature
 from hyped.common._worker import get_worker_info
 from hyped.common.feature_checks import check_feature_equals
-from hyped.common.feature_key import FeatureKey
 from hyped.common.lazy_instance import LazyInstance
 from hyped.common.typing import Aggregate, Batch, IndexList, Rank
+from hyped.core.features.feature_key import FeatureKey
 
 from .abstract import AbstractDataFlow
 from .executor import DataFlowExecutor

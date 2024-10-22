@@ -26,7 +26,7 @@ from hyped.core.features.features import (
     _String,
 )
 
-from .feature_key import FeatureKey
+from ..core.features.feature_key import FeatureKey
 from .typing import NodeId
 
 # Direct primitive type mapping, defaulting to 32-bit where possible

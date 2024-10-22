@@ -16,11 +16,11 @@ from functools import partial
 
 import datasets
 
-from hyped.common.feature_key import FeatureKey
 from hyped.common.iterators import BatchBuffer
 from hyped.common.logging import get_logger
 from hyped.common.typing import DatasetType, Sample
 from hyped.common.utils import chdir, compose, run_all
+from hyped.core.features.feature_key import FeatureKey
 
 from .callbacks.base import Callback
 from .consumer import DatasetConsumer

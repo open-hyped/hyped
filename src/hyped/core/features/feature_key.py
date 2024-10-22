@@ -13,7 +13,7 @@ import pyarrow as pa
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
 
-from .typing import ArrowType, Batch, FeatureKeyAlias
+from hyped.common.typing import ArrowType, Batch, FeatureKeyAlias
 
 
 class FeatureKey(FeatureKeyAlias):
@@ -102,16 +102,18 @@ class FeatureKey(FeatureKeyAlias):
         """
         return core_schema.no_info_after_validator_function(cls, handler(str | tuple))
 
+    # TODO: docstring: no bound checks or similar validation
+    #       on the type is performed here
     def index_type(self, pa_type: ArrowType) -> ArrowType:
-        for i, key in enumerate(self):
-            if isinstance(key, str):
+        for i, key_entry in enumerate(self):
+            if isinstance(key_entry, str):
                 # make sure the arrow type is a struct
                 if not isinstance(pa_type, pa.StructType):
                     raise TypeError()
                 # get the type of the field referenced by the key
-                pa_type = pa_type.field(key).type
+                pa_type = pa_type.field(key_entry).type
 
-            elif isinstance(key, int):
+            elif isinstance(key_entry, int):
                 if isinstance(pa_type, pa.FixedShapeTensorType):
                     # make sure the type is a one-dimensional list
                     if len(pa_type.shape) != 1:
@@ -127,7 +129,7 @@ class FeatureKey(FeatureKeyAlias):
                 else:
                     raise TypeError()
 
-            elif isinstance(key, slice):
+            elif isinstance(key_entry, slice):
                 sub_key = tuple.__new__(FeatureKey, self[i + 1 :])
 
                 if isinstance(pa_type, pa.FixedShapeTensorType):
@@ -136,7 +138,7 @@ class FeatureKey(FeatureKeyAlias):
 
                     (length,) = pa_type.shape
 
-                    start, stop, step = key.indices(length)
+                    start, stop, step = key_entry.indices(length)
                     new_length = (stop - start) // step
 
                     sub_key = tuple.__new__(FeatureKey, self[i + 1 :])
@@ -159,6 +161,7 @@ class FeatureKey(FeatureKeyAlias):
         Returns:
             Array: The batch of values of the examples at the given key.
         """
+        # TODO: support gathering from pa.FixedShapeTensorType
         gathered_batch = batch.to_struct_array()
         for key_entry in self:
             if isinstance(key_entry, str):

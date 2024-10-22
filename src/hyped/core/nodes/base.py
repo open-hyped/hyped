@@ -12,8 +12,8 @@ from itertools import chain
 from typing import Generic, ParamSpec, Protocol, TypeAlias, TypeVar, overload
 
 from hyped._registry.config import BaseConfig, BaseConfigurable
-from hyped.common.feature_key import FeatureKey
 from hyped.common.typing import Index, IndexList, NodeId, Rank
+from hyped.core.features.feature_key import FeatureKey
 
 from ..abstract import AbstractDataFlow, AbstractDataFlowGraph
 from ..features import Feature

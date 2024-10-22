@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-from hyped.common.feature_key import FeatureKey
 from hyped.common.typing import NodeId
+from hyped.core.features.feature_key import FeatureKey
 
 from ..abstract import AbstractDataFlowGraph
 

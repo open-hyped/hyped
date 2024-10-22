@@ -5,7 +5,7 @@ import pytest
 from datasets import Features, Sequence, Value
 from pydantic import BaseModel
 
-from hyped.common.feature_key import FeatureKey
+from hyped.core.features.feature_key import FeatureKey
 from hyped.core.refs.ref import FeatureRef
 
 

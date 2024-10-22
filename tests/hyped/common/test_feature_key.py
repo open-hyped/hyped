@@ -2,7 +2,7 @@ import pytest
 from datasets import Features, Sequence, Value
 
 from hyped.common.feature_checks import check_feature_equals
-from hyped.common.feature_key import FeatureKey
+from hyped.core.features.feature_key import FeatureKey
 
 
 class TestFeatureKey(object):

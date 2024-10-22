@@ -104,6 +104,7 @@ processed or transformed independently of others. Partitions are often introduce
 augmentation processes, where new samples are generated or existing samples are filtered out.
 """
 
+# TODO: depricated, use hyped.core.abstract instead
 DataFlowGraphAlias: TypeAlias = object
 """Data Flow Graph Alias type.
 
@@ -117,13 +118,13 @@ graph in contexts where the actual structure of the graph is abstracted away. Th
 FeatureKeyAlias: TypeAlias = tuple[str | int | slice, ...]
 """A key identifying specific features within a data flow graph node's outputs.
 
-Alias for :class:`hyped.common.feature_key.FeatureKey`.
+Alias for :class:`hyped.core.features.feature_key.FeatureKey`.
 
 Represents a tuple that serves as a key for accessing specific features of a node's output within
 the data flow graph.
 """
 
-# TODO: depricated, use hyped.core.features.pointer.Pointer instead
+# TODO: depricated, use hyped.core.features.reference.Reference instead
 Pointer: TypeAlias = tuple[NodeId, FeatureKeyAlias, DataFlowGraphAlias]
 """Pointer pointing to output features of a node in the data flow graph.
 

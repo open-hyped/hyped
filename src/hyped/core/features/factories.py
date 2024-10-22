@@ -6,8 +6,8 @@ from uuid import UUID, uuid4
 import pydantic
 
 from hyped._registry.config import BaseConfig
-from hyped.common.feature_key import FeatureKey
 from hyped.common.typing import ArrowType, NodeId
+from hyped.core.features.feature_key import FeatureKey
 
 from ..abstract import AbstractDataFlowGraph
 
