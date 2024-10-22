@@ -662,6 +662,11 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 f"Aggregator outputs may only be processed by data processors, got {node_type}."
             )
 
+        # check the inputs match the node signature
+        # raises a type error in case the inputs don't match the signature
+        if obj is not None:
+            obj.signature.bind(**dict.fromkeys(inputs.keys()))
+
         # add the node to the graph
         self.add_node(
             node_id,
