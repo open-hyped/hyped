@@ -43,11 +43,6 @@ class FeatureKey(FeatureKeyAlias):
         if len(key) == 1 and isinstance(key[0], tuple):
             return FeatureKey.from_tuple(key[0])
 
-        if len(key) > 0 and not isinstance(key[0], str):
-            raise ValueError(
-                "First entry of a feature key must be a string, got %s." % repr(key[0])
-            )
-
         for key_entry in key:
             if not isinstance(key_entry, (str, int, slice)):
                 raise TypeError(
@@ -66,7 +61,7 @@ class FeatureKey(FeatureKeyAlias):
         Returns:
             FeatureKey | str | int | slice: The retrieved key entry or a new FeatureKey.
         """
-        if isinstance(idx, slice) and ((idx.start == 0) or (idx.start is None)):
+        if isinstance(idx, slice):
             return FeatureKey(*super(FeatureKey, self).__getitem__(idx))
         return super(FeatureKey, self).__getitem__(idx)
 
@@ -86,6 +81,14 @@ class FeatureKey(FeatureKeyAlias):
         """
         return "FeatureKey%s" % str(self)
 
+    def __hash__(self) -> int:
+        """Compute the hash value of the feature key.
+
+        Returns:
+            int: The hash value of the feature key.
+        """
+        return hash(tuple((k.start, k.stop, k.step) if isinstance(k, slice) else k for k in self))
+
     @classmethod
     def __get_pydantic_core_schema__(
         cls, source_type: typing.Any, handler: GetCoreSchemaHandler
@@ -99,7 +102,7 @@ class FeatureKey(FeatureKeyAlias):
         Returns:
             CoreSchema: The integrated pydantic core schema.
         """
-        return core_schema.no_info_after_validator_function(cls, handler(str | tuple))
+        return core_schema.no_info_after_validator_function(cls, handler(tuple | str))
 
     def index_object(self, obj: typing.Any | typing.Mapping | typing.Sequence) -> object:
         for i, key_entry in enumerate(self):
@@ -120,11 +123,3 @@ class FeatureKey(FeatureKeyAlias):
                 return constructor(items)
 
         return obj
-
-    def __hash__(self) -> int:
-        """Compute the hash value of the feature key.
-
-        Returns:
-            int: The hash value of the feature key.
-        """
-        return hash(tuple((k.start, k.stop, k.step) if isinstance(k, slice) else k for k in self))

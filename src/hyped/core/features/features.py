@@ -48,7 +48,7 @@ if not TYPE_CHECKING:
         return _T
 
 else:
-    from typing import TypeVar  # noqa:
+    pass  # noqa:
 
 
 @dataclass(eq=True, frozen=True)
@@ -137,7 +137,7 @@ class _Float64(_Primitive):
     _primitive_pa_type = pa.float64()
 
 
-_Type = TypeVar("_Type", bound=_Feature)
+_Type = typing.TypeVar("_Type", bound=_Feature)
 
 
 @dataclass(eq=True, frozen=True)
@@ -148,6 +148,7 @@ class Sequence(typing.Sequence[_Type], _Feature):
 
     @property
     def _pa_type(self) -> ArrowType:
+        # TODO: look into fixed-size list instead of fixed shape tensor
         return (
             pa.list_(self._factory._pa_type)
             if self._length == -1

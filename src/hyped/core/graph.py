@@ -15,16 +15,20 @@ from itertools import groupby
 from typing import Any, Hashable
 
 import networkx as nx
+import pyarrow as pa
 
 from hyped.common.typing import ArrowType, NodeId, PartitionId
 
 from .abstract import AbstractDataFlowGraph
+from .features.feature_key import FeatureKey
+from .features.features import _Feature
 from .features.reference import Reference
 from .nodes.aggregator import BaseDataAggregator
 from .nodes.augmenter import BaseDataAugmenter
 from .nodes.base import BaseNode
 from .nodes.const import Const
 from .nodes.processor import BaseDataProcessor
+from .utils import FeatureFactoryFromArrowType
 
 
 def _compute_node_depth(G: nx.DiGraph) -> dict[Hashable, int]:
@@ -201,22 +205,22 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         and identifying the nature of the processor in the data flow graph.
         """
 
-        IN_FEATURE_TYPES = "in_feature_types"
+        IN_FEATURE_SCHEMA = "in_feature_schema"
         """
         Represents the input features associated with the node.
 
-        Type: :class:`dict[str, ArrowType]`
+        Type: :class:`pa.Schema`
 
         This property contains the input features required by the data processor,
         in the form of a dictionary of :class:`ArrowType` instances. It defines the
         structure and types of the inputs expected by the node.
         """
 
-        OUT_FEATURE_TYPE = "out_feature_type"
+        OUT_FEATURE_SCHEMA = "out_feature_schema"
         """
         Represents the output features associated with the node.
 
-        Type: :class:`ArrowType`
+        Type: :class:`pa.Schema`
 
         This property contains the output feature produced by the data processor,
         as an :code:`ArrowType` instance. It defines the structure and types of
@@ -567,7 +571,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
 
         return candidate
 
-    def collect_input_type(self, ref: Reference) -> ArrowType:
+    def get_feature_from_reference(self, ref: Reference) -> _Feature:
         """Helper function to get the arrow type of a referenced feature.
 
         Args:
@@ -583,24 +587,24 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         if ref._node_id not in self.nodes:
             raise RuntimeError(f"Node with ID '{ref._node_id}' is not contained in the graph.")
 
-        # TODO:
-        # build feature from reference using arrow type factory
-        # give feature instance to feature key which returns the target feature instance
-        # compare the target feature's reference with the given reference, should match exactly
-        # return the pyarrow type of the target feature instance
+        # get the output type of the referenced node
+        schema = self.nodes[ref._node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_SCHEMA]
 
-        # this would do the same indexing that the user did to create the given reference
-        # but guarantees that types within the graph are consistent
+        # create a feature instance matching the output type
+        factory = FeatureFactoryFromArrowType(pa.struct(schema))
+        feature = factory(FeatureKey(), ref._node_id, ref._graph)
+        # apply the reference feature key to the feature
+        feature = ref._key.index_object(feature)
+        assert feature._key == ref._key
 
-        source_type = self.nodes[ref._node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
-        return ref._key.index_type(source_type)
+        return feature
 
     # TODO: rename to more generic 'add_node'
     def add_processor_node(
         self,
         obj: None | BaseNode,
         inputs: dict[str, Reference],
-        feature_type: ArrowType,
+        feature_type: pa.Schema,
         node_id: None | str = None,
     ) -> NodeId:
         """Add a processor node to the data flow graph.
@@ -667,7 +671,9 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         )
 
         # collect the input feature types and infer the output partition of the node
-        input_types = {key: self.collect_input_type(ref) for key, ref in inputs.items()}
+        input_schema = pa.schema(
+            [(key, self.get_feature_from_reference(ref)._pa_type) for key, ref in inputs.items()]
+        )
         partition = self.infer_node_partition(node_type, list(inputs.values()))
         # aggregated partition currently only supports processor type nodes
         if (partition == DataFlowGraph.PredefinedPartition.AGGREGATED) and (
@@ -688,8 +694,8 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             **{
                 DataFlowGraph.NodeAttribute.NODE_OBJ: obj,
                 DataFlowGraph.NodeAttribute.NODE_TYPE: node_type,
-                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPES: input_types,
-                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: feature_type,
+                DataFlowGraph.NodeAttribute.IN_FEATURE_SCHEMA: input_schema,
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_SCHEMA: feature_type,
                 DataFlowGraph.NodeAttribute.PARTITION: partition,
                 DataFlowGraph.NodeAttribute.DEPTH: depth,
             },

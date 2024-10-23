@@ -22,8 +22,12 @@ class _DummyDataFlowGraph(AbstractDataFlowGraph):
 class BaseFeatureFactory(ABC, Generic[T]):
     @property
     def _pa_type(self) -> ArrowType:
+        return self.instance._pa_type
+
+    @property
+    def instance(self) -> T:
         graph = _DummyDataFlowGraph()
-        return self(FeatureKey(), "NodeId", graph)._pa_type
+        return self(FeatureKey(), "NodeId", graph)
 
     @abstractmethod
     def __call__(self, _key: FeatureKey, _node_id: NodeId, _graph: AbstractDataFlowGraph) -> T:
@@ -69,23 +73,26 @@ class DefaultFeatureFactory(BaseFeatureFactory[T]):
 
 
 @dataclass
-class FeatureFactoryFromInstance(BaseFeatureFactory[T]):
-    inst: T
+class FeatureFactory(BaseFeatureFactory[T]):
+    kwargs: dict[str, Any] = field(default_factory=dict)
 
-    def __post_init__(self) -> None:
-        # overwrite reference values in instance
-        self.inst = self.__call__(FeatureKey(), "NodeId", _DummyDataFlowGraph())
-
-    @property
-    def _pa_type(self) -> ArrowType:
-        return self.inst._pa_type
+    def __init__(self, **kwargs: Any) -> None:
+        self.kwargs = kwargs
 
     def __call__(self, _key: FeatureKey, _node_id: NodeId, _graph: AbstractDataFlowGraph) -> T:
-        # get all fields from the dataclass instance
+        (hint,) = get_args(self.__orig_class__)
+        assert not isinstance(hint, TypeVar) and isinstance(hint, type)
+
+        inst = {"_key": _key, "_node_id": _node_id, "_graph": _graph}
+        return hint(**(self.kwargs | inst))
+
+
+@dataclass
+class FeatureFactoryFromInstance(FeatureFactory[T]):
+    def __init__(self, inst: T) -> None:
         kwargs = {field.name: getattr(self.inst, field.name) for field in fields(self.inst)}
-        # overwrite the arguments
-        kwargs["_key"] = _key
-        kwargs["_node_id"] = _node_id
-        kwargs["_graph"] = _graph
-        # create a new instance using the keyword arguments
-        return self.inst._type_hint(**kwargs)
+        kwargs.pop("_key")
+        kwargs.pop("_node_id")
+        kwargs.pop("_graph")
+
+        super(FeatureFactoryFromInstance, self).__init__(**kwargs)

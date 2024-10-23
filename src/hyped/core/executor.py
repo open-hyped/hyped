@@ -12,7 +12,6 @@ Classes:
 import asyncio
 from collections import defaultdict
 
-import datasets
 import networkx as nx
 import numpy as np
 import pyarrow as pa
@@ -20,10 +19,11 @@ import pyarrow as pa
 from hyped.common.typing import Batch, IndexList, NodeId, Rank, TraceIndexList
 from hyped.core.features.feature_key import FeatureKey
 
+from .features.reference import Reference
 from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
-from .nodes.base import IOContext
-from .refs.ref import FeatureRef
+from .nodes.base import RunContext
+from .utils import ArrowIndexingWrapper
 
 
 class ExecutionState(object):
@@ -62,7 +62,7 @@ class ExecutionState(object):
         self.traces: dict[tuple[str, str], np.ndarray] = {}
 
         # execution graph attributes
-        self.outputs = {graph.src_node_id: batch}
+        self.outputs = {graph.src_node_id: ArrowIndexingWrapper(batch.to_struct_array())}
         self.ready = {
             node_id: asyncio.Event()
             for node_id, attrs in graph.nodes(data=True)
@@ -158,11 +158,11 @@ class ExecutionState(object):
         self.traces[(u, v)] = np.asarray(trace_index)
         self.index[v] = self.trace_through_partition_path([pa.array(index)], src=u, tgt=v)[0]
 
-    def collect_value(self, ref: FeatureRef) -> Batch:
+    def collect_value(self, ref: Reference) -> Batch:
         """Collect the values requested by the feature reference.
 
         Args:
-            ref (FeatureRef): The feature reference indicating which
+            ref (Reference): The feature reference indicating which
                 values to collect.
 
         Returns:
@@ -172,11 +172,10 @@ class ExecutionState(object):
             AssertionError: If the feature reference does not contain
                 expected feature types.
         """
-        assert isinstance(ref.feature_, (datasets.Features, dict)), (
-            f"Expected features of type datasets.Features or dict, " f"but got {type(ref.feature_)}"
-        )
-        batch = ref.key_.index_batch(self.outputs[ref.node_id_])
-        return pa.table(batch)
+        return self.outputs[ref._node_id].array
+        # TODO: handle non table outputs
+        batch = ref._key.index_object(self.outputs[ref._node_id])
+        return batch
 
     def collect_inputs(self, node_id: NodeId) -> tuple[Batch, IndexList]:
         """Collect inputs for a given node.
@@ -202,7 +201,7 @@ class ExecutionState(object):
             ].is_set(), f"Node {u} is not ready."
             # get the values requested from the batch
             key: FeatureKey = data[DataFlowGraph.EdgeAttribute.KEY]
-            values = key.index_batch(self.outputs[u])
+            values = key.index_object(self.outputs[u]).array
 
             partition = self.graph.get_node_output_partition(u)
             # store the values in inputs and keep track of the source partition
@@ -226,7 +225,9 @@ class ExecutionState(object):
             # update the values in the inputs
             inputs.update(dict(zip(names, values)))
 
-        input_batch = pa.table(list(inputs.values()), names=list(inputs.keys()))
+        # get the input schema from the node and wrap the inputs to a table
+        input_schema = self.graph.nodes[node_id][DataFlowGraph.NodeAttribute.IN_FEATURE_SCHEMA]
+        input_batch = pa.table(inputs, schema=input_schema)
 
         return input_batch, index
 
@@ -242,7 +243,7 @@ class ExecutionState(object):
         """
         assert not self.ready[node_id].is_set(), f"Node {node_id} is already set."
 
-        self.outputs[node_id] = output
+        self.outputs[node_id] = ArrowIndexingWrapper(output)
         self.ready[node_id].set()
 
 
@@ -256,28 +257,21 @@ class DataFlowExecutor(object):
     def __init__(
         self,
         graph: DataFlowGraph,
-        collect: FeatureRef,
+        collect: Reference,
         aggregation_manager: None | DataAggregationManager,
     ) -> None:
         """Initialize the executor.
 
         Args:
             graph (DataFlowGraph): The data flow graph to execute.
-            collect (FeatureRef): The feature reference to collect results.
+            collect (Reference): The feature reference to collect results.
             aggregation_manager (None | DataAggregationManager):
                 The manager responsible for handling data aggregation. Can be
                 None if the graph has no aggregator nodes.
 
-
         Raises:
             TypeError: If the collect feature is not of type datasets.Features.
         """
-        if not isinstance(collect.feature_, (datasets.Features, dict)):
-            raise TypeError(
-                f"Expected collect feature of type datasets.Features or dict, "
-                f"but got {type(collect.feature_)}"
-            )
-
         self.graph = graph
         self.p_graph = graph.build_partition_graph()
         self.collect = collect
@@ -313,30 +307,32 @@ class DataFlowExecutor(object):
             # done
             return
 
-        # build the io context
-        io = IOContext(
+        # build the run context
+        ctx = RunContext(
             node_id=node_id,
-            inputs=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs],
-            outputs=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
+            index=index,
+            rank=state.rank,
+            input_schema=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_SCHEMA],
+            output_schema=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_SCHEMA],
         )
 
         if node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
             # run processor and check the output batch size
-            out = await node_obj.batch_process(inputs, index, state.rank, io)
+            out = await node_obj.batch_process(ctx, inputs)
             assert out.num_rows == len(index), "Output values length does not match index length."
             # capture output in execution state
             state.capture_output(node_id, out)
 
         elif node_type == DataFlowGraph.NodeType.DATA_AUGMENTER:
             # run processor and check the output batch size
-            out, trace_index = await node_obj.batch_process(inputs, index, state.rank, io)
+            out, trace_index = await node_obj.batch_process(ctx, inputs)
             # register output partition and capture output in execution state
             state.register_partition_trace(node_id, trace_index, index)
             state.capture_output(node_id, out)
 
         elif node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
             # run aggregator
-            await self.aggregation_manager.aggregate(node_obj, inputs, index, state.rank, io)
+            await self.aggregation_manager.aggregate(node_obj, ctx, inputs)
 
     async def execute(self, batch: Batch, index: IndexList, rank: Rank) -> Batch:
         """Execute the entire data flow graph.

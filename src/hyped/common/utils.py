@@ -7,7 +7,7 @@ import sys
 from contextlib import contextmanager
 from functools import cache, reduce
 from time import perf_counter
-from typing import Any, Callable, Hashable
+from typing import Any, Callable, Generator, Hashable
 
 import numpy as np
 
@@ -356,7 +356,25 @@ class TimeWeightedEMA(object):
 
 
 @contextmanager
-def chdir(new_dir: str):
+def tmp_setattr(instance: object, attribute: str, value: Any) -> Generator[None, None, None]:
+    # Save the original value
+    original_value = getattr(instance, attribute, None)
+    has_original_value = hasattr(instance, attribute)
+
+    # Set the temporary value
+    setattr(instance, attribute, value)
+    try:
+        yield
+    finally:
+        # Restore the original value
+        if has_original_value:
+            setattr(instance, attribute, original_value)
+        else:
+            delattr(instance, attribute)  # Clean up if there was no original value
+
+
+@contextmanager
+def chdir(new_dir: str) -> Generator[None, None, None]:
     """Context manager for temporarily changing the working directory.
 
     Args:

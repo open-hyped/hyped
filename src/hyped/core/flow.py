@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from functools import partial
-from itertools import chain, groupby
+from itertools import groupby
 from types import MappingProxyType
 from typing import Any, Generic, Literal, TypeVar, get_args
 
@@ -24,23 +23,19 @@ from datasets.features.features import FeatureType
 from matplotlib import colormaps
 
 from hyped.common._worker import get_worker_info
-from hyped.common.feature_checks import check_feature_equals
-from hyped.common.lazy_instance import LazyInstance
 from hyped.common.typing import Aggregate, Batch, IndexList, Rank
+from hyped.common.utils import tmp_setattr
 from hyped.core.features.feature_key import FeatureKey
 
 from .abstract import AbstractDataFlow
 from .executor import DataFlowExecutor
 from .features.factories import BaseFeatureFactory, DefaultFeatureFactory
 from .features.features import _Feature
+from .features.reference import Reference
 from .graph import DataFlowGraph
-from .lazy import LazyFlowOutput
-from .nodes.aggregator import DataAggregationManager
-from .nodes.base import IOContext
-from .nodes.const import Const
-from .optim import DataFlowGraphOptimizer
 from .refs.ref import FeatureRef
-from .utils import FeatureFactoryFromHuggingFace
+from .typing import Mapping
+from .utils import FeatureFactoryFromHuggingFace, _is_type_subset
 
 D = TypeVar(
     "D",
@@ -86,13 +81,10 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             features (datasets.Features): The features of the source node.
         """
 
-        # create the flow graph instance
         self._graph = DataFlowGraph()
+        # save source features
         self._hf_source_features = features
-        self._source_type: None | T = None
-        # lazy executor instance, set in build
-        self._executor: None | LazyInstance[DataFlowExecutor] = None
-        self._aggregates: None | LazyFlowOutput = None
+        self._source_feature: None | T = None
 
     @property
     def _is_initialized(self) -> None:
@@ -126,7 +118,10 @@ class DataFlow(AbstractDataFlow, Generic[T]):
 
         # add the source node to the graph with the node id
         node_id = self._graph.add_source_node(src_type_factory._pa_type)
-        self._source_type = src_type_factory(FeatureKey(), node_id, self._graph)
+        self._source_feature = src_type_factory(FeatureKey(), node_id, self._graph)
+
+        if not isinstance(self._source_feature, Mapping):
+            raise RuntimeError("Must be mapping")
 
     @property
     def depth(self) -> int:
@@ -165,493 +160,42 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         if not self._is_initialized:
             self._initialize()
 
-        return self._source_type
+        return self._source_feature
 
     @property
     def out_features(self) -> FeatureRef:
-        """Get the output features.
-
-        Returns:
-            FeatureRef: The reference to the output features.
-
-        Raises:
-            RuntimeError: If the flow hasn't been build yet.
-        """
-        if self._executor is None:
-            raise RuntimeError("Flow has not been build yet.")
-        return self._executor.collect
+        raise NotImplementedError()
 
     @property
     def aggregates(self) -> None | MappingProxyType[str, Any]:
-        """Access the aggregated values computed by data aggregators.
-
-        This property provides access to the aggregated values computed by data
-        aggregators during the execution of the data flow. These aggregated values
-        represent dataset-wide metrics or summary statistics calculated based on the
-        input data.
-
-        Returns:
-            None | MappingProxyType[str, Any]: A read-only view of the aggregated
-            values.
-
-        Raises:
-            RuntimeError: If the flow has not been built yet.
-        """
-        if self._executor is None:
-            raise RuntimeError("Flow has not been build yet.")
-
-        return None if self._aggregates is None else MappingProxyType(self._aggregates)
+        raise NotImplementedError()
 
     def const(self, value: Any, feature: None | FeatureType = None) -> FeatureRef:
-        """Adds a constant node to the data flow graph.
-
-        This function creates and adds a constant node to the data flow graph
-        with the specified value and optionally specified feature type. It
-        returns a feature reference to the constant value.
-
-        Args:
-            value (Any): The constant value to be introduced into the data flow.
-            feature (None | FeatureType, optional): The type of the feature. If not provided,
-                it is inferred from the value. Defaults to None.
-
-        Returns:
-            FeatureRef: A feature reference to the constant value in the data flow.
-        """
-        return Const(value=value, feature=feature).call(self._graph).value
+        raise NotImplementedError()
 
     def build(
         self,
-        collect: FeatureRef | dict[str, FeatureRef],
-        aggregate: None | FeatureRef | dict[str, FeatureRef] = None,
-    ) -> tuple[DataFlow, None | MappingProxyType[str, Any]]:
-        """Build an optimized sub-data flow to compute the requested output features.
+        collect: Reference,
+        aggregate: None | Reference = None,
+    ) -> ExecutableDataFlow[T]:
+        if collect._graph is not self._graph:
+            raise RuntimeError("The collect feature does not belong to this flow.")
 
-        This method constructs a sub-graph of the data flow to compute the specified
-        output features. It can optionally include aggregators for dataset-wide computations.
+        # create a copy of the graph
+        graph = self._graph.copy()
+        # update the references to the new graph
+        collect = Reference(collect._key, collect._node_id, graph)
 
-        The constructed sub-graph undergoes optimization, including techniques such as
-        common subexpression elimination (CSE) and other AST optimizations.
-
-        Args:
-            collect (FeatureRef | dict[str, FeatureRef]): The feature reference to collect.
-            aggregate (None | FeatureRef | dict[str, FeatureRef]): The feature reference
-                to aggregated values to collect.
-
-        Returns:
-            tuple[DataFlow, None | MappingProxyType[str, Any]]: The sub-data flow and a proxy
-                object of the aggregated values. The aggregated values object is None in case
-                no aggregators were provided.
-
-        Raises:
-            TypeError: If the collect feature is not of type `datasets.Features` or `dict`.
-            TypeError: If aggregators are provided but are not of the expected type.
-            RuntimeError: If the collect feature does not belong to this flow.
-            RuntimeError: If the aggregate feature does not belong to this flow.
-        """
-        # collect features if collect is a dict
-        if isinstance(collect, dict):
-            from hyped.ops.utils import collect as collect_op
-
-            collect = collect_op(collect)
-
-        # collect features if aggregate is a dict
-        if isinstance(aggregate, dict):
-            from hyped.ops.utils import collect as collect_op
-
-            aggregate = collect_op(aggregate)
-
-        if not isinstance(collect.feature_, (datasets.Features, dict)):
-            raise TypeError(
-                f"Expected `collect` feature of type `datasets.Features` or `dict`, "
-                f"but got {type(collect.feature_)}"
-            )
-
-        if collect.flow_ is not self._graph:
-            raise RuntimeError("The collect feature does not belong to the current graph.")
-
-        if aggregate is not None:
-            if aggregate.flow_ is not self._graph:
-                raise RuntimeError("The aggregate feature does not belong to the current graph.")
-
-            if not isinstance(aggregate.feature_, (datasets.Features, dict)):
-                raise TypeError(
-                    f"Expected `aggregate` feature of type `datasets.Features` or `dict`, "
-                    f"but got {type(aggregate.feature_)}"
-                )
-
-            # get aggregate attributes
-            aggregate_type = self._graph.nodes[aggregate.node_id_][
-                DataFlowGraph.NodeAttribute.NODE_TYPE
-            ]
-            aggregate_partition = self._graph.nodes[aggregate.node_id_][
-                DataFlowGraph.NodeAttribute.PARTITION
-            ]
-            # validate aggregate type
-            if (aggregate_type != DataFlowGraph.NodeType.DATA_AGGREGATOR) and (
-                aggregate_partition != DataFlowGraph.PredefinedPartition.AGGREGATED
-            ):
-                # invalid aggregate, must be the output of an aggregator call
-                raise RuntimeError()
-
-        # collect all requested leaf nodes
-        leaf_nodes = set(
-            [collect.node_id_] if aggregate is None else [collect.node_id_, aggregate.node_id_]
-        )
-
-        # optimize data flow graph
-        optim = DataFlowGraphOptimizer()
-        optim_graph = optim.optimize(self._graph, leaf_nodes)
-
-        # build the sub-flow from the optimized graph
-        # TODO: restrict input features to only the
-        #       ones required by the sub-graph
-        flow = DataFlow(self.src_features.feature_)
-        flow._graph = optim_graph
-
-        # update references to optimized graph
-        collect = collect.model_copy(update=dict(flow_=optim_graph))
-        aggregate = (
-            None if aggregate is None else aggregate.model_copy(update=dict(flow_=optim_graph))
-        )
-
-        # get all aggregator node ids in the optimized graph
-        aggregator_node_ids = [
-            node_id
-            for node_id, data in optim_graph.nodes(data=True)
-            if (
-                data[DataFlowGraph.NodeAttribute.NODE_TYPE]
-                == DataFlowGraph.NodeType.DATA_AGGREGATOR
-            )
-        ]
-
-        # if aggregate is specified then there must be at least one aggregator
-        # in the optimized graph producing the specified aggregate, if no aggregate
-        # is specified then there all aggregator nodes that were present in the graph
-        # should have been pruned by the optimized as their outputs are not captured
-        assert ((aggregate is None) and (len(aggregator_node_ids) == 0)) or (
-            (aggregate is not None) and (len(aggregator_node_ids) > 0)
-        )
-
-        aggregation_manager = None
-        # build the aggregation manager
-        if aggregate is not None:
-            # get the node objects to each aggregator node
-            aggregator_nodes = [
-                optim_graph.nodes[node_id][DataFlowGraph.NodeAttribute.NODE_OBJ]
-                for node_id in aggregator_node_ids
-            ]
-            # build the io contexts for all aggregator nodes
-            io_ctxs = [
-                IOContext(
-                    node_id=node_id,
-                    inputs=optim_graph.nodes[node_id][DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs],
-                    outputs=optim_graph.nodes[node_id][
-                        DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
-                    ],
-                )
-                for node_id in aggregator_node_ids
-            ]
-            # create the aggregation manager
-            aggregation_manager = DataAggregationManager(aggregator_nodes, io_ctxs)
-
-            # get the aggregator type
-            aggregate_type = self._graph.nodes[aggregate.node_id_][
-                DataFlowGraph.NodeAttribute.NODE_TYPE
-            ]
-
-            if aggregate_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
-                # build a subflow that of only a single source node
-                # matching the structure of the manager's proxy values dict
-                lazy_graph = DataFlowGraph()
-                lazy_graph.add_source_node(
-                    datasets.Features({io.node_id: io.outputs for io in io_ctxs})
-                )
-                # update the aggregate to point to the output of the
-                # aggregator in the lazy graph
-                aggregate = FeatureRef(
-                    node_id_=lazy_graph.src_node_id,
-                    key_=(aggregate.node_id_,) + aggregate.key_,
-                    flow_=lazy_graph,
-                    feature_=aggregate.feature_,
-                )
-
-            else:
-                # extract the aggregated partition sub-flow which is executed
-                # on top of the aggregation outputs to compute the final aggregates
-
-                # get the aggregated and constant partition of the data flow graph
-                # the lazy partition is constructed from both partitions
-                value_graph = optim_graph.get_partition(
-                    DataFlowGraph.PredefinedPartition.AGGREGATED
-                )
-                const_graph = optim_graph.get_partition(DataFlowGraph.PredefinedPartition.CONST)
-                # not all constants are used in the aggregated partition
-                # filter out the unused constants by building the dependency graph
-                lazy_graph = optim_graph.subgraph(chain(value_graph, const_graph))
-                lazy_graph = lazy_graph.dependency_graph({aggregate.node_id_})
-
-                # further processing of aggregates is currently only supported
-                # through data processors
-                assert all(
-                    (
-                        (node_type == DataFlowGraph.NodeType.DATA_PROCESSOR)
-                        or (node_type == DataFlowGraph.NodeType.CONST)
-                    )
-                    for node_type in nx.get_node_attributes(
-                        lazy_graph, DataFlowGraph.NodeAttribute.NODE_TYPE
-                    ).values()
-                )
-
-                # create a copy of the view of the graph
-                lazy_graph = DataFlowGraph(lazy_graph)
-                # set the aggregated partition to the default partition in the lazy graph
-                partitions = nx.get_node_attributes(
-                    lazy_graph, DataFlowGraph.NodeAttribute.PARTITION
-                )
-                partitions = {
-                    node_id: (
-                        p
-                        if p != DataFlowGraph.PredefinedPartition.AGGREGATED
-                        else DataFlowGraph.PredefinedPartition.DEFAULT
-                    )
-                    for node_id, p in partitions.items()
-                }
-                nx.set_node_attributes(
-                    lazy_graph,
-                    partitions,
-                    DataFlowGraph.NodeAttribute.PARTITION,
-                )
-
-                # now introduce the source node to the lazy graph
-                # the source features to the lazy graph are the aggregator outputs
-                # managed by the aggregation manager, note how the features match
-                # the structure of the proxy values dict of the manager
-                lazy_graph = DataFlowGraph(lazy_graph)
-                lazy_graph.add_source_node(
-                    datasets.Features({io.node_id: io.outputs for io in io_ctxs})
-                )
-                # finally the edges from the newly introduced source node
-                # to the nodes that make use of the aggregates need to be
-                # added to the graph
-                for u, v, key, data in optim_graph.subgraph_in_edges(lazy_graph, data=True):
-                    lazy_graph.add_edge(
-                        lazy_graph.src_node_id,
-                        v,
-                        key=key,
-                        **{
-                            DataFlowGraph.EdgeAttribute.NAME: data[
-                                DataFlowGraph.EdgeAttribute.NAME
-                            ],
-                            DataFlowGraph.EdgeAttribute.KEY: FeatureKey(
-                                (u,) + data[DataFlowGraph.EdgeAttribute.KEY]
-                            ),
-                        },
-                    )
-                # update the aggregate reference to point to the corresponding
-                # node in the lazy graph, note that the node ids in the lazy graph
-                # match the ids in the original graph
-                aggregate = aggregate.model_copy(update=dict(flow_=lazy_graph))
-
-            # build the lazy flow output object managing the final aggregates view
-            flow._aggregates = LazyFlowOutput(
-                input_proxy=aggregation_manager.values_proxy,
-                executor=DataFlowExecutor(
-                    graph=lazy_graph,
-                    collect=aggregate,
-                    aggregation_manager=None,
-                ),
-            )
-
-        # set the executor for the optimized flow
-        flow._executor = LazyInstance(
-            partial(
-                DataFlowExecutor,
-                graph=optim_graph.dependency_graph({collect.node_id_, *aggregator_node_ids}),
-                collect=collect,
-                aggregation_manager=aggregation_manager,
-            )
-        )
-
-        return flow, flow.aggregates
-
-    def batch_process(
-        self, batch: dict[str, list[Any]], index: IndexList, rank: None | Rank = None
-    ) -> Batch:
-        """Process a batch of data.
-
-        Args:
-            batch (dict[str, list[Any]]): The batch of data to process.
-            index (IndexList): The index of the batch.
-            rank (None | Rank): The rank of the process in a distributed setting.
-
-        Returns:
-            Table: The processed batch of data as a PyArrow Table.
-
-        Raises:
-            AssertionError: If the flow has not been build yet.
-        """
-        assert self._executor is not None, "Flow has not been build yet."
-
-        if isinstance(batch, datasets.formatting.formatting.LazyBatch):
-            batch = dict(batch)
-
-        if rank is None:
-            # try to get multiprocessing rank from worker info
-            worker_info = get_worker_info()
-            rank = 0 if worker_info is None else worker_info.rank
-
-        # create a new event loop to execute the flow in
-        loop = asyncio.new_event_loop()
-        # schedule the execution for the current batch
-        record_batch = pa.table(batch, schema=self.src_features.feature_.arrow_schema)
-        future = self._executor.execute(record_batch, index, rank)
-        out = loop.run_until_complete(future)
-        # close the event loop
-        loop.close()
-
-        return out
-
-    def _batch_process_to_pydict(
-        self,
-        batch: dict[str, list[Any]],
-        index: IndexList,
-        rank: None | Rank = None,
-    ) -> dict[str, list[Any]]:
-        """Process a batch of data and convert to a python dictionary.
-
-        Args:
-            batch (dict[str, list[Any]]): The batch of data to process.
-            index (IndexList): The index of the batch.
-            rank (None | Rank): The rank of the process in a
-                multiprocessing setting.
-
-        Returns:
-            dict: The processed data as a python dictionary
-        """
-        return self.batch_process(batch, index, rank).to_pydict()
+        return ExecutableDataFlow(graph, collect)
 
     def apply(
         self,
         ds: D,
-        collect: None | FeatureRef | dict[str, FeatureRef] = None,
-        aggregate: None | FeatureRef | dict[str, FeatureRef] = None,
+        collect: Reference,
+        aggregate: None | Reference = None,
         **kwargs,
     ) -> tuple[D, None | Aggregate | MappingProxyType[str, Any]]:
-        """Apply the data flow to a dataset.
-
-        This method applies the data flow to the given dataset, processing the data according to
-        the defined processors and optionally including aggregators for dataset-wide computations.
-
-        Args:
-            ds (D): The dataset to process.
-            collect (None | FeatureRef | dict[str, FeatureRef]): The feature reference to
-                collect. If None, uses current output features.
-            aggregate (None | FeatureRef | dict[str, FeatureRef]): The feature reference
-                to aggregated values to collect. If None, uses the current aggregate features.
-            **kwargs: Additional arguments for dataset mapping. Refer to the HuggingFace
-                documentation for the :code:`Datasets.map` function for the respective dataset type.
-
-        Returns:
-            tuple[D, None | Aggregate | MappingProxyType[str, Any]]: The processed dataset and a
-            snapshot of the aggregated values after processing the dataset. In case of iterable
-            datasets, the aggregated values proxy object is returned instead of a snapshot.
-
-        Raises:
-            ValueError: If the dataset type is not supported.
-            TypeError: If the dataset features do not match the source features.
-            RuntimeError: If the flow has not been built yet.
-        """
-        # get the dataset features
-        if isinstance(ds, (datasets.Dataset, datasets.IterableDataset)):
-            features = ds.features
-        elif isinstance(ds, (datasets.DatasetDict, datasets.IterableDatasetDict)):
-            features = next(iter(ds.values())).features
-        else:
-            raise ValueError(
-                "Expected one of `datasets.Dataset`, `datasets.DatasetDict`, "
-                "`datasets.IterableDataset` or `datasets.IterableDatasetDict`,"  # noqa: E501
-                "got %s" % type(ds)
-            )
-
-        if (features is not None) and not check_feature_equals(
-            features, self.src_features.feature_
-        ):
-            # TODO: should only check whether the required features are present
-            #       i.e. they can be a subset and don't need to match exactly
-            raise TypeError("Dataset features do not match source features.")
-
-        # build the sub data flow required to compute the requested output features
-        if (collect is None) and (aggregate is None):
-            flow = self
-        else:
-            # default to output features of self
-            if (collect is None) and (self._executor is not None):
-                collect = self.out_features
-            # build the flow
-            flow, _ = self.build(collect=collect, aggregate=aggregate)
-
-        if flow._executor is None:
-            raise RuntimeError(
-                "Flow has not been built yet. Please either build the flow "
-                "manually using `.build()` or provide appropriate keyword "
-                "arguments to the `.apply` call."
-            )
-
-        # run data flow
-        ds = flow._internal_apply(ds, **kwargs)
-
-        if isinstance(ds, (datasets.IterableDataset, datasets.IterableDatasetDict)):
-            # set output features for lazy datasets manually
-            if isinstance(ds, datasets.IterableDataset):
-                ds.info.features = flow._executor.collect.feature_
-            elif isinstance(ds, datasets.IterableDatasetDict):
-                for split in ds.values():
-                    split.info.features = flow._executor.collect.feature_
-
-        # return the processed dataset and a snapshot of the aggregated values
-        return ds, (
-            None
-            if flow.aggregates is None
-            else dict(flow.aggregates)
-            if isinstance(ds, (datasets.Dataset, datasets.DatasetDict))
-            else flow.aggregates
-        )
-
-    def _internal_apply(self, ds: D, **kwargs) -> D:
-        """(Internal) Apply the data flow to a dataset.
-
-        Args:
-            ds (D): The dataset to process.
-            **kwargs: Additional arguments for dataset mapping. For more
-                information please refer to the HuggingFace documentation
-                of the Datasets.map function for the respective dataset type.
-
-        Returns:
-            D: The processed dataset.
-        """
-        # required settings
-        kwargs["batched"] = True
-        kwargs["with_indices"] = True
-        # for non-iterable datasets the map function provide the rank
-        if isinstance(ds, (datasets.Dataset, datasets.DatasetDict)):
-            kwargs["with_rank"] = True
-
-        if isinstance(ds, (datasets.Dataset, datasets.DatasetDict)):
-            # use pyarrow table as output format for in-memory
-            # datasets that support caching since it includes
-            # the output feature information
-            return ds.map(self.batch_process, **kwargs)
-
-        elif isinstance(ds, (datasets.IterableDataset, datasets.IterableDatasetDict)):
-            # iterable dataset class doesn't support pyarrow
-            # outputs in map function, but it also doesn't cache
-            # and thus doesn't need the features while processing
-            return ds.map(
-                self._batch_process_to_pydict,
-                remove_columns=set(self.src_features.feature_.keys())
-                - set(self._executor.collect.feature_.keys()),
-                **kwargs,
-            )
+        return self.build(collect, aggregate).apply(ds, **kwargs)
 
     def plot(
         self,
@@ -790,3 +334,160 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             )
 
         return ax
+
+
+class ExecutableDataFlow(DataFlow[T]):
+    def __init__(self, graph: DataFlowGraph, collect: Reference) -> None:
+        super(ExecutableDataFlow, self).__init__(self)
+
+        # make sure the collect feature belongs to the graph
+        if collect._graph is not graph:
+            raise RuntimeError("The collect feature does not belong to this flow.")
+
+        # TODO: optimize data flow
+
+        # create read-only view on graph
+        self._graph: DataFlowGraph = nx.restricted_view(graph, [], [])
+        # get the source feature instance from the graph
+        ref = Reference(FeatureKey(), graph.src_node_id, self._graph)
+        self._source_feature = self._graph.get_feature_from_reference(ref)
+
+        # make sure the source feature is a mapping type
+        if not isinstance(self._source_feature, Mapping):
+            raise RuntimeError("Source must be mapping")
+
+        # create source schema from source feature
+        self._source_schema = pa.schema(self._source_feature._pa_type)
+
+        # create the executor instance
+        self._executor = DataFlowExecutor(self._graph, collect, aggregation_manager=None)
+
+    def apply(self, ds: D, **kwargs) -> D:
+        # get the dataset features
+        if isinstance(ds, (datasets.Dataset, datasets.IterableDataset)):
+            features = ds.features
+        elif isinstance(ds, (datasets.DatasetDict, datasets.IterableDatasetDict)):
+            features = next(iter(ds.values())).features
+        else:
+            raise ValueError(
+                "Expected one of `datasets.Dataset`, `datasets.DatasetDict`, "
+                "`datasets.IterableDataset` or `datasets.IterableDatasetDict`,"
+                "got %s" % type(ds)
+            )
+
+        # build the arrow type from the dataset features
+        src_schema = features.arrow_schema
+
+        # make sure the necessary features are contained in the dataset
+        if not _is_type_subset(self._source_feature._pa_type, pa.struct(src_schema)):
+            raise RuntimeError(
+                f"Expected input schema doesn't match dataset:\n"
+                f"Expected feature type: {self._source_feature._pa_type}\n"
+                f"But received type: {pa.struct(src_schema)}"
+            )
+
+        # set the source feature to the dataset arrow type
+        # while executing the flow
+        with tmp_setattr(self, "_source_schema", src_schema):
+            ds = self._internal_apply(ds, **kwargs)
+
+        if isinstance(ds, (datasets.IterableDataset, datasets.IterableDatasetDict)):
+            # set output features for lazy datasets manually
+            # TODO: implement a arrow_type -> hf feature convert function
+            raise NotImplementedError()
+
+        # return the processed dataset and a snapshot of the aggregated values
+        return ds
+
+    def batch_process(
+        self, batch: dict[str, list[Any]], index: IndexList, rank: None | Rank = None
+    ) -> Batch:
+        """Process a batch of data.
+
+        Args:
+            batch (dict[str, list[Any]]): The batch of data to process.
+            index (IndexList): The index of the batch.
+            rank (None | Rank): The rank of the process in a distributed setting.
+
+        Returns:
+            Table: The processed batch of data as a PyArrow Table.
+
+        Raises:
+            AssertionError: If the flow has not been build yet.
+        """
+
+        if isinstance(batch, datasets.formatting.formatting.LazyBatch):
+            batch = dict(batch)
+
+        if rank is None:
+            # try to get multiprocessing rank from worker info
+            worker_info = get_worker_info()
+            rank = 0 if worker_info is None else worker_info.rank
+
+        # create a new event loop to execute the flow in
+        loop = asyncio.new_event_loop()
+        # schedule the execution for the current batch
+        batch = pa.table(batch, schema=self._source_schema)
+        future = self._executor.execute(batch, index, rank)
+        out = loop.run_until_complete(future)
+        # close the event loop
+        loop.close()
+
+        return out
+
+    def _batch_process_to_pydict(
+        self,
+        batch: dict[str, list[Any]],
+        index: IndexList,
+        rank: None | Rank = None,
+    ) -> dict[str, list[Any]]:
+        """Process a batch of data and convert to a python dictionary.
+
+        Args:
+            batch (dict[str, list[Any]]): The batch of data to process.
+            index (IndexList): The index of the batch.
+            rank (None | Rank): The rank of the process in a
+                multiprocessing setting.
+
+        Returns:
+            dict: The processed data as a python dictionary
+        """
+        return self.batch_process(batch, index, rank).to_pydict()
+
+    def _internal_apply(self, ds: D, **kwargs) -> D:
+        """(Internal) Apply the data flow to a dataset.
+
+        Args:
+            ds (D): The dataset to process.
+            **kwargs: Additional arguments for dataset mapping. For more
+                information please refer to the HuggingFace documentation
+                of the Datasets.map function for the respective dataset type.
+
+        Returns:
+            D: The processed dataset.
+        """
+        # required settings
+        kwargs["batched"] = True
+        kwargs["with_indices"] = True
+        # for non-iterable datasets the map function should provide the rank
+        if isinstance(ds, (datasets.Dataset, datasets.DatasetDict)):
+            kwargs["with_rank"] = True
+
+        if isinstance(ds, (datasets.Dataset, datasets.DatasetDict)):
+            # use pyarrow table as output format for in-memory
+            # datasets that support caching since it includes
+            # the output feature information
+            return ds.map(self.batch_process, **kwargs)
+
+        elif isinstance(ds, (datasets.IterableDataset, datasets.IterableDatasetDict)):
+            # iterable dataset class doesn't support pyarrow
+            # outputs in map function, but it also doesn't cache
+            # and thus doesn't need the features while processing
+            return ds.map(
+                self._batch_process_to_pydict,
+                remove_columns=(
+                    set(self.src_features.feature_.keys())
+                    - set(self._executor.collect.feature_.keys())
+                ),
+                **kwargs,
+            )
