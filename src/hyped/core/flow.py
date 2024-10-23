@@ -23,7 +23,6 @@ import pyarrow as pa
 from datasets.features.features import FeatureType
 from matplotlib import colormaps
 
-from hyped.common._features import TypeFactoryFromFeature
 from hyped.common._worker import get_worker_info
 from hyped.common.feature_checks import check_feature_equals
 from hyped.common.lazy_instance import LazyInstance
@@ -32,8 +31,8 @@ from hyped.core.features.feature_key import FeatureKey
 
 from .abstract import AbstractDataFlow
 from .executor import DataFlowExecutor
-from .features import _Feature
 from .features.factories import BaseFeatureFactory, DefaultFeatureFactory
+from .features.features import _Feature
 from .graph import DataFlowGraph
 from .lazy import LazyFlowOutput
 from .nodes.aggregator import DataAggregationManager
@@ -41,6 +40,7 @@ from .nodes.base import IOContext
 from .nodes.const import Const
 from .optim import DataFlowGraphOptimizer
 from .refs.ref import FeatureRef
+from .utils import FeatureFactoryFromHuggingFace
 
 D = TypeVar(
     "D",
@@ -112,7 +112,9 @@ class DataFlow(AbstractDataFlow, Generic[T]):
 
         if self._hf_source_features is not None:
             # create the source type from the given source features
-            src_type_factory = TypeFactoryFromFeature[src_type_annotation](self._hf_source_features)
+            src_type_factory = FeatureFactoryFromHuggingFace[src_type_annotation](
+                self._hf_source_features
+            )
 
         elif src_type_annotation is not None:
             # infer type from type annotation using default type resolvers

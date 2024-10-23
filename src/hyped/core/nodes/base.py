@@ -16,10 +16,10 @@ from hyped.common.typing import Index, IndexList, NodeId, Rank
 from hyped.core.features.feature_key import FeatureKey
 
 from ..abstract import AbstractDataFlow, AbstractDataFlowGraph
-from ..features import Feature
 from ..features.engine import TypeEngine
 from ..features.features import _Feature
 from ..features.reference import Reference
+from ..typing import Feature
 
 DataFlow: TypeAlias = object
 

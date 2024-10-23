@@ -12,7 +12,7 @@ from typing import Any, Concatenate, Generic, ParamSpec, Protocol, TypeVar, over
 
 from typing_extensions import Self
 
-from ..features import Feature, Sequence
+from ..typing import Feature, Sequence
 from .base import BaseNode, BaseNodeConfig, NodeProtocol, RunContext
 
 Params = ParamSpec("Params")

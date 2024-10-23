@@ -7,13 +7,12 @@ slices, and integrates with pydantic for schema validation.
 
 from __future__ import annotations
 
-from typing import Any
+import typing
 
-import pyarrow as pa
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
 
-from hyped.common.typing import ArrowType, Batch, FeatureKeyAlias
+from hyped.common.typing import FeatureKeyAlias
 
 
 class FeatureKey(FeatureKeyAlias):
@@ -35,7 +34,7 @@ class FeatureKey(FeatureKeyAlias):
         """
         return cls(*key)
 
-    def __new__(cls, *key: str | int | slice) -> None:
+    def __new__(cls, *key: str | int | slice) -> FeatureKey:
         """Instantiate a new FeatureKey.
 
         Arguments:
@@ -89,12 +88,12 @@ class FeatureKey(FeatureKeyAlias):
 
     @classmethod
     def __get_pydantic_core_schema__(
-        cls, source_type: Any, handler: GetCoreSchemaHandler
+        cls, source_type: typing.Any, handler: GetCoreSchemaHandler
     ) -> CoreSchema:
         """Integrate feature key with pydantic.
 
         Arguments:
-            source_type (Any): Source type for the schema.
+            source_type (typing.Any): Source type for the schema.
             handler (GetCoreSchemaHandler): Handler for the core schema.
 
         Returns:
@@ -102,80 +101,25 @@ class FeatureKey(FeatureKeyAlias):
         """
         return core_schema.no_info_after_validator_function(cls, handler(str | tuple))
 
-    # TODO: docstring: no bound checks or similar validation
-    #       on the type is performed here
-    def index_type(self, pa_type: ArrowType) -> ArrowType:
+    def index_object(self, obj: typing.Any | typing.Mapping | typing.Sequence) -> object:
         for i, key_entry in enumerate(self):
-            if isinstance(key_entry, str):
-                # make sure the arrow type is a struct
-                if not isinstance(pa_type, pa.StructType):
-                    raise TypeError()
-                # get the type of the field referenced by the key
-                pa_type = pa_type.field(key_entry).type
+            if isinstance(key_entry, (int, str)):
+                # get item from object
+                obj = obj[key_entry]
 
-            elif isinstance(key_entry, int):
-                if isinstance(pa_type, pa.FixedShapeTensorType):
-                    # make sure the type is a one-dimensional list
-                    if len(pa_type.shape) != 1:
-                        raise TypeError()
-                    # we don't do any boundaty checks here
-                    # boundary checks are handled by the feature
-                    pa_type = pa_type.value_type
+            if isinstance(key_entry, slice):
+                # apply the slicing operation on the object
+                items = obj[key_entry]
+                # build the subkey of remainding entries that needs to be applied
+                # to all entries included in the slice
+                next_key = tuple.__new__(FeatureKey, self[i + 1 :])
+                # apply the key to all entries in the slice
+                items = map(next_key.index_object, items)
+                # pack processed items in object
+                constructor = getattr(obj, "__slice_constructor__", type(obj))
+                return constructor(items)
 
-                elif isinstance(pa_type, pa.ListType):
-                    # get the value type of the list
-                    pa_type = pa_type.value_type
-
-                else:
-                    raise TypeError()
-
-            elif isinstance(key_entry, slice):
-                sub_key = tuple.__new__(FeatureKey, self[i + 1 :])
-
-                if isinstance(pa_type, pa.FixedShapeTensorType):
-                    if len(pa_type.shape) != 1:
-                        raise TypeError()
-
-                    (length,) = pa_type.shape
-
-                    start, stop, step = key_entry.indices(length)
-                    new_length = (stop - start) // step
-
-                    sub_key = tuple.__new__(FeatureKey, self[i + 1 :])
-                    value_type = sub_key.index_type(pa_type.value_type)
-
-                    return pa.fixed_shape_tensor(value_type, [new_length])
-
-                elif isinstance(pa_type, pa.ListType):
-                    sub_key = tuple.__new__(FeatureKey, self[i + 1 :])
-                    return pa.list_(sub_key.index_type(pa_type.value_type))
-
-        return pa_type
-
-    def index_batch(self, batch: Batch) -> pa.Array:
-        """Index a batch of examples with the given key and retrieve the batch of values.
-
-        Arguments:
-            batch (Table): Batch of examples to index.
-
-        Returns:
-            Array: The batch of values of the examples at the given key.
-        """
-        # TODO: support gathering from pa.FixedShapeTensorType
-        gathered_batch = batch.to_struct_array()
-        for key_entry in self:
-            if isinstance(key_entry, str):
-                gathered_batch = pa.compute.struct_field(gathered_batch, key_entry)
-
-            elif isinstance(key_entry, int):
-                gathered_batch = pa.compute.list_element(gathered_batch, key_entry)
-
-            elif isinstance(key_entry, slice):
-                start = key_entry.start if key_entry.start is not None else 0
-                step = key_entry.step if key_entry.step is not None else 1
-                gathered_batch = pa.compute.list_slice(gathered_batch, start, key_entry.stop, step)
-
-        return gathered_batch
+        return obj
 
     def __hash__(self) -> int:
         """Compute the hash value of the feature key.

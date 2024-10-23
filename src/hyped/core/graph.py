@@ -583,6 +583,15 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         if ref._node_id not in self.nodes:
             raise RuntimeError(f"Node with ID '{ref._node_id}' is not contained in the graph.")
 
+        # TODO:
+        # build feature from reference using arrow type factory
+        # give feature instance to feature key which returns the target feature instance
+        # compare the target feature's reference with the given reference, should match exactly
+        # return the pyarrow type of the target feature instance
+
+        # this would do the same indexing that the user did to create the given reference
+        # but guarantees that types within the graph are consistent
+
         source_type = self.nodes[ref._node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
         return ref._key.index_type(source_type)
 

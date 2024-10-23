@@ -4,7 +4,7 @@ import typing
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from types import GenericAlias
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, get_type_hints
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Iterable, get_type_hints
 
 import pyarrow as pa
 from pydantic import BaseModel, Field, GetCoreSchemaHandler, TypeAdapter, create_model
@@ -182,6 +182,36 @@ class Sequence(typing.Sequence[_Type], _Feature):
 
         return self._factory(FeatureKey(*self._key, index), self._node_id, self._graph)
 
+    T = typing.TypeVar("T", bound=_Feature)
+
+    def __slice_constructor__(self, items: Iterable[T]) -> Sequence[T]:
+        item = next(iter(items))
+        # get the slice from the item key
+        idx = item._key[len(self._key)]
+        assert isinstance(idx, slice)
+        # build the key from the item instance
+        # the item is just one element of the slice of the sequence
+        # to show this in the key we just need to remove the index from the key
+        key = item._key[: len(self._key) + 1] + item._key[len(self._key) + 2 :]
+        key = tuple.__new__(FeatureKey, key)
+
+        if self._length >= 0:
+            # compute length of the subsequence
+            start, stop, step = idx.indices(self._length)
+            length = (stop - start) // step
+
+        else:
+            length = -1
+
+        return Sequence(
+            _key=key,
+            _node_id=self._node_id,
+            _graph=self._graph,
+            _itemtype=type(item),
+            _factory=FeatureFactoryFromInstance(item),
+            _length=length,
+        )
+
     def __len__(self) -> int:
         return self._length
 
@@ -251,7 +281,8 @@ else:
 
         @property
         def _pa_type(self) -> ArrowType:
-            return pa.struct([(key, factory._pa_type) for key, factory in self._factories.items()])
+            field_names = sorted(self._factories.keys())
+            return pa.struct([(key, self._factories[key]._pa_type) for key in field_names])
 
         def __post_init__(self) -> None:
             # get the set of valid keys

@@ -72,6 +72,10 @@ class DefaultFeatureFactory(BaseFeatureFactory[T]):
 class FeatureFactoryFromInstance(BaseFeatureFactory[T]):
     inst: T
 
+    def __post_init__(self) -> None:
+        # overwrite reference values in instance
+        self.inst = self.__call__(FeatureKey(), "NodeId", _DummyDataFlowGraph())
+
     @property
     def _pa_type(self) -> ArrowType:
         return self.inst._pa_type
