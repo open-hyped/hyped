@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field, fields
-from typing import Any, Generic, TypeVar, get_args
+from typing import Any, Generic, TypeVar, get_args, overload
 from uuid import UUID, uuid4
 
 import pydantic
@@ -8,7 +8,7 @@ from hyped._registry.config import BaseConfig
 from hyped.common.typing import ArrowType, NodeId
 
 from ..abstract import AbstractDataFlowGraph
-from .reference import FeatureKey
+from .reference import FeatureKey, Reference
 
 T = TypeVar("T")
 
@@ -80,17 +80,35 @@ class FeatureFactory(Generic[T]):
 
         return validator
 
+    @overload
+    def __call__(self, ref: Reference) -> T:
+        ...
+
+    @overload
     def __call__(self, _key: FeatureKey, _node_id: NodeId, _graph: AbstractDataFlowGraph) -> T:
+        ...
+
+    def __call__(
+        self,
+        ref_or_key: Reference | FeatureKey,
+        _node_id: None | NodeId = None,
+        _graph: None | AbstractDataFlowGraph = None,
+    ) -> T:
         """Create and validate an instance based on the provided arguments.
 
         Args:
-            _key (FeatureKey): Key representing the feature pointer.
-            _node_id (NodeId): The ID of the node in the data flow graph.
-            _graph (AbstractDataFlowGraph): The data flow graph containing the Feature.
+            ref_or_key (Reference | FeatureKey): A reference or feature key instance.
+            _node_id (None | NodeId): The ID of the node in the data flow graph. Unused in case
+                first argument is a reference.
+            _graph (None | AbstractDataFlowGraph): The data flow graph containing the Feature.
+                Unused in case first argument is a reference instance.
 
         Returns:
             T: The type instance generated from the arguments.
         """
+
+        if isinstance(ref_or_key, Reference):
+            return self(ref_or_key._key, ref_or_key._node_id, ref_or_key._graph)
 
         # get target feature type from annotation or fallback
         type_annotation = (
@@ -103,7 +121,7 @@ class FeatureFactory(Generic[T]):
             # TODO (message): could not infer target type, at least one required
             raise RuntimeError()
 
-        inst = self.kwargs | {"_key": _key, "_node_id": _node_id, "_graph": _graph}
+        inst = self.kwargs | {"_key": ref_or_key, "_node_id": _node_id, "_graph": _graph}
         context = {
             "config": self.config,
             "inputs": self.inputs,

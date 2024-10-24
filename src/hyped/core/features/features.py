@@ -14,7 +14,7 @@ from typing_extensions import Self
 from hyped.common.typing import ArrowType
 from hyped.common.utils import is_python_version_less_than
 
-from .factories import FeatureFactory, FeatureFactoryFromInstance
+from .factory import FeatureFactory, FeatureFactoryFromInstance
 from .reference import FeatureKey, Reference
 
 if is_python_version_less_than(3, 11):

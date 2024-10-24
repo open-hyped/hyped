@@ -28,11 +28,11 @@ The keys are strings representing feature names, and the values can be of any ty
 (e.g., integers, floats, strings, or more complex data structures).
 """
 
-Batch: TypeAlias = pa.Table
+Batch: TypeAlias = dict[str, pa.Array]
 """A batch of samples from the dataset.
 
 Represents a collection of samples, structured as a dictionary where the keys are feature names,
-and the values are lists containing data points for each feature across multiple samples.
+and the values are arrow arrays containing data points for each feature across multiple samples.
 """
 
 Index: TypeAlias = int

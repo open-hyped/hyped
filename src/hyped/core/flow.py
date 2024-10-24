@@ -23,12 +23,12 @@ from datasets.features.features import FeatureType
 from matplotlib import colormaps
 
 from hyped.common._worker import get_worker_info
-from hyped.common.typing import Aggregate, Batch, IndexList, Rank
+from hyped.common.typing import Aggregate, IndexList, Rank
 from hyped.common.utils import tmp_setattr
 
 from .abstract import AbstractDataFlow
 from .executor import DataFlowExecutor
-from .features.factories import FeatureFactory
+from .features.factory import FeatureFactory
 from .features.features import _Feature
 from .features.reference import FeatureKey, Reference
 from .graph import DataFlowGraph
@@ -116,8 +116,8 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             raise RuntimeError()
 
         # add the source node to the graph with the node id
-        node_id = self._graph.add_source_node(src_type_factory._pa_type)
-        self._source_feature = src_type_factory(FeatureKey(), node_id, self._graph)
+        source_ref = self._graph.add_source_node(src_type_factory._pa_type)
+        self._source_feature = src_type_factory(source_ref)
 
         if not isinstance(self._source_feature, Mapping):
             raise RuntimeError("Must be mapping")
@@ -400,7 +400,7 @@ class ExecutableDataFlow(DataFlow[T]):
 
     def batch_process(
         self, batch: dict[str, list[Any]], index: IndexList, rank: None | Rank = None
-    ) -> Batch:
+    ) -> pa.Table:
         """Process a batch of data.
 
         Args:
@@ -409,7 +409,7 @@ class ExecutableDataFlow(DataFlow[T]):
             rank (None | Rank): The rank of the process in a distributed setting.
 
         Returns:
-            Table: The processed batch of data as a PyArrow Table.
+            pa.Table: The processed batch of data as a PyArrow Table.
 
         Raises:
             AssertionError: If the flow has not been build yet.
@@ -427,12 +427,15 @@ class ExecutableDataFlow(DataFlow[T]):
         loop = asyncio.new_event_loop()
         # schedule the execution for the current batch
         batch = pa.table(batch, schema=self._source_schema)
+        batch = batch.to_struct_array()
         future = self._executor.execute(batch, index, rank)
         out = loop.run_until_complete(future)
         # close the event loop
         loop.close()
 
-        return out
+        # TODO: if output type is mapping else
+        return pa.table({"value": out})
+        return pa.table(out)
 
     def _batch_process_to_pydict(
         self,

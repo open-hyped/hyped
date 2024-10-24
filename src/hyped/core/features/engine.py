@@ -15,7 +15,7 @@ import pydantic
 
 from hyped._registry.config import BaseConfig
 
-from .factories import FeatureFactory
+from .factory import FeatureFactory
 from .features import _Feature
 from .reference import Reference
 

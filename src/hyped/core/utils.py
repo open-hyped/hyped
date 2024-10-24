@@ -12,7 +12,7 @@ from datasets.features.features import FeatureType
 from hyped.common.typing import ArrowType, NodeId
 
 from .abstract import AbstractDataFlowGraph
-from .features.factories import FeatureFactoryFromInstance, _DummyDataFlowGraph
+from .features.factory import FeatureFactoryFromInstance, _DummyDataFlowGraph
 from .features.features import (
     Mapping,
     Sequence,

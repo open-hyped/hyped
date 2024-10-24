@@ -36,7 +36,7 @@ class ExecutionState(object):
         self,
         graph: DataFlowGraph,
         p_graph: nx.DiGraph,
-        batch: Batch,
+        batch: pa.Array,
         index: IndexList,
         rank: Rank,
     ):
@@ -45,7 +45,7 @@ class ExecutionState(object):
         Args:
             graph (DataFlowGraph): The data flow graph being executed.
             p_graph (nx.DiGraph): The partition graph to the data flow graph.
-            batch (Batch): The initial batch of data.
+            batch (pa.Array): The initial batch of data.
             index (IndexList): The index of the batch.
             rank (Rank): The rank of the process in a distributed setting.
         """
@@ -61,7 +61,7 @@ class ExecutionState(object):
         self.traces: dict[tuple[str, str], np.ndarray] = {}
 
         # execution graph attributes
-        self.outputs = {graph.src_node_id: ArrowIndexingWrapper(batch.to_struct_array())}
+        self.outputs = {graph.src_node_id: ArrowIndexingWrapper(batch)}
         self.ready = {
             node_id: asyncio.Event()
             for node_id, attrs in graph.nodes(data=True)
@@ -224,18 +224,14 @@ class ExecutionState(object):
             # update the values in the inputs
             inputs.update(dict(zip(names, values)))
 
-        # get the input schema from the node and wrap the inputs to a table
-        input_schema = self.graph.nodes[node_id][DataFlowGraph.NodeAttribute.IN_FEATURE_SCHEMA]
-        input_batch = pa.table(inputs, schema=input_schema)
+        return inputs, index
 
-        return input_batch, index
-
-    def capture_output(self, node_id: NodeId, output: Batch) -> None:
+    def capture_output(self, node_id: NodeId, output: pa.Array) -> None:
         """Capture the output of a node.
 
         Args:
             node_id (NodeId): The ID of the node producing the output.
-            output (Batch): The output batch of data.
+            output (pa.Array): The output batch of data.
 
         Raises:
             AssertionError: If the node is already set
@@ -312,13 +308,14 @@ class DataFlowExecutor(object):
             index=index,
             rank=state.rank,
             input_schema=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_SCHEMA],
-            output_schema=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_SCHEMA],
+            output_type=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
         )
 
         if node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
             # run processor and check the output batch size
-            out = await node_obj.batch_process(ctx, inputs)
-            assert out.num_rows == len(index), "Output values length does not match index length."
+            out = await node_obj.batch_process(ctx, **inputs)
+            assert out.type == ctx.output_type, "Unexpected output type"
+            assert len(out) == len(index), "Output values length does not match index length."
             # capture output in execution state
             state.capture_output(node_id, out)
 
@@ -333,11 +330,11 @@ class DataFlowExecutor(object):
             # run aggregator
             await self.aggregation_manager.aggregate(node_obj, ctx, inputs)
 
-    async def execute(self, batch: Batch, index: IndexList, rank: Rank) -> Batch:
+    async def execute(self, batch: pa.Array, index: IndexList, rank: Rank) -> Batch:
         """Execute the entire data flow graph.
 
         Args:
-            batch (Batch): The initial batch of data.
+            batch (pa.Array): The initial batch of data.
             index (IndexList): The index of the batch.
             rank (Rank): The rank of the process in a multiprocessing setting.
 

@@ -14,13 +14,12 @@ from typing import Generic, ParamSpec, Protocol, TypeAlias, TypeVar, overload
 import pyarrow as pa
 
 from hyped._registry.config import BaseConfig, BaseConfigurable
-from hyped.common.typing import Index, IndexList, NodeId, Rank
+from hyped.common.typing import ArrowType, Index, IndexList, NodeId, Rank
 
 from ..abstract import AbstractDataFlow, AbstractDataFlowGraph
 from ..features.engine import TypeEngine
-from ..features.factories import FeatureFactory
-from ..features.features import Mapping, _Feature
-from ..features.reference import FeatureKey, Reference
+from ..features.features import _Feature
+from ..features.reference import Reference
 from ..typing import Feature
 
 DataFlow: TypeAlias = object
@@ -54,7 +53,7 @@ class RunContext:
 
     input_schema: pa.Schema
 
-    output_schema: pa.Schema
+    output_type: ArrowType
 
     def __hash__(self) -> int:
         """Returns a hash value based on the node ID.
@@ -175,19 +174,6 @@ class BaseNode(BaseConfigurable[C], ABC):
         # create the return factory
         return_factory = engine.get_return_factory(references)
 
-        if isinstance(return_factory.instance, Mapping):
-            # add the node to the graph
-            node_id = graph.add_processor_node(self, references, pa.schema(return_factory._pa_type))
-            return return_factory(FeatureKey(), node_id, graph)
-
-        else:
-            # wrap the output in a mapping
-            # TODO: implement dynamic mapping type
-            annotations = {type(self).DEFAULT_OUTPUT_KEY: return_factory.instance._type_hint}
-            return_type = type("Output", (Mapping,), {"__annotations__": annotations})
-            # create return factory
-            factories = {type(self).DEFAULT_OUTPUT_KEY: return_factory}
-            return_factory = FeatureFactory[return_type](kwargs={"_factories": factories})
-            # add the node to the graph
-            node_id = graph.add_processor_node(self, references, pa.schema(return_factory._pa_type))
-            return return_factory(FeatureKey(type(self).DEFAULT_OUTPUT_KEY), node_id, graph)
+        # add the node and return the output feature
+        ref = graph.add_processor_node(self, references)
+        return return_factory(ref)
