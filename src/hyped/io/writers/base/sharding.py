@@ -14,7 +14,7 @@ from typing import Any, Callable
 from hyped.common._worker import manager as _manager  # noqa: F401
 from hyped.common.logging import get_logger
 from hyped.common.typing import Sample
-from hyped.core.features.feature_key import FeatureKey
+from hyped.core.features.reference import FeatureKey
 
 logger = get_logger(__name__)
 

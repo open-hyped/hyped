@@ -30,10 +30,10 @@ from itertools import groupby
 from datasets import Features, Value
 
 from hyped.common.typing import NodeId
-from hyped.core.features.feature_key import FeatureKey
 from hyped.nodes._ops.collect import CollectFeatures, NestedContainer
 
 from .executor import DataFlowExecutor
+from .features.reference import FeatureKey
 from .graph import DataFlowGraph
 from .nodes.const import Const
 from .refs.inputs import InputRefsContainer

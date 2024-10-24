@@ -17,9 +17,8 @@ import numpy as np
 import pyarrow as pa
 
 from hyped.common.typing import Batch, IndexList, NodeId, Rank, TraceIndexList
-from hyped.core.features.feature_key import FeatureKey
 
-from .features.reference import Reference
+from .features.reference import FeatureKey, Reference
 from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext

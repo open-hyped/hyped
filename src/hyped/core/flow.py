@@ -25,13 +25,12 @@ from matplotlib import colormaps
 from hyped.common._worker import get_worker_info
 from hyped.common.typing import Aggregate, Batch, IndexList, Rank
 from hyped.common.utils import tmp_setattr
-from hyped.core.features.feature_key import FeatureKey
 
 from .abstract import AbstractDataFlow
 from .executor import DataFlowExecutor
 from .features.factories import FeatureFactory
 from .features.features import _Feature
-from .features.reference import Reference
+from .features.reference import FeatureKey, Reference
 from .graph import DataFlowGraph
 from .refs.ref import FeatureRef
 from .typing import Mapping

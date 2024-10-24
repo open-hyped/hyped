@@ -20,9 +20,8 @@ import pyarrow as pa
 from hyped.common.typing import ArrowType, NodeId, PartitionId
 
 from .abstract import AbstractDataFlowGraph
-from .features.feature_key import FeatureKey
 from .features.features import _Feature
-from .features.reference import Reference
+from .features.reference import FeatureKey, Reference
 from .nodes.aggregator import BaseDataAggregator
 from .nodes.augmenter import BaseDataAugmenter
 from .nodes.base import BaseNode

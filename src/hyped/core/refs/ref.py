@@ -17,7 +17,7 @@ from typing_extensions import Annotated
 
 from hyped.common.feature_checks import check_feature_is_sequence
 from hyped.common.typing import DataFlowGraphAlias, NodeId, Pointer
-from hyped.core.features.feature_key import FeatureKey
+from hyped.core.features.reference import FeatureKey
 
 
 class FeatureRef(BaseModel):

@@ -15,13 +15,12 @@ import pyarrow as pa
 
 from hyped._registry.config import BaseConfig, BaseConfigurable
 from hyped.common.typing import Index, IndexList, NodeId, Rank
-from hyped.core.features.feature_key import FeatureKey
 
 from ..abstract import AbstractDataFlow, AbstractDataFlowGraph
 from ..features.engine import TypeEngine
 from ..features.factories import FeatureFactory
 from ..features.features import Mapping, _Feature
-from ..features.reference import Reference
+from ..features.reference import FeatureKey, Reference
 from ..typing import Feature
 
 DataFlow: TypeAlias = object

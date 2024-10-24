@@ -13,7 +13,6 @@ from hyped.common.typing import ArrowType, NodeId
 
 from .abstract import AbstractDataFlowGraph
 from .features.factories import FeatureFactoryFromInstance, _DummyDataFlowGraph
-from .features.feature_key import FeatureKey
 from .features.features import (
     Mapping,
     Sequence,
@@ -33,6 +32,7 @@ from .features.features import (
     _UInt32,
     _UInt64,
 )
+from .features.reference import FeatureKey
 
 ARROW_SCALAR_TYPE_TO_FEATURE_MAPPING: dict[str, _Primitive] = {
     "bool": _Bool,

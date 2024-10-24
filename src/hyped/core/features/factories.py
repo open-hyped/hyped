@@ -6,9 +6,9 @@ import pydantic
 
 from hyped._registry.config import BaseConfig
 from hyped.common.typing import ArrowType, NodeId
-from hyped.core.features.feature_key import FeatureKey
 
 from ..abstract import AbstractDataFlowGraph
+from .reference import FeatureKey
 
 T = TypeVar("T")
 

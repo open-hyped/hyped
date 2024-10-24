@@ -115,6 +115,7 @@ graph in contexts where the actual structure of the graph is abstracted away. Th
 (object) to accommodate various possible representations of a data flow graph.
 """
 
+# TODO: depricated, use hyped.core.features.reference.FeatureKey
 FeatureKeyAlias: TypeAlias = tuple[str | int | slice, ...]
 """A key identifying specific features within a data flow graph node's outputs.
 
