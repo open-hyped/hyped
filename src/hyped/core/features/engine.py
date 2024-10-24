@@ -8,15 +8,14 @@ handle model validation.
 import inspect
 from contextlib import contextmanager
 from functools import partial
-from types import GenericAlias
-from typing import Any, Generator, TypeVar, _GenericAlias
+from typing import Any, Generator, TypeVar
 from uuid import uuid4
 
 import pydantic
 
 from hyped._registry.config import BaseConfig
 
-from .factories import DefaultFeatureFactory
+from .factories import FeatureFactory
 from .features import _Feature
 from .reference import Reference
 
@@ -194,7 +193,7 @@ class TypeEngine(object):
 
     def get_references_and_consts(
         self, *args: Any, **kwargs: Any
-    ) -> tuple[dict[str, _Feature], dict[str, Any], dict[str, DefaultFeatureFactory]]:
+    ) -> tuple[dict[str, _Feature], dict[str, Any], dict[str, FeatureFactory]]:
         """
         Separate input feature references and constants from the arguments.
 
@@ -221,13 +220,18 @@ class TypeEngine(object):
             for key in consts.keys()
         }
         const_factories = {
-            key: self._build_type_factory(hint, arguments)
+            key: FeatureFactory[hint](
+                config=self.config,
+                inputs=arguments,
+                session_id=self.session_id,
+                typevars=self.vars_mapping,
+            )
             for key, hint in const_annotations.items()
         }
 
         return inputs, consts, const_factories
 
-    def get_return_factory(self, inputs: dict[str, _Feature]) -> DefaultFeatureFactory:
+    def get_return_factory(self, inputs: dict[str, _Feature]) -> FeatureFactory:
         """Build a type factory for the return type based on the inputs.
 
         Args:
@@ -236,42 +240,9 @@ class TypeEngine(object):
         Returns:
             DefaultTypeFactory: A factory class for the return type.
         """
-        return self._build_type_factory(self.signature.return_annotation, inputs)
-
-    def _build_type_factory(
-        self, hint: Any, inputs: None | dict[str, Any] = None
-    ) -> DefaultFeatureFactory:
-        """Build a factory for a type based on the given hint and input features.
-
-        Args:
-            hint (Any): Type hint for the factory.
-            inputs (Optional[dict[str, Any]]): Input features used in validation.
-
-        Returns:
-            DefaultTypeFactory: Factory class for creating instances of the specified type.
-
-        Raises:
-            TypeError: If the type hint provided is invalid or not supported.
-        """
-
-        if isinstance(hint, (GenericAlias, _GenericAlias)):
-            params = [self.vars_mapping[p] for p in hint.__parameters__]
-            # TODO: this is not supported in python 3.10
-            hint = hint[*params] if len(params) > 0 else hint  # noqa:
-            return DefaultFeatureFactory[hint](
-                self.config, inputs, self.session_id, self.vars_mapping
-            )
-
-        if isinstance(hint, TypeVar):
-            return self._build_type_factory(self.vars_mapping[hint], inputs=inputs)
-
-        if isinstance(hint, type) and issubclass(hint, _Feature):
-            return DefaultFeatureFactory[hint](
-                self.config, inputs, self.session_id, self.vars_mapping
-            )
-
-        raise TypeError(
-            f"Invalid type hint '{hint}' provided in function '{self.name}'. "
-            "Expected a GenericAlias, TypeVar, or subclass of _Feature, but received "
-            f"'{type(hint).__name__}'. Please check the type hint and ensure it is supported."
+        return FeatureFactory[self.signature.return_annotation](
+            config=self.config,
+            inputs=inputs,
+            session_id=self.session_id,
+            typevars=self.vars_mapping,
         )

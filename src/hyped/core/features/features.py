@@ -15,7 +15,7 @@ from hyped.common.typing import ArrowType
 from hyped.common.utils import is_python_version_less_than
 from hyped.core.features.feature_key import FeatureKey
 
-from .factories import BaseFeatureFactory, FeatureFactoryFromInstance
+from .factories import FeatureFactory, FeatureFactoryFromInstance
 from .reference import Reference
 
 if is_python_version_less_than(3, 11):
@@ -143,8 +143,8 @@ _Type = typing.TypeVar("_Type", bound=_Feature)
 @dataclass(eq=True, frozen=True)
 class Sequence(typing.Sequence[_Type], _Feature):
     _itemtype: type[_Type]
-    _factory: BaseFeatureFactory[_Type]
-    _length: int
+    _factory: FeatureFactory[_Type]
+    _length: int = -1
 
     @property
     def _pa_type(self) -> ArrowType:
@@ -227,11 +227,10 @@ class Sequence(typing.Sequence[_Type], _Feature):
         validator = TypeAdapter(expected_item_type)
 
         def validator_fn(inst, info):
-            if isinstance(inst, dict) and ("_factory" in inst):
-                # create the instance
-                inst = cls(**inst)
-
-            elif isinstance(inst, dict) and ("_factory" not in inst):
+            # TODO: rework initialization from dictionary
+            # TODO: what if factory is not passed but itemtype -> create factory on itemtype
+            # TODO: otherwise use type hint
+            if isinstance(inst, dict) and ("_factory" not in inst):
                 # infer item type by creating an instance
                 item = validator.validate_python(inst, context=info.context)
                 inst = cls(
@@ -240,6 +239,10 @@ class Sequence(typing.Sequence[_Type], _Feature):
                     _itemtype=item._type_hint,
                     _length=-1,
                 )
+
+            if isinstance(inst, dict) and ("_factory" in inst):
+                # create the instance
+                inst = cls(**inst)
 
             # validate the item type of the instance
             item = inst._factory(("key",), inst._node_id, inst._graph)
@@ -278,7 +281,7 @@ else:
 
     @dataclass(eq=True, frozen=True)
     class Mapping(typing.Mapping, _Feature):
-        _factories: dict[str, BaseFeatureFactory]
+        _factories: dict[str, FeatureFactory]
 
         @property
         def _pa_type(self) -> ArrowType:

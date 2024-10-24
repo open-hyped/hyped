@@ -1,19 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable, TypeVar, get_args
+from typing import Iterable, TypeVar
 
 import datasets
 import numpy as np
 import numpy.typing
 import pyarrow as pa
-import pydantic
 from datasets.features.features import FeatureType
 
 from hyped.common.typing import ArrowType, NodeId
 
 from .abstract import AbstractDataFlowGraph
-from .features.factories import BaseFeatureFactory
+from .features.factories import FeatureFactoryFromInstance, _DummyDataFlowGraph
 from .features.feature_key import FeatureKey
 from .features.features import (
     Mapping,
@@ -132,20 +131,18 @@ def _is_type_subset(type_a: pa.DataType, type_b: pa.DataType) -> bool:
 T = TypeVar("T", bound=_Feature)
 
 
-@dataclass
-class FeatureFactoryFromArrowType(BaseFeatureFactory[T]):
-    pa_type: ArrowType
-
-    @property
-    def _pa_type(self) -> ArrowType:
-        return self.pa_type
+class FeatureFactoryFromArrowType(FeatureFactoryFromInstance[T]):
+    def __init__(self, pa_type: ArrowType) -> None:
+        inst = self._create_instance(pa_type, FeatureKey(), "DummyNodeId", _DummyDataFlowGraph())
+        # initialize feature factory
+        super(FeatureFactoryFromArrowType, self).__init__(inst, strict=False)
 
     def _create_instance(
-        self, _key: FeatureKey, _node_id: NodeId, _graph: AbstractDataFlowGraph
-    ) -> Any:
-        if pa.types.is_struct(self.pa_type):
-            mapping_type = _build_feature_type_from_arrow_type(self.pa_type)
-            fields = map(self.pa_type.field, range(self.pa_type.num_fields))
+        self, pa_type: ArrowType, _key: FeatureKey, _node_id: NodeId, _graph: AbstractDataFlowGraph
+    ) -> _Feature:
+        if pa.types.is_struct(pa_type):
+            mapping_type = _build_feature_type_from_arrow_type(pa_type)
+            fields = map(pa_type.field, range(pa_type.num_fields))
 
             return mapping_type(
                 _key=_key,
@@ -156,8 +153,8 @@ class FeatureFactoryFromArrowType(BaseFeatureFactory[T]):
                 },
             )
 
-        if pa.types.is_list(self.pa_type):
-            arrow_item_type = self.pa_type.value_type
+        elif pa.types.is_list(pa_type):
+            arrow_item_type = pa_type.value_type
             item_type = _build_feature_type_from_arrow_type(arrow_item_type)
             return Sequence[item_type](
                 _key=_key,
@@ -168,39 +165,17 @@ class FeatureFactoryFromArrowType(BaseFeatureFactory[T]):
                 _length=-1,
             )
 
-        if isinstance(self.pa_type, ArrowType):
-            scalar = ARROW_SCALAR_TYPE_TO_FEATURE_MAPPING[str(self.pa_type)]
+        if isinstance(pa_type, ArrowType):
+            scalar = ARROW_SCALAR_TYPE_TO_FEATURE_MAPPING[str(pa_type)]
             return scalar(_key, _node_id, _graph)
 
         raise TypeError()
 
-    def __call__(self, _key: FeatureKey, _node_id: NodeId, _graph: AbstractDataFlowGraph) -> T:
-        # get the type hint if it is provided
-        hint = getattr(self, "__orig_class__", None)
-        hint = get_args(hint) if hint is not None else []
-        hint = None if len(hint) == 0 else hint[0]
-        assert (hint is None) or (not isinstance(hint, TypeVar))
-
-        # create the instance
-        inst = self._create_instance(_key, _node_id, _graph)
-
-        if hint is None:
-            # no validation
-            return inst
-
-        try:
-            # validate and convert the type instance
-            adapter = pydantic.TypeAdapter(hint)
-            return adapter.validate_python(inst, context={"strict": True})
-
-        except pydantic.ValidationError:
-            raise RuntimeError()
-
 
 class FeatureFactoryFromHuggingFace(FeatureFactoryFromArrowType[T]):
     def __init__(self, feature: FeatureType) -> None:
-        # convert hf features to arrow feature
         if isinstance(feature, datasets.Features):
+            # convert hf features to arrow feature
             pa_type = pa.struct(feature.arrow_schema)
 
         else:

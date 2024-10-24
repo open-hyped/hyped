@@ -29,7 +29,7 @@ from hyped.core.features.feature_key import FeatureKey
 
 from .abstract import AbstractDataFlow
 from .executor import DataFlowExecutor
-from .features.factories import BaseFeatureFactory, DefaultFeatureFactory
+from .features.factories import FeatureFactory
 from .features.features import _Feature
 from .features.reference import Reference
 from .graph import DataFlowGraph
@@ -100,7 +100,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         )
 
         # build the source type factory for the
-        src_type_factory: BaseFeatureFactory
+        src_type_factory: FeatureFactory
 
         if self._hf_source_features is not None:
             # create the source type from the given source features
@@ -110,7 +110,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
 
         elif src_type_annotation is not None:
             # infer type from type annotation using default type resolvers
-            src_type_factory = DefaultFeatureFactory[src_type_annotation]()
+            src_type_factory = FeatureFactory[src_type_annotation]()
 
         else:
             # no input specified, at least argument or type hint is required

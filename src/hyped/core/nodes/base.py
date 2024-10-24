@@ -184,11 +184,11 @@ class BaseNode(BaseConfigurable[C], ABC):
         else:
             # wrap the output in a mapping
             # TODO: implement dynamic mapping type
-            annotations = {type(self).DEFAULT_OUTPUT_KEY: return_factory._pa_type}
+            annotations = {type(self).DEFAULT_OUTPUT_KEY: return_factory.instance._type_hint}
             return_type = type("Output", (Mapping,), {"__annotations__": annotations})
             # create return factory
             factories = {type(self).DEFAULT_OUTPUT_KEY: return_factory}
-            return_factory = FeatureFactory[return_type](_factories=factories)
+            return_factory = FeatureFactory[return_type](kwargs={"_factories": factories})
             # add the node to the graph
             node_id = graph.add_processor_node(self, references, pa.schema(return_factory._pa_type))
             return return_factory(FeatureKey(type(self).DEFAULT_OUTPUT_KEY), node_id, graph)
