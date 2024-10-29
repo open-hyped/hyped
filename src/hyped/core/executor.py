@@ -319,7 +319,7 @@ class DataFlowExecutor(object):
 
         elif node_type == DataFlowGraph.NodeType.DATA_AUGMENTER:
             # run processor and check the output batch size
-            out, trace_index = await node_obj.batch_process(ctx, inputs)
+            out, trace_index = await node_obj.batch_process(ctx, **inputs)
             # register output partition and capture output in execution state
             state.register_partition_trace(node_id, trace_index, index)
             state.capture_output(node_id, out)

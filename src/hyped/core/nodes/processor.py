@@ -21,11 +21,6 @@ Params = ParamSpec("Params")
 Return = TypeVar("Return", covariant=True)
 
 
-# TODO: legacy code
-class IOContext:
-    pass
-
-
 class _ProcessFunctionProtocol(Protocol, Generic[Params, Return]):
     def process(self, *args: Params.args, **kwargs: Params.kwargs) -> Return:
         ...

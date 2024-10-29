@@ -2,62 +2,53 @@
 
 This module defines the base classes for data augmentation tasks within
 a data flow graph framework. Data augmenters are responsible for filtering or
-generating new data samples from on existing ones. This module includes:
-
-- :code:`BaseDataAugmenterConfig`: A base configuration class for data augmenters.
-- :code:`BaseDataAugmenter`: The abstract base class for implementing data augmenters,
-  which applies transformations to data samples and tracks their indices.
-
-Usage Example:
-    Define a custom data augmenter by subclassing `BaseDataAugmenter`:
-
-    .. code-block:: python
-
-        # Import necessary classes from the module
-        from hyped.core.nodes.augmenter import (
-            BaseDataAugmenter, BaseDataAugmenterConfig
-        )
-        from hyped.core.refs.inputs import (
-            InputRefs, CheckFeatureEquals
-        )
-        from hyped.core.refs.outputs import (
-            OutputRefs, OutputFeature
-        )
-        from datasets.features.features import Value
-        from typing_extensions import Annotated
-
-        class CustomInputRefs(InputRefs):
-            x: Annotated[FeatureRef, CheckFeatureEquals(Value("int32"))]
-
-        class CustomOutputRefs(OutputRefs):
-            x: Annotated[FeatureRef, OutputFeature(Value("int32"))]
-
-        class CustomAugmenterConfig(BaseDataAugmenterConfig):
-            pass
-
-        class CustomAugmenter(BaseDataAugmenter[CustomAugmenterConfig, InputRefs, OutputRefs]):
-            async def process(self, inputs, index, rank, io):
-                # Define augmentation logic here
-                # In this example each sample is duplicated
-                yield sample
-                yield sample
+generating new data samples from on existing ones.
 """
 
 from __future__ import annotations
 
 import inspect
-from abc import ABC
+from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator as ABCAsyncIterable
+from collections.abc import Iterable as ABCIterable
 from itertools import chain
-from typing import AsyncIterable, Iterable, TypeVar, overload
+from types import GenericAlias
+from typing import (
+    Any,
+    AsyncIterable,
+    Concatenate,
+    Generic,
+    Iterable,
+    ParamSpec,
+    Protocol,
+    TypeVar,
+    Union,
+    _GenericAlias,
+    get_args,
+    get_origin,
+    overload,
+)
 
 import pyarrow as pa
+from typing_extensions import Self
 
-# from hyped.common._features import convert_features_to_arrow_schema
-from hyped.common.typing import Batch, Index, IndexList, Rank, Sample, TraceIndexList
+from hyped.common.typing import TraceIndexList
 
-# from ..refs.inputs import InputRefs
-# from ..refs.outputs import OutputRefs
-from .base import BaseNode, BaseNodeConfig, IOContext
+from ..typing import Feature
+from .base import BaseNode, BaseNodeConfig, NodeProtocol, RunContext
+
+Params = ParamSpec("Params")
+Return = TypeVar("Return", covariant=True)
+
+
+class _ProcessFunctionProtocol(Protocol, Generic[Params, Return]):
+    def process(self, *args: Params.args, **kwargs: Params.kwargs) -> Iterable[Return]:
+        ...
+
+
+class _AsyncProcessFunctionProtocol(Protocol, Generic[Params, Return]):
+    def process(self, *args: Params.args, **kwargs: Params.kwargs) -> AsyncIterable[Return]:
+        ...
 
 
 class BaseDataAugmenterConfig(BaseNodeConfig):
@@ -70,8 +61,6 @@ class BaseDataAugmenterConfig(BaseNodeConfig):
 
 
 C = TypeVar("C", bound=BaseDataAugmenterConfig)
-I = TypeVar("I")  # , bound=InputRefs)
-O = TypeVar("O")  # , bound=OutputRefs)
 
 
 class BaseDataAugmenter(BaseNode[C], ABC):
@@ -84,13 +73,66 @@ class BaseDataAugmenter(BaseNode[C], ABC):
     augmentation is applied to the input data.
     """
 
+    def __new__(
+        cls: Union[
+            _ProcessFunctionProtocol[Concatenate[Self, RunContext, Params], Return],
+            _AsyncProcessFunctionProtocol[Concatenate[Self, RunContext, Params], Return],
+        ],
+        *args: Any,
+        **kwargs: Any,
+    ) -> NodeProtocol[Params, Return]:
+        return super().__new__(cls, *args, **kwargs)
+
     def __init__(self, config: None | C = None, **kwargs) -> None:
         super().__init__(config, **kwargs)
         self._is_process_async = inspect.isasyncgenfunction(self.process)
 
+    @property
+    def signature(self) -> inspect.Signature:
+        signature = inspect.signature(self.process)
+        # remove the ctx argument of the process function
+        params = signature.parameters.values()
+        params = [param for param in params if param.name != "ctx"]
+        # make sure output type is an iterable
+        if not (
+            isinstance(signature.return_annotation, (GenericAlias, _GenericAlias))
+            and (
+                get_origin(signature.return_annotation)
+                in {Iterable, AsyncIterable, ABCIterable, ABCAsyncIterable}
+            )
+        ):
+            raise TypeError()
+        # get the flat return annotation
+        return_annotation = get_args(signature.return_annotation)[0]
+        # return the signature containing the remaining parameters
+        return signature.replace(parameters=params, return_annotation=return_annotation)
+
+    @overload
+    async def process(
+        self, ctx: RunContext, *args: Feature, **kwargs: Feature
+    ) -> AsyncIterable[Feature]:
+        ...
+
+    @abstractmethod
+    def process(self, ctx: RunContext, *args: Feature, **kwargs: Feature) -> Iterable[Feature]:
+        """Defines the augmentation logic to be applied to individual samples.
+
+        This method should be overridden by subclasses to define the augmentation logic.
+
+        Args:
+            ctx (RunContext): Context information for the data augmenter's execution.
+            *args (Feature): Positional input arguments.
+            **kwargs (Feature): Keyword arguments.
+
+        Returns:
+            Iterable[Feature]: An iterable of augmented output samples, which can be multiple
+            samples per input sample.
+        """
+        ...
+
     async def batch_process(
-        self, inputs: Batch, index: IndexList, rank: Rank, io: IOContext
-    ) -> tuple[Batch, TraceIndexList]:
+        self, ctx: RunContext, **kwargs: pa.Array
+    ) -> tuple[pa.Array, TraceIndexList]:
         """Processes a batch of inputs and returns the batch of outputs along with trace indices.
 
         This method applies the augmentation process to each sample in the batch and tracks
@@ -98,26 +140,34 @@ class BaseDataAugmenter(BaseNode[C], ABC):
         the indices indicating the source of each output sample.
 
         Args:
-            inputs (Batch): A batch of input samples.
-            index (IndexList): A list of indices associated with the input samples.
-            rank (Rank): The rank of the augmenter in a distributed processing setting.
-            io (IOContext): Context information for the data augmenter's execution.
+            ctx (RunContext): Context information for the data augmenter's execution.
+            **kwargs (pa.Array): Input features matching the signature of the :func:`process`
+                function.
 
         Returns:
-            tuple[Batch, IndexList]:
-                - Batch: A batch of augmented output samples.
+            tuple[pa.Array, TraceIndexList]: The output tuple of the following entries:
+                - :code:`pa.Array`: An array containing all augmented output samples.
                 - TraceIndexList: A list of trace indices corresponding indicating the
                   index of the source sample in the input batch that generated the
                   output sample. Specifically the i-th output sample is generated
                   from the trace_index[i]-th input example.
         """
-        # apply process function to each sample in the input batch
-        output_schema = None  # convert_features_to_arrow_schema(io.outputs)
 
         # apply process function to each sample in the input batch
-        batch: list[Sample] = inputs.to_pylist()
-        # apply process function to each sample
-        calls = (self.process(sample, i, rank, io) for (i, sample) in zip(index, batch))
+        batch = pa.table(kwargs, schema=ctx.input_type.arrow_schema).to_pylist()
+        calls = [
+            self.process(
+                RunContext(
+                    node_id=ctx.node_id,
+                    index=i,
+                    rank=ctx.rank,
+                    input_type=ctx.input_type,
+                    output_type=ctx.output_type,
+                ),
+                **sample,
+            )
+            for i, sample in zip(ctx.index, batch)
+        ]
 
         # collect all outputs
         if self._is_process_async:
@@ -136,28 +186,4 @@ class BaseDataAugmenter(BaseNode[C], ABC):
         outputs = list(chain.from_iterable(outputs))
         trace_index = list(chain.from_iterable(trace_index))
 
-        output_batch = pa.Table.from_pylist(outputs, schema=output_schema)
-        return output_batch, trace_index
-
-    @overload
-    async def process(
-        self, inputs: Sample, index: Index, rank: Rank, io: IOContext
-    ) -> AsyncIterable[Sample]:
-        ...
-
-    def process(self, inputs: Sample, index: Index, rank: Rank, io: IOContext) -> Iterable[Sample]:
-        """Defines the augmentation logic to be applied to individual samples.
-
-        This method should be overridden by subclasses to define the augmentation logic.
-
-        Args:
-            inputs (Sample): A single input sample.
-            index (Index): The index associated with the input sample.
-            rank (Rank): The rank of the augmenter in a distributed setting.
-            io (IOContext): Context information for the data augmenter's execution.
-
-        Returns:
-            Iterable[Sample]: An iterable of augmented output samples, which can be multiple samples
-            per input sample.
-        """
-        raise NotImplementedError()
+        return pa.array(outputs, type=ctx.output_type.arrow_type), trace_index
