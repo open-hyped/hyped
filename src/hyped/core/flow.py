@@ -433,8 +433,7 @@ class ExecutableDataFlow(DataFlow[T]):
         loop = asyncio.new_event_loop()
         # schedule the execution for the current batch
         batch = pa.table(batch, schema=self._source_feature.dtype.arrow_schema)
-        batch = batch.to_struct_array()
-        future = self._executor.execute(batch, index, rank)
+        future = self._executor.execute(batch.to_struct_array(), index, rank)
         out = loop.run_until_complete(future)
         # close the event loop
         loop.close()

@@ -97,6 +97,7 @@ class BaseDataAugmenter(BaseNode[C], ABC):
         if not (
             isinstance(signature.return_annotation, (GenericAlias, _GenericAlias))
             and (
+                # TODO: doesn't work for AsyncIterable
                 get_origin(signature.return_annotation)
                 in {Iterable, AsyncIterable, ABCIterable, ABCAsyncIterable}
             )
