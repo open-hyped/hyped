@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from dataclasses import replace
 from itertools import groupby
 from types import MappingProxyType
 from typing import Any, Generic, Literal, TypeVar, get_args
@@ -19,6 +20,7 @@ import nest_asyncio
 import networkx as nx
 import numpy as np
 import pyarrow as pa
+import pydantic
 from datasets.features.features import FeatureType
 from matplotlib import colormaps
 
@@ -28,13 +30,13 @@ from hyped.common.utils import tmp_setattr
 
 from .abstract import AbstractDataFlow
 from .executor import DataFlowExecutor
-from .features.factory import FeatureFactory
-from .features.features import _Feature
+from .features.features import _Feature, build_feature_from_annotation, build_feature_from_dtype
 from .features.reference import FeatureKey, Reference
+from .features.types import Type
 from .graph import DataFlowGraph
 from .refs.ref import FeatureRef
 from .typing import Mapping
-from .utils import FeatureFactoryFromHuggingFace, _is_type_subset
+from .utils import build_dtype_from_hf_feature, is_dtype_subset
 
 D = TypeVar(
     "D",
@@ -55,7 +57,7 @@ except ValueError:  # pragma: not covered
     pass
 
 
-T = TypeVar("T", bound=_Feature)
+T = TypeVar("T", bound=Mapping)
 
 
 class DataFlow(AbstractDataFlow, Generic[T]):
@@ -98,29 +100,39 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             None if not hasattr(self, "__orig_class__") else get_args(self.__orig_class__)[0]
         )
 
-        # build the source type factory for the
-        src_type_factory: FeatureFactory
+        # infer the source data type from the hf
+        # features and/or the source type annotation
+        src_dtype: Type
 
-        if self._hf_source_features is not None:
-            # create the source type from the given source features
-            src_type_factory = FeatureFactoryFromHuggingFace[src_type_annotation](
-                self._hf_source_features
-            )
+        if (src_type_annotation is not None) and (self._hf_source_features is not None):
+            ref = Reference(FeatureKey(), "DummyNode", self._graph)
+            # create a dummy feature instance according to the huggingface features
+            hf_dtype = build_dtype_from_hf_feature(self._hf_source_features)
+            instance = build_feature_from_dtype(ref, hf_dtype)
+            # validate the feature instance with respect to the type annotation
+            adapter = pydantic.TypeAdapter(src_type_annotation)
+            instance = adapter.validate_python(instance, context={"strict": True})
+            # use the data type of the validated instance as the source data type
+            src_dtype = instance.dtype
 
         elif src_type_annotation is not None:
-            # infer type from type annotation using default type resolvers
-            src_type_factory = FeatureFactory[src_type_annotation]()
+            # infer the source dtype from the type annotation
+            src_dtype = build_feature_from_annotation(
+                Reference(FeatureKey(), "DummyNode", self._graph),
+                src_type_annotation,
+            ).dtype
+
+        elif self._hf_source_features is not None:
+            # build the source dtype from the huggingface features
+            src_dtype = build_dtype_from_hf_feature(self._hf_source_features)
 
         else:
             # no input specified, at least argument or type hint is required
             raise RuntimeError()
 
         # add the source node to the graph with the node id
-        source_ref = self._graph.add_source_node(src_type_factory._pa_type)
-        self._source_feature = src_type_factory(source_ref)
-
-        if not isinstance(self._source_feature, Mapping):
-            raise RuntimeError("Must be mapping")
+        src_ref = self._graph.add_source_node(src_dtype)
+        self._source_feature = build_feature_from_dtype(src_ref, src_dtype)
 
     @property
     def depth(self) -> int:
@@ -161,30 +173,21 @@ class DataFlow(AbstractDataFlow, Generic[T]):
 
         return self._source_feature
 
-    @property
-    def out_features(self) -> FeatureRef:
-        raise NotImplementedError()
-
-    @property
-    def aggregates(self) -> None | MappingProxyType[str, Any]:
-        raise NotImplementedError()
-
     def const(self, value: Any, feature: None | FeatureType = None) -> FeatureRef:
         raise NotImplementedError()
 
     def build(
         self,
-        collect: Reference,
-        aggregate: None | Reference = None,
+        collect: _Feature,
+        aggregate: None | _Feature = None,
     ) -> ExecutableDataFlow[T]:
-        if collect._graph is not self._graph:
+        if collect.ref._graph is not self._graph:
             raise RuntimeError("The collect feature does not belong to this flow.")
 
-        # create a copy of the graph
+        # create a copy of the graph and update the collect reference accordingly
         graph = self._graph.copy()
-        # update the references to the new graph
-        collect = Reference(collect._key, collect._node_id, graph)
-
+        collect = Reference(collect.ref._key, collect.ref._node_id, graph)
+        # build executable data flow
         return ExecutableDataFlow(graph, collect)
 
     def apply(
@@ -355,9 +358,6 @@ class ExecutableDataFlow(DataFlow[T]):
         if not isinstance(self._source_feature, Mapping):
             raise RuntimeError("Source must be mapping")
 
-        # create source schema from source feature
-        self._source_schema = pa.schema(self._source_feature._pa_type)
-
         # create the executor instance
         self._executor = DataFlowExecutor(self._graph, collect, aggregation_manager=None)
 
@@ -375,19 +375,19 @@ class ExecutableDataFlow(DataFlow[T]):
             )
 
         # build the arrow type from the dataset features
-        src_schema = features.arrow_schema
+        ds_dtype = build_dtype_from_hf_feature(features)
 
         # make sure the necessary features are contained in the dataset
-        if not _is_type_subset(self._source_feature._pa_type, pa.struct(src_schema)):
+        if not is_dtype_subset(self._source_feature.dtype, ds_dtype):
             raise RuntimeError(
                 f"Expected input schema doesn't match dataset:\n"
-                f"Expected feature type: {self._source_feature._pa_type}\n"
-                f"But received type: {pa.struct(src_schema)}"
+                f"Expected feature type: {self._source_feature.dtype}\n"
+                f"But received type: {ds_dtype}"
             )
 
-        # set the source feature to the dataset arrow type
-        # while executing the flow
-        with tmp_setattr(self, "_source_schema", src_schema):
+        # set the source feature to match the dataset while executing the flow
+        ds_source_feature = replace(self._source_feature, dtype=ds_dtype)
+        with tmp_setattr(self, "_source_feature", ds_source_feature):
             ds = self._internal_apply(ds, **kwargs)
 
         if isinstance(ds, (datasets.IterableDataset, datasets.IterableDatasetDict)):
@@ -426,16 +426,14 @@ class ExecutableDataFlow(DataFlow[T]):
         # create a new event loop to execute the flow in
         loop = asyncio.new_event_loop()
         # schedule the execution for the current batch
-        batch = pa.table(batch, schema=self._source_schema)
+        batch = pa.table(batch, schema=self._source_feature.dtype.arrow_schema)
         batch = batch.to_struct_array()
         future = self._executor.execute(batch, index, rank)
         out = loop.run_until_complete(future)
         # close the event loop
         loop.close()
 
-        # TODO: if output type is mapping else
-        return pa.table({"value": out})
-        return pa.table(out)
+        return pa.table(out if isinstance(out, pa.StructArray) else {"value": out})
 
     def _batch_process_to_pydict(
         self,

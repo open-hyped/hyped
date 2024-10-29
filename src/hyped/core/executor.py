@@ -171,10 +171,7 @@ class ExecutionState(object):
             AssertionError: If the feature reference does not contain
                 expected feature types.
         """
-        return self.outputs[ref._node_id].array
-        # TODO: handle non table outputs
-        batch = ref._key.index_object(self.outputs[ref._node_id])
-        return batch
+        return ref._key.index_object(self.outputs[ref._node_id]).array
 
     def collect_inputs(self, node_id: NodeId) -> tuple[Batch, IndexList]:
         """Collect inputs for a given node.
@@ -237,7 +234,8 @@ class ExecutionState(object):
             AssertionError: If the node is already set
         """
         assert not self.ready[node_id].is_set(), f"Node {node_id} is already set."
-
+        # apply indexing wrapper to array, required for feature key
+        # indexing of arrow arrays
         self.outputs[node_id] = ArrowIndexingWrapper(output)
         self.ready[node_id].set()
 
@@ -307,14 +305,14 @@ class DataFlowExecutor(object):
             node_id=node_id,
             index=index,
             rank=state.rank,
-            input_schema=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_SCHEMA],
+            input_type=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE],
             output_type=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
         )
 
         if node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
             # run processor and check the output batch size
             out = await node_obj.batch_process(ctx, **inputs)
-            assert out.type == ctx.output_type, "Unexpected output type"
+            assert out.type == ctx.output_type.arrow_type, "Unexpected output type"
             assert len(out) == len(index), "Output values length does not match index length."
             # capture output in execution state
             state.capture_output(node_id, out)

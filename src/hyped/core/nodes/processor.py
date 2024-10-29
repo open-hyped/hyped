@@ -6,13 +6,15 @@ data processors with configurable input and output types.
 """
 from __future__ import annotations
 
+import asyncio
 import inspect
 from abc import ABC, abstractmethod
 from typing import Any, Concatenate, Generic, ParamSpec, Protocol, TypeVar, overload
 
+import pyarrow as pa
 from typing_extensions import Self
 
-from ..typing import Feature, Sequence
+from ..typing import Feature
 from .base import BaseNode, BaseNodeConfig, NodeProtocol, RunContext
 
 Params = ParamSpec("Params")
@@ -94,7 +96,26 @@ class BaseDataProcessor(BaseNode[C], ABC):
     def process(self, ctx: RunContext, *args: Feature, **kwargs: Feature) -> Feature:
         ...
 
-    async def batch_process(
-        self, ctx: RunContext, *args: Sequence[Feature], **kwargs: Sequence[Feature]
-    ) -> Feature:
-        ...
+    async def batch_process(self, ctx: RunContext, **kwargs: pa.Array) -> pa.Array:
+        # apply process function to each sample in the input batch
+        batch = pa.table(kwargs, schema=ctx.input_type.arrow_schema).to_pylist()
+        outputs = [
+            self.process(
+                RunContext(
+                    node_id=ctx.node_id,
+                    index=i,
+                    rank=ctx.rank,
+                    input_type=ctx.input_type,
+                    output_type=ctx.output_type,
+                ),
+                **sample,
+            )
+            for i, sample in zip(ctx.index, batch)
+        ]
+
+        # gather all outputs in case the process function
+        # is a coroutine
+        if self._is_process_async:
+            outputs = await asyncio.gather(*outputs)
+
+        return pa.array(outputs, type=ctx.output_type.arrow_type)

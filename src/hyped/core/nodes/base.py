@@ -11,15 +11,13 @@ from inspect import Signature
 from itertools import chain
 from typing import Generic, ParamSpec, Protocol, TypeAlias, TypeVar, overload
 
-import pyarrow as pa
-
 from hyped._registry.config import BaseConfig, BaseConfigurable
-from hyped.common.typing import ArrowType, Index, IndexList, NodeId, Rank
+from hyped.common.typing import Index, IndexList, NodeId, Rank
 
 from ..abstract import AbstractDataFlow, AbstractDataFlowGraph
-from ..features.engine import TypeEngine
+from ..features.engine import FeatureEngine
 from ..features.features import _Feature
-from ..features.reference import Reference
+from ..features.types import MappingType, Type
 from ..typing import Feature
 
 DataFlow: TypeAlias = object
@@ -51,9 +49,9 @@ class RunContext:
 
     rank: Rank
 
-    input_schema: pa.Schema
+    input_type: MappingType
 
-    output_type: ArrowType
+    output_type: Type
 
     def __hash__(self) -> int:
         """Returns a hash value based on the node ID.
@@ -138,16 +136,16 @@ class BaseNode(BaseConfigurable[C], ABC):
 
         # try to infer the flow from any feature argument
         all_args = chain(args, kwargs.values())
-        references = filter(lambda f: isinstance(f, Reference), all_args)
+        references = filter(lambda f: isinstance(f, _Feature), all_args)
 
         # try to get the first reference in the arguments
-        reference: Reference = next(references, None)
+        reference: _Feature = next(references, None)
 
         if reference is None:
             raise RuntimeError("Flow cannot be inferred from arguments!")
 
         # get the flow from the reference
-        return reference._graph, args, kwargs
+        return reference.ref._graph, args, kwargs
 
     def call(
         self,
@@ -159,21 +157,18 @@ class BaseNode(BaseConfigurable[C], ABC):
 
         # create the type engine from the node signature
         name = f"{type(self).__qualname__}.call"
-        engine = TypeEngine(name, self.config, self.signature)
+        engine = FeatureEngine(name, self.config, self.signature)
 
         # validate the node signature and input arguments
         engine.validate_signature()
         engine.validate_arguments(*args, **kwargs)
         # split the input features from the input constants
-        references, consts, factories = engine.get_references_and_consts(*args, **kwargs)
+        references, consts, const_types = engine.get_references_and_consts(*args, **kwargs)
 
         if len(consts) > 0:
             # TODO: add constants to flow
             raise NotImplementedError
 
-        # create the return factory
-        return_factory = engine.get_return_factory(references)
-
         # add the node and return the output feature
         ref = graph.add_processor_node(self, references)
-        return return_factory(ref)
+        return engine.build_return_feature(ref, references)

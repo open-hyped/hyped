@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, TypeVar
+from typing import Iterable
 
 import datasets
 import numpy as np
@@ -9,45 +9,42 @@ import numpy.typing
 import pyarrow as pa
 from datasets.features.features import FeatureType
 
-from hyped.common.typing import ArrowType, NodeId
+from hyped.common.typing import ArrowType
 
-from .abstract import AbstractDataFlowGraph
-from .features.factory import FeatureFactoryFromInstance, _DummyDataFlowGraph
-from .features.features import (
-    Mapping,
-    Sequence,
-    _Bool,
-    _Feature,
-    _Float16,
-    _Float32,
-    _Float64,
-    _Int8,
-    _Int16,
-    _Int32,
-    _Int64,
-    _Primitive,
-    _String,
-    _UInt8,
-    _UInt16,
-    _UInt32,
-    _UInt64,
+from .features.types import (
+    UNDEFINED_SEQUENCE_LENGTH,
+    BoolType,
+    Float16Type,
+    Float32Type,
+    Float64Type,
+    Int8Type,
+    Int16Type,
+    Int32Type,
+    Int64Type,
+    MappingType,
+    SequenceType,
+    StringType,
+    Type,
+    UInt8Type,
+    UInt16Type,
+    UInt32Type,
+    UInt64Type,
 )
-from .features.reference import FeatureKey
 
-ARROW_SCALAR_TYPE_TO_FEATURE_MAPPING: dict[str, _Primitive] = {
-    "bool": _Bool,
-    "string": _String,
-    "int8": _Int8,
-    "int16": _Int16,
-    "int32": _Int32,
-    "int64": _Int64,
-    "uint8": _UInt8,
-    "uint16": _UInt16,
-    "uint32": _UInt32,
-    "uint64": _UInt64,
-    "halffloat": _Float16,
-    "float": _Float32,
-    "double": _Float64,
+ARROW_SCALAR_TYPE_TO_FEATURE_MAPPING: dict[str, Type] = {
+    "bool": BoolType,
+    "string": StringType,
+    "int8": Int8Type,
+    "int16": Int16Type,
+    "int32": Int32Type,
+    "int64": Int64Type,
+    "uint8": UInt8Type,
+    "uint16": UInt16Type,
+    "uint32": UInt32Type,
+    "uint64": UInt64Type,
+    "halffloat": Float16Type,
+    "float": Float32Type,
+    "double": Float64Type,
 }
 
 
@@ -81,109 +78,76 @@ def get_sequence_feature(seq: datasets.Sequence | list | tuple) -> FeatureType:
     return seq.feature if isinstance(seq, datasets.Sequence) else seq[0]
 
 
-def _build_feature_type_from_arrow_type(pa_type: ArrowType) -> type:
-    if isinstance(pa_type, pa.StructType):
-        fields = map(pa_type.field, range(pa_type.num_fields))
-        annotations = {
-            field.name: _build_feature_type_from_arrow_type(field.type) for field in fields
-        }
-        # TODO: implement a dynamic mapping that doesn't rely on the annotations
-        return type("Mapping", (Mapping,), {"__annotations__": annotations})
+def build_dtype_from_arrow_type(arrow_type: ArrowType) -> Type:
+    if pa.types.is_struct(arrow_type):
+        fields = map(arrow_type.field, range(arrow_type.num_fields))
+        fields = {field.name: build_dtype_from_arrow_type(field.type) for field in fields}
+        return MappingType.from_dict(fields)
 
-    if isinstance(pa_type, pa.ListType):
-        return Sequence[_build_feature_type_from_arrow_type(pa_type.value_type)]
+    elif pa.types.is_list(arrow_type):
+        return SequenceType(
+            value_type=build_dtype_from_arrow_type(arrow_type.value_type),
+        )
 
-    if isinstance(pa_type, ArrowType):
-        return ARROW_SCALAR_TYPE_TO_FEATURE_MAPPING[str(pa_type)]
+    if isinstance(arrow_type, ArrowType):
+        return ARROW_SCALAR_TYPE_TO_FEATURE_MAPPING[str(arrow_type)]
 
     raise TypeError()
 
 
-def _is_type_subset(type_a: pa.DataType, type_b: pa.DataType) -> bool:
+def build_dtype_from_hf_feature(feature: FeatureType) -> Type:
+    if isinstance(feature, datasets.Features):
+        # get all field types
+        fields = {key: build_dtype_from_hf_feature(field) for key, field in feature.items()}
+        # create a mapping type from the fields
+        return MappingType.from_dict(fields)
+
+    if isinstance(feature, datasets.Sequence):
+        # get the value type and sequence length
+        value_type = get_sequence_feature(feature)
+        length = get_sequence_length(feature)
+        # build the sequence type
+        return SequenceType(
+            value_type=build_dtype_from_hf_feature(value_type),
+            length=UNDEFINED_SEQUENCE_LENGTH if length == -1 else length,
+        )
+
+    elif isinstance(feature, datasets.Value):
+        # get the arrow type for the value
+        packed = datasets.Features({"field": feature})
+        arrow_type = packed.arrow_schema.field("field").type
+        # find the data type to the arrow type
+        return ARROW_SCALAR_TYPE_TO_FEATURE_MAPPING[str(arrow_type)]
+
+    raise TypeError(feature)
+
+
+def is_dtype_subset(dtype_a: Type, dtype_b: Type) -> bool:
     """
     Recursively checks if type_a is a subset of type_b.
 
     Args:
-        type_a (pa.DataType): The type that should be a subset.
-        type_b (pa.DataType): The type that should be a superset.
+        type_a (Type): The type that should be a subset.
+        type_b (Type): The type that should be a superset.
 
     Returns:
         bool: True if type_a is a subset of type_b, False otherwise.
     """
-    if pa.types.is_struct(type_a) and pa.types.is_struct(type_b):
-        # get the fields of B
-        fields_B = {field.name: field.type for field in map(type_b.field, range(type_b.num_fields))}
 
-        # test against the fields of A
+    if isinstance(dtype_a, MappingType) and isinstance(dtype_b, MappingType):
+        # test all fields of type A against the fields in type B
         return all(
-            ((field.name in fields_B) and _is_type_subset(field.type, fields_B[field.name]))
-            for field in map(type_a.field, range(type_a.num_fields))
+            (key in dtype_b) and is_dtype_subset(dtype, dtype_b[key])
+            for key, dtype in dtype_a.items()
         )
 
-    elif pa.types.is_list(type_a) and pa.types.is_list(type_b):
-        # For lists, the value type should also be a subset
-        return _is_type_subset(type_a.value_type, type_b.value_type)
+    elif isinstance(dtype_a, SequenceType) and isinstance(dtype_b, SequenceType):
+        # TODO: support length <undefined> == n
+        return (dtype_a.length == dtype_b.length) and is_dtype_subset(
+            dtype_a.arrow_type, dtype_b.arrow_type
+        )
 
-    # For other types, directly compare
-    return type_a.equals(type_b)
-
-
-T = TypeVar("T", bound=_Feature)
-
-
-class FeatureFactoryFromArrowType(FeatureFactoryFromInstance[T]):
-    def __init__(self, pa_type: ArrowType) -> None:
-        inst = self._create_instance(pa_type, FeatureKey(), "DummyNodeId", _DummyDataFlowGraph())
-        # initialize feature factory
-        super(FeatureFactoryFromArrowType, self).__init__(inst, strict=False)
-
-    def _create_instance(
-        self, pa_type: ArrowType, _key: FeatureKey, _node_id: NodeId, _graph: AbstractDataFlowGraph
-    ) -> _Feature:
-        if pa.types.is_struct(pa_type):
-            mapping_type = _build_feature_type_from_arrow_type(pa_type)
-            fields = map(pa_type.field, range(pa_type.num_fields))
-
-            return mapping_type(
-                _key=_key,
-                _node_id=_node_id,
-                _graph=_graph,
-                _factories={
-                    field.name: FeatureFactoryFromArrowType(field.type) for field in fields
-                },
-            )
-
-        elif pa.types.is_list(pa_type):
-            arrow_item_type = pa_type.value_type
-            item_type = _build_feature_type_from_arrow_type(arrow_item_type)
-            return Sequence[item_type](
-                _key=_key,
-                _node_id=_node_id,
-                _graph=_graph,
-                _itemtype=item_type,
-                _factory=FeatureFactoryFromArrowType(arrow_item_type),
-                _length=-1,
-            )
-
-        if isinstance(pa_type, ArrowType):
-            scalar = ARROW_SCALAR_TYPE_TO_FEATURE_MAPPING[str(pa_type)]
-            return scalar(_key, _node_id, _graph)
-
-        raise TypeError()
-
-
-class FeatureFactoryFromHuggingFace(FeatureFactoryFromArrowType[T]):
-    def __init__(self, feature: FeatureType) -> None:
-        if isinstance(feature, datasets.Features):
-            # convert hf features to arrow feature
-            pa_type = pa.struct(feature.arrow_schema)
-
-        else:
-            # build a features instance and get the arrow type of the field
-            feature = datasets.Features({"field": feature})
-            pa_type = feature.arrow_schema.field("field").type
-
-        super(FeatureFactoryFromHuggingFace, self).__init__(pa_type)
+    return dtype_a == dtype_b
 
 
 @dataclass

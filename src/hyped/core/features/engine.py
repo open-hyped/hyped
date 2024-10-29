@@ -6,18 +6,18 @@ validation, and captures type variables during function calls. It integrates wit
 handle model validation.
 """
 import inspect
-from contextlib import contextmanager
 from functools import partial
-from typing import Any, Generator, TypeVar
-from uuid import uuid4
+from typing import Annotated, Any, Generic, TypeVar
+from uuid import UUID, uuid4
 
 import pydantic
+import pydantic.generics
 
 from hyped._registry.config import BaseConfig
 
-from .factory import FeatureFactory
-from .features import _Feature
+from .features import _Feature, build_feature_from_annotation
 from .reference import Reference
+from .types import Type
 
 
 class TypeVarRegister(object):
@@ -26,18 +26,30 @@ class TypeVarRegister(object):
     def __init__(self):
         """Initialize the TypeVarRegister."""
         self._registered_vars: dict[uuid4, TypeVar] = {}
-        self._captured_vars: None | dict[TypeVar, Any] = None
+        self._captured_vars: dict[TypeVar, Type | type] = {}
 
-    @contextmanager
-    def capture(self) -> Generator[dict[TypeVar, Any], None, None]:
-        """Context manager capturing TypeVar assignments during validation.
+    @property
+    def typevar_mapping(self) -> dict[TypeVar, Type]:
+        # TODO: map python build-in types to data types
+        if any(not isinstance(dtype, Type) for dtype in self._captured_vars.values()):
+            raise NotImplementedError()
 
-        Yields:
-            dict[TypeVar, Any]: A dictionary mapping TypeVars to their assigned types.
-        """
-        self._captured_vars = {}
-        yield self._captured_vars
-        self._captured_vars = None
+        return self._captured_vars
+
+    def solve_typevar(self, var: TypeVar) -> Type | type:
+        return self.typevar_mapping[var]
+
+    def create_trackable_typevar(self, *args, **kwargs) -> TypeVar:
+        validator = self.create_validator()
+        # annotate the bound argument with the validator
+        bound = kwargs.pop("bound", Any)
+        bound = Annotated[bound, validator]
+        # create the typevar
+        T = TypeVar(*args, bound=bound, **kwargs)
+        # register the typevar
+        self.register(T, validator)
+
+        return T
 
     def create_validator(self):
         """Create a Pydantic validator to validate and capture TypeVars.
@@ -58,7 +70,7 @@ class TypeVarRegister(object):
         uuid = validator.func.keywords["uuid"]
         self._registered_vars[uuid] = T
 
-    def _validator(self, val: object, uuid: uuid4) -> None:
+    def _validator(self, val: object, uuid: UUID) -> None:
         """Validate and capture a TypeVar during validation.
 
         Args:
@@ -78,36 +90,24 @@ class TypeVarRegister(object):
             not isinstance(self._captured_vars[T], _Feature)
             and isinstance(val, _Feature)
         ):
-            self._captured_vars[T] = val._type_hint if isinstance(val, _Feature) else type(val)
+            self._captured_vars[T] = val.dtype if isinstance(val, _Feature) else type(val)
 
         # TODO: make sure the value matches the captured type
 
         return val
 
 
-type_var_register = TypeVarRegister()
-"""Global type variable register instance."""
-
-
-class TypeEngine(object):
+class FeatureEngine(object):
     def __init__(self, name: str, config: BaseConfig, signature: inspect.Signature) -> None:
-        """Initialize the TypeEngine with a function and a configuration.
-
-        Args:
-            name (str): A name used as an identifier for context in logs and errors.
-            config (BaseConfig): A configuration object provided as context during validation.
-            signature (inspect.Signature): The function signature to consider for type checking.
-        """
-
         self.name = name
         self.config = config
 
         self.signature = signature
+        # track the type variable assingment while validating
+        self.typevar_register = TypeVarRegister()
         # create the validation model
         self.session_id = uuid4()
-        self.validator = self._build_validator()
-        # track the type variable assingment while validating
-        self.vars_mapping: None | dict[TypeVar, Any] = None
+        self.validator, self.typevar_lookup = self._build_validator()
 
         self.args_param = next(
             filter(
@@ -143,8 +143,39 @@ class TypeEngine(object):
             )
             arguments[name] = (annotation, pydantic.Field())
 
+        params = set()
+        # collect all typevars in all annotations
+        for arg, _ in arguments.values():
+            if isinstance(arg, TypeVar):
+                params.add(arg)
+            elif hasattr(arg, "__parameters__"):
+                params.update(arg.__parameters__)
+
+        # create fixed order over parameters
+        params = tuple(params)
+
+        base = (pydantic.BaseModel,)
+        if len(params) > 0:
+            base += (Generic[params],)
+
         # build input argument validator model
-        return pydantic.create_model(f"ArgumentValidator({self.name})", **arguments)
+        validator = pydantic.create_model(
+            f"ArgumentValidator({self.name})", **arguments, __base__=base
+        )
+
+        # create trackable typevars
+        typevars = tuple(
+            self.typevar_register.create_trackable_typevar(
+                p.__name__, bound=p.__bound__ if p.__bound__ is not None else Any
+            )
+            for p in params
+        )
+
+        if len(params) > 0:
+            # apply typevars to validator model
+            validator = validator.__class_getitem__(*typevars)
+
+        return validator, dict(zip(params, typevars))
 
     def validate_signature(self) -> None:
         """Validate that the function signature has all necessary type annotations.
@@ -181,9 +212,8 @@ class TypeEngine(object):
 
         try:
             # validate input arguments
-            with type_var_register.capture() as self.vars_mapping:
-                context = {"config": self.config, "session_id": self.session_id}
-                self.validator.model_validate(bound_args.arguments, context=context)
+            context = {"config": self.config, "session_id": self.session_id}
+            self.validator.model_validate(bound_args.arguments, context=context)
 
         except pydantic.ValidationError as e:
             # TODO: improve error message to include error keys and expected type
@@ -193,7 +223,7 @@ class TypeEngine(object):
 
     def get_references_and_consts(
         self, *args: Any, **kwargs: Any
-    ) -> tuple[dict[str, _Feature], dict[str, Any], dict[str, FeatureFactory]]:
+    ) -> tuple[dict[str, Reference], dict[str, Any], dict[str, Type]]:
         """
         Separate input feature references and constants from the arguments.
 
@@ -210,39 +240,33 @@ class TypeEngine(object):
         kwargs = arguments.pop(self.kwargs_param.name) if self.kwargs_param is not None else {}
         arguments.update(kwargs)
         # separate all feature and constant inputs
-        inputs = {key: val for key, val in arguments.items() if isinstance(val, Reference)}
-        consts = {key: val for key, val in arguments.items() if not isinstance(val, Reference)}
+        inputs = {key: val.ref for key, val in arguments.items() if isinstance(val, _Feature)}
+        consts = {key: val for key, val in arguments.items() if not isinstance(val, _Feature)}
         # get the type hints for the constants from the signature
-        const_annotations = {
+        {
             key: self.signature.parameters[
                 key if key not in kwargs else self.kwargs_param.name
             ].annotation
             for key in consts.keys()
         }
-        const_factories = {
-            key: FeatureFactory[hint](
-                config=self.config,
-                inputs=arguments,
-                session_id=self.session_id,
-                typevars=self.vars_mapping,
-            )
-            for key, hint in const_annotations.items()
+        # TODO: infer data type from signature
+        const_types = {}
+
+        return inputs, consts, const_types
+
+    def build_return_feature(self, ref: Reference, inputs: dict[str, _Feature]) -> _Feature:
+        # get the return annotation
+        annotation = self.signature.return_annotation
+
+        typevar_mapping = {
+            t: self.typevar_register.solve_typevar(u) for t, u in self.typevar_lookup.items()
         }
 
-        return inputs, consts, const_factories
+        context = {
+            "inputs": inputs,
+            "config": self.config,
+            "session_id": self.session_id,
+            "typevars": self.typevar_register.typevar_mapping,
+        }
 
-    def get_return_factory(self, inputs: dict[str, _Feature]) -> FeatureFactory:
-        """Build a type factory for the return type based on the inputs.
-
-        Args:
-            inputs (dict[str, _Feature]): Input features for return type validation.
-
-        Returns:
-            DefaultTypeFactory: A factory class for the return type.
-        """
-        return FeatureFactory[self.signature.return_annotation](
-            config=self.config,
-            inputs=inputs,
-            session_id=self.session_id,
-            typevars=self.vars_mapping,
-        )
+        return build_feature_from_annotation(ref, annotation, typevar_mapping, context)

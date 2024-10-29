@@ -7,14 +7,16 @@ and :class:`BeforeValidator` to enforce validation and type resolution logic.
 
 
 from dataclasses import dataclass
-from typing import Any, Callable, TypeVar
+from functools import partial
+from typing import Annotated, Any, Callable, TypeVar
 from uuid import UUID
 
 from pydantic import AfterValidator, BeforeValidator, TypeAdapter, ValidationInfo
 
 from hyped._registry.config import BaseConfig
 
-from .features import Sequence, _Feature
+from .features import Sequence, _Feature, build_feature_from_dtype
+from .types import Type
 
 
 @dataclass(eq=True, frozen=True)
@@ -76,7 +78,7 @@ class TypeResolver(BeforeValidator):
                 or ("config" not in info.context)
                 or ("inputs" not in info.context)
                 or ("session_id" not in info.context)
-                # or ("typevars" not in info.context)
+                or ("typevars" not in info.context)
             ):
                 raise RuntimeError("Missing context")
 
@@ -90,28 +92,16 @@ class TypeResolver(BeforeValidator):
                 if target_type not in info.context["typevars"].keys():
                     raise RuntimeError(f"Invalid TypeVar {target_type}")
 
-                target_type = info.context["typevars"][target_type]
+                target_dtype = info.context["typevars"][target_type]
+                assert isinstance(target_dtype, Type)
+
+                target_type = Annotated[
+                    _Feature, BeforeValidator(partial(build_feature_from_dtype, dtype=target_dtype))
+                ]
 
             return TypeAdapter(target_type).validate_python(val, context=info.context)
 
         super(TypeResolver, self).__init__(wrapped_resolver)
-
-
-@dataclass(eq=True, frozen=True)
-class Default(TypeResolver):
-    """Default type resolver.
-
-    Specifies a default type to fallback to.
-    """
-
-    def __init__(self, t: type) -> None:
-        """
-        Initializes the :class:`Default` resolver with a fixed type.
-
-        Args:
-            t (type): The type to resolve.
-        """
-        super(Default, self).__init__(lambda c, i, uuid: t)
 
 
 @dataclass(eq=True, frozen=True)
