@@ -19,8 +19,8 @@ from typing import Any, TypeVar
 from hyped.common._worker import manager as _manager  # noqa: F401
 from hyped.common.typing import Aggregate, Batch, IndexList, Rank
 
-from ..refs.inputs import InputRefs
-from ..refs.outputs import OutputRefs
+# from ..refs.inputs import InputRefs
+# from ..refs.outputs import OutputRefs
 from .base import BaseNode, BaseNodeConfig, IOContext
 
 
@@ -132,8 +132,8 @@ class BaseDataAggregatorConfig(BaseNodeConfig):
 
 
 C = TypeVar("C", bound=BaseDataAggregatorConfig)
-I = TypeVar("I", bound=InputRefs)
-O = TypeVar("O", bound=OutputRefs)
+I = TypeVar("I")  # , bound=InputRefs)
+O = TypeVar("O")  # , bound=OutputRefs)
 
 E = TypeVar("E")
 S = TypeVar("S")

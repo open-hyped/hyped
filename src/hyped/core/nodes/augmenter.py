@@ -52,11 +52,11 @@ from typing import AsyncIterable, Iterable, TypeVar, overload
 
 import pyarrow as pa
 
-from hyped.common._features import convert_features_to_arrow_schema
+# from hyped.common._features import convert_features_to_arrow_schema
 from hyped.common.typing import Batch, Index, IndexList, Rank, Sample, TraceIndexList
 
-from ..refs.inputs import InputRefs
-from ..refs.outputs import OutputRefs
+# from ..refs.inputs import InputRefs
+# from ..refs.outputs import OutputRefs
 from .base import BaseNode, BaseNodeConfig, IOContext
 
 
@@ -70,8 +70,8 @@ class BaseDataAugmenterConfig(BaseNodeConfig):
 
 
 C = TypeVar("C", bound=BaseDataAugmenterConfig)
-I = TypeVar("I", bound=InputRefs)
-O = TypeVar("O", bound=OutputRefs)
+I = TypeVar("I")  # , bound=InputRefs)
+O = TypeVar("O")  # , bound=OutputRefs)
 
 
 class BaseDataAugmenter(BaseNode[C], ABC):
@@ -112,7 +112,7 @@ class BaseDataAugmenter(BaseNode[C], ABC):
                   from the trace_index[i]-th input example.
         """
         # apply process function to each sample in the input batch
-        output_schema = convert_features_to_arrow_schema(io.outputs)
+        output_schema = None  # convert_features_to_arrow_schema(io.outputs)
 
         # apply process function to each sample in the input batch
         batch: list[Sample] = inputs.to_pylist()
