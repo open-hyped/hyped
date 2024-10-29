@@ -55,8 +55,8 @@ class ExecutionState(object):
 
         # partition graph attributes
         self.index = {
-            DataFlowGraph.PredefinedPartition.DEFAULT: index,
-            DataFlowGraph.PredefinedPartition.CONST: [0],
+            DataFlowGraph.Partition.DEFAULT: index,
+            DataFlowGraph.Partition.CONST: [0],
         }
         self.traces: dict[tuple[str, str], np.ndarray] = {}
 
@@ -211,7 +211,7 @@ class ExecutionState(object):
         # we dont need to trace the values of the target partition
         src_partitions.pop(tgt_partition, None)
         # handle the constant partition as an edge case
-        for name in src_partitions.pop(DataFlowGraph.PredefinedPartition.CONST, []):
+        for name in src_partitions.pop(DataFlowGraph.Partition.CONST, []):
             inputs[name] = pa.chunked_array([inputs[name]] * len(index))
 
         for src, names in src_partitions.items():
@@ -294,9 +294,9 @@ class DataFlowExecutor(object):
         node_type = node_attrs[DataFlowGraph.NodeAttribute.NODE_TYPE]
 
         if node_type == DataFlowGraph.NodeType.CONST:
-            # get constants from node object
-            consts = node_obj.get_const_batch(batch_size=1)
-            state.capture_output(node_id, consts)
+            # for constant nodes the node object is a pyarrow array
+            # of a single entry holding the value
+            state.capture_output(node_id, node_obj)
             # done
             return
 

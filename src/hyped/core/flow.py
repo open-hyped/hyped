@@ -21,7 +21,6 @@ import networkx as nx
 import numpy as np
 import pyarrow as pa
 import pydantic
-from datasets.features.features import FeatureType
 from matplotlib import colormaps
 
 from hyped.common._worker import get_worker_info
@@ -34,7 +33,6 @@ from .features.features import _Feature, build_feature_from_annotation, build_fe
 from .features.reference import FeatureKey, Reference
 from .features.types import Type
 from .graph import DataFlowGraph
-from .refs.ref import FeatureRef
 from .typing import Mapping
 from .utils import build_dtype_from_hf_feature, is_dtype_subset
 
@@ -82,7 +80,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             features (datasets.Features): The features of the source node.
         """
 
-        self._graph = DataFlowGraph()
+        self._graph: DataFlowGraph = DataFlowGraph()
         # save source features
         self._hf_source_features = features
         self._source_feature: None | T = None
@@ -173,8 +171,16 @@ class DataFlow(AbstractDataFlow, Generic[T]):
 
         return self._source_feature
 
-    def const(self, value: Any, feature: None | FeatureType = None) -> FeatureRef:
-        raise NotImplementedError()
+    U = TypeVar("U")
+
+    def const(self, value: Any, feature_type: type[T]) -> T:
+        # create a dummy feature to infer the data type
+        # from the given feature type
+        ref = Reference(FeatureKey(), "DummyNode", self._graph)
+        dtype = pydantic.TypeAdapter(feature_type).validate_python(ref).dtype
+        # add the constant node to the graph
+        ref = self._graph.add_const_node(value, dtype)
+        return build_feature_from_dtype(ref, dtype)
 
     def build(
         self,

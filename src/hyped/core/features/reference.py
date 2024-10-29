@@ -121,8 +121,13 @@ class FeatureKey(tuple[int | str | slice]):
         return obj
 
 
+class DummyDataFlowGraph(AbstractDataFlowGraph):
+    def __init__(self) -> None:
+        pass
+
+
 @dataclass(eq=True, frozen=True)
 class Reference:
-    _key: FeatureKey
-    _node_id: NodeId
-    _graph: AbstractDataFlowGraph
+    _key: FeatureKey = FeatureKey()
+    _node_id: NodeId = "DummyNodeId"
+    _graph: AbstractDataFlowGraph = DummyDataFlowGraph()

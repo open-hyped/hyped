@@ -162,47 +162,39 @@ class ArrowIndexingWrapper(object):
             return ArrowIndexingWrapper(array)
 
         elif isinstance(key, int):
-            if isinstance(self.array.type, pa.FixedShapeTensorType):
-                raise NotImplementedError()
-
-            if isinstance(self.array.type, pa.ListArray):
-                array = pa.compute.list_element(self.array, key)
-                return ArrowIndexingWrapper(array)
+            array = pa.compute.list_element(self.array, key)
+            return ArrowIndexingWrapper(array)
 
         elif isinstance(key, slice):
             # cannot overwrite buckets
             assert self._buckets is None
 
-            if isinstance(self.array.type, pa.FixedShapeTensorType):
+            # shorthand to array
+            array = self.array
+
+            # prepare the slice, cannot use .indices here because we don't know the length
+            stop = key.stop
+            start = key.start if key.start is not None else 0
+            step = key.step if key.step is not None else 1
+
+            # list_slice doesn't support negative values as stop index
+            if key.stop < 0:
                 raise NotImplementedError()
 
-            elif isinstance(self.array.type, pa.ListType):
-                # shorthand to array
-                array = self.array
+            if not ((stop is None) and (start == 0) and (step == 1)):
+                # get the list slice but only if there are actually values being omitted be
+                # slicing, otherwise (i.e. slice(None)) just keep the full list
+                array = pa.compute.list_slice(array, start, stop, step)
 
-                # prepare the slice, cannot use .indices here because we don't know the length
-                stop = key.stop
-                start = key.start if key.start is not None else 0
-                step = key.step if key.step is not None else 1
+            # flatten the list for further processing
+            flat_array = pa.compute.list_flatten(array)
+            # build information needed to invert the flatten operation
+            # specifically a bucket represents a single list in the nested structure
+            # and contains all indices of the list w.r.t. the flattened list
+            parent_index = pa.compute.list_parent_indices(array).to_numpy()
+            self._buckets = [np.nonzero(parent_index == j)[0] for j in range(len(array))]
 
-                # list_slice doesn't support negative values as stop index
-                if key.stop < 0:
-                    raise NotImplementedError()
-
-                if not ((stop is None) and (start == 0) and (step == 1)):
-                    # get the list slice but only if there are actually values being omitted be
-                    # slicing, otherwise (i.e. slice(None)) just keep the full list
-                    array = pa.compute.list_slice(array, start, stop, step)
-
-                # flatten the list for further processing
-                flat_array = pa.compute.list_flatten(array)
-                # build information needed to invert the flatten operation
-                # specifically a bucket represents a single list in the nested structure
-                # and contains all indices of the list w.r.t. the flattened list
-                parent_index = pa.compute.list_parent_indices(array).to_numpy()
-                self._buckets = [np.nonzero(parent_index == j)[0] for j in range(len(array))]
-
-                return [ArrowIndexingWrapper(flat_array)]
+            return [ArrowIndexingWrapper(flat_array)]
 
     def __slice_constructor__(self, items: Iterable[ArrowIndexingWrapper]) -> ArrowIndexingWrapper:
         # callback used by feature key allows for custom construction from slice operation

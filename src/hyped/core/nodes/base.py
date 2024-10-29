@@ -163,11 +163,11 @@ class BaseNode(BaseConfigurable[C], ABC):
         engine.validate_signature()
         engine.validate_arguments(*args, **kwargs)
         # split the input features from the input constants
-        references, consts, const_types = engine.get_references_and_consts(*args, **kwargs)
+        references, consts, const_dtypes = engine.get_references_and_consts(*args, **kwargs)
 
-        if len(consts) > 0:
-            # TODO: add constants to flow
-            raise NotImplementedError
+        # add all constants to the graph
+        for key, val in consts.items():
+            references[key] = graph.add_const_node(val, const_dtypes[key])
 
         # add the node and return the output feature
         ref = graph.add_processor_node(self, references)

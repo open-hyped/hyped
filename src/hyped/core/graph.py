@@ -15,6 +15,7 @@ from itertools import groupby
 from typing import Any, Hashable
 
 import networkx as nx
+import pyarrow as pa
 
 from hyped.common.typing import NodeId, PartitionId
 
@@ -26,7 +27,6 @@ from .features.types import MappingType, Type
 from .nodes.aggregator import BaseDataAggregator
 from .nodes.augmenter import BaseDataAugmenter
 from .nodes.base import BaseNode
-from .nodes.const import Const
 from .nodes.processor import BaseDataProcessor
 
 
@@ -108,7 +108,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         This property identifies the source node ID of an edge in the graph.
         """
 
-    class PredefinedPartition(str, Enum):
+    class Partition(str, Enum):
         """Enum representing predefined partitions in the data flow graph."""
 
         CONST = "CONSTANT"
@@ -357,8 +357,8 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         G = nx.DiGraph()
         G.add_nodes_from(
             [
-                DataFlowGraph.PredefinedPartition.CONST.value,
-                DataFlowGraph.PredefinedPartition.DEFAULT.value,
+                DataFlowGraph.Partition.CONST.value,
+                DataFlowGraph.Partition.DEFAULT.value,
             ]
         )
 
@@ -376,7 +376,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             ), f"The source partition '{src_partition}' is not present in the partition graph."
 
             # don't include edges from the constant partition in partition graph
-            if src_partition == DataFlowGraph.PredefinedPartition.CONST:
+            if src_partition == DataFlowGraph.Partition.CONST:
                 continue
 
             # add the target partition to the partition graph
@@ -398,7 +398,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
 
         return G
 
-    def add_source_node(self, feature_type: Type, node_id: None | str = None) -> NodeId:
+    def add_source_node(self, data_type: Type, node_id: None | NodeId = None) -> Reference:
         """Add a the source node to the graph.
 
         This method adds a source node to the graph, which acts as the initial
@@ -406,7 +406,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
 
         Args:
             feature_type (Type): The feature type of the source node.
-            node_id (None | str): The id of the node, defaults to a random uuid.
+            node_id (None | NodeId): The id of the node, defaults to a random uuid.
 
         Returns:
             Reference: A reference object to the source node.
@@ -428,12 +428,35 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 DataFlowGraph.NodeAttribute.NODE_OBJ: None,
                 DataFlowGraph.NodeAttribute.NODE_TYPE: DataFlowGraph.NodeType.SOURCE,
                 DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE: MappingType.from_dict({}),
-                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: feature_type,
-                DataFlowGraph.NodeAttribute.PARTITION: DataFlowGraph.PredefinedPartition.DEFAULT,
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: data_type,
+                DataFlowGraph.NodeAttribute.PARTITION: DataFlowGraph.Partition.DEFAULT,
                 DataFlowGraph.NodeAttribute.DEPTH: 0,
             },
         )
         # return the reference to the source node
+        return Reference(FeatureKey(), node_id, self)
+
+    def add_const_node(
+        self, value: Any, data_type: Type, node_id: None | NodeId = None
+    ) -> Reference:
+        # make sure the data type matches the value
+        array = pa.array([value], type=data_type.arrow_type)
+        # create a random node id if not provided
+        node_id = node_id if node_id is not None else str(uuid.uuid4())
+
+        # add the constant node to the graph
+        self.add_node(
+            node_id,
+            **{
+                DataFlowGraph.NodeAttribute.NODE_OBJ: array,
+                DataFlowGraph.NodeAttribute.NODE_TYPE: DataFlowGraph.NodeType.CONST,
+                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE: MappingType.from_dict({}),
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: data_type,
+                DataFlowGraph.NodeAttribute.PARTITION: DataFlowGraph.Partition.CONST,
+                DataFlowGraph.NodeAttribute.DEPTH: 0,
+            },
+        )
+
         return Reference(FeatureKey(), node_id, self)
 
     def get_node_output_partition(self, node_id: NodeId) -> PartitionId:
@@ -466,7 +489,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             # data aggregator outputs always point into
             # the aggregated partition while the aggregator
             # node itself is not part of the aggregated partition
-            return DataFlowGraph.PredefinedPartition.AGGREGATED.value
+            return DataFlowGraph.Partition.AGGREGATED.value
 
         elif input_node_type == DataFlowGraph.NodeType.DATA_AUGMENTER:
             # data augmenters always point into their own partition
@@ -522,11 +545,11 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         """
         if node_type == DataFlowGraph.NodeType.SOURCE:
             # source node is added to the default partition
-            return DataFlowGraph.PredefinedPartition.DEFAULT.value
+            return DataFlowGraph.Partition.DEFAULT.value
 
         if node_type == DataFlowGraph.NodeType.CONST:
             # contants are added to the constant partition
-            return DataFlowGraph.PredefinedPartition.CONST.value
+            return DataFlowGraph.Partition.CONST.value
 
         # partition could not be inferred
         assert len(refs) > 0, "Partition cannot be inferred for nodes without any input references."
@@ -534,12 +557,12 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         # get the input partitions
         candidate_partitions = {self.get_node_output_partition(ref._node_id) for ref in refs}
 
-        if candidate_partitions == {DataFlowGraph.PredefinedPartition.CONST}:
+        if candidate_partitions == {DataFlowGraph.Partition.CONST}:
             # if all inputs come from the constant partition, then this node
             # is also part of the constant partition
-            return DataFlowGraph.PredefinedPartition.CONST.value
+            return DataFlowGraph.Partition.CONST.value
 
-        if DataFlowGraph.PredefinedPartition.AGGREGATED in candidate_partitions:
+        if DataFlowGraph.Partition.AGGREGATED in candidate_partitions:
             # if the inputs come directly from an aggregator or from the
             # aggregated partition, then stay in the aggregated partition
 
@@ -547,19 +570,19 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 len(
                     candidate_partitions
                     - {
-                        DataFlowGraph.PredefinedPartition.AGGREGATED,
-                        DataFlowGraph.PredefinedPartition.CONST,
+                        DataFlowGraph.Partition.AGGREGATED,
+                        DataFlowGraph.Partition.CONST,
                     }
                 )
                 != 0
             ):
                 raise RuntimeError("Cannot mix aggregated and non-aggregated features.")
 
-            return DataFlowGraph.PredefinedPartition.AGGREGATED.value
+            return DataFlowGraph.Partition.AGGREGATED.value
 
         # remove the constant partition from the set of candidates
         # if there is any other partition to select from
-        candidate_partitions -= {DataFlowGraph.PredefinedPartition.CONST}
+        candidate_partitions -= {DataFlowGraph.Partition.CONST}
 
         if len(candidate_partitions) == 1:
             return next(iter(candidate_partitions))
@@ -576,7 +599,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         # build the set of allowed partitions
         # note that the constant partition is always allowed
         allowed_partitions = set(p_dep_graph.nodes())
-        allowed_partitions.add(DataFlowGraph.PredefinedPartition.CONST.value)
+        allowed_partitions.add(DataFlowGraph.Partition.CONST.value)
         # make sure only allowed partitions are used
         if not candidate_partitions.issubset(allowed_partitions):
             raise RuntimeError("Cannot mix independent partitions.")
@@ -625,7 +648,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         self,
         obj: BaseNode,
         inputs: dict[str, Reference],
-        node_id: None | str = None,
+        node_id: None | NodeId = None,
     ) -> Reference:
         """Add a processor node to the data flow graph.
 
@@ -638,7 +661,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         Args:
             obj (BaseNode): The node object.
             inputs (dict[str, Reference]): The input references to the node.
-            node_id (None | str): The id of the node, defaults to a random uuid.
+            node_id (None | NodeId): The id of the node, defaults to a random uuid.
 
         Returns:
             Reference: A reference instance to the added node.
@@ -658,8 +681,6 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         node_type = (
             DataFlowGraph.NodeType.SOURCE
             if obj is None
-            else DataFlowGraph.NodeType.CONST
-            if isinstance(obj, Const)
             else DataFlowGraph.NodeType.DATA_PROCESSOR
             if isinstance(obj, BaseDataProcessor)
             else DataFlowGraph.NodeType.DATA_AGGREGATOR
@@ -692,7 +713,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         # infer the output partition of the node from the node type and input references
         partition = self.infer_node_partition(node_type, list(inputs.values()))
         # aggregated partition currently only supports processor type nodes
-        if (partition == DataFlowGraph.PredefinedPartition.AGGREGATED) and (
+        if (partition == DataFlowGraph.Partition.AGGREGATED) and (
             node_type != DataFlowGraph.NodeType.DATA_PROCESSOR
         ):
             raise NotImplementedError(

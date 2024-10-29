@@ -236,37 +236,47 @@ class FeatureEngine(object):
             input features and constants.
         """
 
+        # bind inputs to signature and extract the keyword arguments
         arguments = self.signature.bind(*args, **kwargs).arguments
-        kwargs = arguments.pop(self.kwargs_param.name) if self.kwargs_param is not None else {}
+        kwargs = arguments.pop(self.kwargs_param.name, {}) if self.kwargs_param is not None else {}
+        # include the keyword arguments in the arguments
         arguments.update(kwargs)
+
         # separate all feature and constant inputs
         inputs = {key: val.ref for key, val in arguments.items() if isinstance(val, _Feature)}
         consts = {key: val for key, val in arguments.items() if not isinstance(val, _Feature)}
-        # get the type hints for the constants from the signature
-        {
-            key: self.signature.parameters[
-                key if key not in kwargs else self.kwargs_param.name
-            ].annotation
+
+        # infer the data types of the constant inputs from the signature
+        const_dtypes = {
+            key: self.build_feature_with_context(
+                annotation=self.signature.parameters[
+                    key if key not in kwargs else self.kwargs_param.name
+                ].annotation,
+                ref=Reference(),
+                inputs=None,
+            ).dtype
             for key in consts.keys()
         }
-        # TODO: infer data type from signature
-        const_types = {}
 
-        return inputs, consts, const_types
+        return inputs, consts, const_dtypes
 
-    def build_return_feature(self, ref: Reference, inputs: dict[str, _Feature]) -> _Feature:
-        # get the return annotation
-        annotation = self.signature.return_annotation
-
+    def build_feature_with_context(
+        self, annotation: Any, ref: Reference, inputs: None | dict[str, _Feature]
+    ) -> _Feature:
         typevar_mapping = {
             t: self.typevar_register.solve_typevar(u) for t, u in self.typevar_lookup.items()
         }
 
         context = {
-            "inputs": inputs,
             "config": self.config,
             "session_id": self.session_id,
             "typevars": self.typevar_register.typevar_mapping,
         }
 
+        if inputs is not None:
+            context["inputs"] = inputs
+
         return build_feature_from_annotation(ref, annotation, typevar_mapping, context)
+
+    def build_return_feature(self, ref: Reference, inputs: dict[str, _Feature]) -> _Feature:
+        return self.build_feature_with_context(self.signature.return_annotation, ref, inputs)

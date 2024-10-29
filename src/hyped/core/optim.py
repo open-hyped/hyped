@@ -208,7 +208,7 @@ class DataFlowGraphOptimizer(object):
         """
         # get the constant partition of the graph and make sure
         # the sub-flow is self-contained, i.e. has no outside dependencies
-        const_graph = graph.get_partition(DataFlowGraph.PredefinedPartition.CONST)
+        const_graph = graph.get_partition(DataFlowGraph.Partition.CONST)
         assert len(graph.subgraph_in_edges(const_graph)) == 0
 
         # check if there is anything to optimize in the constant partition
@@ -244,7 +244,7 @@ class DataFlowGraphOptimizer(object):
             const_edges = graph.subgraph_out_edges(const_graph, data=True)
 
             # drop the constant partition in the original graph
-            graph = graph.drop_partition(DataFlowGraph.PredefinedPartition.CONST)
+            graph = graph.drop_partition(DataFlowGraph.Partition.CONST)
             graph = DataFlowGraph(graph)
 
             const_lookup = dict()
