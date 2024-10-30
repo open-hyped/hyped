@@ -22,7 +22,6 @@ from .features.reference import FeatureKey, Reference
 from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
-from .utils import ArrowIndexingWrapper
 
 
 class ExecutionState(object):
@@ -61,7 +60,7 @@ class ExecutionState(object):
         self.traces: dict[tuple[str, str], np.ndarray] = {}
 
         # execution graph attributes
-        self.outputs = {graph.src_node_id: ArrowIndexingWrapper(batch)}
+        self.outputs = {graph.src_node_id: batch}
         self.ready = {
             node_id: asyncio.Event()
             for node_id, attrs in graph.nodes(data=True)
@@ -171,7 +170,7 @@ class ExecutionState(object):
             AssertionError: If the feature reference does not contain
                 expected feature types.
         """
-        return ref._key.index_object(self.outputs[ref._node_id]).array
+        return ref._key.index_array(self.outputs[ref._node_id])
 
     def collect_inputs(self, node_id: NodeId) -> tuple[Batch, IndexList]:
         """Collect inputs for a given node.
@@ -197,7 +196,7 @@ class ExecutionState(object):
             ].is_set(), f"Node {u} is not ready."
             # get the values requested from the batch
             key: FeatureKey = data[DataFlowGraph.EdgeAttribute.KEY]
-            values = key.index_object(self.outputs[u]).array
+            values = key.index_array(self.outputs[u])
 
             partition = self.graph.get_node_output_partition(u)
             # store the values in inputs and keep track of the source partition
@@ -236,7 +235,7 @@ class ExecutionState(object):
         assert not self.ready[node_id].is_set(), f"Node {node_id} is already set."
         # apply indexing wrapper to array, required for feature key
         # indexing of arrow arrays
-        self.outputs[node_id] = ArrowIndexingWrapper(output)
+        self.outputs[node_id] = output
         self.ready[node_id].set()
 
 

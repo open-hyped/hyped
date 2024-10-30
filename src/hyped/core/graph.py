@@ -624,7 +624,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
 
         # get the output type of the referenced node
         dtype = self.nodes[ref._node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
-        return ref._key.index_object(dtype)
+        return ref._key.index_dtype(dtype)
 
     def get_feature_from_reference(self, ref: Reference) -> _Feature:
         """Helper function to get a feature instance of some node output.
@@ -731,8 +731,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         engine.validate_signature()
         engine.validate_arguments(**inputs)
         # get the output feature type of the node for the given inputs
-        ref = Reference(FeatureKey(), "DummyNode", self)
-        feature_type = engine.build_return_feature(ref, inputs).dtype
+        feature_type = engine.build_return_feature(Reference(), inputs).dtype
 
         # add the node to the graph
         self.add_node(

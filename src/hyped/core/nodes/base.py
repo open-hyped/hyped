@@ -171,4 +171,4 @@ class BaseNode(BaseConfigurable[C], ABC):
 
         # add the node and return the output feature
         ref = graph.add_processor_node(self, references)
-        return engine.build_return_feature(ref, references)
+        return graph.get_feature_from_reference(ref)

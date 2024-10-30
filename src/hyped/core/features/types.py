@@ -98,9 +98,6 @@ class SequenceType(Type, typing.Sequence):
         assert isinstance(index, slice)
         return SequenceType(self.value_type, self._slice_length(index))
 
-    def __slice_constructor__(self):
-        raise NotImplementedError()
-
 
 @dataclass(eq=True, frozen=True)
 class MappingType(Type, typing.Mapping):

@@ -1,11 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Iterable
-
 import datasets
-import numpy as np
-import numpy.typing
 import pyarrow as pa
 from datasets.features.features import FeatureType
 
@@ -48,7 +43,7 @@ ARROW_SCALAR_TYPE_TO_FEATURE_MAPPING: dict[str, Type] = {
 }
 
 
-def get_sequence_length(seq: datasets.Sequence | list | tuple) -> int:
+def get_hf_sequence_length(seq: datasets.Sequence | list | tuple) -> int:
     """Get the length of a given sequence feature.
 
     Arguments:
@@ -63,7 +58,7 @@ def get_sequence_length(seq: datasets.Sequence | list | tuple) -> int:
     return seq.length if isinstance(seq, datasets.Sequence) else -1
 
 
-def get_sequence_feature(seq: datasets.Sequence | list | tuple) -> FeatureType:
+def get_hf_sequence_feature(seq: datasets.Sequence | list | tuple) -> FeatureType:
     """Get the item feature type of a given sequence feature.
 
     Arguments:
@@ -104,8 +99,8 @@ def build_dtype_from_hf_feature(feature: FeatureType) -> Type:
 
     if isinstance(feature, datasets.Sequence):
         # get the value type and sequence length
-        value_type = get_sequence_feature(feature)
-        length = get_sequence_length(feature)
+        value_type = get_hf_sequence_feature(feature)
+        length = get_hf_sequence_length(feature)
         # build the sequence type
         return SequenceType(
             value_type=build_dtype_from_hf_feature(value_type),
@@ -148,64 +143,3 @@ def is_dtype_subset(dtype_a: Type, dtype_b: Type) -> bool:
         )
 
     return dtype_a == dtype_b
-
-
-@dataclass
-class ArrowIndexingWrapper(object):
-    # TODO: docstring: this wrapper allows arrow arrays to be passed to feature key
-    array: pa.Array
-    _buckets: None | list[numpy.typing.NDArray] = None
-
-    def __getitem__(self, key: str | int | slice) -> "ArrowIndexingWrapper":
-        if isinstance(key, str):
-            array = pa.compute.struct_field(self.array, key)
-            return ArrowIndexingWrapper(array)
-
-        elif isinstance(key, int):
-            array = pa.compute.list_element(self.array, key)
-            return ArrowIndexingWrapper(array)
-
-        elif isinstance(key, slice):
-            # cannot overwrite buckets
-            assert self._buckets is None
-
-            # shorthand to array
-            array = self.array
-
-            # prepare the slice, cannot use .indices here because we don't know the length
-            stop = key.stop
-            start = key.start if key.start is not None else 0
-            step = key.step if key.step is not None else 1
-
-            # list_slice doesn't support negative values as stop index
-            if key.stop < 0:
-                raise NotImplementedError()
-
-            if not ((stop is None) and (start == 0) and (step == 1)):
-                # get the list slice but only if there are actually values being omitted be
-                # slicing, otherwise (i.e. slice(None)) just keep the full list
-                array = pa.compute.list_slice(array, start, stop, step)
-
-            # flatten the list for further processing
-            flat_array = pa.compute.list_flatten(array)
-            # build information needed to invert the flatten operation
-            # specifically a bucket represents a single list in the nested structure
-            # and contains all indices of the list w.r.t. the flattened list
-            parent_index = pa.compute.list_parent_indices(array).to_numpy()
-            self._buckets = [np.nonzero(parent_index == j)[0] for j in range(len(array))]
-
-            return [ArrowIndexingWrapper(flat_array)]
-
-    def __slice_constructor__(self, items: Iterable[ArrowIndexingWrapper]) -> ArrowIndexingWrapper:
-        # callback used by feature key allows for custom construction from slice operation
-
-        # get the flat array from the items
-        flat_array = next(iter(items)).array
-        assert self._buckets is not None
-        # unflatten the array using the buckets
-        array = [pa.compute.take(flat_array, idx) for idx in self._buckets]
-        array = pa.array(array, type=pa.list_(flat_array.type))
-        # reset buckets
-        self._buckets = None
-        # return the nested array
-        return ArrowIndexingWrapper(array)

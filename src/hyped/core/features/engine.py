@@ -92,8 +92,6 @@ class TypeVarRegister(object):
         ):
             self._captured_vars[T] = val.dtype if isinstance(val, _Feature) else type(val)
 
-        # TODO: make sure the value matches the captured type
-
         return val
 
 
