@@ -119,7 +119,7 @@ class Sequence(typing.Sequence[T], _Feature):
 
     def __getitem__(self, index: int | slice) -> T | Sequence[T]:
         # build the reference to the indexed value
-        ref = (Reference(FeatureKey(self.ref._key + (index,)), self.ref._node_id, self.ref._graph),)
+        ref = Reference(FeatureKey(self.ref._key + (index,)), self.ref._node_id, self.ref._graph)
         # get the output data type of the indexing operation
         # and infer build the corrsponding feature
         return build_feature_from_dtype(ref, self.dtype[index])

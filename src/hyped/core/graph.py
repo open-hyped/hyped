@@ -8,6 +8,7 @@ and edges (data flow between processors).
 
 from __future__ import annotations
 
+import operator
 import uuid
 from enum import Enum
 from functools import wraps
@@ -23,11 +24,12 @@ from .abstract import AbstractDataFlowGraph
 from .features.engine import FeatureEngine
 from .features.features import _Feature, build_feature_from_dtype
 from .features.reference import FeatureKey, Reference
-from .features.types import MappingType, Type
+from .features.types import BoolType, MappingType, SequenceType, Type
 from .nodes.aggregator import BaseDataAggregator
 from .nodes.augmenter import BaseDataAugmenter
 from .nodes.base import BaseNode
 from .nodes.processor import BaseDataProcessor
+from .utils import build_dtype_from_object, map_recursive
 
 
 def _compute_node_depth(G: nx.DiGraph) -> dict[Hashable, int]:
@@ -155,6 +157,8 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         This type of node introduces constant values into the data flow, serving
         as fixed inputs to the subsequent processing stages.
         """
+
+        COLLECT = "COLLECT_NODE"
 
         DATA_PROCESSOR = "DATA_PROCESSOR_NODE"
         """
@@ -398,6 +402,75 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
 
         return G
 
+    def add_node(
+        self,
+        node_obj: Any,
+        node_type: DataFlowGraph.NodeType,
+        inputs: dict[str, Reference],
+        output_type: MappingType,
+        node_id: None | NodeId = None,
+    ) -> Reference:
+        # infer the output partition of the node from the node type and input references
+        partition = self.infer_node_partition(node_type, list(inputs.values()))
+        # aggregated partition currently only supports processor type nodes
+        if (partition == DataFlowGraph.Partition.AGGREGATED) and (
+            node_type != DataFlowGraph.NodeType.DATA_PROCESSOR
+        ):
+            raise NotImplementedError(
+                f"Aggregator outputs may only be processed by data processors, got {node_type}."
+            )
+
+        # compute the depth of the node in the graph based on it's input references
+        depth = (
+            0
+            if inputs is None
+            else max(
+                (
+                    self.nodes[ref._node_id][DataFlowGraph.NodeAttribute.DEPTH] + 1
+                    for ref in inputs.values()
+                ),
+                default=0,
+            )
+        )
+
+        # build the input data type from the input references
+        input_type = MappingType.from_dict(
+            {key: self.get_dtype_from_reference(ref) for key, ref in inputs.items()}
+        )
+
+        # create a random node id if no was given
+        node_id = node_id if node_id is not None else str(uuid.uuid4())
+        # add the node to the graph
+        super(DataFlowGraph, self).add_node(
+            node_id,
+            **{
+                DataFlowGraph.NodeAttribute.NODE_OBJ: node_obj,
+                DataFlowGraph.NodeAttribute.NODE_TYPE: node_type,
+                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE: input_type,
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: output_type,
+                DataFlowGraph.NodeAttribute.PARTITION: partition,
+                DataFlowGraph.NodeAttribute.DEPTH: depth,
+            },
+        )
+
+        # add dependency edges to graph
+        for name, ref in inputs.items():
+            # add the edge
+            self.add_edge(
+                ref._node_id,
+                node_id,
+                key=name,
+                **{
+                    DataFlowGraph.EdgeAttribute.NAME: name,
+                    DataFlowGraph.EdgeAttribute.KEY: ref._key,
+                },
+            )
+
+        # make sure the graph is a DAG
+        assert nx.is_directed_acyclic_graph(self)
+
+        return Reference(FeatureKey(), node_id, self)
+
     def add_source_node(self, data_type: Type, node_id: None | NodeId = None) -> Reference:
         """Add a the source node to the graph.
 
@@ -418,46 +491,208 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         if self.src_node_id is not None:
             raise RuntimeError("Graph already contains a source node.")
 
-        # create the node id if it was not provided and store as a graph attribute
-        node_id = node_id if node_id is not None else str(uuid.uuid4())
-        self.graph[DataFlowGraph.GraphAttribute.SRC_NODE_ID] = node_id
         # add the node to the graph
-        self.add_node(
-            node_id,
-            **{
-                DataFlowGraph.NodeAttribute.NODE_OBJ: None,
-                DataFlowGraph.NodeAttribute.NODE_TYPE: DataFlowGraph.NodeType.SOURCE,
-                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE: MappingType.from_dict({}),
-                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: data_type,
-                DataFlowGraph.NodeAttribute.PARTITION: DataFlowGraph.Partition.DEFAULT,
-                DataFlowGraph.NodeAttribute.DEPTH: 0,
-            },
+        ref = self.add_node(
+            node_obj=None,
+            node_type=DataFlowGraph.NodeType.SOURCE,
+            inputs={},
+            output_type=data_type,
+            node_id=node_id,
         )
+        # save source node id as graph attribute
+        self.graph[DataFlowGraph.GraphAttribute.SRC_NODE_ID] = ref._node_id
         # return the reference to the source node
-        return Reference(FeatureKey(), node_id, self)
+        return ref
 
-    def add_const_node(
-        self, value: Any, data_type: Type, node_id: None | NodeId = None
-    ) -> Reference:
+    def add_const_node(self, value: Any, dtype: Type, node_id: None | NodeId = None) -> Reference:
         # make sure the data type matches the value
-        array = pa.array([value], type=data_type.arrow_type)
+        array = pa.array([value], type=dtype.arrow_type)
         # create a random node id if not provided
         node_id = node_id if node_id is not None else str(uuid.uuid4())
 
-        # add the constant node to the graph
-        self.add_node(
-            node_id,
-            **{
-                DataFlowGraph.NodeAttribute.NODE_OBJ: array,
-                DataFlowGraph.NodeAttribute.NODE_TYPE: DataFlowGraph.NodeType.CONST,
-                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE: MappingType.from_dict({}),
-                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: data_type,
-                DataFlowGraph.NodeAttribute.PARTITION: DataFlowGraph.Partition.CONST,
-                DataFlowGraph.NodeAttribute.DEPTH: 0,
-            },
+        # add the node to the graph
+        return self.add_node(
+            node_obj=array,
+            node_type=DataFlowGraph.NodeType.CONST,
+            inputs={},
+            output_type=dtype,
+            node_id=node_id,
         )
 
-        return Reference(FeatureKey(), node_id, self)
+    def add_collect_node(self, collect: dict | list, node_id: None | NodeId = None) -> Reference:
+        def add_constants(
+            val: dict | list | tuple | Any, dtype: None | Type = None
+        ) -> dict | list | tuple | Any:
+            if isinstance(val, dict):
+                assert (dtype is None) or isinstance(dtype, MappingType)
+
+                return {
+                    key: add_constants(item, dtype[key] if dtype is not None else None)
+                    for key, item in val.items()
+                }
+
+            elif isinstance(val, (list, tuple)):
+                assert (dtype is None) or isinstance(dtype, SequenceType)
+
+                if len(val) == 0:
+                    raise NotImplementedError("Empty Sequence")
+
+                if dtype is None:
+                    # try to infer the dtype from the reference instances in the sequence
+                    if any(isinstance(r, Reference) for r in val):
+                        ref = next(r for r in val if isinstance(r, Reference))
+                        dtype = self.get_dtype_from_reference(ref)
+
+                else:
+                    # otherwise use the value type from the given dtype
+                    dtype = dtype.value_type
+
+                # recurse on all items in the sequence
+                seq = [add_constants(item, dtype) for item in val]
+                assert all(isinstance(item, Reference) for item in seq)
+
+                return seq
+
+            elif not isinstance(val, Reference):
+                # add the constant node
+                return self.add_const_node(
+                    val, dtype=dtype if dtype is not None else build_dtype_from_object(val)
+                )
+
+            elif isinstance(val, Reference):
+                return val
+
+            else:
+                # TODO: error message
+                TypeError(val)
+
+        def build_output_type(obj: dict | list | tuple | Reference) -> Type:
+            if isinstance(obj, dict):
+                return MappingType.from_dict(
+                    {key: build_output_type(item) for key, item in obj.items()}
+                )
+
+            elif isinstance(obj, (list, tuple)):
+                if len(obj) == 0:
+                    # default data type for empty sequences
+                    dtype = BoolType
+
+                else:
+                    dtype, *others = map(build_output_type, obj)
+                    # check the data types of all sequence items
+                    if any(dtype != other for other in others):
+                        # TODO: try to cast the values in the sequence to a common type
+                        raise NotImplementedError(dtype, others)
+
+                # build the sequence type
+                return SequenceType(value_type=dtype, length=len(obj))
+
+            elif isinstance(obj, Reference):
+                # get the data type from the graph
+                return self.get_dtype_from_reference(obj)
+
+            else:
+                raise TypeError(obj)
+
+        # prepare collect structure
+        collect = map_recursive(lambda _, x: x.ref if isinstance(x, _Feature) else x, collect)
+        collect = add_constants(collect)
+        # build output type of the collect node following the given structure
+        feature_type = build_output_type(collect)
+
+        inputs = {}
+        # extract flat inputs to collect node from structure
+        map_recursive(
+            lambda p, r: (
+                None
+                if not isinstance(r, Reference)
+                else operator.setitem(inputs, ".".join(map(str, p)), r)
+            ),
+            collect,
+        )
+
+        # build the nested value lookup structure
+        lookup = map_recursive(
+            lambda p, v: ".".join(map(str, p)) if isinstance(v, Reference) else v, collect
+        )
+
+        return self.add_node(
+            node_obj=lookup,
+            node_type=DataFlowGraph.NodeType.COLLECT,
+            inputs=inputs,
+            output_type=feature_type,
+            node_id=node_id,
+        )
+
+    # TODO: rename to more generic 'add_node'
+    def add_processor_node(
+        self,
+        obj: BaseNode,
+        inputs: dict[str, Reference],
+        node_id: None | NodeId = None,
+    ) -> Reference:
+        """Add a processor node to the data flow graph.
+
+        This method adds a processor node to the data flow graph and creates the
+        necessary edges to define the data flow from input nodes to this processor.
+
+        Note that this function does not do any input type validation as this is implemented
+        in the call method of the node object.
+
+        Args:
+            obj (BaseNode): The node object.
+            inputs (dict[str, Reference]): The input references to the node.
+            node_id (None | NodeId): The id of the node, defaults to a random uuid.
+
+        Returns:
+            Reference: A reference instance to the added node.
+
+        Raises:
+            AssertionError: If the processor type is invalid.
+            AssertionError: If the graph is cyclic after adding the new node.
+            AssertionError: If the partition cannot be inferred.
+            RuntimeError: If any input reference do not belong to this data flow.
+            RuntimeError: If the input references are a mix of aggregated and non-aggregated
+                features.
+        """
+
+        # get processor type
+        node_type = (
+            DataFlowGraph.NodeType.SOURCE
+            if obj is None
+            else DataFlowGraph.NodeType.DATA_PROCESSOR
+            if isinstance(obj, BaseDataProcessor)
+            else DataFlowGraph.NodeType.DATA_AGGREGATOR
+            if isinstance(obj, BaseDataAggregator)
+            else DataFlowGraph.NodeType.DATA_AUGMENTER
+            if isinstance(obj, BaseDataAugmenter)
+            else None
+        )
+        # make sure the object is valid
+        assert node_type is not None, f"Invalid node type {type(obj)}."
+
+        # make sure all input references belong to this graph
+        if (inputs is not None) and any(ref._graph is not self for ref in inputs.values()):
+            raise RuntimeError("Input reference does not belong to this data flow graph.")
+
+        # build the input features
+        input_features = {key: self.get_feature_from_reference(ref) for key, ref in inputs.items()}
+        # create a type validation engine instance
+        name = f"DataFlowGraph.add_node({type(obj).__qualname__})"
+        engine = FeatureEngine(name, obj.config, obj.signature)
+        # validate the input features to the node
+        engine.validate_signature()
+        engine.validate_arguments(**input_features)
+        # get the output feature type of the node for the given inputs
+        feature_type = engine.build_return_feature(Reference(), input_features).dtype
+
+        return self.add_node(
+            node_obj=obj,
+            node_type=node_type,
+            inputs=inputs,
+            output_type=feature_type,
+            node_id=node_id,
+        )
 
     def get_node_output_partition(self, node_id: NodeId) -> PartitionId:
         """Determine the output partition for a given node in the data flow graph.
@@ -642,127 +877,6 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         # build the feature instance from the reference and data type
         dtype = self.get_dtype_from_reference(ref)
         return build_feature_from_dtype(ref, dtype)
-
-    # TODO: rename to more generic 'add_node'
-    def add_processor_node(
-        self,
-        obj: BaseNode,
-        inputs: dict[str, Reference],
-        node_id: None | NodeId = None,
-    ) -> Reference:
-        """Add a processor node to the data flow graph.
-
-        This method adds a processor node to the data flow graph and creates the
-        necessary edges to define the data flow from input nodes to this processor.
-
-        Note that this function does not do any input type validation as this is implemented
-        in the call method of the node object.
-
-        Args:
-            obj (BaseNode): The node object.
-            inputs (dict[str, Reference]): The input references to the node.
-            node_id (None | NodeId): The id of the node, defaults to a random uuid.
-
-        Returns:
-            Reference: A reference instance to the added node.
-
-        Raises:
-            AssertionError: If the processor type is invalid.
-            AssertionError: If the graph is cyclic after adding the new node.
-            AssertionError: If the partition cannot be inferred.
-            RuntimeError: If any input reference do not belong to this data flow.
-            RuntimeError: If the input references are a mix of aggregated and non-aggregated
-                features.
-        """
-        # create the node id if it was not provided
-        node_id = node_id if node_id is not None else str(uuid.uuid4())
-
-        # get processor type
-        node_type = (
-            DataFlowGraph.NodeType.SOURCE
-            if obj is None
-            else DataFlowGraph.NodeType.DATA_PROCESSOR
-            if isinstance(obj, BaseDataProcessor)
-            else DataFlowGraph.NodeType.DATA_AGGREGATOR
-            if isinstance(obj, BaseDataAggregator)
-            else DataFlowGraph.NodeType.DATA_AUGMENTER
-            if isinstance(obj, BaseDataAugmenter)
-            else None
-        )
-        # make sure the object is valid
-        assert node_type is not None, f"Invalid node type {type(obj)}."
-
-        # make sure all input references belong to this graph
-        if (inputs is not None) and any(ref._graph is not self for ref in inputs.values()):
-            raise RuntimeError("Input reference does not belong to this data flow graph.")
-
-        # compute the depth of the node in the graph based
-        # on it's input references
-        depth = (
-            0
-            if inputs is None
-            else max(
-                (
-                    self.nodes[ref._node_id][DataFlowGraph.NodeAttribute.DEPTH] + 1
-                    for ref in inputs.values()
-                ),
-                default=0,
-            )
-        )
-
-        # infer the output partition of the node from the node type and input references
-        partition = self.infer_node_partition(node_type, list(inputs.values()))
-        # aggregated partition currently only supports processor type nodes
-        if (partition == DataFlowGraph.Partition.AGGREGATED) and (
-            node_type != DataFlowGraph.NodeType.DATA_PROCESSOR
-        ):
-            raise NotImplementedError(
-                f"Aggregator outputs may only be processed by data processors, got {node_type}."
-            )
-
-        # build the input schema from the input features
-        inputs = {key: self.get_feature_from_reference(ref) for key, ref in inputs.items()}
-        input_type = MappingType.from_dict({key: feature.dtype for key, feature in inputs.items()})
-
-        # create a type validation engine instance
-        name = f"DataFlowGraph.add_node({type(obj).__qualname__})"
-        engine = FeatureEngine(name, obj.config, obj.signature)
-        # validate the input features to the node
-        engine.validate_signature()
-        engine.validate_arguments(**inputs)
-        # get the output feature type of the node for the given inputs
-        feature_type = engine.build_return_feature(Reference(), inputs).dtype
-
-        # add the node to the graph
-        self.add_node(
-            node_id,
-            **{
-                DataFlowGraph.NodeAttribute.NODE_OBJ: obj,
-                DataFlowGraph.NodeAttribute.NODE_TYPE: node_type,
-                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE: input_type,
-                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: feature_type,
-                DataFlowGraph.NodeAttribute.PARTITION: partition,
-                DataFlowGraph.NodeAttribute.DEPTH: depth,
-            },
-        )
-
-        # add dependency edges to graph
-        for name, feature in inputs.items():
-            # add the edge
-            self.add_edge(
-                feature.ref._node_id,
-                node_id,
-                key=name,
-                **{
-                    DataFlowGraph.EdgeAttribute.NAME: name,
-                    DataFlowGraph.EdgeAttribute.KEY: feature.ref._key,
-                },
-            )
-
-        # make sure the graph is a DAG
-        assert nx.is_directed_acyclic_graph(self)
-
-        return Reference(FeatureKey(), node_id, self)
 
     def dependency_graph(self, nodes: set[NodeId]) -> DataFlowGraph:
         """Generate the dependency subgraph for a given node.

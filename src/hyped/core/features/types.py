@@ -98,6 +98,13 @@ class SequenceType(Type, typing.Sequence):
         assert isinstance(index, slice)
         return SequenceType(self.value_type, self._slice_length(index))
 
+    def __eq__(self, other: SequenceType) -> bool:
+        if not isinstance(other, SequenceType):
+            return False
+
+        # TODO: decide if unkown == known length is ok
+        return self.value_type == other.value_type and (self.length == other.length)
+
 
 @dataclass(eq=True, frozen=True)
 class MappingType(Type, typing.Mapping):
@@ -123,3 +130,10 @@ class MappingType(Type, typing.Mapping):
     @classmethod
     def from_dict(cls, fields: dict[str, Type]) -> MappingType:
         return cls(fields=tuple((key, fields[key]) for key in sorted(fields.keys())))
+
+    def __eq__(self, other: MappingType) -> bool:
+        if not isinstance(other, MappingType):
+            return bool
+
+        # order of fields doesn't matter
+        return dict(self.fields) == dict(other.fields)

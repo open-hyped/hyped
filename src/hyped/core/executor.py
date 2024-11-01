@@ -299,6 +299,11 @@ class DataFlowExecutor(object):
             # done
             return
 
+        if node_type == DataFlowGraph.NodeType.COLLECT:
+            # TODO: rearrange the collected inputs according to
+            #       the structure of the node object
+            raise NotImplementedError()
+
         # build the run context
         ctx = RunContext(
             node_id=node_id,

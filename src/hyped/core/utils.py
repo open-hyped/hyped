@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, Callable
+
 import datasets
 import pyarrow as pa
 from datasets.features.features import FeatureType
@@ -26,7 +28,7 @@ from .features.types import (
     UInt64Type,
 )
 
-ARROW_SCALAR_TYPE_TO_FEATURE_MAPPING: dict[str, Type] = {
+ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING: dict[str, Type] = {
     "bool": BoolType,
     "string": StringType,
     "int8": Int8Type,
@@ -40,6 +42,13 @@ ARROW_SCALAR_TYPE_TO_FEATURE_MAPPING: dict[str, Type] = {
     "halffloat": Float16Type,
     "float": Float32Type,
     "double": Float64Type,
+}
+
+PYTHON_PRIMITIVE_TO_DTYPE_MAPPING: dict[type, Type] = {
+    bool: BoolType,
+    str: StringType,
+    int: Int64Type,
+    float: Float64Type,
 }
 
 
@@ -85,7 +94,7 @@ def build_dtype_from_arrow_type(arrow_type: ArrowType) -> Type:
         )
 
     if isinstance(arrow_type, ArrowType):
-        return ARROW_SCALAR_TYPE_TO_FEATURE_MAPPING[str(arrow_type)]
+        return ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING[str(arrow_type)]
 
     raise TypeError()
 
@@ -112,9 +121,36 @@ def build_dtype_from_hf_feature(feature: FeatureType) -> Type:
         packed = datasets.Features({"field": feature})
         arrow_type = packed.arrow_schema.field("field").type
         # find the data type to the arrow type
-        return ARROW_SCALAR_TYPE_TO_FEATURE_MAPPING[str(arrow_type)]
+        return ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING[str(arrow_type)]
 
     raise TypeError(feature)
+
+
+def build_dtype_from_object(obj: Any) -> Type:
+    if isinstance(obj, dict):
+        return MappingType.from_dict(
+            {key: build_dtype_from_object(val) for key, val in obj.items()}
+        )
+
+    elif isinstance(obj, (list, tuple)):
+        if len(obj) > 0:
+            # build the dtype for each item in the sequence
+            dtype, *others = list(map(build_dtype_from_object, obj))
+            # make sure all values in the list are of the same type
+            if any(dtype != other for other in others):
+                raise RuntimeError()  # TODO: error message
+
+        else:
+            # default dtype for empty sequences
+            dtype = BoolType
+
+        return SequenceType(value_type=dtype, length=len(obj))
+
+    elif isinstance(obj, tuple(PYTHON_PRIMITIVE_TO_DTYPE_MAPPING.keys())):
+        return PYTHON_PRIMITIVE_TO_DTYPE_MAPPING[type(obj)]
+
+    else:
+        raise TypeError(obj)  # TODO: error message unsupported type
 
 
 def is_dtype_subset(dtype_a: Type, dtype_b: Type) -> bool:
@@ -137,9 +173,27 @@ def is_dtype_subset(dtype_a: Type, dtype_b: Type) -> bool:
         )
 
     elif isinstance(dtype_a, SequenceType) and isinstance(dtype_b, SequenceType):
-        # TODO: support length <undefined> == n
+        # TODO: support length <undefined> == n and a.length <= b.length
         return (dtype_a.length == dtype_b.length) and is_dtype_subset(
             dtype_a.arrow_type, dtype_b.arrow_type
         )
 
     return dtype_a == dtype_b
+
+
+def map_recursive(
+    fn: Callable[[tuple[str], dict | list | tuple | Any], None | dict | list | tuple | Any],
+    obj: dict | list | tuple | Any,
+    path: tuple[str | int] = (),
+) -> dict | list | tuple | Any:
+    # apply the function recursively on all items of the nested object
+    obj = (
+        {key: map_recursive(fn, val, path + (key,)) for key, val in obj.items()}
+        if isinstance(obj, dict)
+        else type(obj)(map_recursive(fn, val, path + (i,)) for i, val in enumerate(obj))
+        if isinstance(obj, (list, tuple))
+        else obj
+    )
+    # apply the function on the full object
+    out_obj = fn(path, obj)
+    return out_obj if out_obj is not None else obj

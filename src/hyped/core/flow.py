@@ -33,8 +33,8 @@ from .features.features import _Feature, build_feature_from_annotation, build_fe
 from .features.reference import FeatureKey, Reference
 from .features.types import Type
 from .graph import DataFlowGraph
-from .typing import Mapping
-from .utils import build_dtype_from_hf_feature, is_dtype_subset
+from .typing import Mapping, Sequence
+from .utils import build_dtype_from_hf_feature, build_dtype_from_object, is_dtype_subset
 
 D = TypeVar(
     "D",
@@ -171,16 +171,24 @@ class DataFlow(AbstractDataFlow, Generic[T]):
 
         return self._source_feature
 
-    U = TypeVar("U")
+    U = TypeVar("U", bound=_Feature)
 
-    def const(self, value: Any, feature_type: type[T]) -> T:
-        # create a dummy feature to infer the data type
-        # from the given feature type
-        ref = Reference(FeatureKey(), "DummyNode", self._graph)
-        dtype = pydantic.TypeAdapter(feature_type).validate_python(ref).dtype
+    def const(self, value: Any, feature_type: None | type[U] = None) -> U:
+        if feature_type is not None:
+            # create a dummy feature to infer the data type
+            # from the given feature type
+            adapter = pydantic.TypeAdapter(feature_type)
+            dtype = adapter.validate_python(Reference()).dtype
+        else:
+            # build the data type matching the object in case no data type was provided
+            dtype = build_dtype_from_object(value)
         # add the constant node to the graph
         ref = self._graph.add_const_node(value, dtype)
-        return build_feature_from_dtype(ref, dtype)
+        return self._graph.get_feature_from_reference(ref)
+
+    def collect(self, collect: dict | list) -> Mapping | Sequence | _Feature:
+        ref = self._graph.add_collect_node(collect)
+        return self._graph.get_feature_from_reference(ref)
 
     def build(
         self,

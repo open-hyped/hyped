@@ -154,7 +154,9 @@ class FeatureKey(tuple[int | str | slice]):
                     flat_array = self[i + 1 :].index_array(flat_array)
 
                     # unflatten the array using the buckets
-                    array = [pa.compute.take(flat_array, idx) for idx in nested_ids]
+                    array = [
+                        pa.compute.take(flat_array, idx, boundschecks=False) for idx in nested_ids
+                    ]
                     array = pa.array(
                         array,
                         type=pa.list_(
