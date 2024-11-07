@@ -133,7 +133,7 @@ class MappingType(Type, typing.Mapping):
 
     def __eq__(self, other: MappingType) -> bool:
         if not isinstance(other, MappingType):
-            return bool
+            return False
 
         # order of fields doesn't matter
         return dict(self.fields) == dict(other.fields)

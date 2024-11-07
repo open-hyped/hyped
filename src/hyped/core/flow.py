@@ -198,6 +198,10 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         if collect.ref._graph is not self._graph:
             raise RuntimeError("The collect feature does not belong to this flow.")
 
+        # make sure flow graph is initialized
+        if not self._is_initialized:
+            self._initialize()
+
         # create a copy of the graph and update the collect reference accordingly
         graph = self._graph.copy()
         collect = Reference(collect.ref._key, collect.ref._node_id, graph)

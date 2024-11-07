@@ -506,6 +506,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
 
     def add_const_node(self, value: Any, dtype: Type, node_id: None | NodeId = None) -> Reference:
         # make sure the data type matches the value
+        # TODO: should this be a scalar instead of an array
         array = pa.array([value], type=dtype.arrow_type)
         # create a random node id if not provided
         node_id = node_id if node_id is not None else str(uuid.uuid4())
@@ -548,10 +549,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                     dtype = dtype.value_type
 
                 # recurse on all items in the sequence
-                seq = [add_constants(item, dtype) for item in val]
-                assert all(isinstance(item, Reference) for item in seq)
-
-                return seq
+                return type(val)([add_constants(item, dtype) for item in val])
 
             elif not isinstance(val, Reference):
                 # add the constant node

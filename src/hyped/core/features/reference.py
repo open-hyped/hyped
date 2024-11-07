@@ -137,10 +137,14 @@ class FeatureKey(tuple[int | str | slice]):
                         # not supported for lists of unkown length
                         raise RuntimeError()
 
-                if key_entry != slice(None):
+                if key_entry != slice(None) and step != 1:
                     # get the list slice but only if there are actually values being omitted be
                     # slicing, otherwise (i.e. slice(None)) just keep the full list
                     array = pa.compute.list_slice(array, start, stop, step)
+
+                elif key_entry != slice(None):
+                    # zero-copy slice view on array
+                    array = array.slice(start, stop - start)
 
                 if i + 1 < len(self):
                     # flatten the list for further processing

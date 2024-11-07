@@ -168,9 +168,6 @@ class Sequence(typing.Sequence[T], _Feature):
             validator_fn, schema=core_schema.is_instance_schema(Sequence)
         )
 
-    def __slice_constructor__(self):
-        raise NotImplementedError()
-
 
 class InvalidKeyError(Exception):
     """Exception raised when an invalid key is found."""
