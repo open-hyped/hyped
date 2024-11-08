@@ -11,17 +11,14 @@ Classes:
 """
 import asyncio
 from collections import defaultdict
-from functools import partial
 
 import networkx as nx
 import numpy as np
 import pyarrow as pa
-import pyarrow.compute as pc
 
 from hyped.common.typing import Batch, IndexList, NodeId, Rank, TraceIndexList
 
 from .features.reference import FeatureKey, Reference
-from .features.types import UNDEFINED_SEQUENCE_LENGTH, MappingType, SequenceType, Type
 from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
@@ -295,58 +292,6 @@ class DataFlowExecutor(object):
         node_obj = node_attrs[DataFlowGraph.NodeAttribute.NODE_OBJ]
         node_type = node_attrs[DataFlowGraph.NodeAttribute.NODE_TYPE]
 
-        if node_type == DataFlowGraph.NodeType.CONST:
-            # for constant nodes the node object is a pyarrow array
-            # of a single entry holding the value
-            state.capture_output(node_id, node_obj)
-            # done
-            return
-
-        if node_type == DataFlowGraph.NodeType.COLLECT:
-
-            def _collect(struct: object, dtype: Type) -> pa.Array:
-                if isinstance(struct, dict) and isinstance(dtype, MappingType):
-                    # collect all field values
-                    field_values = [
-                        _collect(struct[field_name], field_dtype)
-                        for field_name, field_dtype in dtype.fields
-                    ]
-                    field_dtypes = [
-                        (field_name, field_dtype.arrow_type)
-                        for field_name, field_dtype in dtype.fields
-                    ]
-                    # pack values in a struct array
-                    return pa.StructArray.from_arrays(field_values, fields=field_dtypes)
-
-                elif isinstance(struct, (list, tuple)) and isinstance(dtype, SequenceType):
-                    struct = list(map(partial(_collect, dtype=dtype.value_type), struct))
-                    # get dimensions
-                    num_arrays, array_length = len(struct[0]), len(struct)
-                    assert array_length == dtype.length != UNDEFINED_SEQUENCE_LENGTH
-                    # compute the zip reordering indices
-                    zip_indices = np.add.outer(
-                        np.arange(num_arrays), num_arrays * np.arange(array_length)
-                    )
-                    # concatenate the arrays and reorder to match the zip view
-                    flat_struct = pa.chunked_array(
-                        struct, type=dtype.value_type.arrow_type
-                    ).combine_chunks()
-                    flat_struct = pc.take(flat_struct, zip_indices.flatten())
-                    # unflatten
-                    return pa.FixedSizeListArray.from_arrays(flat_struct, type=dtype.arrow_type)
-
-                elif isinstance(struct, str):
-                    # get the referenced input array
-                    return inputs[struct]
-
-                else:
-                    raise TypeError(struct, dtype)
-
-            state.capture_output(
-                node_id,
-                _collect(node_obj, node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]),
-            )
-
         # build the run context
         ctx = RunContext(
             node_id=node_id,
@@ -355,6 +300,16 @@ class DataFlowExecutor(object):
             input_type=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE],
             output_type=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
         )
+
+        if node_type == DataFlowGraph.NodeType.CONST:
+            # for constant nodes the node object is a pyarrow array
+            # of a single entry holding the value
+            state.capture_output(node_id, node_obj)
+
+        elif node_type == DataFlowGraph.NodeType.COLLECT:
+            # collect values and capture values
+            values = node_obj.collect(ctx, inputs)
+            state.capture_output(node_id, values)
 
         if node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
             # run processor and check the output batch size

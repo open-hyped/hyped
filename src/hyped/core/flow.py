@@ -371,10 +371,15 @@ class ExecutableDataFlow(DataFlow[T]):
         # get the source feature instance from the graph
         ref = Reference(FeatureKey(), graph.src_node_id, self._graph)
         self._source_feature = self._graph.get_feature_from_reference(ref)
+        self._collect_feature = self._graph.get_feature_from_reference(collect)
 
-        # make sure the source feature is a mapping type
+        # make sure the source feature is a mapping
         if not isinstance(self._source_feature, Mapping):
             raise RuntimeError("Source must be mapping")
+
+        # make sure the collect feature is a mapping
+        if not isinstance(self._collect_feature, Mapping):
+            raise RuntimeError("Collect must be mapping")
 
         # create the executor instance
         self._executor = DataFlowExecutor(self._graph, collect, aggregation_manager=None)
@@ -450,7 +455,7 @@ class ExecutableDataFlow(DataFlow[T]):
         # close the event loop
         loop.close()
 
-        return pa.table(out if isinstance(out, pa.StructArray) else {"value": out})
+        return pa.table(out, schema=self._collect_feature.dtype.arrow_schema)
 
     def _batch_process_to_pydict(
         self,

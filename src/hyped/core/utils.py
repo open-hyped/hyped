@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any, Callable, TypeAlias, TypeVar
 
 import datasets
 import pyarrow as pa
@@ -50,6 +50,9 @@ PYTHON_PRIMITIVE_TO_DTYPE_MAPPING: dict[type, Type] = {
     int: Int64Type,
     float: Float64Type,
 }
+
+T = TypeVar("T")
+NestedType: TypeAlias = dict[str, "NestedType"] | list["NestedType"] | tuple["NestedType"] | T
 
 
 def get_hf_sequence_length(seq: datasets.Sequence | list | tuple) -> int:
@@ -182,10 +185,10 @@ def is_dtype_subset(dtype_a: Type, dtype_b: Type) -> bool:
 
 
 def map_recursive(
-    fn: Callable[[tuple[str], dict | list | tuple | Any], None | dict | list | tuple | Any],
-    obj: dict | list | tuple | Any,
+    fn: Callable[[NestedType[Any]], None | NestedType[Any]],
+    obj: NestedType[Any],
     path: tuple[str | int] = (),
-) -> dict | list | tuple | Any:
+) -> NestedType[Any]:
     # apply the function recursively on all items of the nested object
     obj = (
         {key: map_recursive(fn, val, path + (key,)) for key, val in obj.items()}

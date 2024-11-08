@@ -24,12 +24,13 @@ from .abstract import AbstractDataFlowGraph
 from .features.engine import FeatureEngine
 from .features.features import _Feature, build_feature_from_dtype
 from .features.reference import FeatureKey, Reference
-from .features.types import BoolType, MappingType, SequenceType, Type
+from .features.types import MappingType, SequenceType, Type
 from .nodes.aggregator import BaseDataAggregator
 from .nodes.augmenter import BaseDataAugmenter
 from .nodes.base import BaseNode
+from .nodes.collect import CollectNode
 from .nodes.processor import BaseDataProcessor
-from .utils import build_dtype_from_object, map_recursive
+from .utils import NestedType, build_dtype_from_object, map_recursive
 
 
 def _compute_node_depth(G: nx.DiGraph) -> dict[Hashable, int]:
@@ -506,7 +507,6 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
 
     def add_const_node(self, value: Any, dtype: Type, node_id: None | NodeId = None) -> Reference:
         # make sure the data type matches the value
-        # TODO: should this be a scalar instead of an array
         array = pa.array([value], type=dtype.arrow_type)
         # create a random node id if not provided
         node_id = node_id if node_id is not None else str(uuid.uuid4())
@@ -520,10 +520,12 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             node_id=node_id,
         )
 
-    def add_collect_node(self, collect: dict | list, node_id: None | NodeId = None) -> Reference:
+    def add_collect_node(
+        self, collect: NestedType[Reference | str | int | float], node_id: None | NodeId = None
+    ) -> Reference:
         def add_constants(
-            val: dict | list | tuple | Any, dtype: None | Type = None
-        ) -> dict | list | tuple | Any:
+            val: NestedType[Reference | str | int | float], dtype: None | Type = None
+        ) -> NestedType[Reference]:
             if isinstance(val, dict):
                 assert (dtype is None) or isinstance(dtype, MappingType)
 
@@ -564,39 +566,13 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 # TODO: error message
                 TypeError(val)
 
-        def build_output_type(obj: dict | list | tuple | Reference) -> Type:
-            if isinstance(obj, dict):
-                return MappingType.from_dict(
-                    {key: build_output_type(item) for key, item in obj.items()}
-                )
+        if isinstance(collect, Reference):
+            # nothing to collect
+            return collect
 
-            elif isinstance(obj, (list, tuple)):
-                if len(obj) == 0:
-                    # default data type for empty sequences
-                    dtype = BoolType
-
-                else:
-                    dtype, *others = map(build_output_type, obj)
-                    # check the data types of all sequence items
-                    if any(dtype != other for other in others):
-                        # TODO: try to cast the values in the sequence to a common type
-                        raise NotImplementedError(dtype, others)
-
-                # build the sequence type
-                return SequenceType(value_type=dtype, length=len(obj))
-
-            elif isinstance(obj, Reference):
-                # get the data type from the graph
-                return self.get_dtype_from_reference(obj)
-
-            else:
-                raise TypeError(obj)
-
-        # prepare collect structure
+        # prepare collect structure and add all included constants to the graph
         collect = map_recursive(lambda _, x: x.ref if isinstance(x, _Feature) else x, collect)
         collect = add_constants(collect)
-        # build output type of the collect node following the given structure
-        feature_type = build_output_type(collect)
 
         inputs = {}
         # extract flat inputs to collect node from structure
@@ -614,11 +590,15 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             lambda p, v: ".".join(map(str, p)) if isinstance(v, Reference) else v, collect
         )
 
+        # create the collect node object
+        obj = CollectNode(lookup=lookup)
+
+        # add the node object
         return self.add_node(
-            node_obj=lookup,
+            node_obj=obj,
             node_type=DataFlowGraph.NodeType.COLLECT,
             inputs=inputs,
-            output_type=feature_type,
+            output_type=obj.build_output_type(self, inputs),
             node_id=node_id,
         )
 
