@@ -30,6 +30,11 @@ __all__ = [
     "Int16",
     "Int32",
     "Int64",
+    "UInt",
+    "UInt8",
+    "UInt16",
+    "UInt32",
+    "UInt64",
     "Float",
     "Float16",
     "Float32",
@@ -98,35 +103,35 @@ Supported types include :class:`int`, :class:`_UInt8`, :class:`_UInt16`, :class:
 Defaults to custom 64-bit unsigned integer type (:class:`_UInt64`).
 """
 
-Int8: TypeAlias = Union[int, _Int8, _UInt8]
+Int8: TypeAlias = Union[int, _Int8]
 """
 Int8: 8-bit integer type alias.
 
 Supported types include :class:`int`, :class:`_Int8` (signed), and :class:`_UInt8` (unsigned).
 """
 
-Int16: TypeAlias = Union[int, _Int16, _UInt16]
+Int16: TypeAlias = Union[int, _Int16]
 """
 Int16: 16-bit integer type alias.
 
 Supported types include :class:`int`, :class:`_Int16` (signed), and :class:`_UInt16` (unsigned).
 """
 
-Int32: TypeAlias = Union[int, _Int32, _UInt32]
+Int32: TypeAlias = Union[int, _Int32]
 """
 Int32: 32-bit integer type alias.
 
 Supported types include :class:`int`, :class:`_Int32` (signed), and :class:`_UInt32` (unsigned).
 """
 
-Int64: TypeAlias = Union[int, _Int64, _UInt64]
+Int64: TypeAlias = Union[int, _Int64]
 """
 Int64: 64-bit integer type alias.
 
 Supported types include :class:`int`, :class:`_Int64` (signed), and :class:`_UInt64` (unsigned).
 """
 
-Int: TypeAlias = Union[int, _Int64, _UInt64, _Int32, _UInt32, _Int16, _UInt16, _Int8, _UInt8]
+Int: TypeAlias = Union[int, _Int64, _Int32, _Int16, _Int8]
 """
 Int: Type alias for an integer of varying bit length.
 

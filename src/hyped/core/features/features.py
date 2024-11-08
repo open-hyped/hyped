@@ -46,6 +46,15 @@ class _Bool(_Primitive):
     def __post_init__(self) -> None:
         assert self.dtype is types.BoolType
 
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: typing.Any, handler: pydantic.GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        return core_schema.no_info_before_validator_function(
+            lambda v: (v if not isinstance(v, Reference) else _Bool(v, types.BoolType)),
+            schema=handler(source_type),
+        )
+
 
 class _String(_Primitive):
     dtype: types.Type = types.BoolType

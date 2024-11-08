@@ -58,7 +58,13 @@ class CollectNode(BaseNode[CollectNodeConfig]):
                     (field_name, field_dtype.arrow_type) for field_name, field_dtype in dtype.fields
                 ]
                 # pack values in a struct array
-                return pa.StructArray.from_arrays(field_values, fields=field_dtypes)
+                return pa.StructArray.from_arrays(
+                    [
+                        array.combine_chunks() if isinstance(array, pa.ChunkedArray) else array
+                        for array in field_values
+                    ],
+                    fields=field_dtypes,
+                )
 
             elif isinstance(struct, (list, tuple)) and isinstance(dtype, SequenceType):
                 struct = list(map(partial(_collect, dtype=dtype.value_type), struct))
@@ -79,6 +85,7 @@ class CollectNode(BaseNode[CollectNodeConfig]):
 
             elif isinstance(struct, str):
                 # get the referenced input array
+                print(struct, type(inputs[struct]))
                 return inputs[struct]
 
             else:
