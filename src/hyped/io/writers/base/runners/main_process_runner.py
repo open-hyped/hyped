@@ -12,13 +12,13 @@ from typing import Any, Callable
 from datasets import IterableDataset
 
 from hyped.common._worker import reset_worker_info, set_worker_info
-from hyped.common.iterators import TimedIterator, ith_entries
 from hyped.common.logging import get_logger
 from hyped.common.typing import Sample, TypeAlias
-from hyped.common.utils import clock
+from hyped.io.writers.base.utils import TimedIterator, ith_entries
 
 from ..callbacks.base import CallbackManager
 from ..monitor import ProgressMonitor, ProgressReport
+from ..utils import clock
 from .base import BaseRunner, WorkerProcessingStage, WorkerRole
 
 logger = get_logger(__name__)

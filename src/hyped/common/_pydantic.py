@@ -4,9 +4,7 @@ from functools import partial
 
 import datasets
 import pydantic
-from pydantic._internal._model_construction import ModelMetaclass
-from pydantic.fields import Field
-from typing_extensions import Annotated, dataclass_transform
+from typing_extensions import Annotated
 
 # map datasets value dtype to
 DATASETS_VALUE_TYPE_MAPPING = {
@@ -115,23 +113,3 @@ def pydantic_model_from_features(
         **fields,
         __config__=pydantic.ConfigDict(arbitrary_types_allowed=True, validate_assignment=True),
     )
-
-
-@dataclass_transform(kw_only_default=True, field_specifiers=(Field,))
-class validate_type_meta(ModelMetaclass):
-    """Metaclass that calls the classes type_validator before creating the class."""
-
-    def __new__(cls, name, bases, attrs, **kwargs) -> type:
-        """Validates the class and creates it."""
-        T = super().__new__(cls, name, bases, attrs, **kwargs)
-        T.type_validator()
-        return T
-
-
-class BaseModelWithTypeValidation(pydantic.BaseModel, metaclass=validate_type_meta):
-    """BaseModel that validates type annotations before creation of the class."""
-
-    @classmethod
-    def type_validator(cls) -> None:
-        """This validator is called before creation of the class."""
-        pass

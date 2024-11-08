@@ -36,19 +36,20 @@ from datasets.iterable_dataset import (
 
 from hyped.common._worker import manager as _manager  # noqa: F401
 from hyped.common._worker import set_worker_info
-from hyped.common.iterators import (
+from hyped.common.logging import get_cls_logger
+from hyped.common.typing import Rank, Sample
+
+from ..callbacks.base import CallbackManager
+from ..monitor import ProgressMonitor, ProgressReport
+from ..utils import (
     QueueIterator,
     StoppableIterator,
     TimedIterator,
     batched,
+    clock,
+    compose,
     ith_entries,
 )
-from hyped.common.logging import get_cls_logger
-from hyped.common.typing import Rank, Sample
-from hyped.common.utils import clock, compose
-
-from ..callbacks.base import CallbackManager
-from ..monitor import ProgressMonitor, ProgressReport
 from .base import BaseRunner, WorkerProcessingStage, WorkerRole
 
 # shorthands and helper type aliases

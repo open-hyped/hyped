@@ -16,15 +16,16 @@ from functools import partial
 
 import datasets
 
-from hyped.common.iterators import BatchBuffer
 from hyped.common.logging import get_logger
 from hyped.common.typing import DatasetType, Sample
-from hyped.common.utils import chdir, compose, run_all
+from hyped.common.utils import chdir
 from hyped.core.features.reference import FeatureKey
+from hyped.io.writers.base.utils import BatchBuffer
 
 from .callbacks.base import Callback
 from .consumer import DatasetConsumer
 from .sharding import ShardingController, ShardingStrategy
+from .utils import compose, run_all
 
 logger = get_logger(__name__)
 

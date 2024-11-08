@@ -14,9 +14,9 @@ from enum import Enum
 from typing import Iterable, TypeAlias, TypedDict
 
 from hyped.common.typing import Rank
-from hyped.common.utils import EMA, TimeWeightedEMA, clock
 
 from .runners.base import WorkerProcessingStage, WorkerRole
+from .utils import EMA, TimeWeightedEMA, clock
 
 TimeReport: TypeAlias = dict[WorkerProcessingStage, float]
 
