@@ -408,7 +408,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         node_obj: Any,
         node_type: DataFlowGraph.NodeType,
         inputs: dict[str, Reference],
-        output_type: MappingType,
+        output_type: Type,
         node_id: None | NodeId = None,
     ) -> Reference:
         # infer the output partition of the node from the node type and input references

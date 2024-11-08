@@ -27,17 +27,14 @@ import asyncio
 from dataclasses import dataclass, field
 from itertools import groupby
 
-from datasets import Features, Value
+import pyarrow as pa
 
 from hyped.common.typing import NodeId
-from hyped.nodes._ops.collect import CollectFeatures, NestedContainer
 
 from .executor import DataFlowExecutor
-from .features.reference import FeatureKey
+from .features.reference import FeatureKey, Reference
+from .features.types import BoolType, MappingType
 from .graph import DataFlowGraph
-from .nodes.const import Const
-from .refs.inputs import InputRefsContainer
-from .refs.ref import FeatureRef
 
 
 class DataFlowGraphOptimizer(object):
@@ -59,7 +56,7 @@ class DataFlowGraphOptimizer(object):
     and non-constant values by precomputing the constant parts of these expressions.
     """
 
-    def cse(self, graph: DataFlowGraph) -> DataFlowGraph:
+    def cse(self, graph: DataFlowGraph) -> tuple[DataFlowGraph, dict[NodeId, NodeId]]:
         """Performs Common Subexpression Elimination (CSE) on the data flow graph.
 
         This method performs Common Subexpression Elimination (CSE) on the given data flow graph.
@@ -127,58 +124,65 @@ class DataFlowGraphOptimizer(object):
                 ]
 
                 node_data = graph.nodes[node_id]
-                obj = node_data[DataFlowGraph.NodeAttribute.NODE_OBJ]
+                node_type = node_data[DataFlowGraph.NodeAttribute.NODE_TYPE]
+                node_obj = node_data[DataFlowGraph.NodeAttribute.NODE_OBJ]
                 # create cse node identifier
                 identifier = _CSE_NodeIdentifier(
-                    node_type=node_data[DataFlowGraph.NodeAttribute.NODE_TYPE],
-                    node_config=getattr(obj, "config", None),
+                    node_type=node_type,
+                    node_config=getattr(node_obj, "config", node_obj),
                     in_edge_identifiers=in_edge_identifiers,
                 )
 
                 # do not add a new node if the node is already present in the layer
                 if identifier in cse_layer:
                     identifier = cse_layer[cse_layer.index(identifier)]
+
+                    assert identifier.node_id is not None
                     node_mapping[node_id] = identifier.node_id
 
                 else:
                     # read node feature properties
-                    in_features = node_data[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPEs]
-                    out_features = node_data[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
+                    in_feature_type = node_data[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE]
+                    out_feature_type = node_data[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
 
-                    if obj is None:
+                    if node_obj is None:
                         # add source node to optimized graph
                         identifier.node_id = cse_graph.add_source_node(
-                            out_features, node_id=node_id
-                        )
+                            out_feature_type, node_id=node_id
+                        )._node_id
 
                     else:
-                        inputs: None | InputRefsContainer = None
                         # build input references object if expected
-                        if in_features is not None:
-                            named_refs = {
-                                name: cse_graph.get_node_output_ref(src_node_id)[key]
-                                for src_node_id, name, key in in_edge_identifiers
-                            }
-                            # create input reference container from edge data
-                            inputs = InputRefsContainer(named_refs=named_refs, flow=cse_graph)
+                        inputs: dict[str, Reference] = {
+                            name: Reference(key, node_mapping[src_node_id], cse_graph)
+                            for src_node_id, name, key in in_edge_identifiers
+                        }
 
-                        else:
-                            # the node doesn't expect any inputs, i.e. it is a source node
-                            assert obj._in_refs_type is type(None)
+                        identifier.node_id = cse_graph.add_node(
+                            node_obj=node_obj,
+                            node_type=node_type,
+                            inputs=inputs,
+                            output_type=out_feature_type,
+                            node_id=node_id,
+                        )._node_id
 
-                        # add the node to the optimized graph
-                        identifier.node_id = cse_graph.add_processor_node(
-                            obj, inputs, out_features, node_id=node_id
-                        )
+                    # make sure the input feature type
+                    assert (
+                        in_feature_type
+                        == cse_graph.nodes[identifier.node_id][
+                            DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE
+                        ]
+                    )
 
                     # update cse layer and node id mapping
+                    assert identifier.node_id is not None
                     cse_layer.append(identifier)
                     # the node keeps the same id
                     node_mapping[node_id] = node_id
 
-        return cse_graph
+        return cse_graph, node_mapping
 
-    def constant_evaluation(self, graph: DataFlowGraph) -> DataFlowGraph:
+    def constant_evaluation(self, graph: DataFlowGraph, leaf_nodes: set[NodeId]) -> DataFlowGraph:
         """Pre-computes the constant partition of the data flow graph.
 
         This method evaluates the constant partition of the data flow graph,
@@ -202,6 +206,7 @@ class DataFlowGraphOptimizer(object):
 
         Args:
             graph (DataFlowGraph): The data flow graph to be optimized.
+            leaf_nodes (set[NodeId]): The leaf nodes, ensured to be present in the optimized graph.
 
         Returns:
             DataFlowGraph: The optimized data flow graph with evaluated constants.
@@ -217,16 +222,32 @@ class DataFlowGraphOptimizer(object):
         # all nodes in the constant partition are source nodes which cannot
         # be optimized further
         if len(const_graph.edges) > 0:
-            # create a new graph from the view
-            # and add a source node with no features
-            const_graph = DataFlowGraph(const_graph)
-            const_graph.add_source_node(Features({"x": Value("int32")}))
+            const_node_ids = list(const_graph.nodes)
 
-            # collect the outputs of all nodes
-            collect = NestedContainer[FeatureRef](
-                data={i: const_graph.get_node_output_ref(i) for i in const_graph.nodes()}
+            # create a dummy input feature for execution
+            dummy_type = MappingType.from_dict({"field": BoolType})
+            dummy_array = pa.array([{"field": True}], type=dummy_type.arrow_type)
+
+            # create a new graph from the view
+            # and add a source node with a dummy feature
+            const_graph = DataFlowGraph(const_graph)
+            const_graph.add_source_node(dummy_type)
+            # apply common subexpression evaluation to constant partition
+            const_graph, node_mapping = self.cse(const_graph)
+            # map constant node ids and leaf nodes to potentially new values
+            leaf_nodes = [
+                node_mapping[node_id] if node_id in const_node_ids else node_id
+                for node_id in leaf_nodes
+            ]
+            const_node_ids = [node_mapping[node_id] for node_id in const_node_ids]
+
+            # collect all outputs of all constant nodes in the graph
+            collect = const_graph.add_collect_node(
+                {
+                    node_id: Reference(_node_id=node_id, _graph=const_graph)
+                    for node_id in const_node_ids
+                }
             )
-            collect = CollectFeatures().call(collection=collect)
 
             # create an executor for the constant partition
             executor = DataFlowExecutor(
@@ -235,8 +256,8 @@ class DataFlowGraphOptimizer(object):
 
             # execute the constant partition
             loop = asyncio.new_event_loop()
-            future = executor.execute({"x": [0]}, index=[0], rank=0)
-            out = loop.run_until_complete(future)["collected"][0]
+            future = executor.execute(dummy_array, index=[0], rank=0)
+            out = loop.run_until_complete(future)
             # close the event loop
             loop.close()
 
@@ -248,34 +269,40 @@ class DataFlowGraphOptimizer(object):
             graph = DataFlowGraph(graph)
 
             const_lookup = dict()
+            # add constant leaf nodes
+            for node_id in filter(const_graph.__contains__, leaf_nodes):
+                # get the expected data type of the constant value
+                dtype = const_graph.nodes[node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
+                # add the constant node and track it
+                ref = graph.add_const_node(out.field(node_id)[0], dtype, node_id)
+                const_lookup[(node_id, FeatureKey())] = ref
+
             # add all required constants
             for const_node_id, tgt_node_id, key, data in const_edges:
-                key = data.pop(DataFlowGraph.EdgeAttribute.KEY)
+                key: FeatureKey = data.pop(DataFlowGraph.EdgeAttribute.KEY)
 
                 if (const_node_id, key) not in const_lookup:
-                    # get the feature type of the constant referenced by the edge
-                    feature = const_graph.nodes[const_node_id][
+                    # get the expected data type of the constant value
+                    dtype = const_graph.nodes[const_node_id][
                         DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
                     ]
-                    dtype = key.index_features(feature)
-                    # get the constant value referenced by the edge
-                    value = key.index_example(out[const_node_id])
-                    # create a new constant and add it to the data flow
-                    const = Const(value=value, dtype=dtype)
-                    ref = const.call(graph).value
-                    # add the reference to the constants lookup
+                    # get the referenced sub-feature of the constant value
+                    dtype = key.index_dtype(dtype)
+                    array = key.index_array(out.field(const_node_id))
+                    # add the constant node to the graph
+                    ref = graph.add_const_node(array[0], dtype, const_node_id)
                     const_lookup[(const_node_id, key)] = ref
 
                 # get the reference object from the lookup
                 ref = const_lookup[(const_node_id, key)]
                 # add the edge to the graph
                 graph.add_edge(
-                    ref.node_id_,
+                    ref._node_id,
                     tgt_node_id,
                     key=key,
                     **{
                         DataFlowGraph.EdgeAttribute.NAME: data[DataFlowGraph.EdgeAttribute.NAME],
-                        DataFlowGraph.EdgeAttribute.KEY: ref.key_,
+                        DataFlowGraph.EdgeAttribute.KEY: ref._key,
                     },
                 )
 
@@ -324,13 +351,14 @@ class DataFlowGraphOptimizer(object):
             AssertionError: If not all leaf nodes are contained in the optimized graph.
         """
         # build dependency graph for the given set of nodes
-        graph = graph.dependency_graph(leaf_nodes)
+        # and always include the source node
+        graph = graph.dependency_graph(leaf_nodes | {graph.src_node_id})
 
         # evaluate all constants
-        graph = self.constant_evaluation(graph)
+        graph = self.constant_evaluation(graph, leaf_nodes)
 
         # apply common sub-expresison elimination
-        graph = self.cse(graph)
+        graph, _ = self.cse(graph)
 
         # apply constant folding/propagation
         graph = self.constant_folding(graph)

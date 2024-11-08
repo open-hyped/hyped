@@ -33,6 +33,7 @@ from .features.features import _Feature, build_feature_from_annotation, build_fe
 from .features.reference import FeatureKey, Reference
 from .features.types import Type
 from .graph import DataFlowGraph
+from .optim import DataFlowGraphOptimizer
 from .typing import Mapping, Sequence
 from .utils import build_dtype_from_hf_feature, build_dtype_from_object, is_dtype_subset
 
@@ -266,6 +267,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         default_color_map = {
             DataFlowGraph.NodeType.SOURCE: cmap.colors[0],
             DataFlowGraph.NodeType.CONST: cmap.colors[1],
+            DataFlowGraph.NodeType.COLLECT: cmap.colors[5],
             DataFlowGraph.NodeType.DATA_PROCESSOR: cmap.colors[2],
             DataFlowGraph.NodeType.DATA_AUGMENTER: cmap.colors[3],
             DataFlowGraph.NodeType.DATA_AGGREGATOR: cmap.colors[4],
@@ -365,6 +367,7 @@ class ExecutableDataFlow(DataFlow[T]):
             raise RuntimeError("The collect feature does not belong to this flow.")
 
         # TODO: optimize data flow
+        graph = DataFlowGraphOptimizer().optimize(graph, leaf_nodes={collect._node_id})
 
         # create read-only view on graph
         self._graph: DataFlowGraph = nx.restricted_view(graph, [], [])

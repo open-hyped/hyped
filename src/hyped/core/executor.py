@@ -330,7 +330,7 @@ class DataFlowExecutor(object):
             # run aggregator
             await self.aggregation_manager.aggregate(node_obj, ctx, inputs)
 
-    async def execute(self, batch: pa.Array, index: IndexList, rank: Rank) -> Batch:
+    async def execute(self, batch: pa.Array, index: IndexList, rank: Rank) -> pa.Array:
         """Execute the entire data flow graph.
 
         Args:
@@ -339,7 +339,7 @@ class DataFlowExecutor(object):
             rank (Rank): The rank of the process in a multiprocessing setting.
 
         Returns:
-            Batch: The final collected batch of data.
+            pa.Array: The final collected batch of data.
         """
         # create an execution state
         state = ExecutionState(self.graph, self.p_graph, batch, index, rank)
