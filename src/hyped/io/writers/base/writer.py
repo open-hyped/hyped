@@ -25,7 +25,7 @@ from hyped.io.writers.base.utils import BatchBuffer
 from .callbacks.base import Callback
 from .consumer import DatasetConsumer
 from .sharding import ShardingController, ShardingStrategy
-from .utils import compose, run_all
+from .utils import Compose, RunAll
 
 logger = get_logger(__name__)
 
@@ -79,6 +79,7 @@ class BaseDatasetWriter(ABC):
                 Defaults to '5GB' matching the default sharding strategy.
             sample_size_key (str, optional): The key in the dataset sample to measure size if using
                 the :class:`SAMPLE_ITEM` sharding strategy.
+            callbacks (list[Callback]): List of callbacks.
         """
         self.save_dir = save_dir
         self._overwrite = overwrite
@@ -173,7 +174,7 @@ class BaseDatasetWriter(ABC):
         write_fn = (
             self.write_batch
             if not sharding_controller.is_active
-            else compose(
+            else Compose(
                 sharding_controller.update,
                 self.write_batch,
                 sharding_controller.callback,
@@ -194,11 +195,11 @@ class BaseDatasetWriter(ABC):
                 buffered_write_fn.add,
                 num_proc=self._num_proc,
                 prefetch_factor=self._prefetch,
-                initialize=run_all(
+                initialize=RunAll(
                     sharding_controller.initialize,
                     partial(self.initialize, ds.info),
                 ),
-                finalize=run_all(
+                finalize=RunAll(
                     buffered_write_fn.flush,
                     sharding_controller.finalize,
                     partial(self.finalize, ds.info),
@@ -279,7 +280,7 @@ class BaseDatasetWriter(ABC):
             info (datasets.DatasetInfo): Information about the dataset to be written, including
                 metadata and configuration details.
         """
-        ...  # pragma: not covered
+        return  # pragma: not covered
 
     def finalize(self, info: datasets.DatasetInfo) -> None:
         """Finalize the global dataset write process.
@@ -294,7 +295,7 @@ class BaseDatasetWriter(ABC):
             info (datasetsDatasetInfo): Information about the dataset that was written, including
                 metadata and configuration details.
         """
-        ...  # pragma: not covered
+        return  # pragma: not covered
 
     @abstractmethod
     def initialize_shard(self, shard_id: int, info: datasets.DatasetInfo) -> None:

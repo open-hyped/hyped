@@ -57,7 +57,7 @@ class DatasetConsumer(object):
                 pipeline. Default is a no-op function.
             finalize (Callable[[], Any], optional): A callable to finalize the processing
                 pipeline. Default is a no-op function.
-            progress_update_interval (float, optional): The interval in seconds at which the tqdm
+            progress_report_interval (float, optional): The interval in seconds at which the tqdm
                 progress bar updates. Default is 0.1.
             disable_tqdm (bool, optional): Whether to disable the tqdm progress bar. Default is
                 False, meaning the progress bar is enabled.

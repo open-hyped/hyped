@@ -42,12 +42,12 @@ from hyped.common.typing import Rank, Sample
 from ..callbacks.base import CallbackManager
 from ..monitor import ProgressMonitor, ProgressReport
 from ..utils import (
+    Compose,
     QueueIterator,
     StoppableIterator,
     TimedIterator,
     batched,
     clock,
-    compose,
     ith_entries,
 )
 from .base import BaseRunner, WorkerProcessingStage, WorkerRole
@@ -687,7 +687,7 @@ class WorkerController(object):
             rank (Rank): The rank of the worker to assign.
             shard (Iterable): The data shard to be processed.
             transform (Callable[[Iterable], Iterable] | None): The transform function.
-            fn (Callable[[Any], Any] | None): An additional function to be applied.
+            fn (Callable[[Any], Any] | None): The function to be applied to each transformed item.
         """
         ctx = WorkerContext(
             role=WorkerRole.STANDALONE,
@@ -710,12 +710,12 @@ class WorkerController(object):
         Args:
             rank (Rank): The rank of the worker to assign.
             transform (Callable[[Iterable], Iterable] | None): The tranform function.
-            fn (Callable[[Any], Any] | None): An additional function to be applied.
+            fn (Callable[[Any], Any] | None): The function to be applied to each transformed item.
         """
         ctx = WorkerContext(
             role=WorkerRole.CONSUMER,
             data_stream=self.queue_it,
-            data_transform=compose(transform, self.serializer.deserialize),
+            data_transform=Compose(transform, self.serializer.deserialize),
             data_finalizer=fn,
         )
         self.workers[rank].send_ctx(ctx, blocking=False)
@@ -753,8 +753,8 @@ class WorkerController(object):
         processor set.
 
         Args:
-            processor (Callable[[Iterable], Iterable] | None): The processing function.
-            fn (Callable[[Any], Any] | None): An additional function to be applied.
+            transform (Callable[[Iterable], Iterable] | None): The transform function.
+            fn (Callable[[Any], Any] | None): The function to be applied to each transformed item.
 
         Returns:
             Rank | None: The rank of the worker if the switch is successful, None otherwise.
@@ -927,6 +927,8 @@ class DynamicMultiprocessingRunner(BaseRunner):
                 worker. This function will run before the worker starts processing data.
             worker_finalize (Callable[[], Any]): A callable that will be invoked to finalize each
                 worker. This function will run after the worker has finished processing all data.
+            progress_report_interval (float): The time interval, in seconds, between sending
+                progress updates.
             callback (CallbackManager): A callback manager that will be invoked at various points
                 during the data processing lifecycle.
         """
@@ -986,7 +988,7 @@ class DynamicMultiprocessingRunner(BaseRunner):
         src_ds = IterableDataset(ex_iterable=pipeline.src_iterable)
         ex_iterable = src_ds._prepare_ex_iterable_for_iteration(batch_size=self._prefetch)
         # pipeline iterator yields (key, sample)-tuples, drop the key
-        processor = compose(partial(ith_entries, i=1), pipeline.copy())
+        processor = Compose(partial(ith_entries, i=1), pipeline.copy())
 
         return ex_iterable, processor
 

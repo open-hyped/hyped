@@ -44,8 +44,8 @@ def _parse_size(size_str: str) -> int:
             try:
                 size_value = float(size_str[: -len(unit)].strip())
                 return int(size_value * factor)
-            except ValueError:
-                raise ValueError(f"Invalid size value: {size_str}")
+            except ValueError as e:
+                raise ValueError(f"Invalid size value: {size_str}") from e
 
     raise ValueError(f"Invalid size format: {size_str}")
 

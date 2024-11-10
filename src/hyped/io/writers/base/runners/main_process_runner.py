@@ -48,6 +48,10 @@ class MainProcessRunner(BaseRunner):
             batch_size (int): The number of samples to process in each batch.
             initialize (Callable[[], Any]): Function to initialize the processing environment.
             finalize (Callable[[], Any]): Function to finalize the processing environment.
+            progress_report_interval (float): The time interval, in seconds, between sending
+                progress updates.
+            callback (CallbackManager): A callback manager that will be invoked at various points
+                during the data processing lifecycle.
         """
         self._batch_size = batch_size
         self._initialize = initialize

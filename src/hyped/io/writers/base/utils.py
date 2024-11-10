@@ -50,7 +50,7 @@ else:
 
 
 def ith_entries(iterable: Iterable[Tuple], i: int) -> Iterator:
-    """Returns an iterator that yields the i-th entry from each tuple in the iterable using itemgetter.
+    """Returns an iterator that yields the i-th entry from each tuple of an iterable.
 
     Args:
         iterable (Iterable[Tuple]): An iterable that yields tuples.
@@ -108,7 +108,7 @@ class QueueIterator:
 
             return item
         except Empty:
-            raise StopIteration
+            raise StopIteration  # noqa: B904
 
 
 T = TypeVar("T")
@@ -288,14 +288,14 @@ class BatchBuffer(Generic[T, U]):
         self._buffer.clear()
 
 
-class compose(object):
+class Compose(object):
     """Composes an arbitrary number of functions into a single function.
 
     The composed function applies the input functions from right to left (i.e.,
     the last function in the list is applied first, and the first function is applied last).
 
     Example:
-        If :code:`compose(f, g, h)` is called with input :code:`x`, it returns :code:`f(g(h(x)))`.
+        If :code:`Compose(f, g, h)` is called with input :code:`x`, it returns :code:`f(g(h(x)))`.
 
     Args:
         *functions (Callable[[Any], Any]): An arbitrary number of functions to compose.
@@ -308,7 +308,7 @@ class compose(object):
     """
 
     def __init__(self, *functions: Callable[[Any], Any]) -> None:
-        """Initialize the :class:`compose` object with the provided functions.
+        """Initialize the :class:`Compose` object with the provided functions.
 
         Args:
             *functions (Callable[[Any], Any]): Functions to be composed.
@@ -328,14 +328,14 @@ class compose(object):
         return reduce(lambda x, f: f(x), self._functions, x)
 
 
-class run_all(object):
+class RunAll(object):
     """Runs an arbitrary number of functions sequentially with the same arguments.
 
     Each function in the list is called with the provided arguments, and their execution
     order is from first to last. No function's output is used as input for the next.
 
     Example:
-        If :code:`run_all(f, g, h)` is called with arguments :code:`x, y`, it executes:
+        If :code:`RunAll(f, g, h)` is called with arguments :code:`x, y`, it executes:
 
         .. code-block:: python
 
@@ -352,7 +352,7 @@ class run_all(object):
     """
 
     def __init__(self, *functions: Callable[[Any], Any]) -> None:
-        """Initialize the :class:`run_all` object with the provided functions.
+        """Initialize the :class:`RunAll` object with the provided functions.
 
         Args:
             *functions (Callable[[Any], Any]): Functions to be executed sequentially.

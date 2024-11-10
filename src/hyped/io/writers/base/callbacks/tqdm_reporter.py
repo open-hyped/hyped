@@ -31,6 +31,7 @@ def _run_tqdm(monitor: ProgressMonitor, update_interval: float, **kwargs: Any) -
         monitor (ProgressMonitor): The object tracking the status of workers and the processing
             task.
         update_interval (float): The interval in seconds between progress bar updates.
+        kwargs (Any): Additional keyword arguments passed to the :func:`tqdm` function.
     """
     logger.info("Thread started.")
 

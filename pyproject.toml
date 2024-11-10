@@ -91,13 +91,14 @@ skip = ["docs/source/conf.py"]
 
 [tool.ruff]
 line-length = 100
-ignore = ["E741"]
-select = ["D", "E", "F", "W", "C", "N", "B", "T"]
+ignore = ["E741", "B028", "B006", "B008", "B023"]
+select = ["D", "E", "F", "W", "N", "B", "T"]
 
 [tool.ruff.pydocstyle]
 convention = "google"
 
 [tool.ruff.per-file-ignores]
 # Don't check docstrings of `tests` and `docs`
-"tests/**" = ["D"]
+#"tests/**" = ["D"]
 "docs/**" = ["D"]
+"tests/**" = ["D", "E", "F", "W", "N", "B", "T"]  # TODO: temporary

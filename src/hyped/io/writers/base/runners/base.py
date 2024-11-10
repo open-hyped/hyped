@@ -67,7 +67,7 @@ class BaseRunner(ABC):
     """
 
     @abstractmethod
-    def run(ds: IterableDataset, fn: Callable[[Sample], Any]) -> None:
+    def run(self, ds: IterableDataset, fn: Callable[[Sample], Any]) -> None:
         """Execute data processing on the given dataset.
 
         Args:
