@@ -137,10 +137,10 @@ Return = TypeVar("Return")
 
 
 class _AggregatorProtocol(Protocol, Generic[Params, Return]):
-    def extract(self, *args: Params.args, **kwargs: Params.kwargs) -> Any:
+    async def extract(self, *args: Params.args, **kwargs: Params.kwargs) -> Any:
         ...
 
-    def update(self, *args: Any, **kwargs: Any) -> tuple[Return, Any]:
+    async def update(self, *args: Any, **kwargs: Any) -> tuple[Return, Any]:
         ...
 
 
