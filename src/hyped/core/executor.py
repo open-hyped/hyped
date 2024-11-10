@@ -10,7 +10,9 @@ Classes:
       and collecting results.
 """
 import asyncio
+import typing
 from collections import defaultdict
+from types import MappingProxyType
 
 import networkx as nx
 import numpy as np
@@ -19,6 +21,7 @@ import pyarrow as pa
 from hyped.common.typing import Batch, IndexList, NodeId, Rank, TraceIndexList
 
 from .features.reference import FeatureKey, Reference
+from .features.types import MappingType
 from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
@@ -269,6 +272,13 @@ class DataFlowExecutor(object):
         self.collect = collect
         self.aggregation_manager = aggregation_manager
 
+        if (aggregation_manager is None) and any(
+            node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR
+            for _, node_type in graph.nodes(data=DataFlowGraph.NodeAttribute.NODE_TYPE)
+        ):
+            # no aggregation manager provided but aggregation nodes included in graph
+            raise RuntimeError()
+
     async def execute_node(self, node_id: NodeId, state: ExecutionState) -> None:
         """Execute a single node in the data flow graph.
 
@@ -328,6 +338,7 @@ class DataFlowExecutor(object):
 
         elif node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
             # run aggregator
+            assert self.aggregation_manager is not None
             await self.aggregation_manager.aggregate(node_obj, ctx, inputs)
 
     async def execute(self, batch: pa.Array, index: IndexList, rank: Rank) -> pa.Array:
@@ -353,3 +364,111 @@ class DataFlowExecutor(object):
         )
         # collect output values
         return state.collect_value(self.collect)
+
+
+class LazyDataFlowExecutor(typing.Mapping, DataFlowExecutor):
+    def __init__(
+        self,
+        graph: DataFlowGraph,
+        collect: Reference,
+        input_proxy: MappingProxyType[str, pa.Scalar],
+    ) -> None:
+        """Initialize the executor.
+
+        Args:
+            graph (DataFlowGraph): The data flow graph to execute.
+            collect (Reference): The feature reference to collect results.
+            input_proxy (MappingProxyType[str, Any]): A read-only proxy for the input data.
+        """
+        DataFlowExecutor.__init__(self, graph, collect, None)
+
+        self._proxy = input_proxy
+        self._proxy_snapshot: None | dict[str, pa.Scalar] = None
+        self._value_snapshot: None | dict[str, pa.Scalar] = None
+
+    def keys(self) -> typing.Iterable[str]:
+        """Get the keys of the output features.
+
+        Returns:
+            Iterable[Hashable]: An iterable of the output feature keys.
+        """
+        # get the data type of the collect feature
+        dtype = self.graph.get_dtype_from_reference(self.collect)
+        assert isinstance(dtype, MappingType)
+
+        return dtype.keys()
+
+    def _get_values(self) -> MappingProxyType[str, typing.Any]:
+        """Compute and cache the output values if the inputs have changed.
+
+        Returns:
+            MappingProxyType[Hashable, Any]: A read-only proxy to the computed output values.
+        """
+        proxy_snapshot = dict(self._proxy)
+
+        if (self._proxy_snapshot is None) or (proxy_snapshot != self._proxy_snapshot):
+            # convert pyarrow scalars to arrays for execution
+            array = pa.array([proxy_snapshot], type=self.graph.src_dtype.arrow_type)
+            # execute the flow executor on the inputs
+            loop = asyncio.new_event_loop()
+            future = self.execute(array, index=[0], rank=0)
+            output = loop.run_until_complete(future)
+            # close the event loop
+            loop.close()
+            # parse the outputs and store them as the snapshot
+            self._proxy_snapshot = proxy_snapshot
+            self._out_snapshot = output[0].as_py()
+
+        return MappingProxyType(self._out_snapshot)
+
+    def __getitem__(self, key: str) -> typing.Any:
+        """Get the value associated with the specified key.
+
+        Args:
+            key (Hashable): The key of the desired output value.
+
+        Returns:
+            Any: The value associated with the specified key.
+
+        Raises:
+            KeyError: If the key is not in the output features.
+        """
+        if key not in self.keys():
+            raise KeyError(key)
+
+        return self._get_values()[key]
+
+    def __iter__(self):
+        """Get an iterator over the keys of the output features.
+
+        Returns:
+            Iterator[Hashable]: An iterator over the output feature keys.
+        """
+        return iter(self.keys())
+
+    def __len__(self):
+        """Get the number of output features.
+
+        Returns:
+            int: The number of output features.
+        """
+        return len(self.keys())
+
+    def __repr__(self):
+        """Get the string representation of the LazyFlowOutput.
+
+        Returns:
+            str: The string representation of the LazyFlowOutput.
+        """
+        return "LazyFlowOutput(input_proxy=%s, executor=%s)" % (
+            self._proxy,
+            self,
+        )
+
+    def __str__(self):
+        """Get the string representation of the LazyFlowOutput.
+
+        Returns:
+            str: The string representation of the LazyFlowOutput.
+        """
+        return str(dict(self))

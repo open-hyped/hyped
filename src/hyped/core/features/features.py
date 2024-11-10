@@ -32,7 +32,9 @@ class _Feature(object):
     dtype: types.Type
 
     @classmethod
-    def __get_pydantic_core_schema__(cls, source_type, handler):
+    def __get_pydantic_core_schema__(
+        cls, source_type: typing.Any, handler: pydantic.GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
         return core_schema.is_instance_schema(cls)
 
 

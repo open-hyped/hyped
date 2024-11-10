@@ -1,9 +1,11 @@
 """Pydantic helper functionality."""
 import datetime
 from functools import partial
+from typing import Any, Generic, TypeVar, get_args
 
 import datasets
 import pydantic
+from pydantic_core import core_schema
 from typing_extensions import Annotated
 
 # map datasets value dtype to
@@ -113,3 +115,20 @@ def pydantic_model_from_features(
         **fields,
         __config__=pydantic.ConfigDict(arbitrary_types_allowed=True, validate_assignment=True),
     )
+
+
+T = TypeVar("T")
+
+
+class CustomType(Generic[T]):
+    """A class to define a custom type validator for Pydantic models."""
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source_type: Any, handler: Any):
+        """
+        Defines the Pydantic core schema for this custom type.
+
+        Returns:
+            core_schema.CoreSchema: A schema that validates instances of the specified type.
+        """
+        return core_schema.is_instance_schema(get_args(source_type)[0])

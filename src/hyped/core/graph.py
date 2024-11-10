@@ -62,20 +62,27 @@ def _compute_node_depth(G: nx.DiGraph) -> dict[Hashable, int]:
     return node_depths
 
 
-def _build_dependency_graph(G: nx.DiGraph, nodes: set[Hashable]) -> nx.DiGraph:
+def _build_dependency_graph(
+    G: nx.DiGraph, nodes: set[Hashable], stop_nodes: set[Hashable] = set()
+) -> nx.DiGraph:
     """Build a subgraph containing all dependencies for a given set of nodes.
 
     This function constructs a subgraph from a directed graph :code:`G` by including
-    all nodes that are dependencies (predecessors) of the specified :code:`nodes`.
-    The resulting subgraph consists of the nodes in :code:`nodes` and all their
-    upstream dependencies.
+    all nodes that are dependencies (predecessors) of the specified :code:`nodes`,
+    except those that reach any node in :code:`stop_nodes`. The resulting subgraph
+    consists of the nodes in :code:`nodes` and all their upstream dependencies, but
+    traversal stops at nodes in :code:`stop_nodes`.
 
     Args:
         G (nx.DiGraph): The original directed graph.
         nodes (set[Hashable]): A set of nodes for which to build the dependency subgraph.
+        stop_nodes (set[Hashable]): A set of nodes that serve as cut-off points in
+            the traversal. Dependencies beyond these nodes will not be included
+            in the subgraph.
 
     Returns:
-        nx.DiGraph: A subgraph of :code:`G` containing the specified nodes and their dependencies.
+        nx.DiGraph: A subgraph of :code:`G` containing the specified nodes and their dependencies,
+        with paths beyond :code:`stop_nodes` excluded.
 
     Raises:
         AssertionError: If any node in :code:`nodes` is not present in :code:`G`.
@@ -83,12 +90,16 @@ def _build_dependency_graph(G: nx.DiGraph, nodes: set[Hashable]) -> nx.DiGraph:
     assert all(node in G for node in nodes), "All nodes must be present in the graph 'G'."
 
     visited = set()
-    nodes = nodes.copy()
-    # search through dependency graph
-    while len(nodes) > 0:
-        node = nodes.pop()
-        visited.add(node)
-        nodes.update(G.predecessors(node))
+    to_visit = nodes.copy()
+
+    # Traverse dependencies
+    while to_visit:
+        node = to_visit.pop()
+        if node not in visited:
+            visited.add(node)
+            # Only add predecessors if the current node is not a stop node
+            if node not in stop_nodes:
+                to_visit.update(pred for pred in G.predecessors(node) if pred not in visited)
 
     return G.subgraph(visited)
 
@@ -310,6 +321,10 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         return self.graph[DataFlowGraph.GraphAttribute.SRC_NODE_ID]
 
     @property
+    def src_dtype(self) -> Type:
+        return self.nodes[self.src_node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
+
+    @property
     def depth(self) -> int:
         """Computes the total depth of the data flow graph.
 
@@ -415,10 +430,11 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         partition = self.infer_node_partition(node_type, list(inputs.values()))
         # aggregated partition currently only supports processor type nodes
         if (partition == DataFlowGraph.Partition.AGGREGATED) and (
-            node_type != DataFlowGraph.NodeType.DATA_PROCESSOR
+            node_type not in {DataFlowGraph.NodeType.COLLECT, DataFlowGraph.NodeType.DATA_PROCESSOR}
         ):
             raise NotImplementedError(
-                f"Aggregator outputs may only be processed by data processors, got {node_type}."
+                f"Aggregator outputs may only be processed by data processors "
+                f"or collect operations, got {node_type}."
             )
 
         # compute the depth of the node in the graph based on it's input references
@@ -856,19 +872,28 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         dtype = self.get_dtype_from_reference(ref)
         return build_feature_from_dtype(ref, dtype)
 
-    def dependency_graph(self, nodes: set[NodeId]) -> DataFlowGraph:
-        """Generate the dependency subgraph for a given node.
+    def dependency_graph(
+        self, nodes: set[NodeId], stop_nodes: set[NodeId] = set()
+    ) -> DataFlowGraph:
+        """Generate the dependency subgraph for a given set of nodes.
 
-        This method generates a subgraph containing all nodes that the given
-        set of nodes depend on directly or indirectly.
+        This method generates a subgraph that includes all nodes that the specified
+        :code:`nodes` depend on, either directly or indirectly, up to any defined cut-off
+        points.
 
         Args:
             nodes (set[NodeId]): The node IDs for which to generate the dependency graph.
+            stop_nodes (set[NodeId]): A set of node IDs that serve as cut-off points in
+                the traversal. When a dependency chain reaches any node in :node:`stop_nodes`,
+                it stops there, excluding that node's dependencies from the subgraph.
+                This allows limiting the scope of the dependency graph by excluding
+                deeper dependencies beyond these nodes.
 
         Returns:
-            DataFlowGraph: A subgraph representing the dependencies.
+            DataFlowGraph: A subgraph representing the dependencies of the specified
+            :code:`nodes`, excluding paths beyond any nodes in :code:`stop_nodes`.
         """
-        return _build_dependency_graph(self, nodes)
+        return _build_dependency_graph(self, nodes, stop_nodes)
 
     def get_partition(self, partition: PartitionId) -> DataFlowGraph:
         """Extract a subgraph containing only nodes from a specific partition.

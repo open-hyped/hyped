@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from inspect import Signature
 from itertools import chain
-from typing import Generic, ParamSpec, Protocol, TypeAlias, TypeVar, overload
+from typing import Generic, ParamSpec, Protocol, TypeVar, overload
 
 from hyped._registry.config import BaseConfig, BaseConfigurable
 from hyped.common.typing import Index, IndexList, NodeId, Rank
@@ -19,13 +19,6 @@ from ..features.engine import FeatureEngine
 from ..features.features import _Feature
 from ..features.types import MappingType, Type
 from ..typing import Feature
-
-DataFlow: TypeAlias = object
-
-
-# TODO: legacy code
-class IOContext:
-    ...
 
 
 @dataclass(frozen=True)

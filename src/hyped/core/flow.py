@@ -12,7 +12,7 @@ import re
 from dataclasses import replace
 from itertools import groupby
 from types import MappingProxyType
-from typing import Any, Generic, Literal, TypeVar, get_args
+from typing import Any, Generic, Literal, TypeVar, get_args, overload
 
 import datasets
 import matplotlib.pyplot as plt
@@ -24,15 +24,25 @@ import pydantic
 from matplotlib import colormaps
 
 from hyped.common._worker import get_worker_info
-from hyped.common.typing import Aggregate, IndexList, Rank
+from hyped.common.typing import IndexList, NodeId, Rank
 from hyped.common.utils import tmp_setattr
 
 from .abstract import AbstractDataFlow
-from .executor import DataFlowExecutor
-from .features.features import _Feature, build_feature_from_annotation, build_feature_from_dtype
+from .executor import DataFlowExecutor, LazyDataFlowExecutor
+from .features.features import (
+    _Bool,
+    _Feature,
+    _Float64,
+    _Int64,
+    _String,
+    build_feature_from_annotation,
+    build_feature_from_dtype,
+)
 from .features.reference import FeatureKey, Reference
-from .features.types import Type
+from .features.types import MappingType, Type
 from .graph import DataFlowGraph
+from .nodes.aggregator import DataAggregationManager
+from .nodes.base import RunContext
 from .optim import DataFlowGraphOptimizer
 from .typing import Mapping, Sequence
 from .utils import build_dtype_from_hf_feature, build_dtype_from_object, is_dtype_subset
@@ -172,9 +182,37 @@ class DataFlow(AbstractDataFlow, Generic[T]):
 
         return self._source_feature
 
+    @overload
+    def const(self, value: int) -> _Int64:
+        ...
+
+    @overload
+    def const(self, value: float) -> _Float64:
+        ...
+
+    @overload
+    def const(self, value: bool) -> _Bool:
+        ...
+
+    @overload
+    def const(self, value: str) -> _String:
+        ...
+
+    @overload
+    def const(self, value: dict) -> Mapping:
+        ...
+
+    @overload
+    def const(self, value: list | tuple) -> Sequence:
+        ...
+
     U = TypeVar("U", bound=_Feature)
 
-    def const(self, value: Any, feature_type: None | type[U] = None) -> U:
+    @overload
+    def const(self, value: Any, feature_type: type[U]) -> U:
+        ...
+
+    def const(self, value: Any, feature_type: None | type = None) -> _Feature:
         if feature_type is not None:
             # create a dummy feature to infer the data type
             # from the given feature type
@@ -186,6 +224,18 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         # add the constant node to the graph
         ref = self._graph.add_const_node(value, dtype)
         return self._graph.get_feature_from_reference(ref)
+
+    @overload
+    def collect(self, collect: dict) -> Mapping:
+        ...
+
+    @overload
+    def collect(self, collect: list | tuple) -> Sequence:
+        ...
+
+    @overload
+    def collect(self, collect: Any) -> _Feature:
+        ...
 
     def collect(self, collect: dict | list) -> Mapping | Sequence | _Feature:
         ref = self._graph.add_collect_node(collect)
@@ -203,11 +253,17 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         if not self._is_initialized:
             self._initialize()
 
-        # create a copy of the graph and update the collect reference accordingly
-        graph = self._graph.copy()
+        # create a read-only view of the data flow graph
+        graph = nx.restricted_view(self._graph, [], [])
+        # build the reference instances to the graph view
         collect = Reference(collect.ref._key, collect.ref._node_id, graph)
+        aggregate = (
+            None
+            if aggregate is None
+            else Reference(aggregate.ref._key, aggregate.ref._node_id, graph)
+        )
         # build executable data flow
-        return ExecutableDataFlow(graph, collect)
+        return ExecutableDataFlow(graph, collect, aggregate)
 
     def apply(
         self,
@@ -215,7 +271,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         collect: Reference,
         aggregate: None | Reference = None,
         **kwargs,
-    ) -> tuple[D, None | Aggregate | MappingProxyType[str, Any]]:
+    ) -> tuple[D, None | MappingProxyType[str, Any]]:
         return self.build(collect, aggregate).apply(ds, **kwargs)
 
     def plot(
@@ -359,22 +415,38 @@ class DataFlow(AbstractDataFlow, Generic[T]):
 
 
 class ExecutableDataFlow(DataFlow[T]):
-    def __init__(self, graph: DataFlowGraph, collect: Reference) -> None:
+    def __init__(
+        self, graph: DataFlowGraph, collect: Reference, aggregate: Reference | None
+    ) -> None:
         super(ExecutableDataFlow, self).__init__(self)
 
         # make sure the collect feature belongs to the graph
-        if collect._graph is not graph:
-            raise RuntimeError("The collect feature does not belong to this flow.")
+        if (collect._graph is not graph) or (collect._node_id not in graph.nodes):
+            raise RuntimeError("The collect node does not belong to this flow.")
 
-        # TODO: optimize data flow
-        graph = DataFlowGraphOptimizer().optimize(graph, leaf_nodes={collect._node_id})
+        # make sure collect doesn't belong to the aggregate partition
+        if graph.get_node_output_partition(collect._node_id) == DataFlowGraph.Partition.AGGREGATED:
+            raise RuntimeError()
 
-        # create read-only view on graph
-        self._graph: DataFlowGraph = nx.restricted_view(graph, [], [])
+        if aggregate is not None:
+            if (aggregate._graph is not graph) or (aggregate._node_id not in graph.nodes):
+                raise RuntimeError("The aggregate node does not belong to this flow.")
+
+            # make sure aggregate belongs to the aggregate partition
+            if (
+                graph.get_node_output_partition(aggregate._node_id)
+                != DataFlowGraph.Partition.AGGREGATED
+            ):
+                raise RuntimeError()
+
+            # make sure the collect feature is a mapping
+            if not isinstance(graph.get_feature_from_reference(aggregate), Mapping):
+                raise RuntimeError("aggregate must be mapping")
+
         # get the source feature instance from the graph
-        ref = Reference(FeatureKey(), graph.src_node_id, self._graph)
-        self._source_feature = self._graph.get_feature_from_reference(ref)
-        self._collect_feature = self._graph.get_feature_from_reference(collect)
+        ref = Reference(_node_id=graph.src_node_id, _graph=graph)
+        self._source_feature = graph.get_feature_from_reference(ref)
+        self._collect_feature = graph.get_feature_from_reference(collect)
 
         # make sure the source feature is a mapping
         if not isinstance(self._source_feature, Mapping):
@@ -384,8 +456,115 @@ class ExecutableDataFlow(DataFlow[T]):
         if not isinstance(self._collect_feature, Mapping):
             raise RuntimeError("Collect must be mapping")
 
-        # create the executor instance
-        self._executor = DataFlowExecutor(self._graph, collect, aggregation_manager=None)
+        # optimize data flow
+        graph = DataFlowGraphOptimizer().optimize(
+            graph,
+            leaf_nodes=(
+                {collect._node_id} if aggregate is None else {collect._node_id, aggregate._node_id}
+            ),
+        )
+
+        # create read only view on optimized graph
+        self._graph = nx.restricted_view(graph, [], [])
+        # create read-only view on the instance partition of the graph
+        self._instance_graph = graph.drop_partition(DataFlowGraph.Partition.AGGREGATED)
+        self._aggregates_graph: DataFlowGraph = None
+
+        self._aggregation_manager: None | DataAggregationManager = None
+        self._aggregates_executor: None | DataFlowExecutor = None
+
+        if aggregate is not None:
+            # get all aggregator nodes in the instance graph
+            nodes = self._instance_graph.nodes(data=DataFlowGraph.NodeAttribute.NODE_TYPE)
+            nodes = [
+                node
+                for node, node_type in nodes
+                if node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR
+            ]
+            # there must be at least one aggregator node in the graph
+            assert len(nodes) > 0
+
+            # build the data aggregation manager instance and the aggregates graph,
+            # which implements the operations performed on aggregated values
+            self._aggregation_manager = self._build_aggregation_manager(nodes)
+            self._aggregates_executor = self._build_aggregates_executor(aggregate, set(nodes))
+
+        # create the executors
+        self._instance_executor = DataFlowExecutor(
+            self._instance_graph, collect, aggregation_manager=self._aggregation_manager
+        )
+
+    @property
+    def aggregates(self) -> MappingProxyType[str, Any]:
+        return MappingProxyType(self._aggregates_executor)
+
+    def _build_aggregates_executor(
+        self, aggregate: Reference, aggregator_nodes: set[NodeId]
+    ) -> DataFlowExecutor:
+        # build the dependency graph of the aggregate up to the aggregator nodes
+        # note that this also includes constants
+        G = self._graph.dependency_graph({aggregate._node_id}, stop_nodes=aggregator_nodes)
+        # remove the aggregator nodes themselves as these are executed in the
+        # instance graph
+        G = nx.restricted_view(G, aggregator_nodes, [])
+
+        H = DataFlowGraph()
+        # add a source node
+        source_type = MappingType.from_dict(
+            {
+                str(node): self._graph.nodes[node][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
+                for node in aggregator_nodes
+            }
+        )
+        source_ref = H.add_source_node(source_type)
+
+        # rebuild the aggregates graph
+        for node_id in nx.topological_sort(G):
+            # collect all the inputs to the node
+            edges = self._graph.in_edges(node_id, data=DataFlowGraph.EdgeAttribute.KEY, keys=True)
+            inputs = {
+                name: (
+                    replace(source_ref, _key=FeatureKey(str(u), *key))
+                    if u in aggregator_nodes
+                    else Reference(key, u, H)
+                )
+                for u, _, name, key in edges
+            }
+            # add the node to the graph
+            data = self._graph.nodes[node_id]
+            H.add_node(
+                node_obj=data[DataFlowGraph.NodeAttribute.NODE_OBJ],
+                node_type=data[DataFlowGraph.NodeAttribute.NODE_TYPE],
+                inputs=inputs,
+                output_type=data[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
+                node_id=node_id,
+            )
+
+        # build the executor
+        return LazyDataFlowExecutor(
+            H, replace(aggregate, _graph=H), self._aggregation_manager.values_proxy
+        )
+
+    def _build_aggregation_manager(self, nodes: list[NodeId]) -> DataAggregationManager:
+        # build the run contexts for the aggregator nodes
+        aggregators = [
+            self._graph.nodes[node][DataFlowGraph.NodeAttribute.NODE_OBJ] for node in nodes
+        ]
+        contexts = [
+            RunContext(
+                node_id=node,
+                index=[],
+                rank=0,
+                input_type=self._graph.nodes[node][DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE],
+                output_type=self._graph.nodes[node][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
+            )
+            for node in nodes
+        ]
+
+        return DataAggregationManager(aggregators, contexts)
+
+    def _initialize(self) -> None:
+        raise EnvironmentError()
 
     def apply(self, ds: D, **kwargs) -> D:
         # get the dataset features
@@ -453,7 +632,7 @@ class ExecutableDataFlow(DataFlow[T]):
         loop = asyncio.new_event_loop()
         # schedule the execution for the current batch
         batch = pa.table(batch, schema=self._source_feature.dtype.arrow_schema)
-        future = self._executor.execute(batch.to_struct_array(), index, rank)
+        future = self._instance_executor.execute(batch.to_struct_array(), index, rank)
         out = loop.run_until_complete(future)
         # close the event loop
         loop.close()
