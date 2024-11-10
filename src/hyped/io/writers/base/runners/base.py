@@ -1,7 +1,7 @@
 """Base Runners Module.
 
-This module defines the base runner class and worker roles for data processing. 
-It includes an abstract base class for runners and an enumeration for worker roles 
+This module defines the base runner class and worker roles for data processing.
+It includes an abstract base class for runners and an enumeration for worker roles
 during multiprocessing.
 """
 
@@ -29,14 +29,14 @@ class WorkerRole(str, Enum):
     """
 
     PRODUCER = "producer"
-    """Role where the worker produces data and adds it to a shared queue. 
+    """Role where the worker produces data and adds it to a shared queue.
 
     In this role, the worker reads data from a shard and places it into the queue for further
     processing by other workers.
     """
 
     CONSUMER = "consumer"
-    """Role where the worker consumes data from a shared queue for processing. 
+    """Role where the worker consumes data from a shared queue for processing.
 
     In this role, the worker retrieves data from the queue (populated by a PRODUCER) and processes
     it.

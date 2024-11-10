@@ -1,4 +1,4 @@
-"""Dataset Consumer Module
+"""Dataset Consumer Module.
 
 This module defines the :class:`DatasetConsumer` class, which is responsible for consuming and
 processing datasets. It provides a flexible framework for applying user-defined functions to
@@ -83,7 +83,6 @@ class DatasetConsumer(object):
         Args:
             ds (IterableDataset): The dataset to process.
         """
-
         if self._num_proc > 1:
             logger.info("Running in multi-process mode.")
             # create the multiprocessing runner and run it

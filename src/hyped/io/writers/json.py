@@ -55,7 +55,6 @@ class JsonDatasetWriter(BaseDatasetWriter):
         Returns:
             int: The number of bytes written to the shard.
         """
-
         info = get_worker_info()
         file_size = info.ctx.file.tell()
         # write the sample to the file and return the written bytes

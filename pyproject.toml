@@ -92,6 +92,7 @@ skip = ["docs/source/conf.py"]
 [tool.ruff]
 line-length = 100
 ignore = ["E741"]
+select = ["D", "E", "F", "W", "C", "N", "B", "T"]
 
 [tool.ruff.pydocstyle]
 convention = "google"

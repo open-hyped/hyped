@@ -125,8 +125,7 @@ class CustomType(Generic[T]):
 
     @classmethod
     def __get_pydantic_core_schema__(cls, source_type: Any, handler: Any):
-        """
-        Defines the Pydantic core schema for this custom type.
+        """Defines the Pydantic core schema for this custom type.
 
         Returns:
             core_schema.CoreSchema: A schema that validates instances of the specified type.

@@ -1,5 +1,4 @@
-"""
-Progress Monitor Module
+"""Progress Monitor Module.
 
 This module provides the :class:`ProgressMonitor` class, which is designed to track data
 processing tasks. It serves as a centralized mechanism to monitor the state and progression
@@ -22,9 +21,7 @@ TimeReport: TypeAlias = dict[WorkerProcessingStage, float]
 
 
 class ProgressReport(TypedDict):
-    """
-    Represents a progress report detailing worker's timing and sample information.
-    """
+    """Represents a progress report detailing worker's timing and sample information."""
 
     timestamp: float
     """The timestamp when the report was generated."""
@@ -85,7 +82,6 @@ class ProgressMonitor(object):
             queue (None | mp.Queue): Sample queue filled by producer workers.
             item_size (int): The number of samples contained within a queue item.
         """
-
         self._stopping = threading.Event()
         self._done = threading.Event()
         # track buffer queue
@@ -279,7 +275,6 @@ class ProgressMonitor(object):
             None | int: The shard ID assigned to the worker, or None if no shard is currently
             assigned to the worker.
         """
-
         return self._shard[rank]
 
     def get_worker_role(self, rank: Rank) -> None | WorkerRole:

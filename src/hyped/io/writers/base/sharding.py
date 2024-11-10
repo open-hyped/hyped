@@ -184,7 +184,6 @@ class ShardingController(object):
         If multi-processing is enabled, this is done with thread-safe increments
         using locks; otherwise, the counter is incremented directly.
         """
-
         assert self._shard_id is None
 
         if not self._is_multi_processed:
@@ -212,7 +211,6 @@ class ShardingController(object):
         Returns:
             [Sample]: The batch, unchanged.
         """
-
         if self._sharding_strategy is ShardingStrategy.SAMPLE_ITEM:
             # cache the size of the sample to be used later in the shard size update
             self._sample_size = sum(map(self._sample_size_key.index_example, batch))
@@ -231,7 +229,6 @@ class ShardingController(object):
         Args:
             num_bytes (int): The number of bytes written to the current shard.
         """
-
         # udpate shard size according to the strategy
         self._shard_bytes += num_bytes
         self._shard_size += (

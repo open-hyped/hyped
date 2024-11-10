@@ -1,7 +1,7 @@
 """Base class for writing datasets to disk.
 
-This module defines the :class:`BaseDatasetWriter` class, which serves as an abstract base 
-for writing datasets to disk in a structured and efficient manner. It facilitates 
+This module defines the :class:`BaseDatasetWriter` class, which serves as an abstract base
+for writing datasets to disk in a structured and efficient manner. It facilitates
 the saving of datasets in a format compatible with Hugging Face's `datasets` library.
 """
 
@@ -80,7 +80,6 @@ class BaseDatasetWriter(ABC):
             sample_size_key (str, optional): The key in the dataset sample to measure size if using
                 the :class:`SAMPLE_ITEM` sharding strategy.
         """
-
         self.save_dir = save_dir
         self._overwrite = overwrite
         self._num_proc = num_proc
@@ -102,7 +101,6 @@ class BaseDatasetWriter(ABC):
         Args:
             ds (datasets.IterableDataset): The dataset object containing metadata to be saved.
         """
-
         logger.info(f"Writing dataset info to {os.getcwd()}.")
         info = asdict(ds.info)
 
@@ -121,7 +119,6 @@ class BaseDatasetWriter(ABC):
             ds (datasets.IterableDataset): The dataset object containing state information to be
                 saved.
         """
-
         logger.info(f"Writing dataset state to {os.getcwd()}.")
 
         keys = (
@@ -151,7 +148,6 @@ class BaseDatasetWriter(ABC):
                 written.
             save_dir (str): The directory where the split data will be saved.
         """
-
         logger.info(f"Writing dataset split {ds.split} to {os.getcwd()}.")
 
         if ds.info is None:
@@ -223,7 +219,6 @@ class BaseDatasetWriter(ABC):
         Args:
             ds (DatasetType): The dataset or dataset dictionary to be written.
         """
-
         # check if save directory already exists
         if os.path.exists(self.save_dir):
             if not self._overwrite:

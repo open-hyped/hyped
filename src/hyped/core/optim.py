@@ -103,7 +103,7 @@ class DataFlowGraphOptimizer(object):
         # maps nodes of the original graph to the nodes in the cse-graph
         # this is a non-injective function as multiple nodes in the original
         # graph can be mapped to the same target node during optimization
-        node_mapping = dict()
+        node_mapping = {}
 
         def key(n):
             return graph.nodes[n][DataFlowGraph.NodeAttribute.DEPTH]
@@ -268,7 +268,7 @@ class DataFlowGraphOptimizer(object):
             graph = graph.drop_partition(DataFlowGraph.Partition.CONST)
             graph = DataFlowGraph(graph)
 
-            const_lookup = dict()
+            const_lookup = {}
             # add constant leaf nodes
             for node_id in filter(const_graph.__contains__, leaf_nodes):
                 # get the expected data type of the constant value

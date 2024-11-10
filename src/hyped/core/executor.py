@@ -189,7 +189,7 @@ class ExecutionState(object):
             AssertionError: If inputs are collected from a node that is not ready.
             AssertionError: If the collected values are not of the expected type.
         """
-        inputs = dict()
+        inputs = {}
         src_partitions = defaultdict(list)
         # TODO: first group edges by reference to the same feature
         #       then collect the feature only once

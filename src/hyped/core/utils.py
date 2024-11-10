@@ -157,8 +157,7 @@ def build_dtype_from_object(obj: Any) -> Type:
 
 
 def is_dtype_subset(dtype_a: Type, dtype_b: Type) -> bool:
-    """
-    Recursively checks if type_a is a subset of type_b.
+    """Recursively checks if type_a is a subset of type_b.
 
     Args:
         type_a (Type): The type that should be a subset.
@@ -167,7 +166,6 @@ def is_dtype_subset(dtype_a: Type, dtype_b: Type) -> bool:
     Returns:
         bool: True if type_a is a subset of type_b, False otherwise.
     """
-
     if isinstance(dtype_a, MappingType) and isinstance(dtype_b, MappingType):
         # test all fields of type A against the fields in type B
         return all(

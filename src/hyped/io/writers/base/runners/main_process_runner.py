@@ -1,9 +1,9 @@
 """Main Process Runner Module.
 
-This module provides the :class:`MainProcessRunner` class, which implements a data processing 
-pipeline that runs entirely in the main thread. It processes data in batches, applies a 
-user-defined function to each sample, and reports progress through an optional progress 
-bar. The runner manages initialization and finalization tasks and handles progress reporting 
+This module provides the :class:`MainProcessRunner` class, which implements a data processing
+pipeline that runs entirely in the main thread. It processes data in batches, applies a
+user-defined function to each sample, and reports progress through an optional progress
+bar. The runner manages initialization and finalization tasks and handles progress reporting
 through callbacks.
 """
 
@@ -49,7 +49,6 @@ class MainProcessRunner(BaseRunner):
             initialize (Callable[[], Any]): Function to initialize the processing environment.
             finalize (Callable[[], Any]): Function to finalize the processing environment.
         """
-
         self._batch_size = batch_size
         self._initialize = initialize
         self._finalize = finalize

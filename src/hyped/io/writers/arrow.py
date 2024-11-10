@@ -1,7 +1,7 @@
 """Module providing the :class:`ArrowDatasetWriter` class.
 
 The :class:`ArrowDatasetWriter` class writes dataset samples to individual Arrow shard files,
-with each worker writing a separate shard. 
+with each worker writing a separate shard.
 """
 
 import pyarrow as pa

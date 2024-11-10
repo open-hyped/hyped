@@ -153,7 +153,6 @@ class BaseDataAugmenter(BaseNode[C], ABC):
                   output sample. Specifically the i-th output sample is generated
                   from the trace_index[i]-th input example.
         """
-
         # apply process function to each sample in the input batch
         batch = pa.table(kwargs, schema=ctx.input_type.arrow_schema).to_pylist()
         calls = [

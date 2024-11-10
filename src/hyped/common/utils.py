@@ -81,8 +81,7 @@ def chdir(new_dir: str) -> Generator[None, None, None]:
 
 @cache
 def is_package_installed(package_name: str) -> bool:
-    """
-    Check if a package with the given name is installed.
+    """Check if a package with the given name is installed.
 
     Args:
         package_name (str): The name of the package.

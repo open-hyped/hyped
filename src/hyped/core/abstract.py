@@ -1,11 +1,11 @@
-"""Abstract base classes used to avoid circular imports"""
+"""Abstract base classes used to avoid circular imports."""
 from abc import ABC, abstractmethod
 
 from pydantic_core import core_schema
 
 
 class _BaseAbstract(ABC):
-    """Base Abstract class"""
+    """Base Abstract class."""
 
     @abstractmethod
     def __init__(self) -> None:
@@ -13,7 +13,7 @@ class _BaseAbstract(ABC):
 
 
 class AbstractDataFlowGraph(_BaseAbstract):
-    """Abstract data flow graph base class"""
+    """Abstract data flow graph base class."""
 
     @classmethod
     def __get_pydantic_core_schema__(cls, source_type, handler):
@@ -21,7 +21,7 @@ class AbstractDataFlowGraph(_BaseAbstract):
 
 
 class AbstractDataFlow(_BaseAbstract):
-    """Abstract data flow base class"""
+    """Abstract data flow base class."""
 
     _graph: AbstractDataFlowGraph
 

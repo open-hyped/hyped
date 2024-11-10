@@ -11,11 +11,11 @@ useful for modules that contain many submodules or attributes, but where not all
 them are needed immediately.
 
 Key Features:
-- Lazy Loading: Attributes are loaded only when accessed, rather than at module 
+- Lazy Loading: Attributes are loaded only when accessed, rather than at module
   import time.
-- Dynamic Import: Uses :code:`importlib` to dynamically import modules when an 
+- Dynamic Import: Uses :code:`importlib` to dynamically import modules when an
   attribute is accessed.
-- Custom `__dir__`: Includes lazy-loaded attributes in the list of available 
+- Custom `__dir__`: Includes lazy-loaded attributes in the list of available
   attributes.
 
 Usage Example:
@@ -40,7 +40,7 @@ Usage Example:
     foo_value = lazy_module.foo
     ```
 
-This module is particularly useful for applications where modules have many 
+This module is particularly useful for applications where modules have many
 dependencies, but not all are needed right away. By using :class:`LazyModule`,
 you can improve performance and resource management.
 """

@@ -90,7 +90,6 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         Args:
             features (datasets.Features): The features of the source node.
         """
-
         self._graph: DataFlowGraph = DataFlowGraph()
         # save source features
         self._hf_source_features = features
@@ -176,7 +175,6 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         Returns:
             T: The reference to the source features.
         """
-
         if not self._is_initialized:
             self._initialize()
 
@@ -619,7 +617,6 @@ class ExecutableDataFlow(DataFlow[T]):
         Raises:
             AssertionError: If the flow has not been build yet.
         """
-
         if isinstance(batch, datasets.formatting.formatting.LazyBatch):
             batch = dict(batch)
 

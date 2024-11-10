@@ -53,9 +53,9 @@ class TypeRegistry(object):
 
     def __init__(self):
         """Initialize Type Registry."""
-        self.global_hash_register: dict[str, str] = dict()
-        self.global_type_register: dict[str, type] = dict()
-        self.hash_tree: dict[str, list[str]] = dict()
+        self.global_hash_register: dict[str, str] = {}
+        self.global_type_register: dict[str, type] = {}
+        self.hash_tree: dict[str, list[str]] = {}
 
     def register_type(self, T: type, bases: tuple[type]):
         """Register a type.

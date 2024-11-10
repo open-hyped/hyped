@@ -1,4 +1,4 @@
-"""Callback Module for Dataset Processing
+"""Callback Module for Dataset Processing.
 
 This module defines the :class:`Callback` base class and the :class:`CallbackManager`
 class, which facilitate the implementation of callback mechanisms during dataset

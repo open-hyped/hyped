@@ -1,14 +1,14 @@
 """Dynamic Multiprocessing Runner Module.
 
-This module implements the :class:`DynamicMultiprocessingRunner` class, which manages and runs 
-multiple worker processes for parallel data processing. The runner dynamically assigns tasks 
-to workers, facilitating efficient data processing in two distinct stages: 
+This module implements the :class:`DynamicMultiprocessingRunner` class, which manages and runs
+multiple worker processes for parallel data processing. The runner dynamically assigns tasks
+to workers, facilitating efficient data processing in two distinct stages:
 
 1. **Single-Shard Single-Worker**: Each worker processes one dataset shard at a time.
-2. **Single-Shard Multiple-Workers**: Multiple workers process the same shard, with distinct roles 
+2. **Single-Shard Multiple-Workers**: Multiple workers process the same shard, with distinct roles
    for producers (feeding a queue) and consumers (processing from the queue).
 
-The runner optimizes resource usage and performance by adapting to the workload dynamically, 
+The runner optimizes resource usage and performance by adapting to the workload dynamically,
 ensuring effective parallel processing throughout the data lifecycle.
 """
 
@@ -62,8 +62,7 @@ U = TypeVar("U")
 
 @dataclass
 class WorkerContext(Generic[T, U]):
-    """
-    Dataclass representing the context passed to workers.
+    """Dataclass representing the context passed to workers.
 
     This class defines the context used for setting up a worker's role, data stream,
     transformation function, finalization function, and a completion flag.
@@ -140,7 +139,6 @@ class ExamplesIterablePipeline(list[_BaseExamplesIterable]):
         Returns:
             ExamplesIterablePipeline: A new pipeline instance with copied steps.
         """
-
         first = copy(self[0])
         first.ex_iterable = None
 
@@ -162,7 +160,6 @@ class ExamplesIterablePipeline(list[_BaseExamplesIterable]):
         Returns:
             Iterable[IndexedSample]: Processed samples from the pipeline.
         """
-
         pipeline = self.copy()
         pipeline[0].ex_iterable = ex_iterable
 
@@ -337,7 +334,6 @@ class Worker(mp.Process):
         Returns:
             bool: Whether the worker has been instructed to stop.
         """
-
         # request new context from main process
         self._logger.debug("Requesting new context from main process.")
         self._send_msg(MessageType.CTX_REQUEST)
@@ -584,7 +580,6 @@ class Worker(mp.Process):
 
 
 class Serializer(object):
-
     """Serializer applied in multiprocessing runner stage 2.
 
     This serializer collects and serialized a batch of samples into a single
@@ -815,9 +810,7 @@ class WorkerController(object):
         self.joined_ranks.add(rank)
 
     def assert_all_workers_joined(self) -> None:
-        """
-        Asserts that all workers have completed execution and joined the main thread.
-        """
+        """Asserts that all workers have completed execution and joined the main thread."""
         assert len(self.joined_ranks) == len(self.workers)
 
 
@@ -937,7 +930,6 @@ class DynamicMultiprocessingRunner(BaseRunner):
             callback (CallbackManager): A callback manager that will be invoked at various points
                 during the data processing lifecycle.
         """
-
         self._num_workers = num_workers
         self._prefetch = prefetch_factor
 
@@ -962,7 +954,6 @@ class DynamicMultiprocessingRunner(BaseRunner):
             A tuple containing the source dataset and a processor function representing the lazy
             operations applied to the dataset.
         """
-
         if not hasattr(ds, "_ex_iterable") or not isinstance(
             ds._ex_iterable,
             (
@@ -1034,7 +1025,6 @@ class DynamicMultiprocessingRunner(BaseRunner):
             None: This method operates in a loop until all workers are done, updating their
             status and managing context switches as necessary.
         """
-
         # mark a specific worker as switching
         # used to rate limit the context switches of workers
         switching_worker: None | Rank = None
@@ -1185,7 +1175,6 @@ class DynamicMultiprocessingRunner(BaseRunner):
             ds: (IterableDataset): The dataset to process.
             fn (Callable[[Sample], Any]): The function to apply to each sample in the dataset.
         """
-
         self._logger.info("Starting data processing.")
 
         # prepare the dataset

@@ -1,6 +1,6 @@
 """Tqdm progress monitoring callback for dataset processing using tqdm.
 
-This module includes the :class:`TqdmReporterCallback` class, which integrates with a 
+This module includes the :class:`TqdmReporterCallback` class, which integrates with a
 :class:`ProgressMonitor` to visualize the real-time progress of dataset processing tasks.
 """
 import threading
@@ -32,7 +32,6 @@ def _run_tqdm(monitor: ProgressMonitor, update_interval: float, **kwargs: Any) -
             task.
         update_interval (float): The interval in seconds between progress bar updates.
     """
-
     logger.info("Thread started.")
 
     def build_desc_str():

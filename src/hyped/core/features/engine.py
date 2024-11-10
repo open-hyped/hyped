@@ -77,7 +77,6 @@ class TypeVarRegister(object):
             val (object): The value being validated.
             uuid (UUID): The UUID associated with the TypeVar.
         """
-
         # only active when values should be captured
         if self._captured_vars is None:
             return
@@ -128,7 +127,6 @@ class FeatureEngine(object):
         Returns:
             pydantic.BaseModel: The argument validator model.
         """
-
         arguments = {}
         # build arguments from type annotations
         for name, param in self.signature.parameters.items():
@@ -181,7 +179,6 @@ class FeatureEngine(object):
         Raises:
             TypeError: If any parameter is missing a type annotation.
         """
-
         # TODO
         if self.args_param is not None:
             raise NotImplementedError()
@@ -203,7 +200,6 @@ class FeatureEngine(object):
         Raises:
             TypeError: If the arguments provided are invalid or do not match the expected types.
         """
-
         # bind arguments to signature
         bound_args = self.signature.bind(*args, **kwargs)
         bound_args.apply_defaults()
@@ -222,8 +218,7 @@ class FeatureEngine(object):
     def get_references_and_consts(
         self, *args: Any, **kwargs: Any
     ) -> tuple[dict[str, Reference], dict[str, Any], dict[str, Type]]:
-        """
-        Separate input feature references and constants from the arguments.
+        """Separate input feature references and constants from the arguments.
 
         Args:
             *args (Any): Positional arguments.
@@ -233,7 +228,6 @@ class FeatureEngine(object):
             tuple[dict[str, _Feature], dict[str, Any], dict[str, TypeFactory]]: Tuple containing
             input features and constants.
         """
-
         # bind inputs to signature and extract the keyword arguments
         arguments = self.signature.bind(*args, **kwargs).arguments
         kwargs = arguments.pop(self.kwargs_param.name, {}) if self.kwargs_param is not None else {}

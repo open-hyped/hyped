@@ -1,6 +1,6 @@
 """CAS Dataset Generator.
 
-This module defines a dataset generator for processing CAS (Common Analysis Structure) files using 
+This module defines a dataset generator for processing CAS (Common Analysis Structure) files using
 :code:`datasets` from the Hugging Face library. It builds on the :class:`CasParser` to extract and
 convert CAS annotations into a structured dataset. The module is configured using the
 :class:`CasDatasetConfig` and can be used by calling :func:`datasets.load_dataset` with appropriate
@@ -30,13 +30,13 @@ class CasDatasetConfig(datasets.BuilderConfig):
 
     typesystem: str = None
     """Path to the CAS typesystem XML file.
-    
+
     Defaults to the dkpro-cassis core typesystem (see :code:`cassis.load_dkpro_core_typesystem`)
     """
 
     types: None | list[str] = None
     """List of annotation types to parse from the CAS.
-    
+
     By default, loads all types present in the typesystem.
     """
 
@@ -73,7 +73,6 @@ class CasDatasetBuilder(datasets.GeneratorBasedBuilder):
         Returns:
             DataFlow: The constructed data flow pipeline for processing CAS files.
         """
-
         features = datasets.Features({"file_path": datasets.Value("string")})
         flow = DataFlow(features)
 
@@ -106,8 +105,7 @@ class CasDatasetBuilder(datasets.GeneratorBasedBuilder):
         return self._build_flow().out_features.feature_
 
     def _info(self):
-        """
-        Provides metadata about the dataset, such as its description and features.
+        """Provides metadata about the dataset, such as its description and features.
 
         Returns:
             datasets.DatasetInfo: Metadata about the dataset, including features and
@@ -156,7 +154,7 @@ class CasDatasetBuilder(datasets.GeneratorBasedBuilder):
             files = [dl_manager.iter_files(file) for file in files]
             split = datasets.SplitGenerator(
                 name=split_name,
-                gen_kwargs=dict(files=files),
+                gen_kwargs={"files": files},
             )
             split.split_info.num_examples = len(files)
             # add to splits
@@ -173,7 +171,6 @@ class CasDatasetBuilder(datasets.GeneratorBasedBuilder):
         Yields:
             Iterator[Sample]: Samples containing CAS annotations processed from the files.
         """
-
         flow = self._build_flow()
         # create dataset of file paths
         ds = datasets.Dataset.from_dict(

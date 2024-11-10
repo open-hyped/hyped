@@ -28,8 +28,7 @@ else:
     T = TypeVar("T")
 
     def batched(iterable: Iterable[T], n: int) -> Iterator[Tuple[T, ...]]:
-        """
-        Yields successive n-sized batches from the given iterable.
+        """Yields successive n-sized batches from the given iterable.
 
         Args:
             iterable (Iterable[T]): An iterable to be batched.
@@ -51,8 +50,7 @@ else:
 
 
 def ith_entries(iterable: Iterable[Tuple], i: int) -> Iterator:
-    """
-    Returns an iterator that yields the i-th entry from each tuple in the iterable using itemgetter.
+    """Returns an iterator that yields the i-th entry from each tuple in the iterable using itemgetter.
 
     Args:
         iterable (Iterable[Tuple]): An iterable that yields tuples.

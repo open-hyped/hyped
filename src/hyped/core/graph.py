@@ -194,7 +194,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         Represents a data augmenter node in the data flow graph.
 
         This type of node is responsible for modifying the dataset by generating
-        new samples from existing ones or filtering out certain samples. Data 
+        new samples from existing ones or filtering out certain samples. Data
         augmenter nodes are used to expand or contract the dataset.
         """
 
@@ -204,10 +204,10 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         NODE_OBJ = "node_object"
         """
         The object associated with the node.
-        
+
         The value of this property is dependent on the type of node. For
         nodes of type :class:`NodeType.DATA_PROCESSOR`, this property
-        refers to the processor instance of the node. 
+        refers to the processor instance of the node.
         """
 
         NODE_TYPE = "node_type"
@@ -649,7 +649,6 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             RuntimeError: If the input references are a mix of aggregated and non-aggregated
                 features.
         """
-
         # get processor type
         node_type = (
             DataFlowGraph.NodeType.SOURCE
@@ -847,7 +846,6 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         Raises:
             RuntimeError: If the reference's node ID is not contained in the graph.
         """
-
         if ref._node_id not in self.nodes:
             raise RuntimeError(f"Node with ID '{ref._node_id}' is not contained in the graph.")
 

@@ -1,6 +1,6 @@
 """Type Validators and Resolvers.
 
-This module defines custom validators and resolvers for validating and resolving data types 
+This module defines custom validators and resolvers for validating and resolving data types
 using Pydantic's validation framework. These classes extend Pydantic's :class:`AfterValidator`
 and :class:`BeforeValidator` to enforce validation and type resolution logic.
 """
@@ -29,8 +29,7 @@ class TypeValidator(AfterValidator):
     """
 
     def __init__(self, validator: Callable[[Any, BaseConfig], Any]) -> None:
-        """
-        Initializes the :class:`TypeValidator` with a custom validation function.
+        """Initializes the :class:`TypeValidator` with a custom validation function.
 
         Args:
             validator (Callable[[Any, BaseConfig], Any]): The custom validation function to use.
@@ -109,8 +108,7 @@ class Len(TypeValidator):
     """A :class:`TypeValidator` that checks the length of a sequence."""
 
     def __init__(self, length: int) -> None:
-        """
-        Initializes the :class:`Len` validator with the expected length of the sequence.
+        """Initializes the :class:`Len` validator with the expected length of the sequence.
 
         Args:
             length (int): The expected length of the sequence to be validated.
