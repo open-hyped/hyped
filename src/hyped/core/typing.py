@@ -7,8 +7,6 @@ from typing import Annotated, Any, TypeAlias, Union
 
 import pyarrow as pa
 
-from hyped.common._pydantic import CustomType
-
 from .features.features import (
     Mapping,
     Sequence,
@@ -53,155 +51,188 @@ __all__ = [
 ]
 
 
-Feature: TypeAlias = Union[Any, CustomType[pa.Scalar], _Feature]
+Feature: TypeAlias = Union[Any, list[Any], pa.Scalar, pa.Array, _Feature]
 """
 Feature: Type alias for a feature.
 
-Supported types include :class:`Any`, :class:`pyarrow.Scalar` and :class:`_Feature`.
+Supported types include :class:`Any`, :class:`list[Any]`, :class:`pyarrow.Scalar`,
+:class:`pyarrow.Array` and :class:`_Feature`.
 """
 
-String: TypeAlias = Union[str, CustomType[pa.StringScalar], _String]
+String: TypeAlias = Union[str, list[str], pa.StringScalar, pa.StringArray, _String]
 """
 String: Type alias for a string.
 
-Supported types include :class:`str`, :class:`pyarrow.StringScalar` and :class:`_String`.
+Supported types include :class:`str`, :class:`list[str]`, :class:`pyarrow.StringScalar`,
+:class:`pyarrow.StringArray` and :class:`_String`.
 """
 
-Bool: TypeAlias = Union[bool, CustomType[pa.BooleanScalar], _Bool]
+Bool: TypeAlias = Union[bool, list[bool], pa.BooleanScalar, pa.BooleanArray, _Bool]
 """
 Bool: Type alias for a boolean.
 
-Supported types include :class:`bool`, :class:`pyarrow.BooleanScalar` and :class:`_Bool`.
+Supported types include :class:`bool`, :class:`list[bool]`, :class:`pyarrow.BooleanScalar`
+:class:`pyarrow.BooleanArray` and :class:`_Bool`.
 """
 
-UInt8: TypeAlias = Union[int, CustomType[pa.UInt8Scalar], _UInt8]
+UInt8: TypeAlias = Union[int, list[int], pa.UInt8Scalar, pa.UInt8Array, _UInt8]
 """
 UInt8: Type alias for an 8-bit unsigned integer.
 
-Supported types include :class:`int`, :class:`pyarrow.UInt8Scalar` and :class:`_UInt8`.
+Supported types include :class:`int`, :class:`list[int]`, :class:`pyarrow.UInt8Scalar`,
+:class:`pyarrow.UInt8Array`, and :class:`_UInt8`.
 """
 
-UInt16: TypeAlias = Union[int, CustomType[pa.UInt16Scalar], _UInt16]
+UInt16: TypeAlias = Union[int, list[int], pa.UInt16Scalar, pa.UInt16Array, _UInt16]
 """
 UInt16: Type alias for a 16-bit unsigned integer.
 
-Supported types include :class:`int`, :class:`pyarrow.UInt16Scalar` and :class:`_UInt16`.
+Supported types include :class:`int`, :class:`list[int]`, :class:`pyarrow.UInt16Scalar`,
+:class:`pyarrow.UInt16Array`, and :class:`_UInt16`.
 """
 
-UInt32: TypeAlias = Union[int, CustomType[pa.UInt32Scalar], _UInt32]
+UInt32: TypeAlias = Union[int, list[int], pa.UInt32Scalar, pa.UInt32Array, _UInt32]
 """
 UInt32: Type alias for a 32-bit unsigned integer.
 
-Supported types include :class:`int`, :class:`pyarrow.UInt32Scalar` and :class:`_UInt32`.
+Supported types include :class:`int`, :class:`list[int]`, :class:`pyarrow.UInt32Scalar`,
+:class:`pyarrow.UInt32Array`, and :class:`_UInt32`.
 """
 
-UInt64: TypeAlias = Union[int, CustomType[pa.UInt64Scalar], _UInt64]
+UInt64: TypeAlias = Union[int, list[int], pa.UInt64Scalar, pa.UInt64Array, _UInt64]
 """
 UInt64: Type alias for a 64-bit unsigned integer.
 
-Supported types include :class:`int`, :class:`pyarrow.UInt64Scalar` and :class:`_UInt64`.
+Supported types include :class:`int`, :class:`list[int]`, :class:`pyarrow.UInt64Scalar`,
+:class:`pyarrow.UInt64Array`, and :class:`_UInt64`.
 """
 
 UInt: TypeAlias = Union[
     int,
-    CustomType[pa.UInt64Scalar],
-    CustomType[pa.UInt32Scalar],
-    CustomType[pa.UInt16Scalar],
-    CustomType[pa.UInt8Scalar],
-    _UInt64,
-    _UInt32,
-    _UInt16,
+    list[int],
+    pa.UInt8Scalar,
+    pa.UInt16Scalar,
+    pa.UInt32Scalar,
+    pa.UInt64Scalar,
+    pa.UInt8Array,
+    pa.UInt16Array,
+    pa.UInt32Array,
+    pa.UInt64Array,
     _UInt8,
+    _UInt16,
+    _UInt32,
+    _UInt64,
 ]
 """
 UInt: Type alias for an unsigned integer of varying bit length.
 
-Supported types include :class:`int`, :class:`pyarrow.UInt8Scalar`, :class:`pyarrow.UInt16Scalar`,
-:class:`pyarrow.UInt32Scalar`, :class:`pyarrow.UInt64Scalar`, :class:`_UInt8`, :class:`_UInt16`,
-:class:`_UInt32`, and :class:`_UInt64`.
+Supported types include :class:`int`, :class:`list[int]`, :class:`pyarrow.UInt8Scalar`,
+:class:`pyarrow.UInt16Scalar`, :class:`pyarrow.UInt32Scalar`, :class:`pyarrow.UInt64Scalar`,
+:class:`pyarrow.UInt8Array`, :class:`pyarrow.UInt16Array`, :class:`pyarrow.UInt32Array`,
+:class:`pyarrow.UInt64Array`, :class:`_UInt8`, :class:`_UInt16`, :class:`_UInt32`, and
+:class:`_UInt64`.
 """
 
-Int8: TypeAlias = Union[int, CustomType[pa.Int8Scalar], _Int8]
+Int8: TypeAlias = Union[int, list[int], pa.Int8Scalar, pa.Int8Array, _Int8]
 """
 Int8: Type alias for an 8-bit signed integer.
 
-Supported types include :class:`int`, :class:`pyarrow.Int8Scalar`, and :class:`_Int8`.
+Supported types include :class:`int`, :class:`list[int]`, :class:`pyarrow.Int8Scalar`,
+:class:`pyarrow.Int8Array`, and :class:`_Int8`.
 """
 
-Int16: TypeAlias = Union[int, CustomType[pa.Int16Scalar], _Int16]
+Int16: TypeAlias = Union[int, list[int], pa.Int16Scalar, pa.Int16Array, _Int16]
 """
 Int16: Type alias for a 16-bit signed integer.
 
-Supported types include :class:`int`, :class:`pyarrow.Int16Scalar`, and :class:`_Int16`.
+Supported types include :class:`int`, :class:`list[int]`, :class:`pyarrow.Int16Scalar`,
+:class:`pyarrow.Int16Array`, and :class:`_Int16`.
 """
 
-Int32: TypeAlias = Union[int, CustomType[pa.Int32Scalar], _Int32]
+Int32: TypeAlias = Union[int, list[int], pa.Int32Scalar, pa.Int32Array, _Int32]
 """
 Int32: Type alias for a 32-bit signed integer.
 
-Supported types include :class:`int`, :class:`pyarrow.Int32Scalar`, and :class:`_Int32`.
+Supported types include :class:`int`, :class:`list[int]`, :class:`pyarrow.Int32Scalar`,
+:class:`pyarrow.Int32Array`, and :class:`_Int32`.
 """
 
-Int64: TypeAlias = Union[int, CustomType[pa.Int64Scalar], _Int64]
+Int64: TypeAlias = Union[int, list[int], pa.Int64Scalar, pa.Int64Array, _Int64]
 """
 Int64: Type alias for a 64-bit signed integer.
 
-Supported types include :class:`int`, :class:`pyarrow.Int64Scalar`, and :class:`_Int64`.
+Supported types include :class:`int`, :class:`list[int]`, :class:`pyarrow.Int64Scalar`,
+:class:`pyarrow.Int64Array`, and :class:`_Int64`.
 """
 
 Int: TypeAlias = Union[
     int,
-    CustomType[pa.Int64Scalar],
-    CustomType[pa.Int32Scalar],
-    CustomType[pa.Int16Scalar],
-    CustomType[pa.Int8Scalar],
-    _Int64,
-    _Int32,
-    _Int16,
+    list[int],
+    pa.Int8Scalar,
+    pa.Int16Scalar,
+    pa.Int32Scalar,
+    pa.Int64Scalar,
+    pa.Int8Array,
+    pa.Int16Array,
+    pa.Int32Array,
+    pa.Int64Array,
     _Int8,
+    _Int16,
+    _Int32,
+    _Int64,
 ]
 """
 Int: Type alias for a signed integer of varying bit length.
 
-Supported types include :class:`int`, :class:`pyarrow.Int8Scalar`, :class:`pyarrow.Int16Scalar`,
-:class:`pyarrow.Int32Scalar`, :class:`pyarrow.Int64Scalar`, :class:`_Int8`, :class:`_Int16`,
-:class:`_Int32`, and :class:`_Int64`.
+Supported types include :class:`int`, :class:`list[int]`, :class:`pyarrow.Int8Scalar`,
+:class:`pyarrow.Int16Scalar`, :class:`pyarrow.Int32Scalar`, :class:`pyarrow.Int64Scalar`,
+:class:`pyarrow.Int8Array`, :class:`pyarrow.Int16Array`, :class:`pyarrow.Int32Array`,
+:class:`pyarrow.Int64Array`, :class:`_Int8`, :class:`_Int16`, :class:`_Int32`, and
+:class:`_Int64`.
 """
 
-Float16: TypeAlias = Union[float, CustomType[pa.HalfFloatScalar], _Float16]
+Float16: TypeAlias = Union[float, list[float], pa.HalfFloatScalar, pa.HalfFloatArray, _Float16]
 """
 Float16: Type alias for a 16-bit floating-point number.
 
-Supported types include :class:`float`, :class:`pyarrow.HalfFloatScalar`, and :class:`_Float16`.
+Supported types include :class:`float`, :class:`list[float]`, :class:`pyarrow.HalfFloatScalar`,
+:class:`pyarrow.HalfFloatArray`, and :class:`_Float16`.
 """
 
-Float32: TypeAlias = Union[float, CustomType[pa.FloatScalar], _Float32]
+Float32: TypeAlias = Union[float, list[float], pa.FloatScalar, pa.FloatArray, _Float32]
 """
 Float32: Type alias for a 32-bit floating-point number.
 
-Supported types include :class:`float`, :class:`pyarrow.FloatScalar`, and :class:`_Float32`.
+Supported types include :class:`float`, :class:`list[float]`, :class:`pyarrow.FloatScalar`,
+:class:`pyarrow.FloatArray`, and :class:`_Float32`.
 """
 
-Float64: TypeAlias = Union[float, CustomType[pa.DoubleScalar], _Float64]
+Float64: TypeAlias = Union[float, list[float], pa.DoubleScalar, pa.DoubleArray, _Float64]
 """
 Float64: Type alias for a 64-bit floating-point number.
 
-Supported types include :class:`float`, :class:`pyarrow.DoubleScalar`, and :class:`_Float64`.
+Supported types include :class:`float`, :class:`list[float]`, :class:`pyarrow.DoubleScalar`,
+:class:`pyarrow.DoubleArray`, and :class:`_Float64`.
 """
 
 Float: TypeAlias = Union[
     float,
-    CustomType[pa.DoubleScalar],
-    CustomType[pa.FloatScalar],
-    CustomType[pa.HalfFloatScalar],
-    _Float64,
-    _Float32,
+    list[float],
+    pa.HalfFloatScalar,
+    pa.FloatScalar,
+    pa.DoubleScalar,
+    pa.HalfFloatArray,
+    pa.FloatArray,
+    pa.DoubleArray,
     _Float16,
+    _Float32,
+    _Float64,
 ]
 """
 Float: Type alias for a floating-point number of varying precision.
 
-Supported types include :class:`float`, :class:`pyarrow.HalfFloatScalar`,
-:class:`pyarrow.FloatScalar`, :class:`pyarrow.DoubleScalar`, :class:`_Float16`,
-:class:`_Float32`, and :class:`_Float64`.
+Supported types include :class:`float`, :class:`list[float]`, :class:`pyarrow.HalfFloatScalar`,
+:class:`pyarrow.FloatScalar`, :class:`pyarrow.DoubleScalar`, :class:`pyarrow.HalfFloatArray`,
+:class:`pyarrow.FloatArray`, :class:`pyarrow.DoubleArray`, :class:`_Float16`, :class:`_Float32`,
+and :class:`_Float64`.
 """

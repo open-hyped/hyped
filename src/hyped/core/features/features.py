@@ -8,6 +8,7 @@ from types import GenericAlias
 import pydantic
 from pydantic_core import PydanticCustomError, core_schema
 
+from hyped.common._pydantic import BaseModelWithArbitraryTypesAllowed
 from hyped.common.utils import is_python_version_less_than
 
 from . import types
@@ -150,7 +151,9 @@ class Sequence(typing.Sequence[T], _Feature):
             assert typing.get_origin(source_type) is cls
             (expected_item_type,) = typing.get_args(source_type)
             # create the type adapter to validate the item type
-            adapter = pydantic.TypeAdapter(expected_item_type)
+            adapter = pydantic.TypeAdapter(
+                expected_item_type, config=pydantic.ConfigDict(arbitrary_types_allowed=True)
+            )
 
         def validator_fn(inst, validator, info):
             if isinstance(inst, Reference) and adapter is None:
@@ -273,11 +276,13 @@ else:
                     (isinstance(base, type) and issubclass(base, pydantic.BaseModel))
                     for base in bases
                 ):
-                    bases = (pydantic.BaseModel,) + bases
+                    bases = (BaseModelWithArbitraryTypesAllowed,) + bases
 
                 # create the validator model
                 model = pydantic.create_model(
-                    f"MappingValidatorFor{cls.__name__}", **annotations, __base__=bases
+                    f"MappingValidatorFor{cls.__name__}",
+                    **annotations,
+                    __base__=bases,
                 )
                 # apply the type variable values if the model is generic
                 if isinstance(cls, GenericAlias):
@@ -344,7 +349,7 @@ def build_feature_from_annotation(
     # get the return annotation
     has_parameters = hasattr(annotation, "__parameters__") and len(annotation.__parameters__) > 0
 
-    base = (pydantic.BaseModel,)
+    base = (BaseModelWithArbitraryTypesAllowed,)
 
     if has_parameters:
         # add generic base in case the return annotation has any parameters

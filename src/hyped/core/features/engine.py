@@ -14,6 +14,7 @@ import pydantic
 import pydantic.generics
 
 from hyped._registry.config import BaseConfig
+from hyped.common._pydantic import BaseModelWithArbitraryTypesAllowed
 
 from .features import _Feature, build_feature_from_annotation
 from .reference import Reference
@@ -150,13 +151,15 @@ class FeatureEngine(object):
         # create fixed order over parameters
         params = tuple(params)
 
-        base = (pydantic.BaseModel,)
+        base = (BaseModelWithArbitraryTypesAllowed,)
         if len(params) > 0:
             base += (Generic[params],)
 
         # build input argument validator model
         validator = pydantic.create_model(
-            f"ArgumentValidator({self.name})", **arguments, __base__=base
+            f"ArgumentValidator({self.name})",
+            **arguments,
+            __base__=base,
         )
 
         # create trackable typevars
