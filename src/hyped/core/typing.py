@@ -1,3 +1,8 @@
+"""Core typing module.
+
+This module defines the type aliases that need to me used to define
+node interfaces.
+"""
 from typing import Annotated, Any, TypeAlias, Union
 
 import pyarrow as pa

@@ -1,3 +1,11 @@
+"""This module defines the :class:`CollectNode`.
+
+The :class:`CollectNode` class is a specialized node that gathers and structures data from input
+references based on a predefined lookup structure. This structure can be a dictionary, list, tuple,
+or individual feature, and the node ensures that the output matches the specified data types as
+defined in the data flow graph.
+"""
+
 from functools import partial
 from typing import Any
 
@@ -13,11 +21,39 @@ from .base import BaseNode, BaseNodeConfig, RunContext
 
 
 class CollectNodeConfig(BaseNodeConfig):
+    """Configuration for CollectNode."""
+
     lookup: dict | list | tuple
+    """Nested collect structure.
+
+    The structure has string identifiers matching the input arguments at the lowest level.
+    """
 
 
 class CollectNode(BaseNode[CollectNodeConfig]):
+    """Node for collecting and structuring inputs within a data flow graph.
+
+    :class:`CollectNode` aggregates data from multiple inputs according to a defined structure
+    specified in its configuration. It transforms the collected data into the desired output
+    format, supporting nested mappings and sequences.
+    """
+
     def build_output_type(self, graph: AbstractDataFlowGraph, inputs: dict[str, Reference]) -> Type:
+        """Construct the output data type based on the input structure.
+
+        This method recursively determines the type of each element in the structure specified by
+        :code:`lookup`, building complex types like mappings and sequences as needed. It leverages
+        input references to map strings in :code:`lookup` to actual data types from the graph.
+
+        Args:
+            graph (AbstractDataFlowGraph): The data flow graph containing the input references.
+            inputs (dict[str, Reference]): Dictionary mapping input names to references within the
+                graph.
+
+        Returns:
+            Type: The constructed output type, including mappings or sequences if specified.
+        """
+
         def _build_type(obj: NestedType[str]):
             if isinstance(obj, dict):
                 return MappingType.from_dict({key: _build_type(item) for key, item in obj.items()})
@@ -47,6 +83,28 @@ class CollectNode(BaseNode[CollectNodeConfig]):
         return _build_type(self.config.lookup)
 
     def collect(self, ctx: RunContext, inputs: dict[str, pa.Array]) -> pa.Array:
+        """Collect and arrange input data according to the node’s structure.
+
+        Recursively gathers data from the input arrays, organizing it into a nested format
+        as specified in :code:`lookup`. The method supports nested mappings and sequences,
+        building them using PyArrow structures like :class:`StructArray` and
+        :class:`FixedSizeListArray`.
+
+        Args:
+            ctx (RunContext): The execution context for the current operation, including output
+                type.
+            inputs (dict[str, pa.Array]): Input data arrays indexed by the input names specified
+                in :code:`lookup`.
+
+        Returns:
+            pa.Array: A single PyArrow array that represents the collected data, structured
+            according to :code:`lookup`.
+
+        Raises:
+            TypeError: If the structure or types in :code:`lookup` are not compatible with the
+                inputs.
+        """
+
         def _collect(struct: NestedType[str], dtype: Type) -> pa.Array:
             if isinstance(struct, dict) and isinstance(dtype, MappingType):
                 # collect all field values
@@ -85,7 +143,6 @@ class CollectNode(BaseNode[CollectNodeConfig]):
 
             elif isinstance(struct, str):
                 # get the referenced input array
-                print(struct, type(inputs[struct]))
                 return inputs[struct]
 
             else:
@@ -95,7 +152,17 @@ class CollectNode(BaseNode[CollectNodeConfig]):
 
     @property
     def signature(self) -> Any:
-        raise EnvironmentError()
+        """Property that raises an error, as signature is not supported for this node.
+
+        Raises:
+            EnvironmentError: This node does not expose a callable interface for a signature.
+        """
+        raise EnvironmentError("The `signature` property is not available for collect nodes.")
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
-        raise EnvironmentError()
+        """Raises an error, as direct calls are not supported for this node.
+
+        Raises:
+            EnvironmentError: This node does not support a callable interface.
+        """
+        raise EnvironmentError("The `call` method is not available for collect nodes.")

@@ -91,7 +91,7 @@ class DataFlowGraphOptimizer(object):
         """
 
         @dataclass
-        class _CSE_NodeIdentifier(object):
+        class NodeIdentifier(object):
             """Helper class to identify redundant nodes."""
 
             node_type: DataFlowGraph.NodeType
@@ -127,7 +127,7 @@ class DataFlowGraphOptimizer(object):
                 node_type = node_data[DataFlowGraph.NodeAttribute.NODE_TYPE]
                 node_obj = node_data[DataFlowGraph.NodeAttribute.NODE_OBJ]
                 # create cse node identifier
-                identifier = _CSE_NodeIdentifier(
+                identifier = NodeIdentifier(
                     node_type=node_type,
                     node_config=getattr(node_obj, "config", node_obj),
                     in_edge_identifiers=in_edge_identifiers,

@@ -39,12 +39,36 @@ class RunContext:
     """
 
     index: Index | IndexList
+    """The index or list of indices associated with the processor execution.
+
+    This attribute is used to track the position or set of positions for processing data
+    within a specific processor call. It could represent a single index or a list of indices,
+    depending on how the data is partitioned or processed.
+    """
 
     rank: Rank
+    """The rank or position of the processor in a parallelized execution.
+
+    This attribute identifies the specific rank or position of the processor in a parallelized
+    system (e.g., in distributed or multi-threaded processing). The rank determines the processor's
+    order or responsibility for a portion of the data during execution.
+    """
 
     input_type: MappingType
+    """The expected input type for the processor.
+
+    This attribute defines the type of the data that the processor is designed to handle as input.
+    It typically maps the input data's structure or schema, providing context for how the data
+    should be processed.
+    """
 
     output_type: Type
+    """The type of data the processor will produce as output.
+
+    This attribute defines the expected structure or type of the output that the processor will
+    generate. It provides information about the transformation or processing that the input data
+    undergoes and the format of the resulting data.
+    """
 
     def __hash__(self) -> int:
         """Returns a hash value based on the node ID.
@@ -60,8 +84,13 @@ Return = TypeVar("Return", covariant=True)
 
 
 class NodeProtocol(Protocol, Generic[Params, Return]):
-    def arguments(self) -> set[str]:
-        ...
+    """Protocol for node-like objects in a data flow graph.
+
+    This protocol defines the interface for nodes within a data flow graph, including methods
+    for calling nodes with or without an explicit data flow. The :class:`NodeProtocol` is
+    parameterized by :code:`Params`, defining the arguments, and :code:`Return`, defining the
+    return type.
+    """
 
     @overload
     def call(self, *args: Params.args, **kwargs: Params.kwargs) -> Return:
@@ -72,6 +101,25 @@ class NodeProtocol(Protocol, Generic[Params, Return]):
         ...
 
     def call(self, *args: Params.args, **kwargs: Params.kwargs) -> Return:
+        """Call the node, adding it to the underlying data flow.
+
+        This method is used to execute the node within the context of a data flow graph.
+        It validates the node's signature, processes the input arguments, and adds necessary
+        constants and processor nodes to the graph. Finally, it returns the processed output
+        feature.
+
+        Args:
+            *args (Params.args): Positional arguments for the node, which may include features
+                or data flows.
+            **kwargs (Params.kwargs): Keyword arguments for the node, which may include features
+                or data flows.
+
+        Returns:
+            Return: The feature resulting from the node's processing within the graph.
+
+        Raises:
+            RuntimeError: If the flow cannot be inferred from the arguments.
+        """
         ...
 
 
@@ -83,31 +131,65 @@ C = TypeVar("C", bound=BaseNodeConfig)
 
 
 class BaseNode(BaseConfigurable[C], ABC):
-    """Base class for nodes in a data flow graph."""
+    """Base class for nodes in a data flow graph.
 
-    DEFAULT_OUTPUT_KEY: str = "output"
+    This class serves as a base for defining nodes in a data flow graph. Nodes are the building
+    blocks of the graph, where each node represents a processing unit or transformation in the
+    flow. It provides methods for configuring the node's signature, and interacting with the
+    underlying graph structure.
+    """
 
     @classmethod
     @property
-    def Config(self) -> type[C]:
-        """Get the configuration type of the node."""
-        return self.config_type
+    def Config(cls) -> type[C]:  # noqa: N802
+        """Get the configuration type of the node.
+
+        This property returns the configuration type associated with the node, which defines
+        how the node is configured. It allows for accessing the specific configuration class
+        for the node dynamically.
+
+        Returns:
+            type[C]: The configuration class type for the node.
+        """
+        return cls.config_type
 
     @abstractmethod
     def signature(self) -> Signature:
-        ...
+        """Abstract method to define the node's signature.
 
-    @overload
-    def call(self, *args: Feature, **kwargs: Feature) -> _Feature:
-        ...
+        The signature method must be implemented by subclasses to return the signature
+        of the node. The signature typically describes the expected input and output types
+        for the node, providing essential metadata for the graph processing.
 
-    @overload
-    def call(self, flow: AbstractDataFlow, *args: Feature, **kwargs: Feature) -> _Feature:
+        Returns:
+            Signature: The signature of the node, including its inputs and outputs.
+        """
         ...
 
     def _extract_graph_from_args(
         self, args: tuple[AbstractDataFlow | Feature], kwargs: dict[str, AbstractDataFlow | Feature]
     ) -> tuple[AbstractDataFlowGraph, tuple[Feature], dict[str, Feature]]:
+        """Extract the data flow graph from the arguments.
+
+        This method attempts to extract the data flow graph from either the positional or
+        keyword arguments passed to the node. The method searches for an :code:`AbstractDataFlow`
+        or :code:`_Feature` to infer the associated graph. If a flow cannot be determined, a
+        runtime error is raised.
+
+        Args:
+            args (tuple[AbstractDataFlow | Feature]): Positional arguments that might contain
+                the data flow or references to features.
+            kwargs (dict[str, AbstractDataFlow | Feature]): Keyword arguments that might contain
+                the data flow or references to features.
+
+        Returns:
+            tuple[AbstractDataFlowGraph, tuple[Feature], dict[str, Feature]]:
+                A tuple containing the data flow graph, remaining positional arguments, and
+                keyword arguments with extracted features.
+
+        Raises:
+            RuntimeError: If the flow cannot be inferred from the arguments.
+        """
         # try to extract the data flow from
         # the positional arguments
         flow: None | AbstractDataFlow = (
@@ -135,16 +217,40 @@ class BaseNode(BaseConfigurable[C], ABC):
         reference: _Feature = next(references, None)
 
         if reference is None:
-            raise RuntimeError("Flow cannot be inferred from arguments!")
+            raise RuntimeError("DataFlow instance cannot be inferred from arguments!")
 
         # get the flow from the reference
         return reference.ref._graph, args, kwargs
+
+    @overload
+    def call(self, *args: Feature, **kwargs: Feature) -> _Feature:
+        ...
+
+    @overload
+    def call(self, flow: AbstractDataFlow, *args: Feature, **kwargs: Feature) -> _Feature:
+        ...
 
     def call(
         self,
         *args: AbstractDataFlow | Feature,
         **kwargs: AbstractDataFlow | Feature,
     ) -> _Feature:
+        """Call the node, adding it to the underlying data flow.
+
+        This method is adds the node in the context of a data flow graph. It validates the node's
+        signature, processes the input arguments, and adds necessary constants and processor nodes
+        to the graph. Finally, it returns the processed output feature.
+
+        Args:
+            *args (AbstractDataFlow | Feature): Positional arguments.
+            **kwargs (AbstractDataFlow | Feature): Keyword arguments.
+
+        Returns:
+            _Feature: The feature resulting from the node's processing in the graph.
+
+        Raises:
+            RuntimeError: If the flow cannot be inferred from the arguments.
+        """
         # extract the data flow graph from the given arguments
         graph, args, kwargs = self._extract_graph_from_args(args, kwargs)
 

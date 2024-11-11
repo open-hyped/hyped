@@ -42,13 +42,9 @@ class BaseDataProcessor(BaseNode[C], ABC):
     """Base class for data processors in a data flow graph.
 
     This class serves as the base for all data processors, representing nodes in a data flow graph.
-    Subclasses of `BaseDataProcessor` implement specific process functions that map input features
-    to output features. Custom data processors must either override the `batch_process` method or
-    the `process` method to define their processing logic.
-
-    Attributes:
-        _is_process_async (bool): A flag indicating whether the :class:`BaseDataProcessor.process`
-            function is asynchronous.
+    Subclasses of :class:`BaseDataProcessor` implement specific process functions that map input
+    features to output features. Custom data processors must either override the
+    :func:`batch_process` method or the :func:`process` method to define their processing logic.
     """
 
     def __new__(
@@ -56,6 +52,18 @@ class BaseDataProcessor(BaseNode[C], ABC):
         *args: Any,
         **kwargs: Any,
     ) -> NodeProtocol[Params, Return]:
+        """Create a new instance of the data processor node.
+
+        This method is responsible for creating a new instance of the data processor in
+        the data flow graph, ensuring it conforms to the node protocol.
+
+        Args:
+            *args (Any): Positional arguments for initializing the processor node.
+            **kwargs (Any): Keyword arguments for initializing the processor node.
+
+        Returns:
+            NodeProtocol[Params, Return]: An instance of the processor node in the data flow graph.
+        """
         return super().__new__(cls, *args, **kwargs)
 
     def __init__(self, config: None | C = None, **kwargs) -> None:
@@ -76,6 +84,15 @@ class BaseDataProcessor(BaseNode[C], ABC):
 
     @property
     def signature(self) -> inspect.Signature:
+        """Get the signature of the :func:`process` method.
+
+        Returns the signature of the :func:`process` method with the :code:`ctx` parameter
+        removed, keeping only the feature inputs modeled in the data flow graph.
+
+        Returns:
+            inspect.Signature: The signature of the :func:`process` method excluding
+            the :code:`ctx` parameter.
+        """
         signature = inspect.signature(self.process)
         # remove the ctx argument of the process function
         params = signature.parameters.values()
@@ -89,9 +106,43 @@ class BaseDataProcessor(BaseNode[C], ABC):
 
     @abstractmethod
     def process(self, ctx: RunContext, *args: Feature, **kwargs: Feature) -> Feature:
+        """Process a single data sample.
+
+        This method should be implemented by subclasses to define the processing of a single
+        data sample. It may either be synchronous or asynchronous, depending on the subclass.
+
+        It also defines the interface of the node and must be implemented by subclasses. Even if
+        the :func:`batch_process` method implements the primary processing logic, :func:`process`
+        is still required to define the input and output features of the node.
+
+        Args:
+            ctx (RunContext): The context for the current process call.
+            *args (Feature): Positional feature arguments.
+            **kwargs (Feature): Keyword feature arguments.
+
+        Returns:
+            Feature: The resulting processed feature.
+        """
         ...
 
     async def batch_process(self, ctx: RunContext, **kwargs: pa.Array) -> pa.Array:
+        """Process a batch of data samples.
+
+        Applies the :func:`process` function to each sample in the batch and gathers the
+        outputs, supporting asynchronous processing if :func:`process` is a coroutine.
+
+        Args:
+            ctx (RunContext): The context for the current batch processing call, including the
+                input and output types, node ID, and index.
+            **kwargs (pa.Array): Keyword arguments representing columns of data samples in the
+                batch.
+
+        Returns:
+            pa.Array: The processed output batch as an Arrow array.
+
+        Raises:
+            RuntimeError: If the flow cannot be inferred from arguments.
+        """
         # apply process function to each sample in the input batch
         batch = pa.table(kwargs, schema=ctx.input_type.arrow_schema).to_pylist()
         outputs = [
@@ -105,7 +156,7 @@ class BaseDataProcessor(BaseNode[C], ABC):
                 ),
                 **sample,
             )
-            for i, sample in zip(ctx.index, batch)
+            for i, sample in zip(ctx.index, batch, strict=True)
         ]
 
         # gather all outputs in case the process function

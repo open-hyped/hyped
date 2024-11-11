@@ -42,12 +42,18 @@ Return = TypeVar("Return", covariant=True)
 
 
 class _ProcessFunctionProtocol(Protocol, Generic[Params, Return]):
+    """Protocol for synchronous processing functions in data augmenters."""
+
     def process(self, *args: Params.args, **kwargs: Params.kwargs) -> Iterable[Return]:
+        """Processes data samples and returns an iterable of results."""
         ...
 
 
 class _AsyncProcessFunctionProtocol(Protocol, Generic[Params, Return]):
+    """Protocol for asynchronous processing functions in data augmenters."""
+
     def process(self, *args: Params.args, **kwargs: Params.kwargs) -> AsyncIterable[Return]:
+        """Processes data samples asynchronously and returns an async iterable of results."""
         ...
 
 
@@ -81,14 +87,44 @@ class BaseDataAugmenter(BaseNode[C], ABC):
         *args: Any,
         **kwargs: Any,
     ) -> NodeProtocol[Params, Return]:
+        """Creates a new instance of a data augmenter node.
+
+        This method is responsible for creating an instance of the augmenter node, which
+        follows either a synchronous or asynchronous processing protocol based on its type.
+
+        Args:
+            *args (Any): Positional arguments for node initialization.
+            **kwargs (Any): Keyword arguments for node initialization.
+
+        Returns:
+            NodeProtocol[Params, Return]: An instance conforming to the node protocol.
+        """
         return super().__new__(cls, *args, **kwargs)
 
     def __init__(self, config: None | C = None, **kwargs) -> None:
+        """Initializes the data augmenter with optional configuration.
+
+        Args:
+            config (None | C): Optional configuration instance for the augmenter.
+            **kwargs (Any): Additional arguments for the augmenter configuration.
+        """
         super().__init__(config, **kwargs)
         self._is_process_async = inspect.isasyncgenfunction(self.process)
 
     @property
     def signature(self) -> inspect.Signature:
+        """Get the signature of the :func:`process` method.
+
+        Returns the signature of the :func:`process` method with the :code:`ctx` parameter
+        removed, keeping only the feature inputs modeled in the data flow graph.
+
+        Returns:
+            inspect.Signature: The signature of the :func:`process` method excluding
+            the :code:`ctx` parameter.
+
+        Raises:
+            TypeError: If the return type of :func:`process` is not an iterable.
+        """
         signature = inspect.signature(self.process)
         # remove the ctx argument of the process function
         params = signature.parameters.values()
@@ -118,7 +154,12 @@ class BaseDataAugmenter(BaseNode[C], ABC):
     def process(self, ctx: RunContext, *args: Feature, **kwargs: Feature) -> Iterable[Feature]:
         """Defines the augmentation logic to be applied to individual samples.
 
-        This method should be overridden by subclasses to define the augmentation logic.
+        This method should be overridden by subclasses to define the augmentation of a single
+        data sample. It may either be synchronous or asynchronous, depending on the subclass.
+
+        It also defines the interface of the node and must be implemented by subclasses. Even if
+        the :func:`batch_process` method implements the primary processing logic, :func:`process`
+        is still required to define the input and output features of the node.
 
         Args:
             ctx (RunContext): Context information for the data augmenter's execution.
@@ -166,7 +207,7 @@ class BaseDataAugmenter(BaseNode[C], ABC):
                 ),
                 **sample,
             )
-            for i, sample in zip(ctx.index, batch)
+            for i, sample in zip(ctx.index, batch, strict=True)
         ]
 
         # collect all outputs
