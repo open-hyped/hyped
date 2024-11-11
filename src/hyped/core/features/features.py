@@ -112,7 +112,7 @@ T = typing.TypeVar("T")
 
 
 @dataclass(eq=True, frozen=True)
-class Sequence(typing.Sequence[T], _Feature):
+class _Sequence(typing.Sequence[T], _Feature):
     dtype: types.SequenceType
 
     def __post_init__(self) -> None:
@@ -126,10 +126,10 @@ class Sequence(typing.Sequence[T], _Feature):
         ...
 
     @typing.overload
-    def __getitem__(self, index: slice) -> Sequence[T]:
+    def __getitem__(self, index: slice) -> _Sequence[T]:
         ...
 
-    def __getitem__(self, index: int | slice) -> T | Sequence[T]:
+    def __getitem__(self, index: int | slice) -> T | _Sequence[T]:
         # build the reference to the indexed value
         ref = Reference(FeatureKey(self.ref._key + (index,)), self.ref._node_id, self.ref._graph)
         # get the output data type of the indexing operation
@@ -163,7 +163,7 @@ class Sequence(typing.Sequence[T], _Feature):
             elif isinstance(inst, Reference):
                 # create instance from reference
                 value_feature = adapter.validate_python(inst, context=info.context)
-                inst = Sequence(inst, dtype=types.SequenceType(value_feature.dtype))
+                inst = _Sequence(inst, dtype=types.SequenceType(value_feature.dtype))
 
             # run the core validator checking that the instance
             # is a valid sequence feature
@@ -179,7 +179,7 @@ class Sequence(typing.Sequence[T], _Feature):
             return inst
 
         return core_schema.with_info_wrap_validator_function(
-            validator_fn, schema=core_schema.is_instance_schema(Sequence)
+            validator_fn, schema=core_schema.is_instance_schema(_Sequence)
         )
 
 
@@ -201,25 +201,25 @@ class MissingKeyError(Exception):
 
 if typing.TYPE_CHECKING:
 
-    class Mapping(typing.TypedDict, _Feature):
+    class _Mapping(typing.TypedDict, _Feature):
         dtype: types.MappingType
 
 else:
 
     @dataclass(eq=True, frozen=True)
-    class Mapping(typing.Mapping, _Feature):
+    class _Mapping(typing.Mapping, _Feature):
         dtype: types.MappingType
 
         def __post_init__(self) -> None:
             assert isinstance(self.dtype, types.MappingType)
 
             # base mapping type allows arbitrary keys
-            if type(self) is Mapping:
+            if type(self) is _Mapping:
                 return
 
             # get the set of valid keys
             valid_keys = set(typing.get_type_hints(type(self)).keys()) - set(
-                typing.get_type_hints(Mapping).keys()
+                typing.get_type_hints(_Mapping).keys()
             )
             # get the specified keys from the factory entries
             set_keys = set(self.keys())
@@ -248,14 +248,14 @@ else:
 
         @classmethod
         def __get_pydantic_core_schema__(cls, source_type, handler):
-            ignore_keys = set(typing.get_type_hints(Mapping).keys())
+            ignore_keys = set(typing.get_type_hints(_Mapping).keys())
 
             def build_validator_model(cls) -> pydantic.BaseModel:
                 if not (
-                    (isinstance(cls, type) and issubclass(cls, Mapping) and (cls is not Mapping))
+                    (isinstance(cls, type) and issubclass(cls, _Mapping) and (cls is not _Mapping))
                     or (
                         isinstance(cls, GenericAlias)
-                        and issubclass(typing.get_origin(cls), Mapping)
+                        and issubclass(typing.get_origin(cls), _Mapping)
                     )
                 ):
                     # trivial case: the class is not a subclass
@@ -270,7 +270,7 @@ else:
                 # prepare the bsae classes
                 bases = get_original_bases(cls)
                 bases = map(build_validator_model, bases)
-                bases = tuple(b for b in bases if b is not Mapping)
+                bases = tuple(b for b in bases if b is not _Mapping)
                 # add the pydantic base model as a base class
                 if not any(
                     (isinstance(base, type) and issubclass(base, pydantic.BaseModel))
@@ -292,8 +292,8 @@ else:
 
             # build the validation model in case in case the class is not the base mapping
             # class itself, otherwise no field validation is done
-            model = build_validator_model(source_type) if cls is not Mapping else None
-            model = model if model is not Mapping else None
+            model = build_validator_model(source_type) if cls is not _Mapping else None
+            model = model if model is not _Mapping else None
 
             def validator_fn(inst, validator, info):
                 if isinstance(inst, Reference) and model is None:
@@ -320,7 +320,7 @@ else:
                 return inst if isinstance(inst, cls) or not strict else cls(inst.ref, inst.dtype)
 
             return core_schema.with_info_wrap_validator_function(
-                validator_fn, schema=core_schema.is_instance_schema(Mapping)
+                validator_fn, schema=core_schema.is_instance_schema(_Mapping)
             )
 
 
@@ -328,8 +328,8 @@ TYPE_TO_FEATURE_MAPPING = {
     types.BoolType: _Bool,
     types.StringType: _String,
     types.PrimitiveType: Scalar,
-    types.SequenceType: Sequence,
-    types.MappingType: Mapping,
+    types.SequenceType: _Sequence,
+    types.MappingType: _Mapping,
 }
 
 
