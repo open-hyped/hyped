@@ -24,7 +24,6 @@ import pydantic
 from matplotlib import colormaps
 
 from hyped.common._worker import get_worker_info
-from hyped.common.typing import IndexList, NodeId, Rank
 from hyped.common.utils import tmp_setattr
 
 from .abstract import AbstractDataFlow
@@ -44,7 +43,7 @@ from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
 from .optim import DataFlowGraphOptimizer
-from .typing import Mapping, Sequence
+from .typing import IndexList, Mapping, NodeId, Rank, Sequence
 from .utils import (
     NestedType,
     build_dtype_from_hf_feature,

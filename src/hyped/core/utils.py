@@ -11,8 +11,6 @@ import datasets
 import pyarrow as pa
 from datasets.features.features import FeatureType
 
-from hyped.common.typing import ArrowType
-
 from .features.types import (
     UNDEFINED_SEQUENCE_LENGTH,
     BoolType,
@@ -86,11 +84,11 @@ def get_hf_sequence_feature(seq: datasets.Sequence | list | tuple) -> FeatureTyp
     return seq.feature if isinstance(seq, datasets.Sequence) else seq[0]
 
 
-def build_dtype_from_arrow_type(arrow_type: ArrowType) -> Type:
+def build_dtype_from_arrow_type(arrow_type: pa.DataType) -> Type:
     """Build a data type from a given Arrow type.
 
     Arguments:
-        arrow_type (ArrowType): The Arrow type to convert.
+        arrow_type (pa.DataType): The Arrow type to convert.
 
     Returns:
         Type: The corresponding data type.
@@ -108,7 +106,7 @@ def build_dtype_from_arrow_type(arrow_type: ArrowType) -> Type:
             value_type=build_dtype_from_arrow_type(arrow_type.value_type),
         )
 
-    if isinstance(arrow_type, ArrowType):
+    if isinstance(arrow_type, pa.DataType):
         return ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING[str(arrow_type)]
 
     raise TypeError()

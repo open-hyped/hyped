@@ -29,12 +29,11 @@ from itertools import groupby
 
 import pyarrow as pa
 
-from hyped.common.typing import NodeId
-
 from .executor import DataFlowExecutor
 from .features.reference import FeatureKey, Reference
 from .features.types import BoolType, MappingType
 from .graph import DataFlowGraph
+from .typing import NodeId
 
 
 class DataFlowGraphOptimizer(object):

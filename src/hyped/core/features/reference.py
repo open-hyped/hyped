@@ -8,10 +8,16 @@ import pyarrow as pa
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
 
-from hyped.common.typing import NodeId
-
 from ..abstract import AbstractDataFlowGraph
 from .types import MappingType, SequenceType, Type
+
+NodeId: typing.TypeAlias = str
+"""Node ID type in the data flow graph.
+
+Represents the identifier for a node within a data flow graph. This is typically a string that
+uniquely identifies a node, allowing for the tracking and referencing of nodes within the graph
+structure.
+"""
 
 
 class FeatureKey(tuple[int | str | slice]):
@@ -157,7 +163,7 @@ class FeatureKey(tuple[int | str | slice]):
                     # apply the remainding key on the flattened array
                     flat_array = self[i + 1 :].index_array(flat_array)
 
-                    # unflatten the array using the buckets
+                    # unflatten the array using the nested ids
                     array = [
                         pa.compute.take(flat_array, idx, boundschecks=False) for idx in nested_ids
                     ]

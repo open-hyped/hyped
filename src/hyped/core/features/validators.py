@@ -15,7 +15,7 @@ from pydantic import AfterValidator, BeforeValidator, TypeAdapter, ValidationInf
 
 from hyped._registry.config import BaseConfig
 
-from .features import Sequence, _Feature, build_feature_from_dtype
+from .features import _Feature, build_feature_from_dtype
 from .types import Type
 
 

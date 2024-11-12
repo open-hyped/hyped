@@ -7,6 +7,8 @@ from typing import Annotated, Any, TypeAlias, TypeVar, Union
 
 import pyarrow as pa
 
+from hyped.common._worker import Rank
+
 from .features.features import (
     _Bool,
     _Feature,
@@ -25,9 +27,16 @@ from .features.features import (
     _UInt32,
     _UInt64,
 )
+from .features.reference import NodeId
 from .features.validators import Len
 
 __all__ = [
+    "Index",
+    "IndexList",
+    "TraceIndexList",
+    "NodeId",
+    "PartitionId",
+    "Rank",
     "Union",
     "Annotated",
     "Feature",
@@ -51,6 +60,51 @@ __all__ = [
     "Mapping",
     "Len",
 ]
+
+Index: TypeAlias = int
+"""An index, usually corresponding to a sample.
+
+Represents a single integer that refers to a specific sample within the dataset. This is often used
+to retrieve or reference a particular sample from a dataset.
+"""
+
+IndexList: TypeAlias = list[Index]
+"""A list of dataset indices, usually corresponding to a batch.
+
+Contains integer indices that refer to specific samples within the dataset.
+This is typically used to track which samples are included in a particular
+batch or subset of the dataset.
+"""
+
+TraceIndexList: TypeAlias = list[int]
+"""A list of trace indices used to map outputs to their source samples in augmentation processes.
+
+In data augmentation, a single input sample can generate multiple output samples. The
+:class:`TraceIndexList` tracks the origin of each output sample by maintaining a list of indices.
+Each index in this list corresponds to the position of the input sample in the original batch that
+was used to generate the output sample.
+
+For example, if :code:`trace_index[i] = j`, it indicates that the `i`-th output sample was derived
+from the  :code:`j`-th input sample in the original batch.
+
+Usage Context:
+    - When a batch of input samples undergoes augmentation, this list provides a direct mapping
+      from each output sample back to its corresponding input sample.
+    - This type is commonly returned alongside the augmented batch, enabling users to track which
+      input sample produced which output sample.
+"""
+
+PartitionId: TypeAlias = str
+"""An identifier for a partition within the data flow graph.
+
+The :class:`PartitionId` is a string that uniquely identifies these partitions, enabling the
+tracking and management of different stages within the data flow graph.
+
+A partition in the data flow graph represents a subgraph where each sample from the dataset is
+processed or transformed independently of others. Partitions are often introduced during data
+augmentation processes, where new samples are generated or existing samples are filtered out.
+"""
+
 
 Feature: TypeAlias = Union[_Feature, Any, list[Any], pa.Scalar, pa.Array]
 """

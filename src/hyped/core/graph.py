@@ -18,8 +18,6 @@ from typing import Any, Hashable
 import networkx as nx
 import pyarrow as pa
 
-from hyped.common.typing import NodeId, PartitionId
-
 from .abstract import AbstractDataFlowGraph
 from .features.engine import FeatureEngine
 from .features.features import _Feature, build_feature_from_dtype
@@ -30,6 +28,7 @@ from .nodes.augmenter import BaseDataAugmenter
 from .nodes.base import BaseNode
 from .nodes.collect import CollectNode
 from .nodes.processor import BaseDataProcessor
+from .typing import NodeId, PartitionId
 from .utils import NestedType, map_recursive
 
 

@@ -18,8 +18,6 @@ import networkx as nx
 import numpy as np
 import pyarrow as pa
 
-from hyped.common.typing import Batch, IndexList, NodeId, Rank, TraceIndexList
-
 from .features.reference import FeatureKey, Reference
 from .features.types import MappingType
 from .graph import DataFlowGraph
@@ -28,6 +26,7 @@ from .nodes.augmenter import BaseDataAugmenter
 from .nodes.base import RunContext
 from .nodes.collect import CollectNode
 from .nodes.processor import BaseDataProcessor
+from .typing import IndexList, NodeId, Rank, TraceIndexList
 
 
 class ExecutionState(object):
@@ -162,7 +161,7 @@ class ExecutionState(object):
         self.traces[(u, v)] = np.asarray(trace_index)
         self.index[v] = self.trace_through_partition_path([pa.array(index)], src=u, tgt=v)[0]
 
-    def collect_value(self, ref: Reference) -> Batch:
+    def collect_value(self, ref: Reference) -> pa.Array:
         """Collect the values requested by the feature reference.
 
         Args:
@@ -170,7 +169,7 @@ class ExecutionState(object):
                 values to collect.
 
         Returns:
-            Batch: The collected batch of data.
+            pa.Array: The collected pyarrow array of data.
 
         Raises:
             AssertionError: If the feature reference does not contain
@@ -178,14 +177,14 @@ class ExecutionState(object):
         """
         return ref._key.index_array(self.outputs[ref._node_id])
 
-    def collect_inputs(self, node_id: NodeId) -> tuple[Batch, IndexList]:
+    def collect_inputs(self, node_id: NodeId) -> tuple[dict[str, pa.Array], IndexList]:
         """Collect inputs for a given node.
 
         Args:
             node_id (NodeId): The ID of the node for which to collect inputs.
 
         Returns:
-            tuple[Batch, IndexList]: The collected inputs to the processor
+            tuple[dict[str, pa.Array], IndexList]: The collected inputs to the processor
                 and the corresponding index
 
         Raises:

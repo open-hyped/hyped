@@ -29,13 +29,12 @@ from typing import (
 import pyarrow as pa
 
 from hyped._registry.config import BaseConfig, BaseConfigurable
-from hyped.common.typing import Index, IndexList, NodeId, Rank
 
 from ..abstract import AbstractDataFlow, AbstractDataFlowGraph
 from ..features.engine import FeatureEngine
 from ..features.features import _Feature
 from ..features.types import MappingType, Type
-from ..typing import Feature
+from ..typing import Feature, Index, IndexList, NodeId, Rank
 
 
 @dataclass(frozen=True)

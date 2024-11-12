@@ -13,11 +13,18 @@ import multiprocessing as mp
 from dataclasses import dataclass, field
 from multiprocessing.managers import SyncManager
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, TypeAlias
 
 from .lazy_instance import LazyStaticInstance
-from .typing import Rank
 from .utils import is_package_installed
+
+Rank: TypeAlias = int
+"""The multi-processing execution rank.
+
+In distributed or parallel computing, the rank is an integer identifier for a process.
+This type alias is typically used to represent the rank of a process in a multi-processing
+or distributed environment, where each process is assigned a unique rank.
+"""
 
 
 def _sync_manager_factory() -> SyncManager:
@@ -96,7 +103,7 @@ def set_worker_info(rank: Rank, num_workers: int, seed: int, **ctx: Any) -> Work
     """Sets the worker information for the current process.
 
     Args:
-        rank (Rank): The rank or ID of the worker.
+        rank (Rank): The rank of the worker.
         num_workers (int): The total number of workers.
         seed (int): The seed for random number generation in this worker.
         **ctx (Any): Additional context data to be stored in the worker's context (ctx).

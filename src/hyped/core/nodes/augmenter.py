@@ -28,9 +28,7 @@ from typing import (
 import pyarrow as pa
 from typing_extensions import Self
 
-from hyped.common.typing import TraceIndexList
-
-from ..typing import Feature
+from ..typing import Feature, TraceIndexList
 from .base import BaseNode, BaseNodeConfig, NodeProtocol, ProcessMode, RunContext
 
 Params = ParamSpec("Params")

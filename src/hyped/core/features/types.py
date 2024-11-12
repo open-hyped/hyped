@@ -7,13 +7,11 @@ from dataclasses import dataclass
 import pyarrow as pa
 from pydantic_core import core_schema
 
-from hyped.common.typing import ArrowType
-
 
 class Type(ABC):
     @property
     @abstractmethod
-    def arrow_type(self) -> ArrowType:
+    def arrow_type(self) -> pa.DataType:
         ...
 
     @classmethod
@@ -23,10 +21,10 @@ class Type(ABC):
 
 @dataclass(eq=True, frozen=True)
 class PrimitiveType(Type):
-    _arrow_type: ArrowType
+    _arrow_type: pa.DataType
 
     @property
-    def arrow_type(self) -> ArrowType:
+    def arrow_type(self) -> pa.DataType:
         return self._arrow_type
 
 
@@ -56,7 +54,7 @@ class SequenceType(Type, typing.Sequence):
     length: int = UNDEFINED_SEQUENCE_LENGTH
 
     @property
-    def arrow_type(self) -> ArrowType:
+    def arrow_type(self) -> pa.DataType:
         length = -1 if self.length == UNDEFINED_SEQUENCE_LENGTH else self.length
         return pa.list_(self.value_type.arrow_type, list_size=length)
 
@@ -111,7 +109,7 @@ class MappingType(Type, typing.Mapping):
     fields: tuple[tuple[str, Type]]
 
     @property
-    def arrow_type(self) -> ArrowType:
+    def arrow_type(self) -> pa.DataType:
         return pa.struct([(key, field.arrow_type) for key, field in self.fields])
 
     @property
