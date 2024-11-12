@@ -1,8 +1,8 @@
 from typing import TypeVar
 
-import pyarrow as pa
 import pyarrow.compute as pc
 
+from hyped.core.nodes.base import process_mode
 from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, RunContext
 from hyped.core.typing import Bool, Float, Int, UInt
 
@@ -14,11 +14,9 @@ class AbsConfig(BaseDataProcessorConfig):
 class Abs(BaseDataProcessor[AbsConfig]):
     T = TypeVar("T", bound=Int | Float | UInt)
 
-    async def batch_process(self, ctx: RunContext, x: pa.Array) -> pa.Array:
-        return pc.abs(x)
-
+    @process_mode(batched=True, backend="arrow")
     def process(self, ctx: RunContext, x: T) -> T:
-        raise NotImplementedError()
+        return pc.abs(x)
 
 
 class NegateConfig(BaseDataProcessorConfig):
@@ -28,11 +26,9 @@ class NegateConfig(BaseDataProcessorConfig):
 class Negate(BaseDataProcessor[NegateConfig]):
     T = TypeVar("T", bound=Int | Float)
 
-    async def batch_process(self, ctx: RunContext, x: pa.Array) -> pa.Array:
-        return pc.negate(x)
-
+    @process_mode(batched=True, backend="arrow")
     def process(self, ctx: RunContext, x: T) -> T:
-        raise NotImplementedError()
+        return pc.negate(x)
 
 
 class InvertConfig(BaseDataProcessorConfig):
@@ -40,8 +36,6 @@ class InvertConfig(BaseDataProcessorConfig):
 
 
 class Invert(BaseDataProcessor[InvertConfig]):
-    async def batch_process(self, ctx: RunContext, x: pa.Array) -> pa.Array:
-        return pc.invert(x)
-
+    @process_mode(batched=True, backend="arrow")
     def process(self, ctx: RunContext, x: Bool) -> Bool:
-        raise NotImplementedError()
+        return pc.invert(x)
