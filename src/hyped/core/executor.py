@@ -23,8 +23,11 @@ from hyped.common.typing import Batch, IndexList, NodeId, Rank, TraceIndexList
 from .features.reference import FeatureKey, Reference
 from .features.types import MappingType
 from .graph import DataFlowGraph
-from .nodes.aggregator import DataAggregationManager
+from .nodes.aggregator import BaseDataAggregator, DataAggregationManager
+from .nodes.augmenter import BaseDataAugmenter
 from .nodes.base import RunContext
+from .nodes.collect import CollectNode
+from .nodes.processor import BaseDataProcessor
 
 
 class ExecutionState(object):
@@ -312,34 +315,44 @@ class DataFlowExecutor(object):
         )
 
         if node_type == DataFlowGraph.NodeType.CONST:
+            assert isinstance(node_obj, pa.Array)
             # for constant nodes the node object is a pyarrow array
             # of a single entry holding the value
             state.capture_output(node_id, node_obj)
 
         elif node_type == DataFlowGraph.NodeType.COLLECT:
+            assert isinstance(node_obj, CollectNode)
             # collect values and capture values
             values = node_obj.collect(ctx, inputs)
             state.capture_output(node_id, values)
 
-        if node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
+        elif node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
+            assert isinstance(node_obj, BaseDataProcessor)
             # run processor and check the output batch size
-            out = await node_obj.batch_process(ctx, **inputs)
+            out = await node_obj.run(ctx, **inputs)
             assert out.type == ctx.output_type.arrow_type, "Unexpected output type"
             assert len(out) == len(index), "Output values length does not match index length."
             # capture output in execution state
             state.capture_output(node_id, out)
 
         elif node_type == DataFlowGraph.NodeType.DATA_AUGMENTER:
+            assert isinstance(node_obj, BaseDataAugmenter)
             # run processor and check the output batch size
-            out, trace_index = await node_obj.batch_process(ctx, **inputs)
+            out, trace_index = await node_obj.run(ctx, **inputs)
+            assert out.type == ctx.output_type.arrow_type, "Unexpected output type"
             # register output partition and capture output in execution state
             state.register_partition_trace(node_id, trace_index, index)
             state.capture_output(node_id, out)
 
         elif node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
+            assert isinstance(node_obj, BaseDataAggregator)
             # run aggregator
             assert self.aggregation_manager is not None
             await self.aggregation_manager.aggregate(node_obj, ctx, inputs)
+
+        else:
+            # TODO: error message
+            raise TypeError()
 
     async def execute(self, batch: pa.Array, index: IndexList, rank: Rank) -> pa.Array:
         """Execute the entire data flow graph.
@@ -383,7 +396,7 @@ class LazyDataFlowExecutor(typing.Mapping, DataFlowExecutor):
         DataFlowExecutor.__init__(self, graph, collect, None)
 
         self._proxy = input_proxy
-        self._proxy_snapshot: None | dict[str, pa.Scalar] = None
+        self._proxy_snapshot: None | dict[str, pa.Array] = None
         self._value_snapshot: None | dict[str, pa.Scalar] = None
 
     def keys(self) -> typing.Iterable[str]:
@@ -408,10 +421,10 @@ class LazyDataFlowExecutor(typing.Mapping, DataFlowExecutor):
 
         if (self._proxy_snapshot is None) or (proxy_snapshot != self._proxy_snapshot):
             # convert pyarrow scalars to arrays for execution
-            array = pa.array([proxy_snapshot], type=self.graph.src_dtype.arrow_type)
+            array = pa.table(proxy_snapshot, schema=self.graph.src_dtype.arrow_schema)
             # execute the flow executor on the inputs
             loop = asyncio.new_event_loop()
-            future = self.execute(array, index=[0], rank=0)
+            future = self.execute(array.to_struct_array(), index=[0], rank=0)
             output = loop.run_until_complete(future)
             # close the event loop
             loop.close()

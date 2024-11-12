@@ -9,18 +9,28 @@ from __future__ import annotations
 import asyncio
 import inspect
 from abc import ABC, abstractmethod
-from typing import Any, Concatenate, Generic, ParamSpec, Protocol, TypeVar, overload
+from typing import (
+    Any,
+    Concatenate,
+    Generic,
+    ParamSpec,
+    Protocol,
+    TypeVar,
+    overload,
+    runtime_checkable,
+)
 
 import pyarrow as pa
 from typing_extensions import Self
 
 from ..typing import Feature
-from .base import BaseNode, BaseNodeConfig, NodeProtocol, RunContext
+from .base import BaseNode, BaseNodeConfig, NodeProtocol, ProcessMode, RunContext
 
 Params = ParamSpec("Params")
 Return = TypeVar("Return", covariant=True)
 
 
+@runtime_checkable
 class _ProcessFunctionProtocol(Protocol, Generic[Params, Return]):
     def process(self, *args: Params.args, **kwargs: Params.kwargs) -> Return:
         ...
@@ -65,6 +75,16 @@ class BaseDataProcessor(BaseNode[C], ABC):
             NodeProtocol[Params, Return]: An instance of the processor node in the data flow graph.
         """
         return super().__new__(cls, *args, **kwargs)
+
+    @classmethod
+    def __init_subclass__(cls) -> None:
+        # apply default process mode, only sets the process mode if the
+        # function doesn't have a process mode applied to it yet
+        ProcessMode(batched=False, backend="python").validate().set_default(cls.process)
+
+        if not issubclass(cls, _ProcessFunctionProtocol):
+            # TODO: error message, signature doesn't match expectation
+            raise TypeError()
 
     def __init__(self, config: None | C = None, **kwargs) -> None:
         """Initialize the data processor.
@@ -125,43 +145,17 @@ class BaseDataProcessor(BaseNode[C], ABC):
         """
         ...
 
-    async def batch_process(self, ctx: RunContext, **kwargs: pa.Array) -> pa.Array:
-        """Process a batch of data samples.
+    async def run(self, ctx: RunContext, **arrays: pa.Array) -> pa.Array:
+        # get the process mode
+        mode = ProcessMode.from_decorated_fn(self.process)
 
-        Applies the :func:`process` function to each sample in the batch and gathers the
-        outputs, supporting asynchronous processing if :func:`process` is a coroutine.
+        # prepare inputs and apply process function to all inputs
+        inputs = mode.prepare(ctx, **arrays)
+        outputs = (self.process(c, **kw) for c, kw in inputs)
 
-        Args:
-            ctx (RunContext): The context for the current batch processing call, including the
-                input and output types, node ID, and index.
-            **kwargs (pa.Array): Keyword arguments representing columns of data samples in the
-                batch.
-
-        Returns:
-            pa.Array: The processed output batch as an Arrow array.
-
-        Raises:
-            RuntimeError: If the flow cannot be inferred from arguments.
-        """
-        # apply process function to each sample in the input batch
-        batch = pa.table(kwargs, schema=ctx.input_type.arrow_schema).to_pylist()
-        outputs = [
-            self.process(
-                RunContext(
-                    node_id=ctx.node_id,
-                    index=i,
-                    rank=ctx.rank,
-                    input_type=ctx.input_type,
-                    output_type=ctx.output_type,
-                ),
-                **sample,
-            )
-            for i, sample in zip(ctx.index, batch, strict=True)
-        ]
-
-        # gather all outputs in case the process function
-        # is a coroutine
+        # gather all outputs in case the process function is a coroutine
         if self._is_process_async:
             outputs = await asyncio.gather(*outputs)
 
-        return pa.array(outputs, type=ctx.output_type.arrow_type)
+        # finalize outputs
+        return mode.finalize(ctx, outputs)

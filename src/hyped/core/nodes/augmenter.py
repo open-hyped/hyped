@@ -9,10 +9,7 @@ from __future__ import annotations
 
 import inspect
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator as ABCAsyncIterable
-from collections.abc import Iterable as ABCIterable
 from itertools import chain
-from types import GenericAlias
 from typing import (
     Any,
     AsyncIterable,
@@ -23,10 +20,9 @@ from typing import (
     Protocol,
     TypeVar,
     Union,
-    _GenericAlias,
     get_args,
-    get_origin,
     overload,
+    runtime_checkable,
 )
 
 import pyarrow as pa
@@ -35,12 +31,13 @@ from typing_extensions import Self
 from hyped.common.typing import TraceIndexList
 
 from ..typing import Feature
-from .base import BaseNode, BaseNodeConfig, NodeProtocol, RunContext
+from .base import BaseNode, BaseNodeConfig, NodeProtocol, ProcessMode, RunContext
 
 Params = ParamSpec("Params")
 Return = TypeVar("Return", covariant=True)
 
 
+@runtime_checkable
 class _ProcessFunctionProtocol(Protocol, Generic[Params, Return]):
     """Protocol for synchronous processing functions in data augmenters."""
 
@@ -49,11 +46,21 @@ class _ProcessFunctionProtocol(Protocol, Generic[Params, Return]):
         ...
 
 
+@runtime_checkable
 class _AsyncProcessFunctionProtocol(Protocol, Generic[Params, Return]):
     """Protocol for asynchronous processing functions in data augmenters."""
 
     def process(self, *args: Params.args, **kwargs: Params.kwargs) -> AsyncIterable[Return]:
         """Processes data samples asynchronously and returns an async iterable of results."""
+        ...
+
+
+@runtime_checkable
+class _BatchProcessFunctionProtocol(Protocol, Generic[Params, Return]):
+    """Protocol for batched processing functions in data augmenters."""
+
+    def process(self, *args: Params.args, **kwargs: Params.kwargs) -> tuple[Return, TraceIndexList]:
+        """Processes data batches and returns the result and corresponding trace index list."""
         ...
 
 
@@ -83,6 +90,7 @@ class BaseDataAugmenter(BaseNode[C], ABC):
         cls: Union[
             _ProcessFunctionProtocol[Concatenate[Self, RunContext, Params], Return],
             _AsyncProcessFunctionProtocol[Concatenate[Self, RunContext, Params], Return],
+            _BatchProcessFunctionProtocol[Concatenate[Self, RunContext, Params], Return],
         ],
         *args: Any,
         **kwargs: Any,
@@ -111,6 +119,24 @@ class BaseDataAugmenter(BaseNode[C], ABC):
         super().__init__(config, **kwargs)
         self._is_process_async = inspect.isasyncgenfunction(self.process)
 
+    @classmethod
+    def __init_subclass__(cls) -> None:
+        # set default process mode for process function
+        ProcessMode(batched=False, backend="python").validate().set_default(cls.process)
+
+        # get the assigned process mode
+        mode = ProcessMode.from_decorated_fn(cls.process)
+
+        if mode.batched and not issubclass(cls, _BatchProcessFunctionProtocol):
+            # TODO: error message, signature doesn't match expectation
+            raise TypeError()
+
+        elif (not mode.batched) and not (
+            issubclass(cls, (_ProcessFunctionProtocol, _AsyncProcessFunctionProtocol))
+        ):
+            # TODO: error message, signature doesn't match expectation
+            raise TypeError()
+
     @property
     def signature(self) -> inspect.Signature:
         """Get the signature of the :func:`process` method.
@@ -129,17 +155,9 @@ class BaseDataAugmenter(BaseNode[C], ABC):
         # remove the ctx argument of the process function
         params = signature.parameters.values()
         params = [param for param in params if param.name != "ctx"]
-        # make sure output type is an iterable
-        if not (
-            isinstance(signature.return_annotation, (GenericAlias, _GenericAlias))
-            and (
-                # TODO: doesn't work for AsyncIterable
-                get_origin(signature.return_annotation)
-                in {Iterable, AsyncIterable, ABCIterable, ABCAsyncIterable}
-            )
-        ):
-            raise TypeError()
+
         # get the flat return annotation
+        # this works for all supported protocols
         return_annotation = get_args(signature.return_annotation)[0]
         # return the signature containing the remaining parameters
         return signature.replace(parameters=params, return_annotation=return_annotation)
@@ -148,6 +166,28 @@ class BaseDataAugmenter(BaseNode[C], ABC):
     async def process(
         self, ctx: RunContext, *args: Feature, **kwargs: Feature
     ) -> AsyncIterable[Feature]:
+        ...
+
+    @overload
+    def process(self, ctx: RunContext, *args: Feature, **kwargs: Feature) -> Iterable[Feature]:
+        ...
+
+    @overload
+    def process(
+        self, ctx: RunContext, *args: Feature, **kwargs: Feature
+    ) -> tuple[Feature, TraceIndexList]:
+        ...
+
+    @overload
+    async def process(
+        self, ctx: RunContext, *args: Feature, **kwargs: Feature
+    ) -> tuple[Feature, TraceIndexList]:
+        ...
+
+    @abstractmethod
+    def process(
+        self, ctx: RunContext, *args: Feature, **kwargs: Feature
+    ) -> Iterable[Feature] | AsyncIterable[Feature] | tuple[Feature, TraceIndexList]:
         ...
 
     @abstractmethod
@@ -172,59 +212,37 @@ class BaseDataAugmenter(BaseNode[C], ABC):
         """
         ...
 
-    async def batch_process(
-        self, ctx: RunContext, **kwargs: pa.Array
-    ) -> tuple[pa.Array, TraceIndexList]:
-        """Processes a batch of inputs and returns the batch of outputs along with trace indices.
+    async def run(self, ctx: RunContext, **arrays: pa.Array) -> tuple[pa.Array, TraceIndexList]:
+        # get the process mode
+        mode = ProcessMode.from_decorated_fn(self.process)
 
-        This method applies the augmentation process to each sample in the batch and tracks
-        the index of the source sample for each output. It returns the augmented batch and
-        the indices indicating the source of each output sample.
+        # prepare inputs and apply process function to all inputs
+        inputs = mode.prepare(ctx, **arrays)
+        calls = (self.process(c, **kw) for c, kw in inputs)
 
-        Args:
-            ctx (RunContext): Context information for the data augmenter's execution.
-            **kwargs (pa.Array): Input features matching the signature of the :func:`process`
-                function.
-
-        Returns:
-            tuple[pa.Array, TraceIndexList]: The output tuple of the following entries:
-                - :code:`pa.Array`: An array containing all augmented output samples.
-                - TraceIndexList: A list of trace indices corresponding indicating the
-                  index of the source sample in the input batch that generated the
-                  output sample. Specifically the i-th output sample is generated
-                  from the trace_index[i]-th input example.
-        """
-        # apply process function to each sample in the input batch
-        batch = pa.table(kwargs, schema=ctx.input_type.arrow_schema).to_pylist()
-        calls = [
-            self.process(
-                RunContext(
-                    node_id=ctx.node_id,
-                    index=i,
-                    rank=ctx.rank,
-                    input_type=ctx.input_type,
-                    output_type=ctx.output_type,
-                ),
-                **sample,
-            )
-            for i, sample in zip(ctx.index, batch, strict=True)
-        ]
-
-        # collect all outputs
         if self._is_process_async:
             # collect from async generators
             outputs = []
             for call in calls:
                 outputs.append([sample async for sample in call])
+
         else:
-            # collect from sync generators
             outputs = list(map(list, calls))
 
-        # build trace indices for each output sample
-        trace_index = ([i] * len(out) for i, out in enumerate(outputs))
+        if mode.batched:
+            # separate outputs from trace indices
+            outputs, trace_index = zip(*outputs)
+            # finalize outputs and concatenate trace indices
+            outputs = mode.finalize(ctx, outputs)
+            trace_index = list(chain.from_iterable(trace_index))
 
-        # chain outputs
-        outputs = list(chain.from_iterable(outputs))
-        trace_index = list(chain.from_iterable(trace_index))
+            return outputs, trace_index
 
-        return pa.array(outputs, type=ctx.output_type.arrow_type), trace_index
+        else:
+            # build trace indices for each output sample
+            trace_index = ([i] * len(out) for i, out in enumerate(outputs))
+            # chain outputs
+            outputs = mode.finalize(ctx, chain.from_iterable(outputs))
+            trace_index = list(chain.from_iterable(trace_index))
+
+            return outputs, trace_index

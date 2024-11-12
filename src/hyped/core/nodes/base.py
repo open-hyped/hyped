@@ -5,11 +5,28 @@ includes a base configuration class (:class:`BaseNodeConfig`) and a
 generic base class (:class:`BaseNode`) for defining nodes with
 configurable input and output types.
 """
+from __future__ import annotations
+
+import operator
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from functools import partial
 from inspect import Signature
 from itertools import chain
-from typing import Generic, ParamSpec, Protocol, TypeVar, overload
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Generic,
+    Iterable,
+    Literal,
+    ParamSpec,
+    Protocol,
+    TypeVar,
+    overload,
+)
+
+import pyarrow as pa
 
 from hyped._registry.config import BaseConfig, BaseConfigurable
 from hyped.common.typing import Index, IndexList, NodeId, Rank
@@ -77,6 +94,121 @@ class RunContext:
             int: The hash value of the node ID.
         """
         return hash(self.node_id)
+
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+@dataclass(eq=True, frozen=True)
+class ProcessMode:
+    batched: bool
+
+    backend: Literal["python", "arrow"]
+
+    from_arrow_converters: ClassVar[dict[ProcessMode, Callable]] = {}
+    to_arrow_converters: ClassVar[dict[ProcessMode, Callable]] = {}
+
+    def __call__(self, fn: Callable[P, R]) -> Callable[P, R]:
+        # decorator
+        fn.__hyped_process_mode__ = self
+        return fn
+
+    def set_default(self, fn: Callable[P, R]) -> Callable[P, R]:
+        if not hasattr(fn, "__hyped_process_mode__"):
+            return self(fn)
+
+        return fn
+
+    @classmethod
+    def from_decorated_fn(cls, fn: Callable[P, R]) -> ProcessMode:
+        if not hasattr(fn, "__hyped_process_mode__"):
+            raise RuntimeError()
+
+        return fn.__hyped_process_mode__
+
+    @classmethod
+    def register_from_arrow_converter(cls, mode: ProcessMode) -> Any:
+        return partial(operator.setitem, cls.from_arrow_converters, mode)
+
+    @classmethod
+    def register_to_arrow_converter(cls, mode: ProcessMode) -> Any:
+        return partial(operator.setitem, cls.to_arrow_converters, mode)
+
+    def validate(self) -> ProcessMode:
+        if not (
+            (self in ProcessMode.from_arrow_converters)
+            and (self in ProcessMode.to_arrow_converters)
+        ):
+            # TODO: mode not supported error message
+            raise Exception()
+
+        return self
+
+    def prepare(
+        self, ctx: RunContext, **kwargs: pa.Array
+    ) -> Iterable[tuple[RunContext, dict[str, Any]]]:
+        # get the input converter function to the process mode
+        assert self in ProcessMode.from_arrow_converters
+        converter = ProcessMode.from_arrow_converters[self]
+
+        if self.batched:
+            # apply the converter to the inputs
+            yield ctx, converter(ctx.input_type.arrow_schema, **kwargs)
+
+        else:
+            # apply the converter to the inputs and yield samples with corresponding run contexts
+            samples = converter(ctx.input_type.arrow_schema, **kwargs)
+            yield from (
+                (replace(ctx, index=i), sample)
+                for i, sample in zip(ctx.index, samples, strict=True)
+            )
+
+    def finalize(self, ctx: RunContext, outputs: Iterable[Any]) -> pa.Array:
+        # get the converter function
+        assert self in ProcessMode.to_arrow_converters
+        converter = ProcessMode.to_arrow_converters[self]
+        # run the converter on the outputs
+        return converter(ctx.output_type.arrow_type, outputs)
+
+
+@ProcessMode.register_from_arrow_converter(ProcessMode(batched=False, backend="python"))
+def _arrow_to_python_samples(schema: pa.Schema, **arrays: pa.Array) -> Iterable[dict[str, Any]]:
+    return pa.table(arrays, schema=schema).to_pylist()
+
+
+@ProcessMode.register_from_arrow_converter(ProcessMode(batched=True, backend="python"))
+def _arrow_to_python_batch(schema: pa.Schema, **arrays: pa.Array) -> dict[str, list[Any]]:
+    return pa.table(arrays, schema=schema).to_pydict()
+
+
+@ProcessMode.register_from_arrow_converter(ProcessMode(batched=True, backend="arrow"))
+def _arrow_to_arrow_batch(schema: pa.Schema, **arrays: pa.Array) -> dict[str, pa.Array]:
+    return arrays
+
+
+@ProcessMode.register_to_arrow_converter(ProcessMode(batched=False, backend="python"))
+def _python_samples_to_arrow(arrow_type: pa.DataType, values: Iterable[Any]) -> pa.Array:
+    return pa.array(values, type=arrow_type)
+
+
+@ProcessMode.register_to_arrow_converter(ProcessMode(batched=True, backend="python"))
+def _python_samples_to_arrow(arrow_type: pa.DataType, values: Iterable[list[Any]]) -> pa.Array:
+    return pa.array(chain.from_iterable(values), type=arrow_type)
+
+
+@ProcessMode.register_to_arrow_converter(ProcessMode(batched=True, backend="arrow"))
+def _python_samples_to_arrow(arrow_type: pa.DataType, values: Iterable[pa.Array]) -> pa.Array:
+    return pa.chunked_array(values, type=arrow_type)
+
+
+F = TypeVar("F", bound=Callable[P, R])
+
+
+def process_mode(
+    batched: bool = False, backend: Literal["python", "arrow"] = "python"
+) -> Callable[[F], F]:
+    return ProcessMode(batched=batched, backend=backend).validate()
 
 
 Params = ParamSpec("Params")

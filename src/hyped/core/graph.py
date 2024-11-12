@@ -24,13 +24,13 @@ from .abstract import AbstractDataFlowGraph
 from .features.engine import FeatureEngine
 from .features.features import _Feature, build_feature_from_dtype
 from .features.reference import FeatureKey, Reference
-from .features.types import MappingType, SequenceType, Type
+from .features.types import MappingType, Type
 from .nodes.aggregator import BaseDataAggregator
 from .nodes.augmenter import BaseDataAugmenter
 from .nodes.base import BaseNode
 from .nodes.collect import CollectNode
 from .nodes.processor import BaseDataProcessor
-from .utils import NestedType, build_dtype_from_object, map_recursive
+from .utils import NestedType, map_recursive
 
 
 def _compute_node_depth(G: nx.DiGraph) -> dict[Hashable, int]:
@@ -170,6 +170,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         as fixed inputs to the subsequent processing stages.
         """
 
+        # TODO: docstring
         COLLECT = "COLLECT_NODE"
 
         DATA_PROCESSOR = "DATA_PROCESSOR_NODE"
@@ -321,7 +322,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         return self.graph[DataFlowGraph.GraphAttribute.SRC_NODE_ID]
 
     @property
-    def src_dtype(self) -> Type:
+    def src_dtype(self) -> MappingType:
         return self.nodes[self.src_node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
 
     @property
@@ -537,59 +538,8 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         )
 
     def add_collect_node(
-        self, collect: NestedType[Reference | str | int | float], node_id: None | NodeId = None
+        self, collect: NestedType[Reference], node_id: None | NodeId = None
     ) -> Reference:
-        def add_constants(
-            val: NestedType[Reference | str | int | float], dtype: None | Type = None
-        ) -> NestedType[Reference]:
-            if isinstance(val, dict):
-                assert (dtype is None) or isinstance(dtype, MappingType)
-
-                return {
-                    key: add_constants(item, dtype[key] if dtype is not None else None)
-                    for key, item in val.items()
-                }
-
-            elif isinstance(val, (list, tuple)):
-                assert (dtype is None) or isinstance(dtype, SequenceType)
-
-                if len(val) == 0:
-                    raise NotImplementedError("Empty Sequence")
-
-                if dtype is None:
-                    # try to infer the dtype from the reference instances in the sequence
-                    if any(isinstance(r, Reference) for r in val):
-                        ref = next(r for r in val if isinstance(r, Reference))
-                        dtype = self.get_dtype_from_reference(ref)
-
-                else:
-                    # otherwise use the value type from the given dtype
-                    dtype = dtype.value_type
-
-                # recurse on all items in the sequence
-                return type(val)([add_constants(item, dtype) for item in val])
-
-            elif not isinstance(val, Reference):
-                # add the constant node
-                return self.add_const_node(
-                    val, dtype=dtype if dtype is not None else build_dtype_from_object(val)
-                )
-
-            elif isinstance(val, Reference):
-                return val
-
-            else:
-                # TODO: error message
-                TypeError(val)
-
-        if isinstance(collect, Reference):
-            # nothing to collect
-            return collect
-
-        # prepare collect structure and add all included constants to the graph
-        collect = map_recursive(lambda _, x: x.ref if isinstance(x, _Feature) else x, collect)
-        collect = add_constants(collect)
-
         inputs = {}
         # extract flat inputs to collect node from structure
         map_recursive(

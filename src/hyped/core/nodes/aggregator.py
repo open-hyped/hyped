@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 from abc import ABC, abstractmethod
+from dataclasses import replace
 from types import MappingProxyType
 from typing import (
     Any,
@@ -25,6 +26,7 @@ from typing import (
     TypeVar,
     get_args,
     get_origin,
+    runtime_checkable,
 )
 
 import pyarrow as pa
@@ -32,8 +34,9 @@ from typing_extensions import Self
 
 from hyped.common._worker import manager as _manager  # noqa: F401
 
+from ..features.types import MappingType
 from ..typing import Feature
-from .base import BaseNode, BaseNodeConfig, NodeProtocol, RunContext
+from .base import BaseNode, BaseNodeConfig, NodeProtocol, ProcessMode, RunContext
 
 
 class DataAggregationManager(object):
@@ -41,11 +44,6 @@ class DataAggregationManager(object):
 
     This class manages data aggregators, their thread-safe buffers, and synchronization
     locks to ensure safe concurrent updates during the data processing.
-
-    Attributes:
-        _value_buffer (dict): Thread-safe buffer for aggregation values.
-        _state_buffer (dict): Thread-safe buffer for aggregation states.
-        _locks (dict): Locks for synchronizing access to aggregators.
     """
 
     def __init__(
@@ -66,11 +64,11 @@ class DataAggregationManager(object):
         state_buffer = {}
         # fill buffers with initial values from aggregators
         for agg, ctx in zip(aggregators, run_contexts):
-            (
-                value_buffer[ctx.node_id],
-                state_buffer[ctx.node_id],
-            ) = agg.initialize(ctx)
-        assert all(isinstance(val, pa.Scalar) for val in value_buffer.values())
+            val, state = agg.initialize(ctx)
+            val = pa.array([val], type=ctx.output_type.arrow_type)
+            # write values to buffers
+            value_buffer[ctx.node_id] = val
+            state_buffer[ctx.node_id] = state
         # create thread-safe buffers
         self._value_buffer = _manager.dict(value_buffer)
         self._state_buffer = _manager.dict(state_buffer)
@@ -79,11 +77,11 @@ class DataAggregationManager(object):
         self._locks = _manager.dict(self._locks)
 
     @property
-    def values_proxy(self) -> MappingProxyType[str, Any]:
+    def values_proxy(self) -> MappingProxyType[str, pa.Array]:
         """Get a read-only view of the aggregation values.
 
         Returns:
-            MappingProxyType[str, Any]: A read-only view of the aggregation values.
+            MappingProxyType[str, pa.Array]: A read-only view of the aggregation values.
         """
         return MappingProxyType(self._value_buffer)
 
@@ -98,6 +96,10 @@ class DataAggregationManager(object):
             extracted (Any): The values extracted from the input batch.
         """
         assert ctx.node_id in self._value_buffer
+
+        # get the process mode of the update function
+        mode = ProcessMode.from_decorated_fn(aggregator.update)
+
         # get the running event loop
         loop = asyncio.get_running_loop()
         # acquire the lock for the current aggregator
@@ -105,11 +107,18 @@ class DataAggregationManager(object):
         # get current value and context
         value = self._value_buffer[ctx.node_id]
         state = self._state_buffer[ctx.node_id]
-        # compute udpated value and context
-        value, state = await aggregator.update(ctx, value, state, extracted)
-        assert isinstance(value, pa.Scalar)
+
+        # prepare the value for the update
+        value_type = MappingType.from_dict({"value": ctx.output_type})
+        inputs = mode.prepare(replace(ctx, input_type=value_type), value=value)
+        # should only contain a single input tuple
+        update_ctx, update_kw = next(iter(inputs))
+        update_ctx = replace(update_ctx, input_type=ctx.input_type)
+        # run the aggregator update function
+        value, state = await aggregator.update(update_ctx, update_kw["value"], state, extracted)
+
         # write new values to buffers
-        self._value_buffer[ctx.node_id] = value
+        self._value_buffer[ctx.node_id] = mode.finalize(ctx, [value])
         self._state_buffer[ctx.node_id] = state
         # release lock
         self._locks[ctx.node_id].release()
@@ -126,16 +135,21 @@ class DataAggregationManager(object):
             rank (Rank): The rank of the processor in a distributed setting.
             ctx (RunContext): Context information for the aggregator execution.
         """
-        # extract values required for update from current input batch
-        # and update the aggregated value and state
-        extracted = await aggregator.extract(ctx, **inputs)
-        await self._safe_update(ctx, aggregator, extracted)
+        # get the process mode for the extract function
+        mode = ProcessMode.from_decorated_fn(aggregator.extract)
+
+        for c, kw in mode.prepare(ctx, **inputs):
+            # extract values required for update from current input batch
+            # and update the aggregated value and state
+            extracted = await aggregator.extract(c, **kw)
+            await self._safe_update(c, aggregator, extracted)
 
 
 Params = ParamSpec("Params")
 Return = TypeVar("Return")
 
 
+@runtime_checkable
 class _AggregatorProtocol(Protocol, Generic[Params, Return]):
     async def extract(self, *args: Params.args, **kwargs: Params.kwargs) -> Any:
         ...
@@ -162,6 +176,16 @@ class BaseDataAggregator(BaseNode[C], ABC):
     This class serves as the base for all data aggregators, defining the necessary
     interfaces and methods for implementing custom aggregators.
     """
+
+    @classmethod
+    def __init_subclass__(cls) -> None:
+        # set default process modes for extract and update functions
+        ProcessMode(batched=True, backend="python").validate().set_default(cls.extract)
+        ProcessMode(batched=False, backend="python").validate().set_default(cls.update)
+
+        if not issubclass(cls, _AggregatorProtocol):
+            # TODO: error message, signature doesn't match expectation
+            raise TypeError()
 
     def __new__(
         cls: (_AggregatorProtocol[Concatenate[Self, RunContext, Params], Return]),
@@ -207,13 +231,6 @@ class BaseDataAggregator(BaseNode[C], ABC):
         """
         ...
 
-    # TODO: currently the node signature input arguments are read from the extract function
-    #       which requires them to be annotated with feature types, however the input values
-    #       are pyarrow arrays and not scalars
-    #       A feature annotation is equivalent with a scalar / primitive but not with an array
-    #       Should we say a feature can be a scalar or an array? The specific type must then be
-    #       inferred from context. extract -> arrays, update -> scalar (note that the return
-    #       type of the update function is a scalar but is also annotated as a feature)
     @abstractmethod
     async def extract(self, ctx: RunContext, *args: Feature, **kwargs: Feature) -> Extracted:
         """Extract necessary values from the inputs for aggregation.

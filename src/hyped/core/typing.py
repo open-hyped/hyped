@@ -237,7 +237,7 @@ Supported types include :class:`float`, :class:`list[float]`, :class:`pyarrow.Ha
 and :class:`_Float64`.
 """
 
-T = TypeVar("T", bound=_Feature)
+T = TypeVar("T")
 
 Sequence: TypeAlias = Union[_Sequence[T], list[T], list[list[T]], pa.ListScalar, pa.ListArray]
 """

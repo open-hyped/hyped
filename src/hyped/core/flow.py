@@ -39,13 +39,19 @@ from .features.features import (
     build_feature_from_dtype,
 )
 from .features.reference import FeatureKey, Reference
-from .features.types import MappingType, Type
+from .features.types import MappingType, SequenceType, Type
 from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
 from .optim import DataFlowGraphOptimizer
 from .typing import Mapping, Sequence
-from .utils import build_dtype_from_hf_feature, build_dtype_from_object, is_dtype_subset
+from .utils import (
+    NestedType,
+    build_dtype_from_hf_feature,
+    build_dtype_from_object,
+    is_dtype_subset,
+    map_recursive,
+)
 
 D = TypeVar(
     "D",
@@ -197,11 +203,11 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         ...
 
     @overload
-    def const(self, value: dict) -> Mapping:
+    def const(self, value: dict[str, Any]) -> Mapping:
         ...
 
     @overload
-    def const(self, value: list | tuple) -> Sequence:
+    def const(self, value: list[Any] | tuple[Any]) -> Sequence:
         ...
 
     U = TypeVar("U", bound=_Feature)
@@ -224,18 +230,70 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         return self._graph.get_feature_from_reference(ref)
 
     @overload
-    def collect(self, collect: dict) -> Mapping:
+    def collect(self, collect: dict[NestedType[Any]]) -> Mapping:
         ...
 
     @overload
-    def collect(self, collect: list | tuple) -> Sequence:
+    def collect(self, collect: list[NestedType[Any]] | tuple[NestedType[Any]]) -> Sequence:
         ...
 
     @overload
     def collect(self, collect: Any) -> _Feature:
         ...
 
-    def collect(self, collect: dict | list) -> Mapping | Sequence | _Feature:
+    def collect(self, collect: NestedType[Any]) -> Mapping | Sequence | _Feature:
+        def add_constants(
+            val: NestedType[Reference | str | int | float], dtype: None | Type = None
+        ) -> NestedType[Reference]:
+            if isinstance(val, dict):
+                assert (dtype is None) or isinstance(dtype, MappingType)
+
+                return {
+                    key: add_constants(item, dtype[key] if dtype is not None else None)
+                    for key, item in val.items()
+                }
+
+            elif isinstance(val, (list, tuple)):
+                assert (dtype is None) or isinstance(dtype, SequenceType)
+
+                if len(val) == 0:
+                    raise NotImplementedError("Empty Sequence")
+
+                if dtype is None:
+                    # try to infer the dtype from the reference instances in the sequence
+                    if any(isinstance(r, Reference) for r in val):
+                        ref = next(r for r in val if isinstance(r, Reference))
+                        dtype = self._graph.get_dtype_from_reference(ref)
+
+                else:
+                    # otherwise use the value type from the given dtype
+                    dtype = dtype.value_type
+
+                # recurse on all items in the sequence
+                return type(val)([add_constants(item, dtype) for item in val])
+
+            elif not isinstance(val, Reference):
+                # add the constant node
+                return self._graph.add_const_node(
+                    val, dtype=dtype if dtype is not None else build_dtype_from_object(val)
+                )
+
+            elif isinstance(val, Reference):
+                return val
+
+            else:
+                # TODO: error message
+                TypeError(val)
+
+        if isinstance(collect, Reference):
+            # nothing to collect
+            return collect
+
+        # prepare collect structure and add all included constants to the flow
+        collect = map_recursive(lambda _, x: x.ref if isinstance(x, _Feature) else x, collect)
+        collect = add_constants(collect)
+
+        # add the collect node to the graph
         ref = self._graph.add_collect_node(collect)
         return self._graph.get_feature_from_reference(ref)
 
