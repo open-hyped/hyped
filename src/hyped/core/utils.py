@@ -109,6 +109,7 @@ def build_dtype_from_arrow_type(arrow_type: pa.DataType) -> Type:
     if isinstance(arrow_type, pa.DataType):
         return ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING[str(arrow_type)]
 
+    # TODO: error message
     raise TypeError()
 
 
@@ -141,6 +142,7 @@ def build_dtype_from_hf_feature(feature: FeatureType) -> Type:
         arrow_type = packed.arrow_schema.field("field").type
         return ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING[str(arrow_type)]
 
+    # TODO: error message
     raise TypeError(feature)
 
 

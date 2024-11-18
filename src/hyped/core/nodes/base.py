@@ -22,6 +22,7 @@ from typing import (
     Literal,
     ParamSpec,
     Protocol,
+    TypeAlias,
     TypeVar,
     overload,
 )
@@ -99,11 +100,14 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 
+Backend: TypeAlias = Literal["python", "arrow"]
+
+
 @dataclass(eq=True, frozen=True)
 class ProcessMode:
     batched: bool
 
-    backend: Literal["python", "arrow"]
+    backend: Backend
 
     from_arrow_converters: ClassVar[dict[ProcessMode, Callable]] = {}
     to_arrow_converters: ClassVar[dict[ProcessMode, Callable]] = {}
@@ -204,9 +208,7 @@ def _python_samples_to_arrow(arrow_type: pa.DataType, values: Iterable[pa.Array]
 F = TypeVar("F", bound=Callable[P, R])
 
 
-def process_mode(
-    batched: bool = False, backend: Literal["python", "arrow"] = "python"
-) -> Callable[[F], F]:
+def process_mode(batched: bool = False, backend: Backend = "python") -> Callable[[F], F]:
     return ProcessMode(batched=batched, backend=backend).validate()
 
 

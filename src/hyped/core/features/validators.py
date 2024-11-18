@@ -15,7 +15,7 @@ from pydantic import AfterValidator, BeforeValidator, TypeAdapter, ValidationInf
 
 from hyped._registry.config import BaseConfig
 
-from .features import _Feature, build_feature_from_dtype
+from .features import _Feature, _Sequence, build_feature_from_dtype
 from .types import Type
 
 
@@ -114,8 +114,8 @@ class Len(TypeValidator):
             length (int): The expected length of the sequence to be validated.
         """
 
-        def length_validator(seq: Sequence, config: BaseConfig, val_id: UUID) -> Any:
-            if not isinstance(seq, Sequence):
+        def length_validator(seq: _Sequence, config: BaseConfig, val_id: UUID) -> Any:
+            if not isinstance(seq, _Sequence):
                 raise RuntimeError("Not a sequence")
 
             if length != len(seq):
