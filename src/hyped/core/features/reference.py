@@ -1,3 +1,15 @@
+"""This module provides the classes for referencing (sub-)features within a data flow system.
+
+The key classes in this module are:
+1. **FeatureKey**: A class representing a key used to index features and examples. It allows
+    flexible indexing with various types such as strings, integers, and slices. It also supports
+    advanced operations like slicing and hashing, making it essential for navigating and accessing
+    features in a computational graph.
+2. **Reference**: A class that encapsulates a feature key, node identifier, and a reference to the
+    data flow graph. This class is used to track specific features in the context of a data
+    processing or computational graph, facilitating the connection between features and their
+    corresponding nodes and graphs.
+"""
 from __future__ import annotations
 
 import typing
@@ -5,8 +17,6 @@ from dataclasses import dataclass
 
 import numpy as np
 import pyarrow as pa
-from pydantic import GetCoreSchemaHandler
-from pydantic_core import CoreSchema, core_schema
 
 from ..abstract import AbstractDataFlowGraph
 from .types import MappingType, SequenceType, Type
@@ -21,7 +31,10 @@ structure.
 
 
 class FeatureKey(tuple[int | str | slice]):
-    """Feature Key used to index features and examples.
+    """Feature Key used to index specific sub-features.
+
+    It represents the indexing operations that need to be applied to the
+    feature to get a referenced sub-feature.
 
     Arguments:
         *key (str | int | slice): Key entries.
@@ -102,22 +115,24 @@ class FeatureKey(tuple[int | str | slice]):
         """
         return hash(tuple((k.start, k.stop, k.step) if isinstance(k, slice) else k for k in self))
 
-    @classmethod
-    def __get_pydantic_core_schema__(
-        cls, source_type: typing.Any, handler: GetCoreSchemaHandler
-    ) -> CoreSchema:
-        """Integrate feature key with pydantic.
+    def index_array(self, array: pa.Array) -> pa.Array:
+        """Index into the given :code:`PyArrow` array using the feature key.
+
+        This method applies each key entry in the :class:`FeatureKey` to the corresponding level
+        of the Arrow array, and returns the resulting indexed array. The indexing is performed
+        according to the type of the key entry, which can be a string (for struct fields), an
+        integer (for list elements), or a slice (for list slicing).
 
         Arguments:
-            source_type (typing.Any): Source type for the schema.
-            handler (GetCoreSchemaHandler): Handler for the core schema.
+            array (pa.Array): The :code:`PyArrow` array to index.
 
         Returns:
-            CoreSchema: The integrated pydantic core schema.
-        """
-        return core_schema.no_info_after_validator_function(cls, handler(tuple | str))
+            pa.Array: The indexed :code:`PyArrow` array after applying the feature key.
 
-    def index_array(self, array: pa.Array) -> pa.Array:
+        Raises:
+            TypeError: If there is a mismatch between the key entry type and the array type.
+            RuntimeError: If unsupported slicing is attempted on lists of unknown length.
+        """
         for i, key_entry in enumerate(self):
             if isinstance(key_entry, str) and pa.types.is_struct(array.type):
                 array = pa.compute.struct_field(array, key_entry)
@@ -125,6 +140,18 @@ class FeatureKey(tuple[int | str | slice]):
             elif isinstance(key_entry, int) and (
                 pa.types.is_list(array.type) or pa.types.is_fixed_size_list(array.type)
             ):
+                if key_entry < 0:
+                    # check if length of list is fixed
+                    if not pa.types.is_fixed_size_list(array.type):
+                        raise IndexError(
+                            "Unsupported indexing attempted on lists of unknown length. "
+                            "Negative indices are not allowed for lists with unknown lengths, "
+                            f"got index {key_entry}."
+                        )
+
+                    # update key entry
+                    key_entry = array.type.list_size + key_entry
+
                 array = pa.compute.list_element(array, key_entry)
 
             elif isinstance(key_entry, slice) and (
@@ -139,18 +166,18 @@ class FeatureKey(tuple[int | str | slice]):
                     start = key_entry.start if key_entry.start is not None else 0
                     step = key_entry.step if key_entry.step is not None else 1
 
-                    if (start < 0) or (stop < 0):
+                    if (start < 0) or ((stop is not None) and (stop < 0)):
                         # not supported for lists of unkown length
-                        raise RuntimeError()
+                        raise IndexError(
+                            "Unsupported slicing attempted on lists of unknown length. "
+                            "Negative indices or stop values are not allowed for lists with "
+                            f"unknown lengths, got slice ({start}, {stop}, {step})."
+                        )
 
-                if key_entry != slice(None) and step != 1:
+                if key_entry != slice(None):
                     # get the list slice but only if there are actually values being omitted be
                     # slicing, otherwise (i.e. slice(None)) just keep the full list
                     array = pa.compute.list_slice(array, start, stop, step)
-
-                elif key_entry != slice(None):
-                    # zero-copy slice view on array
-                    array = array.slice(start, stop - start)
 
                 if i + 1 < len(self):
                     # flatten the list for further processing
@@ -165,28 +192,48 @@ class FeatureKey(tuple[int | str | slice]):
 
                     # unflatten the array using the nested ids
                     array = [
-                        pa.compute.take(flat_array, idx, boundschecks=False) for idx in nested_ids
+                        pa.compute.take(flat_array, idx, boundscheck=False) for idx in nested_ids
                     ]
                     array = pa.array(
                         array,
                         type=pa.list_(
                             flat_array.type,
-                            array.type.list_size if pa.types.is_fixed_size_list(array.type) else -1,
+                            array.type.list_size
+                            if pa.types.is_fixed_size_list(flat_array.type)
+                            else -1,
                         ),
                     )
 
                 return array
 
             else:
-                # TODO: mismatch between key and array type
-                raise TypeError(key_entry, array.type)
+                raise TypeError(
+                    f"Cannot apply key entry '{key_entry}' to array of type '{array.type}'"
+                )
 
         return array
 
     def index_dtype(self, dtype: Type) -> Type:
+        """Index into the given data type using the feature key.
+
+        This method applies each key entry in the :class:`FeatureKey` to the corresponding level
+        of the given data type. It returns the resulting data type after the indexing. The
+        indexing is performed according to the type of the key entry, which can be an integer or
+        string (for :class:`SequenceType` or :class:`MappingType`), or a slice
+        (for :class:`SequenceType`).
+
+        Arguments:
+            dtype (Type): The data type to index.
+
+        Returns:
+            Type: The resulting data type after applying the feature key.
+
+        Raises:
+            TypeError: If there is a mismatch between the key entry type and the data type.
+        """
         for i, key_entry in enumerate(self):
-            if isinstance(key_entry, (int, str)) and (
-                isinstance(dtype, (SequenceType, MappingType))
+            if (isinstance(key_entry, int) and isinstance(dtype, SequenceType)) or (
+                isinstance(key_entry, str) and isinstance(dtype, MappingType)
             ):
                 dtype = dtype[key_entry]
 
@@ -197,19 +244,33 @@ class FeatureKey(tuple[int | str | slice]):
                 )
 
             else:
-                # TODO: mismatch between key and array type
-                raise TypeError(key_entry, dtype)
+                raise TypeError(f"Cannot apply key entry '{key_entry}' to data type '{dtype}'")
 
         return dtype
 
 
 class DummyDataFlowGraph(AbstractDataFlowGraph):
+    """Dummy Data Flow Graph."""
+
     def __init__(self) -> None:
+        """Initialize Dummy Data Flow Graph."""
         pass
 
 
 @dataclass(eq=True, frozen=True)
 class Reference:
+    """Represents a reference to a specific feature, node, and graph in a data flow system.
+
+    This class encapsulates a feature key, a node identifier, and a reference to a data flow graph.
+    It is used to track and reference elements in the context of a larger data processing or
+    computational graph.
+    """
+
     _key: FeatureKey = FeatureKey()
+    """The key identifying the feature being referenced."""
+
     _node_id: NodeId = "DummyNodeId"
+    """The unique identifier for the node within the graph."""
+
     _graph: AbstractDataFlowGraph = DummyDataFlowGraph()
+    """The data flow graph that contains the node."""

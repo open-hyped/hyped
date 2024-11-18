@@ -66,7 +66,7 @@ class _String(_Primitive):
         assert self.dtype is types.StringType
 
 
-class Scalar(_Primitive):
+class _Scalar(_Primitive):
     ...
 
 
@@ -76,7 +76,7 @@ class ExpectedScalarType(pydantic.WrapValidator):
             if isinstance(inst, Reference):
                 # create scalar feature with expected data type
                 # from reference instance
-                inst = Scalar(inst, dtype)
+                inst = _Scalar(inst, dtype)
 
             # run core validator
             inst = validator(inst)
@@ -94,19 +94,19 @@ class ExpectedScalarType(pydantic.WrapValidator):
         super(ExpectedScalarType, self).__init__(func=validator_fn)
 
 
-_Int8 = typing.Annotated[Scalar, ExpectedScalarType(types.Int8Type)]
-_Int16 = typing.Annotated[Scalar, ExpectedScalarType(types.Int16Type)]
-_Int32 = typing.Annotated[Scalar, ExpectedScalarType(types.Int32Type)]
-_Int64 = typing.Annotated[Scalar, ExpectedScalarType(types.Int64Type)]
+_Int8 = typing.Annotated[_Scalar, ExpectedScalarType(types.Int8Type)]
+_Int16 = typing.Annotated[_Scalar, ExpectedScalarType(types.Int16Type)]
+_Int32 = typing.Annotated[_Scalar, ExpectedScalarType(types.Int32Type)]
+_Int64 = typing.Annotated[_Scalar, ExpectedScalarType(types.Int64Type)]
 
-_UInt8 = typing.Annotated[Scalar, ExpectedScalarType(types.UInt8Type)]
-_UInt16 = typing.Annotated[Scalar, ExpectedScalarType(types.UInt16Type)]
-_UInt32 = typing.Annotated[Scalar, ExpectedScalarType(types.UInt32Type)]
-_UInt64 = typing.Annotated[Scalar, ExpectedScalarType(types.UInt64Type)]
+_UInt8 = typing.Annotated[_Scalar, ExpectedScalarType(types.UInt8Type)]
+_UInt16 = typing.Annotated[_Scalar, ExpectedScalarType(types.UInt16Type)]
+_UInt32 = typing.Annotated[_Scalar, ExpectedScalarType(types.UInt32Type)]
+_UInt64 = typing.Annotated[_Scalar, ExpectedScalarType(types.UInt64Type)]
 
-_Float16 = typing.Annotated[Scalar, ExpectedScalarType(types.Float16Type)]
-_Float32 = typing.Annotated[Scalar, ExpectedScalarType(types.Float32Type)]
-_Float64 = typing.Annotated[Scalar, ExpectedScalarType(types.Float64Type)]
+_Float16 = typing.Annotated[_Scalar, ExpectedScalarType(types.Float16Type)]
+_Float32 = typing.Annotated[_Scalar, ExpectedScalarType(types.Float32Type)]
+_Float64 = typing.Annotated[_Scalar, ExpectedScalarType(types.Float64Type)]
 
 T = typing.TypeVar("T")
 
@@ -327,7 +327,7 @@ else:
 TYPE_TO_FEATURE_MAPPING = {
     types.BoolType: _Bool,
     types.StringType: _String,
-    types.PrimitiveType: Scalar,
+    types.PrimitiveType: _Scalar,
     types.SequenceType: _Sequence,
     types.MappingType: _Mapping,
 }
