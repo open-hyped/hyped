@@ -124,7 +124,11 @@ class TypeVarRegister(object):
             and (t in self._captured_vars)
             and (self.solve_typevar(t) != val.dtype)
         ):
-            raise TypeError()
+            raise TypeError(
+                f"TypeVar '{t.__name__}' has been assigned conflicting types. "
+                f"Current assigned type is '{self.solve_typevar(t)}', "
+                f"while newly attempted type is '{val.dtype}'."
+            ) from None
 
         return val
 
