@@ -29,18 +29,49 @@ class TypeVarRegister(object):
         self._registered_vars: dict[uuid4, TypeVar] = {}
         self._captured_vars: dict[TypeVar, Type | type] = {}
 
+    def reset(self) -> None:
+        """Reset the type var register."""
+        self._captured_vars.clear()
+
     @property
     def typevar_mapping(self) -> dict[TypeVar, Type]:
+        """Map captured TypeVars to their resolved types.
+
+        Returns:
+            dict[TypeVar, type]: A dictionary mapping each registered TypeVar
+            to its resolved type.
+        """
         # TODO: map python build-in types to data types
         if any(not isinstance(dtype, Type) for dtype in self._captured_vars.values()):
             raise NotImplementedError()
 
         return self._captured_vars
 
-    def solve_typevar(self, var: TypeVar) -> Type | type:
+    def solve_typevar(self, var: TypeVar) -> Type:
+        """Resolve a TypeVar to its captured type.
+
+        Args:
+            var (TypeVar): The :class:`TypeVar` to resolve.
+
+        Returns:
+            type: The captured type associated with the provided :class:`TypeVar`.
+
+        Raises:
+            KeyError: If the TypeVar is not found in the captured variables.
+        """
         return self.typevar_mapping[var]
 
-    def create_trackable_typevar(self, *args, **kwargs) -> TypeVar:
+    def create_trackable_typevar(self, *args: Any, **kwargs: Any) -> TypeVar:
+        """Create and register a TypeVar with a custom validator.
+
+        Args:
+            *args (Any): Positional arguments passed to the :class:`TypeVar` constructor.
+            **kwargs (Any): Keyword arguments passed to the :class:`TypeVar` constructor.
+                Special :code:`bound` keyword is used to define the type bound for the TypeVar.
+
+        Returns:
+            TypeVar: The newly created and registered :class:`TypeVar` with the custom validator.
+        """
         validator = self.create_validator()
         # annotate the bound argument with the validator
         bound = kwargs.pop("bound", Any)
@@ -61,15 +92,15 @@ class TypeVarRegister(object):
         validator = partial(self._validator, uuid=uuid4())
         return pydantic.AfterValidator(validator)
 
-    def register(self, T: TypeVar, validator: pydantic.AfterValidator) -> None:
+    def register(self, t: TypeVar, validator: pydantic.AfterValidator) -> None:
         """Register a TypeVar with a Pydantic validator.
 
         Args:
-            T (TypeVar): The TypeVar to register.
+            t (TypeVar): The TypeVar to register.
             validator (pydantic.AfterValidator): The validator associated with the TypeVar.
         """
         uuid = validator.func.keywords["uuid"]
-        self._registered_vars[uuid] = T
+        self._registered_vars[uuid] = t
 
     def _validator(self, val: object, uuid: UUID) -> None:
         """Validate and capture a TypeVar during validation.
@@ -78,25 +109,42 @@ class TypeVarRegister(object):
             val (object): The value being validated.
             uuid (UUID): The UUID associated with the TypeVar.
         """
-        # only active when values should be captured
-        if self._captured_vars is None:
-            return
-
         # get the typevar instance to validate
-        T = self._registered_vars[uuid]
+        t = self._registered_vars[uuid]
         # capture the value type
-        if (T not in self._captured_vars) or (
+        if (t not in self._captured_vars) or (
             # prefer features over constants
-            not isinstance(self._captured_vars[T], Feature)
+            not isinstance(self._captured_vars[t], Type)
             and isinstance(val, Feature)
         ):
-            self._captured_vars[T] = val.dtype if isinstance(val, Feature) else type(val)
+            self._captured_vars[t] = val.dtype if isinstance(val, Feature) else type(val)
+
+        if (
+            isinstance(val, Feature)
+            and (t in self._captured_vars)
+            and (self.solve_typevar(t) != val.dtype)
+        ):
+            raise TypeError()
 
         return val
 
 
 class FeatureEngine(object):
+    """Feature Engine.
+
+    The `FeatureEngine` ensures that the input features conform to the expected types defined
+    in the function's signature and uses the type annotations to construct output features
+    dynamically.
+    """
+
     def __init__(self, name: str, config: BaseConfig, signature: inspect.Signature) -> None:
+        """Initialize the :class:`FeatureEngine`.
+
+        Args:
+            name (str): The name of the feature engine or associated function.
+            config (BaseConfig): Configuration object for feature creation and validation.
+            signature (inspect.Signature): Function signature to validate arguments against.
+        """
         self.name = name
         self.config = config
 
@@ -153,7 +201,7 @@ class FeatureEngine(object):
 
         base = (BaseModelWithArbitraryTypesAllowed,)
         if len(params) > 0:
-            base += (Generic[params],)
+            base += (Generic[params],)  # type: ignore
 
         # build input argument validator model
         validator = pydantic.create_model(
@@ -174,7 +222,7 @@ class FeatureEngine(object):
             # apply typevars to validator model
             validator = validator.__class_getitem__(*typevars)
 
-        return validator, dict(zip(params, typevars))
+        return validator, dict(zip(params, typevars, strict=True))
 
     def validate_signature(self) -> None:
         """Validate that the function signature has all necessary type annotations.
@@ -193,6 +241,9 @@ class FeatureEngine(object):
                     "All parameters must have type annotations to ensure proper validation."
                 )
 
+        if self.signature.return_annotation is inspect._empty:
+            raise TypeError("Mussing return type annotation in function '{self.name}'.")
+
     def validate_arguments(self, *args: Any, **kwargs: Any) -> None:
         """Validate the arguments passed to the function based on its signature.
 
@@ -203,6 +254,7 @@ class FeatureEngine(object):
         Raises:
             TypeError: If the arguments provided are invalid or do not match the expected types.
         """
+        self.typevar_register.reset()
         # bind arguments to signature
         bound_args = self.signature.bind(*args, **kwargs)
         bound_args.apply_defaults()
@@ -258,6 +310,16 @@ class FeatureEngine(object):
     def build_feature_with_context(
         self, annotation: Any, ref: Reference, inputs: None | dict[str, Feature]
     ) -> Feature:
+        """Create a feature based on type annotation and inputs in a specific context.
+
+        Args:
+            annotation (Any): Type annotation for the feature.
+            ref (Reference): Reference to the feature being created.
+            inputs (None | dict[str, Feature]): Input features to build the feature, if any.
+
+        Returns:
+            Feature: The constructed feature.
+        """
         typevar_mapping = {
             t: self.typevar_register.solve_typevar(u) for t, u in self.typevar_lookup.items()
         }
@@ -274,4 +336,13 @@ class FeatureEngine(object):
         return build_feature_from_annotation(ref, annotation, typevar_mapping, context)
 
     def build_return_feature(self, ref: Reference, inputs: dict[str, Feature]) -> Feature:
+        """Build the return feature based on the function's return type annotation.
+
+        Args:
+            ref (Reference): Reference to the return feature.
+            inputs (dict[str, Feature]): Input features for constructing the return feature.
+
+        Returns:
+            Feature: The constructed return feature.
+        """
         return self.build_feature_with_context(self.signature.return_annotation, ref, inputs)
