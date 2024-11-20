@@ -10,8 +10,11 @@ from __future__ import annotations
 import typing
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any
 
 import pyarrow as pa
+import pydantic
+from pydantic_core import core_schema
 
 
 class Type(ABC):
@@ -26,6 +29,24 @@ class Type(ABC):
             pa.DataType: The :code:`PyArrow` data type representation.
         """
         ...
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: pydantic.GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        """Generates and returns the pydantic core schema.
+
+        Args:
+            cls (type): The class for which to generate the schema.
+            source_type (Any): The source type that is being validated.
+            handler (pydantic.GetCoreSchemaHandler): A handler function used to generate
+                the schema for the class.
+
+        Returns:
+            core_schema.CoreSchema: The generated core schema for the :class:`Feature` class,
+                indicating that it is an instance schema.
+        """
+        return core_schema.is_instance_schema(cls)
 
 
 @dataclass(eq=True, frozen=True)

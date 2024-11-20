@@ -15,7 +15,7 @@ from pydantic import AfterValidator, BeforeValidator, TypeAdapter, ValidationInf
 
 from hyped._registry.config import BaseConfig
 
-from .features import _Feature, _Sequence, build_feature_from_dtype
+from .features import Feature, SequenceFeature, build_feature_from_dtype
 from .types import Type
 
 
@@ -58,7 +58,7 @@ class TypeResolver(BeforeValidator):
             :code:`'inputs'`, or :code:`'session_id'`.
     """
 
-    def __init__(self, resolver: Callable[[BaseConfig, dict[str, _Feature]], Any]) -> None:
+    def __init__(self, resolver: Callable[[BaseConfig, dict[str, Feature]], Any]) -> None:
         """Initializes the :class:`TypeResolver` with a custom resolver function.
 
         Args:
@@ -68,7 +68,7 @@ class TypeResolver(BeforeValidator):
 
         def wrapped_resolver(val: Any, info: ValidationInfo) -> Any:
             # type resolvers only apply when creating a type instance
-            if isinstance(val, _Feature):
+            if isinstance(val, Feature):
                 return val
 
             # context is required
@@ -95,7 +95,7 @@ class TypeResolver(BeforeValidator):
                 assert isinstance(target_dtype, Type)
 
                 target_type = Annotated[
-                    _Feature, BeforeValidator(partial(build_feature_from_dtype, dtype=target_dtype))
+                    Feature, BeforeValidator(partial(build_feature_from_dtype, dtype=target_dtype))
                 ]
 
             return TypeAdapter(target_type).validate_python(val, context=info.context)
@@ -114,8 +114,8 @@ class Len(TypeValidator):
             length (int): The expected length of the sequence to be validated.
         """
 
-        def length_validator(seq: _Sequence, config: BaseConfig, val_id: UUID) -> Any:
-            if not isinstance(seq, _Sequence):
+        def length_validator(seq: SequenceFeature, config: BaseConfig, val_id: UUID) -> Any:
+            if not isinstance(seq, SequenceFeature):
                 raise RuntimeError("Not a sequence")
 
             if length != len(seq):

@@ -33,7 +33,7 @@ from hyped._registry.config import BaseConfig, BaseConfigurable
 
 from ..abstract import AbstractDataFlow, AbstractDataFlowGraph
 from ..features.engine import FeatureEngine
-from ..features.features import _Feature
+from ..features.features import Feature as _Feature
 from ..features.types import MappingType, Type
 from ..typing import Feature, Index, IndexList, NodeId, Rank
 
@@ -306,7 +306,7 @@ class BaseNode(BaseConfigurable[C], ABC):
 
         This method attempts to extract the data flow graph from either the positional or
         keyword arguments passed to the node. The method searches for an :code:`AbstractDataFlow`
-        or :code:`_Feature` to infer the associated graph. If a flow cannot be determined, a
+        or :code:`Feature` to infer the associated graph. If a flow cannot be determined, a
         runtime error is raised.
 
         Args:
@@ -356,18 +356,18 @@ class BaseNode(BaseConfigurable[C], ABC):
         return reference.ref._graph, args, kwargs
 
     @overload
-    def call(self, *args: Feature, **kwargs: Feature) -> _Feature:
+    def call(self, *args: Feature, **kwargs: Feature) -> Feature:
         ...
 
     @overload
-    def call(self, flow: AbstractDataFlow, *args: Feature, **kwargs: Feature) -> _Feature:
+    def call(self, flow: AbstractDataFlow, *args: Feature, **kwargs: Feature) -> Feature:
         ...
 
     def call(
         self,
         *args: AbstractDataFlow | Feature,
         **kwargs: AbstractDataFlow | Feature,
-    ) -> _Feature:
+    ) -> Feature:
         """Call the node, adding it to the underlying data flow.
 
         This method is adds the node in the context of a data flow graph. It validates the node's

@@ -20,7 +20,7 @@ import pyarrow as pa
 
 from .abstract import AbstractDataFlowGraph
 from .features.engine import FeatureEngine
-from .features.features import _Feature, build_feature_from_dtype
+from .features.features import Feature, build_feature_from_dtype
 from .features.reference import FeatureKey, Reference
 from .features.types import MappingType, Type
 from .nodes.aggregator import BaseDataAggregator
@@ -802,7 +802,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         dtype = self.nodes[ref._node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
         return ref._key.index_dtype(dtype)
 
-    def get_feature_from_reference(self, ref: Reference) -> _Feature:
+    def get_feature_from_reference(self, ref: Reference) -> Feature:
         """Helper function to get a feature instance of some node output.
 
         Args:

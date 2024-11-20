@@ -29,11 +29,11 @@ from hyped.common.utils import tmp_setattr
 from .abstract import AbstractDataFlow
 from .executor import DataFlowExecutor, LazyDataFlowExecutor
 from .features.features import (
-    _Bool,
-    _Feature,
-    _Float64,
-    _Int64,
-    _String,
+    BoolFeature,
+    Feature,
+    Float64Feature,
+    Int64Feature,
+    StringFeature,
     build_feature_from_annotation,
     build_feature_from_dtype,
 )
@@ -186,19 +186,19 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         return self._source_feature
 
     @overload
-    def const(self, value: int) -> _Int64:
+    def const(self, value: int) -> Int64Feature:
         ...
 
     @overload
-    def const(self, value: float) -> _Float64:
+    def const(self, value: float) -> Float64Feature:
         ...
 
     @overload
-    def const(self, value: bool) -> _Bool:
+    def const(self, value: bool) -> BoolFeature:
         ...
 
     @overload
-    def const(self, value: str) -> _String:
+    def const(self, value: str) -> StringFeature:
         ...
 
     @overload
@@ -209,13 +209,13 @@ class DataFlow(AbstractDataFlow, Generic[T]):
     def const(self, value: list[Any] | tuple[Any]) -> Sequence:
         ...
 
-    U = TypeVar("U", bound=_Feature)
+    U = TypeVar("U", bound=Feature)
 
     @overload
     def const(self, value: Any, feature_type: type[U]) -> U:
         ...
 
-    def const(self, value: Any, feature_type: None | type = None) -> _Feature:
+    def const(self, value: Any, feature_type: None | type = None) -> Feature:
         if feature_type is not None:
             # create a dummy feature to infer the data type
             # from the given feature type
@@ -237,10 +237,10 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         ...
 
     @overload
-    def collect(self, collect: Any) -> _Feature:
+    def collect(self, collect: Any) -> Feature:
         ...
 
-    def collect(self, collect: NestedType[Any]) -> Mapping | Sequence | _Feature:
+    def collect(self, collect: NestedType[Any]) -> Mapping | Sequence | Feature:
         def add_constants(
             val: NestedType[Reference | str | int | float], dtype: None | Type = None
         ) -> NestedType[Reference]:
@@ -289,7 +289,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             return collect
 
         # prepare collect structure and add all included constants to the flow
-        collect = map_recursive(lambda _, x: x.ref if isinstance(x, _Feature) else x, collect)
+        collect = map_recursive(lambda _, x: x.ref if isinstance(x, Feature) else x, collect)
         collect = add_constants(collect)
 
         # add the collect node to the graph
@@ -298,8 +298,8 @@ class DataFlow(AbstractDataFlow, Generic[T]):
 
     def build(
         self,
-        collect: _Feature,
-        aggregate: None | _Feature = None,
+        collect: Feature,
+        aggregate: None | Feature = None,
     ) -> ExecutableDataFlow[T]:
         if collect.ref._graph is not self._graph:
             raise RuntimeError("The collect feature does not belong to this flow.")

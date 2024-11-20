@@ -16,7 +16,7 @@ import pydantic.generics
 from hyped._registry.config import BaseConfig
 from hyped.common._pydantic import BaseModelWithArbitraryTypesAllowed
 
-from .features import _Feature, build_feature_from_annotation
+from .features import Feature, build_feature_from_annotation
 from .reference import Reference
 from .types import Type
 
@@ -46,7 +46,7 @@ class TypeVarRegister(object):
         bound = kwargs.pop("bound", Any)
         bound = Annotated[bound, validator]
         # create the typevar
-        T = TypeVar(*args, bound=bound, **kwargs)
+        T = TypeVar(*args, bound=bound, **kwargs)  # type: ignore
         # register the typevar
         self.register(T, validator)
 
@@ -87,10 +87,10 @@ class TypeVarRegister(object):
         # capture the value type
         if (T not in self._captured_vars) or (
             # prefer features over constants
-            not isinstance(self._captured_vars[T], _Feature)
-            and isinstance(val, _Feature)
+            not isinstance(self._captured_vars[T], Feature)
+            and isinstance(val, Feature)
         ):
-            self._captured_vars[T] = val.dtype if isinstance(val, _Feature) else type(val)
+            self._captured_vars[T] = val.dtype if isinstance(val, Feature) else type(val)
 
         return val
 
@@ -238,8 +238,8 @@ class FeatureEngine(object):
         arguments.update(kwargs)
 
         # separate all feature and constant inputs
-        inputs = {key: val.ref for key, val in arguments.items() if isinstance(val, _Feature)}
-        consts = {key: val for key, val in arguments.items() if not isinstance(val, _Feature)}
+        inputs = {key: val.ref for key, val in arguments.items() if isinstance(val, Feature)}
+        consts = {key: val for key, val in arguments.items() if not isinstance(val, Feature)}
 
         # infer the data types of the constant inputs from the signature
         const_dtypes = {
@@ -256,8 +256,8 @@ class FeatureEngine(object):
         return inputs, consts, const_dtypes
 
     def build_feature_with_context(
-        self, annotation: Any, ref: Reference, inputs: None | dict[str, _Feature]
-    ) -> _Feature:
+        self, annotation: Any, ref: Reference, inputs: None | dict[str, Feature]
+    ) -> Feature:
         typevar_mapping = {
             t: self.typevar_register.solve_typevar(u) for t, u in self.typevar_lookup.items()
         }
@@ -273,5 +273,5 @@ class FeatureEngine(object):
 
         return build_feature_from_annotation(ref, annotation, typevar_mapping, context)
 
-    def build_return_feature(self, ref: Reference, inputs: dict[str, _Feature]) -> _Feature:
+    def build_return_feature(self, ref: Reference, inputs: dict[str, Feature]) -> Feature:
         return self.build_feature_with_context(self.signature.return_annotation, ref, inputs)
