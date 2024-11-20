@@ -13,11 +13,11 @@ import warnings
 from abc import ABC, abstractmethod
 from dataclasses import asdict
 from functools import partial
+from typing import TypeAlias
 
 import datasets
 
 from hyped.common.logging import get_logger
-from hyped.common.typing import DatasetType, Sample
 from hyped.common.utils import chdir
 from hyped.core.features.reference import FeatureKey
 from hyped.io.writers.base.utils import BatchBuffer
@@ -25,9 +25,30 @@ from hyped.io.writers.base.utils import BatchBuffer
 from .callbacks.base import Callback
 from .consumer import DatasetConsumer
 from .sharding import ShardingController, ShardingStrategy
-from .utils import Compose, RunAll
+from .utils import Compose, RunAll, Sample
 
 logger = get_logger(__name__)
+
+
+DatasetType: TypeAlias = (
+    datasets.Dataset
+    | datasets.DatasetDict
+    | datasets.IterableDataset
+    | datasets.IterableDatasetDict
+)
+"""Dataset Type Alias.
+
+Alias for the different dataset types supported, including:
+
+- :class:`Dataset`: A single dataset containing features and samples.
+- :class:`DatasetDict`: A dictionary-like structure containing multiple datasets, often split into
+  training, validation, and test sets.
+- :class:`IterableDataset`: A dataset that is lazily loaded, allowing for streaming data processing.
+- :class:`IterableDatasetDict`: A dictionary-like structure containing multiple iterable datasets.
+
+This type alias is used to represent any of the aforementioned dataset types when processing or
+consuming datasets in various contexts.
+"""
 
 
 class BaseDatasetWriter(ABC):

@@ -7,18 +7,17 @@ bar. The runner manages initialization and finalization tasks and handles progre
 through callbacks.
 """
 
-from typing import Any, Callable
+from typing import Any, Callable, TypeAlias
 
 from datasets import IterableDataset
 
 from hyped.common._worker import reset_worker_info, set_worker_info
 from hyped.common.logging import get_logger
-from hyped.common.typing import Sample, TypeAlias
 from hyped.io.writers.base.utils import TimedIterator, ith_entries
 
 from ..callbacks.base import CallbackManager
 from ..monitor import ProgressMonitor, ProgressReport
-from ..utils import clock
+from ..utils import Sample, clock
 from .base import BaseRunner, WorkerProcessingStage, WorkerRole
 
 logger = get_logger(__name__)

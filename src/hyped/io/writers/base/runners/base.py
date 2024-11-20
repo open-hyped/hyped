@@ -11,7 +11,7 @@ from typing import Any, Callable
 
 from datasets import IterableDataset
 
-from hyped.common.typing import Sample
+from ..utils import Sample
 
 
 class WorkerRole(str, Enum):

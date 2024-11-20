@@ -5,12 +5,13 @@ of iterables and queues, offering more flexible control over iteration.
 """
 import math
 import operator
-import sys
 from functools import reduce
 from itertools import islice
 from queue import Empty, Queue
 from time import perf_counter
-from typing import Any, Callable, Generic, Iterable, Iterator, Tuple, TypeVar
+from typing import Any, Callable, Generic, Iterable, Iterator, Tuple, TypeAlias, TypeVar
+
+from hyped.common.utils import is_python_version_less_than
 
 clock = perf_counter
 """A clock function used to retrieve the current time.
@@ -21,7 +22,16 @@ Returns:
 """
 
 
-if sys.version_info >= (3, 12):
+Sample: TypeAlias = dict[str, Any]
+"""A sample of the dataset.
+
+Represents a single data point or record in the dataset structured as a dictionary.
+The keys are strings representing feature names, and the values can be of any type
+(e.g., integers, floats, strings, or more complex data structures).
+"""
+
+
+if not is_python_version_less_than(3, 12):
     from itertools import batched
 
 else:

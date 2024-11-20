@@ -34,16 +34,17 @@ from datasets.iterable_dataset import (
     _BaseExamplesIterable,
 )
 
+from hyped.common._worker import Rank
 from hyped.common._worker import manager as _manager  # noqa: F401
 from hyped.common._worker import set_worker_info
 from hyped.common.logging import get_cls_logger
-from hyped.common.typing import Rank, Sample
 
 from ..callbacks.base import CallbackManager
 from ..monitor import ProgressMonitor, ProgressReport
 from ..utils import (
     Compose,
     QueueIterator,
+    Sample,
     StoppableIterator,
     TimedIterator,
     batched,

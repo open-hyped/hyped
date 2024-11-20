@@ -8,9 +8,9 @@ import orjson
 from datasets import DatasetInfo
 
 from hyped.common._worker import get_worker_info
-from hyped.common.typing import Sample
 
 from .base import BaseDatasetWriter
+from .base.utils import Sample
 
 
 class JsonDatasetWriter(BaseDatasetWriter):

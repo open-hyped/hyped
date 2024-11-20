@@ -8,10 +8,10 @@ import pyarrow as pa
 from datasets import DatasetInfo
 
 from hyped.common._worker import get_worker_info
-from hyped.common.typing import Sample
 from hyped.core.utils import build_dtype_from_hf_feature
 
 from .base import BaseDatasetWriter
+from .base.utils import Sample
 
 
 class ArrowDatasetWriter(BaseDatasetWriter):

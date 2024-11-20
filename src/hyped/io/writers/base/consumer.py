@@ -12,12 +12,12 @@ from typing import Any, Callable
 from datasets import IterableDataset
 
 from hyped.common.logging import get_logger
-from hyped.common.typing import Sample
 
 from .callbacks.base import Callback, CallbackManager
 from .callbacks.tqdm_reporter import TqdmReporterCallback
 from .runners.main_process_runner import MainProcessRunner
 from .runners.multi_process_runner import DynamicMultiprocessingRunner
+from .utils import Sample
 
 logger = get_logger(__name__)
 

@@ -16,7 +16,7 @@ __all__ = (
     "TqdmReporterCallback",
 )
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: not covered
     from .arrow import ArrowDatasetWriter
     from .base import Callback, DatasetConsumer, ShardingStrategy, TqdmReporterCallback
     from .json import JsonDatasetWriter

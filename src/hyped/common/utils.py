@@ -7,44 +7,26 @@ from contextlib import contextmanager
 from functools import cache
 from typing import Any, Generator
 
-import numpy as np
-
-
-# TODO: potential legacy code
-def deep_equal(obj1: Any, obj2: Any) -> bool:
-    """Recursively checks if two objects (which may be nested) are equal.
-
-    Handles basic types, dictionaries, lists, tuples, and numpy arrays.
-
-    Args:
-        obj1: The first object to compare.
-        obj2: The second object to compare.
-
-    Returns:
-        bool: True if obj1 and obj2 are equal, False otherwise.
-    """
-    # If both objects are numpy arrays, use np.array_equal
-    if isinstance(obj1, np.ndarray) or isinstance(obj2, np.ndarray):
-        return np.array_equal(obj1, obj2)
-
-    # If both objects are dictionaries, compare keys and values recursively
-    if isinstance(obj1, dict) and isinstance(obj2, dict):
-        if obj1.keys() != obj2.keys():
-            return False
-        return all(deep_equal(obj1[k], obj2[k]) for k in obj1)
-
-    # If both objects are lists or tuples, compare elements recursively
-    if isinstance(obj1, (list, tuple)) and isinstance(obj2, (list, tuple)):
-        if len(obj1) != len(obj2):
-            return False
-        return all(deep_equal(i1, i2) for i1, i2 in zip(obj1, obj2))
-
-    # For all other types, use standard equality
-    return obj1 == obj2
-
 
 @contextmanager
 def tmp_setattr(instance: object, attribute: str, value: Any) -> Generator[None, None, None]:
+    """Temporarily set an attribute on an object and restore its original value afterward.
+
+    This context manager temporarily sets the specified attribute on the given object to a new
+    value. Upon exiting the context, the original value is restored. If the attribute did not
+    exist prior to the context, it will be removed when the context exits.
+
+    Args:
+        instance (object): The object on which the attribute will be temporarily set.
+        attribute (str): The name of the attribute to be set.
+        value (Any): The temporary value to assign to the attribute.
+
+    Yields:
+        None: Yields control to the context block.
+
+    Raises:
+        AttributeError: If the attribute cannot be set or removed on the given object.
+    """
     # Save the original value
     original_value = getattr(instance, attribute, None)
     has_original_value = hasattr(instance, attribute)
