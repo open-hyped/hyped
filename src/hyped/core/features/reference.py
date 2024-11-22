@@ -40,6 +40,8 @@ class FeatureKey(tuple[int | str | slice]):
         *key (str | int | slice): Key entries.
     """
 
+    __slots__ = ()
+
     @classmethod
     def from_tuple(cls, key: tuple[int | str | slice]) -> FeatureKey:
         """Generate a FeatureKey from a tuple.

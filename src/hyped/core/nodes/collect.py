@@ -26,7 +26,8 @@ class CollectNodeConfig(BaseNodeConfig):
     lookup: dict | list | tuple
     """Nested collect structure.
 
-    The structure has string identifiers matching the input arguments at the lowest level.
+    The structure has string identifiers matching the input arguments at the
+    lowest level.
     """
 
 
@@ -55,7 +56,11 @@ class CollectNode(BaseNode[CollectNodeConfig]):
         """
 
         def _build_type(obj: NestedType[str]):
-            if isinstance(obj, dict):
+            if isinstance(obj, str):
+                # get the data type from the graph
+                return graph.get_dtype_from_reference(inputs[obj])
+
+            elif isinstance(obj, dict):
                 return MappingType.from_dict({key: _build_type(item) for key, item in obj.items()})
 
             elif isinstance(obj, (list, tuple)):
@@ -72,10 +77,6 @@ class CollectNode(BaseNode[CollectNodeConfig]):
 
                 # build the sequence type
                 return SequenceType(value_type=dtype, length=len(obj))
-
-            elif isinstance(obj, str):
-                # get the data type from the graph
-                return graph.get_dtype_from_reference(inputs[obj])
 
             else:
                 raise TypeError(obj)
@@ -106,7 +107,11 @@ class CollectNode(BaseNode[CollectNodeConfig]):
         """
 
         def _collect(struct: NestedType[str], dtype: Type) -> pa.Array:
-            if isinstance(struct, dict) and isinstance(dtype, MappingType):
+            if isinstance(struct, str):
+                # get the referenced input array
+                return inputs[struct]
+
+            elif isinstance(struct, dict) and isinstance(dtype, MappingType):
                 # collect all field values
                 field_values = [
                     _collect(struct[field_name], field_dtype)
@@ -140,10 +145,6 @@ class CollectNode(BaseNode[CollectNodeConfig]):
                 flat_struct = pc.take(flat_struct, zip_indices.flatten())
                 # unflatten
                 return pa.FixedSizeListArray.from_arrays(flat_struct, type=dtype.arrow_type)
-
-            elif isinstance(struct, str):
-                # get the referenced input array
-                return inputs[struct]
 
             else:
                 raise TypeError(struct, dtype)
