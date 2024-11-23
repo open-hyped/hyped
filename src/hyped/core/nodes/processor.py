@@ -145,7 +145,7 @@ class BaseDataProcessor(BaseNode[C], ABC):
         """
         ...
 
-    async def run(self, ctx: RunContext, **arrays: pa.Array) -> pa.Array:
+    async def run(self, ctx: RunContext, arrays: dict[str, pa.Array]) -> pa.Array:
         # get the process mode
         mode = ProcessMode.from_decorated_fn(self.process)
 

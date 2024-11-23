@@ -210,7 +210,9 @@ class BaseDataAugmenter(BaseNode[C], ABC):
         """
         ...
 
-    async def run(self, ctx: RunContext, **arrays: pa.Array) -> tuple[pa.Array, TraceIndexList]:
+    async def run(
+        self, ctx: RunContext, arrays: dict[str, pa.Array]
+    ) -> tuple[pa.Array, TraceIndexList]:
         # get the process mode
         mode = ProcessMode.from_decorated_fn(self.process)
 

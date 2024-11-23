@@ -402,5 +402,5 @@ class BaseNode(BaseConfigurable[C], ABC):
             references[key] = graph.add_const_node(val, const_dtypes[key])
 
         # add the node and return the output feature
-        ref = graph.add_processor_node(self, references)
+        ref = graph.add_compute_node(self, references)
         return graph.get_feature_from_reference(ref)

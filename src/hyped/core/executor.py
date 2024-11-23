@@ -223,7 +223,7 @@ class ExecutionState(object):
             values = [inputs[name] for name in names]
             values = self.trace_through_partition_path(values, src=src, tgt=tgt_partition)
             # update the values in the inputs
-            inputs.update(dict(zip(names, values)))
+            inputs.update(dict(zip(names, values, strict=True)))
 
         return inputs, index
 
@@ -278,8 +278,10 @@ class DataFlowExecutor(object):
             node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR
             for _, node_type in graph.nodes(data=DataFlowGraph.NodeAttribute.NODE_TYPE)
         ):
-            # no aggregation manager provided but aggregation nodes included in graph
-            raise RuntimeError()
+            raise RuntimeError(
+                "The data flow graph includes one or more aggregator nodes, but no aggregation "
+                "manager was provided."
+            )
 
     async def execute_node(self, node_id: NodeId, state: ExecutionState) -> None:
         """Execute a single node in the data flow graph.
@@ -328,7 +330,7 @@ class DataFlowExecutor(object):
         elif node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
             assert isinstance(node_obj, BaseDataProcessor)
             # run processor and check the output batch size
-            out = await node_obj.run(ctx, **inputs)
+            out = await node_obj.run(ctx, inputs)
             assert out.type == ctx.output_type.arrow_type, "Unexpected output type"
             assert len(out) == len(index), "Output values length does not match index length."
             # capture output in execution state
@@ -337,7 +339,7 @@ class DataFlowExecutor(object):
         elif node_type == DataFlowGraph.NodeType.DATA_AUGMENTER:
             assert isinstance(node_obj, BaseDataAugmenter)
             # run processor and check the output batch size
-            out, trace_index = await node_obj.run(ctx, **inputs)
+            out, trace_index = await node_obj.run(ctx, inputs)
             assert out.type == ctx.output_type.arrow_type, "Unexpected output type"
             # register output partition and capture output in execution state
             state.register_partition_trace(node_id, trace_index, index)
@@ -350,8 +352,7 @@ class DataFlowExecutor(object):
             await self.aggregation_manager.aggregate(node_obj, ctx, inputs)
 
         else:
-            # TODO: error message
-            raise TypeError()
+            raise TypeError(f"Unsupported node type: {node_type}")
 
     async def execute(self, batch: pa.Array, index: IndexList, rank: Rank) -> pa.Array:
         """Execute the entire data flow graph.
