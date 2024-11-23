@@ -14,7 +14,7 @@ from hyped.core.nodes.augmenter import BaseDataAugmenter
 from hyped.core.nodes.processor import BaseDataProcessor
 from hyped.core.typing import PartitionId
 
-from .utils import build_graph_from_edge_list
+from .utils import build_graph
 
 
 @pytest.mark.parametrize(
@@ -113,7 +113,7 @@ class TestDataFlowGraph:
     def test_depth_property(
         self, edges: list[tuple[Hashable, Hashable]], expected_depth: int, raises_error: bool
     ) -> None:
-        G = build_graph_from_edge_list(edges)
+        G = build_graph(edges)
 
         if raises_error:
             with pytest.raises(ValueError):
@@ -137,7 +137,7 @@ class TestDataFlowGraph:
     def test_width_property(
         self, edges: list[tuple[Hashable, Hashable]], expected_width: int, raises_error: bool
     ) -> None:
-        G = build_graph_from_edge_list(edges)
+        G = build_graph(edges)
 
         if raises_error:
             with pytest.raises(ValueError):
@@ -240,7 +240,7 @@ class TestDataFlowGraph:
         nodes: dict[Hashable, DataFlowGraph.NodeType],
         partition_edges: list[tuple[PartitionId, PartitionId]],
     ) -> None:
-        graph = build_graph_from_edge_list(edges, nodes)
+        graph = build_graph(edges, nodes)
         partition = graph.build_partition_graph()
 
         target_partition_graph = nx.DiGraph()
@@ -273,7 +273,7 @@ class TestDataFlowGraph:
     def test_add_node(
         self, edges: list[tuple[Hashable, Hashable]], in_nodes: tuple[Hashable], expected_depth: int
     ) -> None:
-        graph = build_graph_from_edge_list(edges)
+        graph = build_graph(edges)
 
         node_obj = MagicMock()
         node_type = (
@@ -344,7 +344,7 @@ class TestDataFlowGraph:
 
     def test_add_collect_node(self) -> None:
         # create simple linear graph
-        graph = build_graph_from_edge_list([(0, 1), (1, 2), (2, 3)])
+        graph = build_graph([(0, 1), (1, 2), (2, 3)])
 
         ref = graph.add_collect_node(
             {
@@ -607,7 +607,7 @@ class TestDataFlowGraph:
         raises_error: bool,
     ) -> None:
         # build the data flow
-        graph = build_graph_from_edge_list(edges, node_types, node_id)
+        graph = build_graph(edges, node_types, stop_at_node=node_id)
 
         # get the node type and build the reference instances
         node_type = node_types[node_id]
@@ -621,7 +621,7 @@ class TestDataFlowGraph:
             assert partition == expected_partition
 
     def test_get_dtype_from_reference(self) -> None:
-        graph = build_graph_from_edge_list([(0, 1), (1, 2)])
+        graph = build_graph([(0, 1), (1, 2)])
 
         # works fine
         graph.get_dtype_from_reference(Reference(_node_id=0, _graph=graph))
@@ -633,7 +633,7 @@ class TestDataFlowGraph:
             graph.get_dtype_from_reference(Reference(_node_id="INVALID", _graph=graph))
 
     def test_get_feature_from_reference(self) -> None:
-        graph = build_graph_from_edge_list([(0, 1), (1, 2)])
+        graph = build_graph([(0, 1), (1, 2)])
 
         # works fine
         graph.get_feature_from_reference(Reference(_node_id=0, _graph=graph))
@@ -659,7 +659,7 @@ class TestDataFlowGraph:
         expected_edges: list[tuple[Hashable, Hashable]],
     ) -> None:
         # build graph and get the subgraph edges
-        graph = build_graph_from_edge_list(edges)
+        graph = build_graph(edges)
         subgraph = graph.subgraph(subgraph_nodes)
         edges = graph.subgraph_in_edges(subgraph)
         # check edges
@@ -680,7 +680,7 @@ class TestDataFlowGraph:
         expected_edges: list[tuple[Hashable, Hashable]],
     ) -> None:
         # build graph and get the subgraph edges
-        graph = build_graph_from_edge_list(edges)
+        graph = build_graph(edges)
         subgraph = graph.subgraph(subgraph_nodes)
         edges = graph.subgraph_out_edges(subgraph)
         # check edges
@@ -720,7 +720,7 @@ class TestDataFlowGraph:
         partition: PartitionId,
         expected_nodes: list[Hashable],
     ) -> None:
-        graph = build_graph_from_edge_list(edges, node_types)
+        graph = build_graph(edges, node_types)
         subgraph = graph.get_partition(partition)
         assert set(list(subgraph.nodes)) == set(expected_nodes)
 
@@ -758,6 +758,6 @@ class TestDataFlowGraph:
         partition: PartitionId,
         expected_nodes: list[Hashable],
     ) -> None:
-        graph = build_graph_from_edge_list(edges, node_types)
+        graph = build_graph(edges, node_types)
         subgraph = graph.drop_partition(partition)
         assert set(list(subgraph.nodes)) == set(expected_nodes)

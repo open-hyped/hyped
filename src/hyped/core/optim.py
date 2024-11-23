@@ -26,6 +26,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from itertools import groupby
+from typing import Any
 
 import pyarrow as pa
 
@@ -94,7 +95,7 @@ class DataFlowGraphOptimizer(object):
             """Helper class to identify redundant nodes."""
 
             node_type: DataFlowGraph.NodeType
-            node_config: str
+            node_config: Any
             in_edge_identifiers: list[tuple[int, str, FeatureKey]]
             node_id: NodeId = field(default=None, compare=False)
 
@@ -144,26 +145,19 @@ class DataFlowGraphOptimizer(object):
                     in_feature_type = node_data[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE]
                     out_feature_type = node_data[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
 
-                    if node_obj is None:
-                        # add source node to optimized graph
-                        identifier.node_id = cse_graph.add_source_node(
-                            out_feature_type, node_id=node_id
-                        )._node_id
+                    # build input references object from in-edge identifiers
+                    inputs: dict[str, Reference] = {
+                        name: Reference(key, node_mapping[src_node_id], cse_graph)
+                        for src_node_id, name, key in in_edge_identifiers
+                    }
 
-                    else:
-                        # build input references object if expected
-                        inputs: dict[str, Reference] = {
-                            name: Reference(key, node_mapping[src_node_id], cse_graph)
-                            for src_node_id, name, key in in_edge_identifiers
-                        }
-
-                        identifier.node_id = cse_graph.add_node(
-                            node_obj=node_obj,
-                            node_type=node_type,
-                            inputs=inputs,
-                            output_type=out_feature_type,
-                            node_id=node_id,
-                        )._node_id
+                    identifier.node_id = cse_graph.add_node(
+                        node_obj=node_obj,
+                        node_type=node_type,
+                        inputs=inputs,
+                        output_type=out_feature_type,
+                        node_id=node_id,
+                    )._node_id
 
                     # make sure the input feature type
                     assert (

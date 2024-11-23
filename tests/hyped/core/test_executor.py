@@ -18,7 +18,7 @@ from hyped.core.nodes.collect import CollectNode
 from hyped.core.nodes.processor import BaseDataProcessor
 from hyped.core.typing import PartitionId
 
-from .utils import NumpyArrayMatcher, build_graph_from_edge_list
+from .utils import NumpyArrayMatcher, build_graph
 
 
 def build_mock_node(node_type: DataFlowGraph.NodeType) -> MagicMock:
@@ -44,7 +44,7 @@ class TestExecutionState:
     @pytest.mark.asyncio
     async def test_wait_for(self) -> None:
         # create a simple graph with one processor node
-        graph = build_graph_from_edge_list(
+        graph = build_graph(
             edges=[(0, 1)],
             node_types={0: DataFlowGraph.NodeType.SOURCE, 1: DataFlowGraph.NodeType.DATA_PROCESSOR},
         )
@@ -78,7 +78,7 @@ class TestExecutionState:
         [
             # Stay in default partition
             (
-                [(0, 1)],
+                [(0, 1, "x")],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
                     1: DataFlowGraph.NodeType.DATA_AUGMENTER,
@@ -90,7 +90,7 @@ class TestExecutionState:
             ),
             # Simple filter augmenter
             (
-                [(0, 1)],
+                [(0, 1, "x")],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
                     1: DataFlowGraph.NodeType.DATA_AUGMENTER,
@@ -104,7 +104,7 @@ class TestExecutionState:
             ),
             # Simple augmentation
             (
-                [(0, 1)],
+                [(0, 1, "x")],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
                     1: DataFlowGraph.NodeType.DATA_AUGMENTER,
@@ -118,7 +118,7 @@ class TestExecutionState:
             ),
             # Chaining filters
             (
-                [(0, 1), (1, 2)],
+                [(0, 1, "x"), (1, 2, "x")],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
                     1: DataFlowGraph.NodeType.DATA_AUGMENTER,
@@ -131,7 +131,7 @@ class TestExecutionState:
             ),
             # Chaining augmenters
             (
-                [(0, 1), (1, 2)],
+                [(0, 1, "x"), (1, 2, "x")],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
                     1: DataFlowGraph.NodeType.DATA_AUGMENTER,
@@ -156,7 +156,7 @@ class TestExecutionState:
         index = [0, 1, 2, 3, 4]
         trace_index = np.asarray(trace_index)
 
-        graph = build_graph_from_edge_list(edges, node_types)
+        graph = build_graph(edges, node_types)
         state = ExecutionState(
             graph, graph.build_partition_graph(), MagicMock(), index, MagicMock()
         )
@@ -191,8 +191,8 @@ class TestExecutionState:
 
         # create a mock graph including a constant and a data augmenter
         # to introduce another partition
-        graph = build_graph_from_edge_list(
-            [(0, 1), (0, 2), (3, 4), (1, 4), (2, 4)],
+        graph = build_graph(
+            [(0, 1, "0"), (0, 2, "0"), (3, 4, "3"), (1, 4, "1"), (2, 4, "2")],
             {
                 0: DataFlowGraph.NodeType.SOURCE,
                 1: DataFlowGraph.NodeType.DATA_PROCESSOR,
@@ -217,7 +217,6 @@ class TestExecutionState:
 
         mock_outputs = [MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()]
         # capture required outputs
-        state.capture_output(0, mock_outputs[0])
         state.capture_output(1, mock_outputs[1])
         state.capture_output(2, mock_outputs[2])
         state.capture_output(3, mock_outputs[3])
@@ -254,16 +253,16 @@ class TestExecutionState:
 class TestDataFlowExecutor:
     def test_init(self) -> None:
         # create a simple data flow graph without data aggregators
-        graph = build_graph_from_edge_list(
-            edges=[(0, 1)],
+        graph = build_graph(
+            edges=[(0, 1, "x")],
             node_types={0: DataFlowGraph.NodeType.SOURCE, 1: DataFlowGraph.NodeType.DATA_PROCESSOR},
         )
         # initialize an executor for the graph without an aggregation manager
         DataFlowExecutor(graph, Reference(), None)
 
         # create a simple data flow graph with a data aggregator
-        graph = build_graph_from_edge_list(
-            edges=[(0, 1)],
+        graph = build_graph(
+            edges=[(0, 1, "x")],
             node_types={
                 0: DataFlowGraph.NodeType.SOURCE,
                 1: DataFlowGraph.NodeType.DATA_AGGREGATOR,
@@ -282,7 +281,7 @@ class TestDataFlowExecutor:
         [
             # Single data processor node
             (
-                [(0, 1)],
+                [(0, 1, "x")],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
                     1: DataFlowGraph.NodeType.DATA_PROCESSOR,
@@ -292,7 +291,7 @@ class TestDataFlowExecutor:
             ),
             # Constant node
             (
-                [(0, 1)],
+                [(0, 1, "x")],
                 {
                     0: DataFlowGraph.NodeType.CONST,
                     1: DataFlowGraph.NodeType.DATA_PROCESSOR,
@@ -302,7 +301,7 @@ class TestDataFlowExecutor:
             ),
             # Collect node with single input
             (
-                [(0, 1)],
+                [(0, 1, "x")],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
                     1: DataFlowGraph.NodeType.COLLECT,
@@ -312,7 +311,7 @@ class TestDataFlowExecutor:
             ),
             # Collect node with multiple inputs
             (
-                [(0, 1), (0, 2), (0, 3), (1, 4), (2, 4), (3, 4)],
+                [(0, 1, "x"), (0, 2, "x"), (0, 3, "x"), (1, 4, "a"), (2, 4, "b"), (3, 4, "c")],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
                     1: DataFlowGraph.NodeType.DATA_PROCESSOR,
@@ -325,7 +324,7 @@ class TestDataFlowExecutor:
             ),
             # Augmenter node
             (
-                [(0, 1)],
+                [(0, 1, "x")],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
                     1: DataFlowGraph.NodeType.DATA_AUGMENTER,
@@ -335,7 +334,7 @@ class TestDataFlowExecutor:
             ),
             # Aggregator node
             (
-                [(0, 1)],
+                [(0, 1, "x")],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
                     1: DataFlowGraph.NodeType.DATA_AGGREGATOR,
@@ -359,7 +358,7 @@ class TestDataFlowExecutor:
         mock_run_context.output_type.arrow_type = MagicMock(__eq__=lambda *_: True)
 
         # Build the graph and set up mock nodes
-        graph = build_graph_from_edge_list(edges, node_types)
+        graph = build_graph(edges, node_types)
         node_objs = {key: build_mock_node(node_type) for key, node_type in node_types.items()}
         nx.set_node_attributes(graph, node_objs, DataFlowGraph.NodeAttribute.NODE_OBJ)
 
@@ -423,7 +422,7 @@ class TestDataFlowExecutor:
             patch("hyped.core.executor.DataFlowExecutor.execute_node", AsyncMock()),
         ):
             # Build a sample graph with 4 nodes and define the executor
-            graph = build_graph_from_edge_list([(0, 1), (1, 2), (2, 3)])
+            graph = build_graph([(0, 1, "x"), (1, 2, "x"), (2, 3, "x")])
             executor = DataFlowExecutor(graph, collect=collect, aggregation_manager=None)
 
             # Run the execute method with mock inputs
