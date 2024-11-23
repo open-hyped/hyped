@@ -50,7 +50,7 @@ ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING: dict[str, Type] = {
 PYTHON_PRIMITIVE_TO_DTYPE_MAPPING: dict[type, Type] = {
     bool: BoolType,
     str: StringType,
-    int: Int64Type,
+    int: Int32Type,
     float: Float64Type,
 }
 
@@ -106,11 +106,13 @@ def build_dtype_from_arrow_type(arrow_type: pa.DataType) -> Type:
             value_type=build_dtype_from_arrow_type(arrow_type.value_type),
         )
 
-    if isinstance(arrow_type, pa.DataType):
+    if (
+        isinstance(arrow_type, pa.DataType)
+        and str(arrow_type) in ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING
+    ):
         return ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING[str(arrow_type)]
 
-    # TODO: error message
-    raise TypeError()
+    raise TypeError(f"Unsupported type: {arrow_type}")
 
 
 def build_dtype_from_hf_feature(feature: FeatureType) -> Type:
@@ -142,11 +144,10 @@ def build_dtype_from_hf_feature(feature: FeatureType) -> Type:
         arrow_type = packed.arrow_schema.field("field").type
         return ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING[str(arrow_type)]
 
-    # TODO: error message
-    raise TypeError(feature)
+    raise TypeError(f"Unsupported feature: {feature}")
 
 
-def build_dtype_from_object(obj: Any) -> Type:
+def build_dtype_from_python_object(obj: Any) -> Type:
     """Build a data type from a Python object.
 
     Arguments:
@@ -161,12 +162,12 @@ def build_dtype_from_object(obj: Any) -> Type:
     """
     if isinstance(obj, dict):
         return MappingType.from_dict(
-            {key: build_dtype_from_object(val) for key, val in obj.items()}
+            {key: build_dtype_from_python_object(val) for key, val in obj.items()}
         )
 
     elif isinstance(obj, (list, tuple)):
         if len(obj) > 0:
-            dtype, *others = list(map(build_dtype_from_object, obj))
+            dtype, *others = list(map(build_dtype_from_python_object, obj))
             if any(dtype != other for other in others):
                 raise RuntimeError()  # TODO: error message
 
@@ -178,8 +179,7 @@ def build_dtype_from_object(obj: Any) -> Type:
     elif isinstance(obj, tuple(PYTHON_PRIMITIVE_TO_DTYPE_MAPPING.keys())):
         return PYTHON_PRIMITIVE_TO_DTYPE_MAPPING[type(obj)]
 
-    else:
-        raise TypeError(obj)  # TODO: error message unsupported type
+    raise TypeError(f"Unsupported object: {obj}")
 
 
 def is_dtype_subset(dtype_a: Type, dtype_b: Type) -> bool:

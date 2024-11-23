@@ -47,7 +47,7 @@ from .typing import IndexList, Mapping, NodeId, Rank, Sequence
 from .utils import (
     NestedType,
     build_dtype_from_hf_feature,
-    build_dtype_from_object,
+    build_dtype_from_python_object,
     is_dtype_subset,
     map_recursive,
 )
@@ -223,7 +223,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             dtype = adapter.validate_python(Reference()).dtype
         else:
             # build the data type matching the object in case no data type was provided
-            dtype = build_dtype_from_object(value)
+            dtype = build_dtype_from_python_object(value)
         # add the constant node to the graph
         ref = self._graph.add_const_node(value, dtype)
         return self._graph.get_feature_from_reference(ref)
@@ -274,7 +274,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             elif not isinstance(val, Reference):
                 # add the constant node
                 return self._graph.add_const_node(
-                    val, dtype=dtype if dtype is not None else build_dtype_from_object(val)
+                    val, dtype=dtype if dtype is not None else build_dtype_from_python_object(val)
                 )
 
             elif isinstance(val, Reference):
