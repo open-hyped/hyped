@@ -1,19 +1,24 @@
-from typing import Hashable
+import asyncio
+from types import MappingProxyType
+from typing import Generator, Hashable
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import networkx as nx
+import numpy as np
 import pyarrow as pa
 import pytest
 
-from hyped.core.executor import DataFlowExecutor
+from hyped.core.executor import DataFlowExecutor, ExecutionState, LazyDataFlowExecutor
 from hyped.core.features.reference import Reference
+from hyped.core.features.types import BoolType, MappingType
 from hyped.core.graph import DataFlowGraph
 from hyped.core.nodes.aggregator import BaseDataAggregator
 from hyped.core.nodes.augmenter import BaseDataAugmenter
 from hyped.core.nodes.collect import CollectNode
 from hyped.core.nodes.processor import BaseDataProcessor
+from hyped.core.typing import PartitionId
 
-from .utils import build_graph_from_edge_list
+from .utils import NumpyArrayMatcher, build_graph_from_edge_list
 
 
 def build_mock_node(node_type: DataFlowGraph.NodeType) -> MagicMock:
@@ -35,8 +40,243 @@ def build_mock_node(node_type: DataFlowGraph.NodeType) -> MagicMock:
     raise NotImplementedError(f"Unhandled node type: {node_type}")
 
 
+class TestExecutionState:
+    @pytest.mark.asyncio
+    async def test_wait_for(self) -> None:
+        # create a simple graph with one processor node
+        graph = build_graph_from_edge_list(
+            edges=[(0, 1)],
+            node_types={0: DataFlowGraph.NodeType.SOURCE, 1: DataFlowGraph.NodeType.DATA_PROCESSOR},
+        )
+
+        # create the execution state
+        state = ExecutionState(
+            graph, graph.build_partition_graph(), MagicMock(), MagicMock(), MagicMock()
+        )
+
+        # create a tasks waiting for the node to get ready
+        wait_task = asyncio.create_task(state.wait_for(1))
+
+        # make sure the task doesn't complete
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(asyncio.shield(wait_task), timeout=0.1)
+
+        async def simulate_ready():
+            # simulate the node ready attribute to be set
+            await asyncio.sleep(0.1)
+            state.ready[1].set()
+
+        # create a tasks to mark the node as ready and wait for both tasks to finish
+        ready_task = asyncio.create_task(simulate_ready())
+        await asyncio.gather(wait_task, ready_task)
+
+        # ensure the wait for operation completes
+        assert wait_task.done()
+
+    @pytest.mark.parametrize(
+        "edges, node_types, partitions, source_partition, target_partition, trace_index",
+        [
+            # Stay in default partition
+            (
+                [(0, 1)],
+                {
+                    0: DataFlowGraph.NodeType.SOURCE,
+                    1: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                },
+                {},
+                DataFlowGraph.Partition.DEFAULT,
+                DataFlowGraph.Partition.DEFAULT,
+                [0, 1, 2, 3, 4],
+            ),
+            # Simple filter augmenter
+            (
+                [(0, 1)],
+                {
+                    0: DataFlowGraph.NodeType.SOURCE,
+                    1: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                },
+                {
+                    1: [0, 1, 3, 4],
+                },
+                DataFlowGraph.Partition.DEFAULT,
+                1,
+                [0, 1, 3, 4],
+            ),
+            # Simple augmentation
+            (
+                [(0, 1)],
+                {
+                    0: DataFlowGraph.NodeType.SOURCE,
+                    1: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                },
+                {
+                    1: [0, 0, 1, 1, 2, 2, 3, 3, 4, 4],
+                },
+                DataFlowGraph.Partition.DEFAULT,
+                1,
+                [0, 0, 1, 1, 2, 2, 3, 3, 4, 4],
+            ),
+            # Chaining filters
+            (
+                [(0, 1), (1, 2)],
+                {
+                    0: DataFlowGraph.NodeType.SOURCE,
+                    1: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                    2: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                },
+                {1: [1, 2, 3], 2: [1, 2]},
+                DataFlowGraph.Partition.DEFAULT,
+                2,
+                [2, 3],
+            ),
+            # Chaining augmenters
+            (
+                [(0, 1), (1, 2)],
+                {
+                    0: DataFlowGraph.NodeType.SOURCE,
+                    1: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                    2: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                },
+                {1: [1, 1, 1, 2, 2], 2: [2, 3, 4, 4]},
+                DataFlowGraph.Partition.DEFAULT,
+                2,
+                [1, 2, 2, 2],
+            ),
+        ],
+    )
+    def test_trace_through_partition_path(
+        self,
+        edges: list[tuple[Hashable, Hashable]],
+        node_types: dict[Hashable, DataFlowGraph.NodeType],
+        partitions: dict[PartitionId, np.ndarray],
+        source_partition: Hashable,
+        target_partition: Hashable,
+        trace_index: np.ndarray,
+    ) -> None:
+        index = [0, 1, 2, 3, 4]
+        trace_index = np.asarray(trace_index)
+
+        graph = build_graph_from_edge_list(edges, node_types)
+        state = ExecutionState(
+            graph, graph.build_partition_graph(), MagicMock(), index, MagicMock()
+        )
+
+        # register partition traces
+        for p in nx.topological_sort(graph.build_partition_graph()):
+            if p in partitions:
+                state.register_partition_trace(p, partitions[p])
+
+        # create a mock value to be traced
+        # must have the same length as the index
+        mock = MagicMock(__len__=lambda _: len(index))
+
+        # trace the mock value trough the partition path
+        traced_mock = state.trace_through_partition_path(
+            [mock], source_partition, target_partition
+        )[0]
+
+        mock.take.assert_called_once_with(NumpyArrayMatcher(trace_index))
+        assert traced_mock == mock.take.return_value
+
+    @patch("hyped.core.executor.pa.array")
+    @patch("hyped.core.executor.pa.chunked_array")
+    @patch("hyped.core.executor.ExecutionState.trace_through_partition_path")
+    def test_collect_inputs(
+        self,
+        mock_trace_trough_partition_graph: MagicMock,
+        mock_arrow_chunked_array: MagicMock,
+        mock_arrow_array: MagicMock,
+    ) -> None:
+        mock_trace_trough_partition_graph.return_value = (MagicMock(),)
+
+        # create a mock graph including a constant and a data augmenter
+        # to introduce another partition
+        graph = build_graph_from_edge_list(
+            [(0, 1), (0, 2), (3, 4), (1, 4), (2, 4)],
+            {
+                0: DataFlowGraph.NodeType.SOURCE,
+                1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                2: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                3: DataFlowGraph.NodeType.CONST,
+                4: DataFlowGraph.NodeType.DATA_PROCESSOR,
+            },
+        )
+
+        # mock the feature keys in the graph
+        keys = nx.get_edge_attributes(graph, DataFlowGraph.EdgeAttribute.KEY)
+        keys = {k: MagicMock() for k in keys}
+        nx.set_edge_attributes(graph, keys, DataFlowGraph.EdgeAttribute.KEY)
+
+        # create a mock index of length 5
+        mock_index = MagicMock(__len__=lambda _: 5)
+        # create execution state
+        state = ExecutionState(
+            graph, graph.build_partition_graph(), MagicMock(), mock_index, MagicMock()
+        )
+        state.index[2] = mock_index
+
+        mock_outputs = [MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()]
+        # capture required outputs
+        state.capture_output(0, mock_outputs[0])
+        state.capture_output(1, mock_outputs[1])
+        state.capture_output(2, mock_outputs[2])
+        state.capture_output(3, mock_outputs[3])
+
+        # collect input for node
+        inputs, index = state.collect_inputs(4)
+
+        # check that feature keys of the corresponding edges
+        # where applied to the captured outputs
+        keys[(1, 4, "1")].index_array.assert_called_once_with(mock_outputs[1])
+        keys[(2, 4, "2")].index_array.assert_called_once_with(mock_outputs[2])
+        keys[(3, 4, "3")].index_array.assert_called_once_with(mock_outputs[3])
+
+        # the inputs from the data processor must be passed through
+        # the partition graph
+        mock_trace_trough_partition_graph.assert_called_once_with(
+            [keys[(1, 4, "1")].index_array.return_value], src=DataFlowGraph.Partition.DEFAULT, tgt=2
+        )
+        assert inputs["1"] == mock_trace_trough_partition_graph.return_value[0]
+
+        # the output of the data augmenter introducing the partition
+        # is not traced through the graph, so the input is the return value
+        # of the index_array operation of the feature key
+        assert inputs["2"] == keys[(2, 4, "2")].index_array.return_value
+
+        # make sure the constant input is a chunked array
+        mock_arrow_chunked_array.assert_called_once_with(
+            [keys[(3, 4, "3")].index_array.return_value] * 5
+        )
+        assert inputs["3"] == mock_arrow_chunked_array.return_value
+
+
 @pytest.mark.asyncio
 class TestDataFlowExecutor:
+    def test_init(self) -> None:
+        # create a simple data flow graph without data aggregators
+        graph = build_graph_from_edge_list(
+            edges=[(0, 1)],
+            node_types={0: DataFlowGraph.NodeType.SOURCE, 1: DataFlowGraph.NodeType.DATA_PROCESSOR},
+        )
+        # initialize an executor for the graph without an aggregation manager
+        DataFlowExecutor(graph, Reference(), None)
+
+        # create a simple data flow graph with a data aggregator
+        graph = build_graph_from_edge_list(
+            edges=[(0, 1)],
+            node_types={
+                0: DataFlowGraph.NodeType.SOURCE,
+                1: DataFlowGraph.NodeType.DATA_AGGREGATOR,
+            },
+        )
+
+        with pytest.raises(RuntimeError):
+            # cannot initialize an executor without an aggregation manager
+            DataFlowExecutor(graph, Reference(), None)
+
+        # initialize the executor with a mock aggregation manager
+        DataFlowExecutor(graph, Reference(), MagicMock())
+
     @pytest.mark.parametrize(
         "edges, node_types, node, wait_for",
         [
@@ -157,7 +397,7 @@ class TestDataFlowExecutor:
         elif node_types[node] == DataFlowGraph.NodeType.DATA_AUGMENTER:
             node_obj.run.assert_called_once_with(mock_run_context, mock_inputs)
             out, trace_index = await node_obj.run()
-            state.register_partition_trace.assert_called_once_with(node, trace_index, mock_index)
+            state.register_partition_trace.assert_called_once_with(node, trace_index)
             state.capture_output(node, out)
 
         elif node_types[node] == DataFlowGraph.NodeType.DATA_AGGREGATOR:
@@ -202,4 +442,83 @@ class TestDataFlowExecutor:
             mock_state.collect_value.assert_called_once_with(collect)
 
             # Assert that the output matches the return value of collect_value
-            assert out == mock_state.collect_value()
+            assert out == mock_state.collect_value.return_value
+
+
+class TestLazyDataFlowExecutor:
+    @pytest.fixture(scope="function")
+    def mock_inputs(self) -> dict[str, MagicMock]:
+        return {"x": MagicMock()}
+
+    @pytest.fixture
+    def mock_arrow_table(self) -> Generator[MagicMock, None, None]:
+        with patch("hyped.core.executor.pa.table") as mock:
+            yield mock
+
+    @pytest.fixture
+    def lazy_executor(
+        self, mock_inputs: dict[str, MagicMock], mock_arrow_table: MagicMock
+    ) -> LazyDataFlowExecutor:
+        # create a mock graph with the required functionality
+        mock_graph = MagicMock()
+        mock_graph.get_dtype_from_reference.return_value = MappingType.from_dict({"y": BoolType})
+
+        # create the lazy executor instance
+        return LazyDataFlowExecutor(mock_graph, MagicMock(), MappingProxyType(mock_inputs))
+
+    def test_get_item(
+        self,
+        lazy_executor: LazyDataFlowExecutor,
+        mock_inputs: dict[str, MagicMock],
+        mock_arrow_table: MagicMock,
+    ) -> None:
+        with pytest.raises(KeyError):
+            # request invalid key not contained in output mapping type
+            print(lazy_executor.keys())
+            lazy_executor["invalid_key"]
+
+        with patch("hyped.core.executor.DataFlowExecutor.execute", AsyncMock()) as mock_execute:
+            # request valid key
+            y = lazy_executor["y"]
+
+            # make sure execute was called correctly
+            mock_execute.assert_called_once_with(
+                mock_arrow_table.return_value.to_struct_array.return_value, index=[0], rank=0
+            )
+            # expected output snapshot
+            expected_out_snapshot = (
+                mock_execute.return_value.__getitem__.return_value.as_py.return_value
+            )
+            # check output
+            expected_out_snapshot.__getitem__.assert_called_once_with("y")
+            assert y == expected_out_snapshot.__getitem__.return_value
+
+            # reset execute mock function
+            mock_execute.reset_mock()
+            # request valid key again without input changing
+            y = lazy_executor["y"]
+            # make sure the execute function is not called again
+            mock_execute.assert_not_called()
+
+            # reset execute mock function
+            mock_execute.reset_mock()
+            # change the input
+            mock_inputs["x"] = MagicMock()
+            # request valid key again without input changing
+            y = lazy_executor["y"]
+            # make sure the execute function is not called again
+            mock_execute.assert_called_once()
+
+    def test_mapping(self, lazy_executor: LazyDataFlowExecutor) -> None:
+        assert len(lazy_executor) == 1
+        # test key access
+        assert set(list(lazy_executor.keys())) == {"y"}
+        assert set(list(iter(lazy_executor))) == {"y"}
+
+        with patch("hyped.core.executor.DataFlowExecutor.execute", AsyncMock()):
+            # convert to dictionary and check keys again
+            mapping = dict(lazy_executor)
+            assert set(list(mapping.keys())) == {"y"}
+
+        # run string conversion
+        str(lazy_executor)

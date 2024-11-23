@@ -131,9 +131,7 @@ class ExecutionState(object):
         # apply the final trace index to the given values
         return [vals.take(trace_index) for vals in values]
 
-    def register_partition_trace(
-        self, node_id: NodeId, trace_index: TraceIndexList, index: IndexList
-    ) -> None:
+    def register_partition_trace(self, node_id: NodeId, trace_index: TraceIndexList) -> None:
         """Register trace and index mappings for the transition between partitions.
 
         This method registers the trace indices and index mappings for a node's output partition
@@ -144,12 +142,11 @@ class ExecutionState(object):
             node_id (NodeId): The identifier of the node for which to register the partition trace.
             trace_index (TraceIndexList): The trace indices representing how to transition between
                 the source and target partitions.
-            index (IndexList): The index values to be used for the output partition, which will be
-                transformed according to the computed trace indices.
 
         Raises:
             AssertionError: If there is no edge between the source and target partitions in the
                 partition graph.
+            AssertionError: If the source partition is not registered yet.
         """
         u = self.graph.nodes[node_id][DataFlowGraph.NodeAttribute.PARTITION]
         v = self.graph.get_node_output_partition(node_id)
@@ -157,9 +154,13 @@ class ExecutionState(object):
         assert self.p_graph.has_edge(
             u, v
         ), f"No edge between partitions '{u}' and '{v}' in the partition graph."
-        # register trace and index
+        # register the trace
         self.traces[(u, v)] = np.asarray(trace_index)
-        self.index[v] = self.trace_through_partition_path([pa.array(index)], src=u, tgt=v)[0]
+        # get the index of the source partition and transform it
+        assert u in self.index, f"Partition {u} not registered yet!"
+        self.index[v] = self.trace_through_partition_path([pa.array(self.index[u])], src=u, tgt=v)[
+            0
+        ].to_pylist()
 
     def collect_value(self, ref: Reference) -> pa.Array:
         """Collect the values requested by the feature reference.
@@ -342,7 +343,7 @@ class DataFlowExecutor(object):
             out, trace_index = await node_obj.run(ctx, inputs)
             assert out.type == ctx.output_type.arrow_type, "Unexpected output type"
             # register output partition and capture output in execution state
-            state.register_partition_trace(node_id, trace_index, index)
+            state.register_partition_trace(node_id, trace_index)
             state.capture_output(node_id, out)
 
         elif node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
@@ -351,7 +352,7 @@ class DataFlowExecutor(object):
             assert self.aggregation_manager is not None
             await self.aggregation_manager.aggregate(node_obj, ctx, inputs)
 
-        else:
+        else:  # pragma: not covered
             raise TypeError(f"Unsupported node type: {node_type}")
 
     async def execute(self, batch: pa.Array, index: IndexList, rank: Rank) -> pa.Array:
@@ -380,6 +381,17 @@ class DataFlowExecutor(object):
 
 
 class LazyDataFlowExecutor(typing.Mapping, DataFlowExecutor):
+    """A lazy executor for a data flow graph.
+
+    This class extends the :class:`DataFlowExecutor` to compute outputs only when
+    requested and when the inputs have changed. It implements a mapping interface
+    to provide read-only access to the output values of the data flow.
+
+    The execution is triggered lazily upon accessing an output feature, ensuring
+    that the computation is performed only when necessary. The inputs are cached
+    and compared to avoid redundant computations.
+    """
+
     def __init__(
         self,
         graph: DataFlowGraph,

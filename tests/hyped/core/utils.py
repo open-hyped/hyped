@@ -2,6 +2,7 @@ from typing import Hashable
 from unittest.mock import MagicMock
 
 import networkx as nx
+import numpy as np
 
 from hyped.core.features.types import BoolType as MockType
 from hyped.core.features.types import Type
@@ -48,3 +49,11 @@ def build_graph_from_edge_list(
     assert nx.is_isomorphic(tmp_graph, graph), "Error building graph from edges"
 
     return graph
+
+
+class NumpyArrayMatcher:
+    def __init__(self, expected_array):
+        self.expected_array = expected_array
+
+    def __eq__(self, other):
+        return np.array_equal(self.expected_array, other)
