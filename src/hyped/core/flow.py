@@ -32,6 +32,8 @@ from .features.features import (
     Feature,
     Float64Feature,
     Int64Feature,
+    MappingFeature,
+    SequenceFeature,
     StringFeature,
     build_feature_from_annotation,
     build_feature_from_dtype,
@@ -42,7 +44,7 @@ from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
 from .optim import DataFlowGraphOptimizer
-from .typing import IndexList, Mapping, NodeId, Rank, Sequence
+from .typing import IndexList, NodeId, Rank
 from .utils import (
     NestedType,
     build_dtype_from_hf_feature,
@@ -65,7 +67,7 @@ except ValueError:  # pragma: not covered
 Dataset = TypeVar("Dataset", datasets.Dataset, datasets.DatasetDict)
 ItDataset = TypeVar("ItDataset", datasets.IterableDataset, datasets.IterableDatasetDict)
 
-T = TypeVar("T", bound=Mapping)
+T = TypeVar("T", bound=MappingFeature)
 
 
 def plot_data_flow(
@@ -318,7 +320,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         Returns:
             int: The total depth of the graph.
         """
-        return self._graph.depth
+        return self._graph.depth  # pragma: not covered
 
     @property
     def width(self) -> int:
@@ -331,7 +333,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         Returns:
             int: The maximum width of the graph.
         """
-        return self._graph.width
+        return self._graph.width  # pragma: not covered
 
     @property
     def source(self) -> T:
@@ -362,11 +364,11 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         ...
 
     @overload
-    def const(self, value: dict[str, Any]) -> Mapping:
+    def const(self, value: dict[str, Any]) -> MappingFeature:
         ...
 
     @overload
-    def const(self, value: list[Any] | tuple[Any]) -> Sequence:
+    def const(self, value: list[Any] | tuple[Any]) -> SequenceFeature:
         ...
 
     U = TypeVar("U", bound=Feature)
@@ -408,18 +410,18 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         return self._graph.get_feature_from_reference(ref)
 
     @overload
-    def collect(self, collect: dict[NestedType[Any]]) -> Mapping:
+    def collect(self, collect: dict[NestedType[Any]]) -> MappingFeature:
         ...
 
     @overload
-    def collect(self, collect: list[NestedType[Any]] | tuple[NestedType[Any]]) -> Sequence:
+    def collect(self, collect: list[NestedType[Any]] | tuple[NestedType[Any]]) -> SequenceFeature:
         ...
 
     @overload
     def collect(self, collect: Any) -> Feature:
         ...
 
-    def collect(self, collect: NestedType[Any]) -> Mapping | Sequence | Feature:
+    def collect(self, collect: NestedType[Any]) -> MappingFeature | SequenceFeature | Feature:
         """Add a collect node to the data flow.
 
         The :func:`collect` method processes a nested structure (e.g., dicts, lists, tuples) of
@@ -479,7 +481,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             elif isinstance(val, Reference):
                 return val
 
-            else:
+            else:  # pragma: not covered
                 raise TypeError(f"Unsupported type encountered in 'collect': {val}.")
 
         if isinstance(collect, Feature):
@@ -703,8 +705,8 @@ class ExecutableDataFlow(AbstractDataFlow):
                 raise RuntimeError("The aggregate node must belong to the aggregated partition.")
 
             # make sure the collect feature is a mapping
-            if not isinstance(graph.get_feature_from_reference(aggregate), Mapping):
-                raise RuntimeError("The aggregate feature must be a mapping type.")
+            if not isinstance(graph.get_feature_from_reference(aggregate), MappingFeature):
+                raise RuntimeError("The aggregate feature must be a mapping.")
 
         # optimize data flow
         graph = DataFlowGraphOptimizer().optimize(
@@ -716,24 +718,27 @@ class ExecutableDataFlow(AbstractDataFlow):
 
         # create read only view on optimized graph
         self._graph: DataFlowGraph = nx.restricted_view(graph, [], [])
+        # update the collect and aggregate references to the new graph
+        collect = replace(collect, _graph=self._graph)
+        aggregate = None if aggregate is None else replace(aggregate, _graph=self._graph)
         # get the source feature instance from the graph
         ref = Reference(_node_id=graph.src_node_id, _graph=self._graph)
-        self._source_feature: Mapping = self._graph.get_feature_from_reference(ref)
-        self._collect_feature: Mapping = self._graph.get_feature_from_reference(
+        self._source_feature: MappingFeature = self._graph.get_feature_from_reference(ref)
+        self._collect_feature: MappingFeature = self._graph.get_feature_from_reference(
             replace(collect, _graph=self._graph)
         )
 
         # make sure the source feature is a mapping
-        if not isinstance(self._source_feature, Mapping):
-            raise RuntimeError("The source feature must be a mapping type.")
+        if not isinstance(self._source_feature, MappingFeature):
+            raise RuntimeError("The source feature must be a mapping.")
 
         # make sure the collect feature is a mapping
-        if not isinstance(self._collect_feature, Mapping):
-            raise RuntimeError("The collect feature must be a mapping type.")
+        if not isinstance(self._collect_feature, MappingFeature):
+            raise RuntimeError("The collect feature must be a mapping.")
 
         # create read-only view on the instance partition of the graph
         self._instance_graph = graph.drop_partition(DataFlowGraph.Partition.AGGREGATED)
-        self._aggregates_graph: DataFlowGraph = None
+        self._aggregates_graph: None | DataFlowGraph = None
 
         self._aggregation_manager: None | DataAggregationManager = None
         self._aggregates_executor: None | DataFlowExecutor = None
@@ -752,7 +757,13 @@ class ExecutableDataFlow(AbstractDataFlow):
             # build the data aggregation manager instance and the aggregates graph,
             # which implements the operations performed on aggregated values
             self._aggregation_manager = self._build_aggregation_manager(nodes)
-            self._aggregates_executor = self._build_aggregates_executor(aggregate, set(nodes))
+            self._aggregates_graph = self._build_aggregates_graph(aggregate, set(nodes))
+            # initialize the aggregates executor from the graph and manager
+            self._aggregates_executor = LazyDataFlowExecutor(
+                self._aggregates_graph,
+                replace(aggregate, _graph=self._aggregates_graph),
+                self._aggregation_manager.values_proxy,
+            )
 
         # create the executors
         self._instance_executor = DataFlowExecutor(
@@ -770,7 +781,7 @@ class ExecutableDataFlow(AbstractDataFlow):
         Returns:
             int: The total depth of the graph.
         """
-        return self._graph.depth
+        return self._graph.depth  # pragma: not covered
 
     @property
     def width(self) -> int:
@@ -783,7 +794,7 @@ class ExecutableDataFlow(AbstractDataFlow):
         Returns:
             int: The maximum width of the graph.
         """
-        return self._graph.width
+        return self._graph.width  # pragma: not covered
 
     @property
     def aggregates(self) -> MappingProxyType[str, Any]:
@@ -792,15 +803,35 @@ class ExecutableDataFlow(AbstractDataFlow):
         Returns:
             MappingProxyType[str, Any]: A read-only mapping of aggregated values.
         """
-        return MappingProxyType(self._aggregates_executor)
+        return MappingProxyType(self._aggregates_executor)  # pragma: not covered
 
-    def _build_aggregates_executor(
+    def _build_aggregates_graph(
         self, aggregate: Reference, aggregator_nodes: set[NodeId]
-    ) -> DataFlowExecutor:
+    ) -> DataFlowGraph:
+        """Build the aggregates graph.
+
+        Constructs a subgraph modeling all operations performed on aggregates,
+        up to the aggregator nodes. The resulting graph excludes the aggregator
+        nodes themselves, as these are included separately in the instance graph.
+
+        The source node provides all the aggregated features produced by the
+        aggregator nodes. The values to these features are provided by the
+        aggregation manager.
+
+        Args:
+            aggregate (Reference): The aggregate reference for which the dependency graph
+                will be built.
+            aggregator_nodes (set[NodeId]): A set of node IDs representing the aggregator nodes
+                that act as stopping points in the dependency graph.
+
+        Returns:
+            DataFlowGraph: A new data flow graph representing the dependencies and operations
+            leading to the aggregate, excluding the aggregator nodes.
+        """
         # build the dependency graph of the aggregate up to the aggregator nodes
         # note that this also includes constants
         g = self._graph.dependency_graph({aggregate._node_id}, stop_nodes=aggregator_nodes)
-        # remove the aggregator nodes themselves as these are executed in the
+        # remove the aggregator nodes themselves as these are included in the
         # instance graph
         g = nx.restricted_view(g, aggregator_nodes, [])
 
@@ -836,12 +867,24 @@ class ExecutableDataFlow(AbstractDataFlow):
                 node_id=node_id,
             )
 
-        # build the executor
-        return LazyDataFlowExecutor(
-            h, replace(aggregate, _graph=h), self._aggregation_manager.values_proxy
-        )
+        return h
 
     def _build_aggregation_manager(self, nodes: list[NodeId]) -> DataAggregationManager:
+        """Build the aggregation manager.
+
+        Builds a data aggregation manager for the specified aggregator nodes.
+        The manager contains the aggregator nodes and their respective runtime
+        contexts, including input and output feature types.
+
+        Args:
+            nodes (list[NodeId]): A list of node IDs corresponding to the aggregator nodes
+                for which the data aggregation manager is to be constructed.
+
+        Returns:
+            DataAggregationManager: An instance managing the aggregators and their
+            associated runtime contexts, which includes node-specific metadata such as
+            input/output feature types, rank, and index.
+        """
         # build the run contexts for the aggregator nodes
         aggregators = [
             self._graph.nodes[node][DataFlowGraph.NodeAttribute.NODE_OBJ] for node in nodes
@@ -922,26 +965,6 @@ class ExecutableDataFlow(AbstractDataFlow):
             Dataset | ItDataset | tuple[Dataset: The transformed dataset matching the input
             dataset type.
         """
-        """Applies the data flow to a dataset.
-
-        Validates the dataset's schema against the expected source feature type
-        and processes it through the data flow graph. Supports both lazy and
-        in-memory datasets from the :code:`datasets` library.
-
-        Args:
-            ds (D): A dataset object, such as :class:`datasets.Dataset`,
-                :class:`datasets.DatasetDict`, :class:`datasets.IterableDataset`, or
-                :class:`datasets.IterableDatasetDict`.
-            **kwargs: Additional arguments to pass during dataset processing.
-
-        Returns:
-            D: The processed dataset with updated features.
-
-        Raises:
-            ValueError: If the dataset is not a supported type.
-            RuntimeError: If the dataset's schema doesn't match the expected source feature type.
-            NotImplementedError: If processing lazy datasets with output features is required.
-        """
         # get the dataset features
         if isinstance(ds, (datasets.Dataset, datasets.IterableDataset)):
             features = ds.features
@@ -975,22 +998,6 @@ class ExecutableDataFlow(AbstractDataFlow):
             num_proc=num_proc,
             desc=desc,
         )
-
-    def batch_process(
-        self, batch: dict[str, list[Any]], index: IndexList, rank: None | Rank = None
-    ) -> dict[str, list[Any]]:
-        """Process a batch of data.
-
-        Args:
-            batch (dict[str, list[Any]]): The batch of data to process.
-            index (IndexList): The index of the batch.
-            rank (None | Rank): The rank of the process in a distributed setting.
-
-        Returns:
-            dict[str, list[Any]]: The processed batch of data.
-        """
-        batch = pa.table(batch, schema=self._source_feature.dtype.arrow_schema)
-        return self.pyarrow_process(batch).to_pydict()
 
     def pyarrow_process(
         self, batch: pa.Table, index: IndexList, rank: None | Rank = None
@@ -1057,7 +1064,6 @@ class ExecutableDataFlow(AbstractDataFlow):
             # use pyarrow table as output format for in-memory
             # datasets that support caching
             transformed_ds = prepared_ds.map(
-                # self._batch_process_pyarrow,
                 self.pyarrow_process,
                 with_indices=True,
                 with_rank=True,
@@ -1070,15 +1076,18 @@ class ExecutableDataFlow(AbstractDataFlow):
                 num_proc=num_proc,
                 desc=desc,
             )
-            # unset the dataset format
+            # get the format of the input dataset
+            input_format = (
+                ds.format if isinstance(ds, datasets.Dataset) else next(iter(ds.values())).format
+            )
             transformed_ds.set_format(
-                type=ds.format["type"],
-                format_kwargs=ds.format["format_kwargs"],
+                type=input_format["type"],
+                format_kwargs=input_format["format_kwargs"],
                 output_all_columns=True,
             )
             return transformed_ds
 
-        elif isinstance(ds, (datasets.IterableDataset, datasets.IterableDatasetDict)):
+        elif isinstance(ds, datasets.IterableDataset):
             # use arrow formatter and only the required input columns
             prepared_ds = ds.with_format(type="arrow")
             # iterable dataset class doesn't support pyarrow
@@ -1097,5 +1106,30 @@ class ExecutableDataFlow(AbstractDataFlow):
                     self._collect_feature.dtype.arrow_schema
                 ),
             )
+            # unset the dataset format
+            return transformed_ds.with_format(type=None)
+
+        elif isinstance(ds, datasets.IterableDatasetDict):
+            # use arrow formatter and only the required input columns
+            prepared_ds = ds.with_format(type="arrow")
+            # iterable dataset class doesn't support pyarrow
+            # outputs in map function, but it also doesn't cache
+            # and thus doesn't need the features while processing
+            transformed_ds = prepared_ds.map(
+                self.pyarrow_process,
+                with_indices=True,
+                batched=True,
+                batch_size=batch_size,
+                drop_last_batch=drop_last_batch,
+                remove_columns=(
+                    set(self._source_feature.keys()) - set(self._collect_feature.keys())
+                ),
+            )
+            # iterable dataset dict doesn't support features argument to map function
+            for split in ds.values():
+                split.info.features = datasets.Features.from_arrow_schema(
+                    self._collect_feature.dtype.arrow_schema
+                )
+
             # unset the dataset format
             return transformed_ds.with_format(type=None)

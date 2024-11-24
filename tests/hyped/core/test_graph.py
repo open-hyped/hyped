@@ -494,7 +494,7 @@ class TestDataFlowGraph:
         graph = DataFlowGraph()
         src_ref = graph.add_source_node(MockType)
         # add a node of the specified type to the graph
-        node = MagicMock(__class__=node_cls)
+        node = MagicMock(spec=node_cls)
         ref = graph.add_compute_node(node, {"x": src_ref})
         # check the added node type
         attrs = graph.nodes[ref._node_id]

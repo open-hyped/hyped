@@ -26,7 +26,7 @@ class TestSequenceFeature:
 
     def test_get_item(self) -> None:
         ref = Reference()
-        dtype = MagicMock(__class__=SequenceType, __getitem__=MagicMock(return_value=BoolType))
+        dtype = MagicMock(spec=SequenceType, __getitem__=MagicMock(return_value=BoolType))
         sequence = SequenceFeature[BoolFeature](ref, dtype)
 
         for i in range(10):
@@ -40,7 +40,7 @@ class TestSequenceFeature:
 
     def test_get_slice(self) -> None:
         ref = Reference()
-        dtype = MagicMock(__class__=SequenceType)
+        dtype = MagicMock(spec=SequenceType)
         dtype.__getitem__ = MagicMock(return_value=dtype)
         # create mock sequence
         sequence = SequenceFeature[BoolFeature](ref, dtype)
@@ -128,7 +128,7 @@ class TestMappingFeature:
         mapping = MappingFeature(ref, dtype=dtype)
 
         ref = Reference()
-        dtype = MagicMock(__class__=MappingType, __getitem__=MagicMock(return_value=BoolType))
+        dtype = MagicMock(spec=MappingType, __getitem__=MagicMock(return_value=BoolType))
         mapping = MappingFeature(ref, dtype)
 
         for key in ["fieldA", "fieldB"]:

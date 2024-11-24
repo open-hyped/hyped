@@ -26,17 +26,17 @@ def build_mock_node(node_type: DataFlowGraph.NodeType) -> MagicMock:
     if node_type == DataFlowGraph.NodeType.SOURCE:
         return MagicMock()
     if node_type == DataFlowGraph.NodeType.CONST:
-        return MagicMock(__class__=pa.Array)
+        return MagicMock(spec=pa.Array)
     if node_type == DataFlowGraph.NodeType.COLLECT:
-        return MagicMock(__class__=CollectNode, collect=MagicMock())
+        return MagicMock(spec=CollectNode, collect=MagicMock())
     if node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
-        return MagicMock(__class__=BaseDataProcessor, run=AsyncMock())
+        return MagicMock(spec=BaseDataProcessor, run=AsyncMock())
     if node_type == DataFlowGraph.NodeType.DATA_AUGMENTER:
         return MagicMock(
-            __class__=BaseDataAugmenter, run=AsyncMock(return_value=(MagicMock(), MagicMock()))
+            spec=BaseDataAugmenter, run=AsyncMock(return_value=(MagicMock(), MagicMock()))
         )
     if node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
-        return MagicMock(__class__=BaseDataAggregator)
+        return MagicMock(spec=BaseDataAggregator)
     raise NotImplementedError(f"Unhandled node type: {node_type}")
 
 
