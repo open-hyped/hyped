@@ -151,13 +151,19 @@ class DataFlowGraphOptimizer(object):
                         for src_node_id, name, key in in_edge_identifiers
                     }
 
-                    identifier.node_id = cse_graph.add_node(
-                        node_obj=node_obj,
-                        node_type=node_type,
-                        inputs=inputs,
-                        output_type=out_feature_type,
-                        node_id=node_id,
-                    )._node_id
+                    if identifier.node_type is DataFlowGraph.NodeType.SOURCE:
+                        identifier.node_id = cse_graph.add_source_node(
+                            out_feature_type, node_id=node_id
+                        )._node_id
+
+                    else:
+                        identifier.node_id = cse_graph.add_node(
+                            node_obj=node_obj,
+                            node_type=node_type,
+                            inputs=inputs,
+                            output_type=out_feature_type,
+                            node_id=node_id,
+                        )._node_id
 
                     # make sure the input feature type
                     assert (
@@ -358,6 +364,9 @@ class DataFlowGraphOptimizer(object):
 
         # recompute all depths after optimiztion
         graph.recompute_depths()
+
+        # limit the source features to only the accessed source features
+        graph.apply_accessed_fields()
 
         # make sure all leaf nodes are present in the optimized graph
         assert all(node_id in graph for node_id in leaf_nodes)

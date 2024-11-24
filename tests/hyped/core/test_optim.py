@@ -125,6 +125,7 @@ class TestDataFlowGraphOptimizer:
         # and compare to the target graph
         optim_graph, _ = DataFlowGraphOptimizer().cse(graph)
         assert nx.is_isomorphic(optim_graph, target_graph, node_match=node_match)
+        assert optim_graph.src_node_id == graph.src_node_id
 
     @pytest.mark.parametrize(
         "graph, target_graph, leaf_nodes",
@@ -331,3 +332,4 @@ class TestDataFlowGraphOptimizer:
             # apply constant evaluation to the graph and compare to the target graph
             optim_graph = DataFlowGraphOptimizer().optimize(graph, leaf_nodes)
             assert nx.is_isomorphic(optim_graph, target_graph, node_match=node_match)
+            assert optim_graph.src_node_id == graph.src_node_id

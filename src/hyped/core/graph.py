@@ -22,7 +22,7 @@ from .abstract import AbstractDataFlowGraph
 from .features.engine import FeatureEngine
 from .features.features import Feature, build_feature_from_dtype
 from .features.reference import FeatureKey, Reference
-from .features.types import MappingType, Type
+from .features.types import MappingType, SequenceType, Type
 from .nodes.aggregator import BaseDataAggregator
 from .nodes.augmenter import BaseDataAugmenter
 from .nodes.base import BaseNode
@@ -342,6 +342,57 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             MappingType: The data type of the source node.
         """
         return self.nodes[self.src_node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
+
+    @property
+    def accessed_src_dtype(self) -> MappingType:
+        """Get the accessed subset of the source data type.
+
+        This property retrieves the portion of the source node's data type that is
+        explicitly accessed or utilized within the data flow graph. It represents
+        the subset of features or fields from the source data type that are directly
+        referenced by downstream nodes in the graph. Any features in the source data
+        type that are not accessed remain excluded from this subset.
+
+        This selection applies exclusively to mapping features. Sequence features
+        remain unchanged and are returned as-is. However, for nested mapping features,
+        the property recursively determines and includes only the accessed subfields.
+
+        Returns:
+            MappingType: A mapping that defines the structure and types of features
+            from the source node that are accessed in the graph.
+        """
+
+        def get_accessed_subtype(dtype: Type, keys: list[FeatureKey]) -> Type:
+            # check if the dtype is accessed as a whole
+            if any(len(k) == 0 for k in keys):
+                return dtype
+
+            # check if the dtype is a sequence type
+            if isinstance(dtype, SequenceType):
+                return SequenceType(
+                    get_accessed_subtype(dtype.value_type, [key[1:] for key in keys]),
+                    length=dtype.length,
+                )
+
+            # if the dtype is a primitive type then all the keys
+            # must be of length zero, meaning the primitive type
+            # is accessed which is handled above
+            assert isinstance(dtype, MappingType), f"Unexpected type {dtype}"
+
+            # group keys by the field they access
+            grouped_keys = {field: [] for field, *_ in keys}
+            for field, *key in keys:
+                grouped_keys[field].append(FeatureKey(*key))
+
+            return MappingType.from_dict(
+                {
+                    field: get_accessed_subtype(dtype[field], keys)
+                    for field, keys in grouped_keys.items()
+                }
+            )
+
+        edges = self.out_edges(self.src_node_id, data=DataFlowGraph.EdgeAttribute.KEY)
+        return get_accessed_subtype(self.src_dtype, [k for _, _, k in edges])
 
     @property
     def depth(self) -> int:
@@ -999,3 +1050,14 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         """
         node_depths = _compute_node_depth(self)
         nx.set_node_attributes(self, node_depths, DataFlowGraph.NodeAttribute.DEPTH)
+
+    def apply_accessed_fields(self) -> None:
+        """Restrict the source feature type to only the accessed fields.
+
+        This method updates the source node in the data flow graph to only the accessed fields
+        computed by the :class:`accessed_src_dtype` property. The :class:`accessed_src_dtype`
+        property represents the subset of the original :code:`src_dtype` that includes only
+        the fields accessed during processing.
+        """
+        src_node = self.nodes[self.src_node_id]
+        src_node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] = self.accessed_src_dtype

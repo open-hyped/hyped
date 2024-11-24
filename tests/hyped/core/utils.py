@@ -117,6 +117,7 @@ def build_graph(
             refs[node] = graph.add_source_node(output_type, node_id=node)
 
         else:
+            inputs = {k: refs[u] for u, _, k in tmp_graph.in_edges(node, keys=True)}
             refs[node] = graph.add_node(
                 node_obj=node_objects.get(node, MagicMock()),
                 node_type=node_types[node],
