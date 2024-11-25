@@ -29,7 +29,7 @@ from .nodes.base import BaseNode
 from .nodes.collect import CollectNode
 from .nodes.processor import BaseDataProcessor
 from .typing import NodeId, PartitionId
-from .utils import NestedType, map_recursive
+from .utils import NestedType, build_dtype_from_python_object, map_recursive
 
 
 def _compute_node_depth(g: nx.DiGraph) -> dict[Hashable, int]:
@@ -686,6 +686,81 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             output_type=obj.build_output_type(self, inputs),
             node_id=node_id,
         )
+
+    def add_collect_node_with_constants(
+        self, collect: NestedType[Reference | Any], dtype: None | Type = None
+    ) -> Reference:
+        """Add a collect node and all contained constants to a data flow graph.
+
+        This function processes a nested structure of references and constants,
+        adding constants to the graph as nodes if necessary. It then combines the
+        resolved references and constants into a single :code:`collect` node, returning
+        a reference to this node.
+
+        Args:
+            graph (DataFlowGraph): The data flow graph to which the nodes will be added.
+            collect (NestedType[Reference | Any]): A nested structure containing constants
+                (e.g., integers, floats, or strings) and/or references to existing nodes in
+                the graph.
+            dtype (None | Type): The expected data type of the :code:`collect` structure. If
+                :code:`None`, the function attempts to infer the type where possible.
+
+        Returns:
+            Reference: A reference to the :code:`collect` node added to the graph.
+
+        Raises:
+            AssertionError: If the provided :code:`dtype` does not match the structure
+                of :code:`collect`.
+            TypeError: If an unsupported type is found in :code:`collect`.
+        """
+
+        def add_constants(
+            val: NestedType[Reference | str | int | float], dtype: None | Type = None
+        ) -> NestedType[Reference]:
+            if isinstance(val, dict):
+                assert (dtype is None) or isinstance(dtype, MappingType)
+
+                return {
+                    key: add_constants(item, dtype[key] if dtype is not None else None)
+                    for key, item in val.items()
+                }
+
+            elif isinstance(val, (list, tuple)):
+                assert (dtype is None) or isinstance(dtype, SequenceType)
+
+                if len(val) == 0:
+                    raise NotImplementedError()
+
+                if dtype is None:
+                    # try to infer the dtype from the reference instances in the sequence
+                    if any(isinstance(r, Reference) for r in val):
+                        ref = next(r for r in val if isinstance(r, Reference))
+                        dtype = self.get_dtype_from_reference(ref)
+
+                else:
+                    # otherwise use the value type from the given dtype
+                    dtype = dtype.value_type
+
+                # recurse on all items in the sequence
+                return type(val)([add_constants(item, dtype) for item in val])
+
+            elif not isinstance(val, Reference):
+                # add the constant node
+                return self.add_const_node(
+                    val, dtype=dtype if dtype is not None else build_dtype_from_python_object(val)
+                )
+
+            elif isinstance(val, Reference):
+                return val
+
+            else:  # pragma: not covered
+                raise TypeError(f"Unsupported type encountered in 'collect': {val}.")
+
+        # add all constants to the graph
+        collect = add_constants(collect, dtype)
+
+        # add the collect node to the graph and return the reference to it
+        return self.add_collect_node(collect)
 
     def add_compute_node(
         self,

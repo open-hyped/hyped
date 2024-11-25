@@ -145,49 +145,8 @@ class TestDataFlow:
         # test trivial case
         assert feature == flow.collect(feature)
 
-        # reset the mock graph
-        flow._graph.reset_mock()
-        # test collect dictionary structure
         flow.collect({"x": feature})
-        flow._graph.add_collect_node.assert_called_once_with({"x": feature.ref})
-
-        # reset the mock graph
-        flow._graph.reset_mock()
-        # test collect list structure
-        flow.collect([feature, feature])
-        flow._graph.add_collect_node.assert_called_once_with([feature.ref, feature.ref])
-
-        with patch("hyped.core.flow.build_dtype_from_python_object") as mock_build_dtype:
-            # reset the mock graph
-            flow._graph.reset_mock()
-            # test collect with constants
-            flow.collect({"x": feature, "y": 42})
-            flow._graph.add_const_node.assert_called_once_with(
-                42, dtype=mock_build_dtype.return_value
-            )
-            flow._graph.add_collect_node.assert_called_once_with(
-                {"x": feature.ref, "y": flow._graph.add_const_node.return_value}
-            )
-
-            # reset the mock graph
-            flow._graph.reset_mock()
-            # test collect with constants
-            flow.collect([42, 42, 42])
-            assert flow._graph.add_const_node.call_count == 3
-            flow._graph.add_const_node.assert_has_calls(
-                [
-                    call(42, dtype=mock_build_dtype.return_value),
-                    call(42, dtype=mock_build_dtype.return_value),
-                    call(42, dtype=mock_build_dtype.return_value),
-                ]
-            )
-            flow._graph.add_collect_node.assert_called_once_with(
-                [
-                    flow._graph.add_const_node.return_value,
-                    flow._graph.add_const_node.return_value,
-                    flow._graph.add_const_node.return_value,
-                ]
-            )
+        flow._graph.add_collect_node_with_constants.assert_called_once_with({"x": feature.ref})
 
     @patch("hyped.core.flow.DataFlowGraph")
     @patch("hyped.core.flow.ExecutableDataFlow")

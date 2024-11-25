@@ -7,10 +7,8 @@ configurable input and output types.
 """
 from __future__ import annotations
 
-import operator
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
-from functools import partial
 from inspect import Signature
 from itertools import chain
 from typing import (
@@ -93,7 +91,7 @@ class RunContext:
         Returns:
             int: The hash value of the node ID.
         """
-        return hash(self.node_id)
+        return hash(self.node_id)  # pragma: not covered
 
 
 P = ParamSpec("P")
@@ -105,54 +103,140 @@ Backend: TypeAlias = Literal["python", "arrow"]
 
 @dataclass(eq=True, frozen=True)
 class ProcessMode:
+    """Represents a processing mode for converting data to different formats."""
+
     batched: bool
+    """Indicates whether the processing mode operates on batched data."""
 
     backend: Backend
+    """Specifies the backend used for processing."""
 
     from_arrow_converters: ClassVar[dict[ProcessMode, Callable]] = {}
-    to_arrow_converters: ClassVar[dict[ProcessMode, Callable]] = {}
+    """From arrow converter registry
 
-    def __call__(self, fn: Callable[P, R]) -> Callable[P, R]:
-        # decorator
+    A registry of converter functions for transforming data from :class:`PyArrow` to the
+    specified processing mode.
+    """
+
+    to_arrow_converters: ClassVar[dict[ProcessMode, Callable]] = {}
+    """To arrow converter registry.
+
+    A registry of converter functions for transforming data to :class:`PyArrow` from the
+    specified processing mode.
+    """
+
+    def decorate(self, fn: Callable[P, R]) -> Callable[P, R]:
+        """Decorates a function by associating it with this :class:`ProcessMode`.
+
+        Args:
+            fn (Callable[P, R]): The function to decorate.
+
+        Returns:
+            Callable[P, R]: The decorated function with the process mode attribute set.
+        """
         fn.__hyped_process_mode__ = self
         return fn
 
     def set_default(self, fn: Callable[P, R]) -> Callable[P, R]:
+        """Sets this :class:`ProcessMode` as the default for a function.
+
+        Args:
+            fn (Callable[P, R]): The function to set the default process mode for.
+
+        Returns:
+            Callable[P, R]: The function with the default process mode applied.
+        """
         if not hasattr(fn, "__hyped_process_mode__"):
-            return self(fn)
+            return self.decorate(fn)
 
         return fn
 
     @classmethod
     def from_decorated_fn(cls, fn: Callable[P, R]) -> ProcessMode:
+        """Retrieves the :class:`ProcessMode` associated with a decorated function.
+
+        Args:
+            fn (Callable[P, R]): The function from which to retrieve the process mode.
+
+        Returns:
+            ProcessMode: The associated process mode.
+
+        Raises:
+            RuntimeError: If the function does not have an associated process mode.
+        """
         if not hasattr(fn, "__hyped_process_mode__"):
-            raise RuntimeError()
+            raise RuntimeError("Function is not decorated with a 'ProcessMode'.")
 
         return fn.__hyped_process_mode__
 
-    @classmethod
-    def register_from_arrow_converter(cls, mode: ProcessMode) -> Any:
-        return partial(operator.setitem, cls.from_arrow_converters, mode)
+    F = TypeVar("F", bound=Callable[P, R])
 
     @classmethod
-    def register_to_arrow_converter(cls, mode: ProcessMode) -> Any:
-        return partial(operator.setitem, cls.to_arrow_converters, mode)
+    def register_from_arrow_converter(cls, mode: ProcessMode) -> Callable[[F], F]:
+        """Decorator to register a function as a *from-Arrow* converter.
+
+        Args:
+            mode (ProcessMode): The process mode to register the converter for.
+
+        Returns:
+            Any: A callable that registers the function as a converter.
+        """
+
+        def decorator(fn: Callable) -> Callable:
+            cls.from_arrow_converters[mode] = fn
+            return fn
+
+        return decorator
+
+    @classmethod
+    def register_to_arrow_converter(cls, mode: ProcessMode) -> Callable[[F], F]:
+        """Decorator to register a function as a *to-Arrow* converter.
+
+        Args:
+            mode (ProcessMode): The process mode to register the converter for.
+
+        Returns:
+            Any: A callable that registers the function as a converter.
+        """
+
+        def decorator(fn: Callable) -> Callable:
+            cls.to_arrow_converters[mode] = fn
+            return fn
+
+        return decorator
 
     def validate(self) -> ProcessMode:
+        """Validates that the :class:`ProcessMode` is fully supported.
+
+        Returns:
+            ProcessMode: The validated process mode.
+
+        Raises:
+            Exception: If the ProcessMode is not supported (missing converters).
+        """
         if not (
             (self in ProcessMode.from_arrow_converters)
             and (self in ProcessMode.to_arrow_converters)
         ):
-            # TODO: mode not supported error message
-            raise Exception()
+            raise NotImplementedError(f"{self} is not fully supported.")
 
         return self
 
     def prepare(
         self, ctx: RunContext, **kwargs: pa.Array
     ) -> Iterable[tuple[RunContext, dict[str, Any]]]:
+        """Prepares the data for processing in the current mode.
+
+        Converts inputs to the required format using the registered from-Arrow converter.
+
+        Args:
+            ctx (RunContext): The context describing the current processing state.
+            **kwargs (pa.Array): Input data arrays to convert.
+
+        Yields:
+            Iterable[tuple[RunContext, dict[str, Any]]]: A sequence of contexts and converted data.
+        """
         # get the input converter function to the process mode
-        assert self in ProcessMode.from_arrow_converters
         converter = ProcessMode.from_arrow_converters[self]
 
         if self.batched:
@@ -168,40 +252,53 @@ class ProcessMode:
             )
 
     def finalize(self, ctx: RunContext, outputs: Iterable[Any]) -> pa.Array:
-        # get the converter function
-        assert self in ProcessMode.to_arrow_converters
+        """Finalizes the data after processing by converting outputs to Arrow.
+
+        Args:
+            ctx (RunContext): The context describing the current processing state.
+            outputs (Iterable[Any]): The processed outputs to convert.
+
+        Returns:
+            pa.Array: The final Arrow array representation of the outputs.
+        """
+        # apply the converter function
         converter = ProcessMode.to_arrow_converters[self]
-        # run the converter on the outputs
         return converter(ctx.output_type.arrow_type, outputs)
 
 
 @ProcessMode.register_from_arrow_converter(ProcessMode(batched=False, backend="python"))
 def _arrow_to_python_samples(schema: pa.Schema, **arrays: pa.Array) -> Iterable[dict[str, Any]]:
+    """Converts Arrow arrays to an iterable of Python dictionaries."""
     return pa.table(arrays, schema=schema).to_pylist()
 
 
 @ProcessMode.register_from_arrow_converter(ProcessMode(batched=True, backend="python"))
 def _arrow_to_python_batch(schema: pa.Schema, **arrays: pa.Array) -> dict[str, list[Any]]:
+    """Converts Arrow arrays to a Python dictionary of lists (batched mode)."""
     return pa.table(arrays, schema=schema).to_pydict()
 
 
 @ProcessMode.register_from_arrow_converter(ProcessMode(batched=True, backend="arrow"))
 def _arrow_to_arrow_batch(schema: pa.Schema, **arrays: pa.Array) -> dict[str, pa.Array]:
+    """Passes through Arrow arrays as a dictionary (batched mode)."""
     return arrays
 
 
 @ProcessMode.register_to_arrow_converter(ProcessMode(batched=False, backend="python"))
 def _python_samples_to_arrow(arrow_type: pa.DataType, values: Iterable[Any]) -> pa.Array:
+    """Converts an iterable of Python values to a single Arrow array."""
     return pa.array(values, type=arrow_type)
 
 
 @ProcessMode.register_to_arrow_converter(ProcessMode(batched=True, backend="python"))
-def _python_samples_to_arrow(arrow_type: pa.DataType, values: Iterable[list[Any]]) -> pa.Array:
+def _python_batch_to_arrow(arrow_type: pa.DataType, values: Iterable[list[Any]]) -> pa.Array:
+    """Converts a batched iterable of Python lists to a single Arrow array."""
     return pa.array(chain.from_iterable(values), type=arrow_type)
 
 
 @ProcessMode.register_to_arrow_converter(ProcessMode(batched=True, backend="arrow"))
-def _python_samples_to_arrow(arrow_type: pa.DataType, values: Iterable[pa.Array]) -> pa.Array:
+def arrow_batch_to_arrow(arrow_type: pa.DataType, values: Iterable[pa.Array]) -> pa.Array:
+    """Converts a batched iterable of Arrow arrays to a chunked Arrow array."""
     return pa.chunked_array(values, type=arrow_type)
 
 
@@ -209,7 +306,26 @@ F = TypeVar("F", bound=Callable[P, R])
 
 
 def process_mode(batched: bool = False, backend: Backend = "python") -> Callable[[F], F]:
-    return ProcessMode(batched=batched, backend=backend).validate()
+    """Decorator to specify the processing mode of a data processing function.
+
+    This decorator associates a function with a :class:`ProcessMode`, specifying how the
+    function handles its inputs and outputs during execution. The mode defines whether the
+    function operates in batched or non-batched mode and which backend is used for processing
+    (e.g., "python" or "arrow").
+
+    Use the :code:`@process_mode(...)` decorator to annotate methods or functions that perform
+    data processing. The decorator ensures the function is tagged with the appropriate
+    processing mode, which can be validated or used during runtime.
+
+    Args:
+        batched (bool): Indicates if the function processes data in batches.
+        backend (Backend): Specifies the backend used for processing.
+
+    Returns:
+        Callable[[F], F]: The decorator function that associates a function with the
+        specified :class:`ProcessMode` instance.
+    """
+    return ProcessMode(batched=batched, backend=backend).validate().decorate
 
 
 Params = ParamSpec("Params")
@@ -253,7 +369,7 @@ class NodeProtocol(Protocol, Generic[Params, Return]):
         Raises:
             RuntimeError: If the flow cannot be inferred from the arguments.
         """
-        ...
+        ...  # pragma: not covered
 
 
 class BaseNodeConfig(BaseConfig):
@@ -284,8 +400,9 @@ class BaseNode(BaseConfigurable[C], ABC):
         Returns:
             type[C]: The configuration class type for the node.
         """
-        return cls.config_type
+        return cls.config_type  # pragma: not covered
 
+    @property
     @abstractmethod
     def signature(self) -> Signature:
         """Abstract method to define the node's signature.
@@ -395,11 +512,11 @@ class BaseNode(BaseConfigurable[C], ABC):
         engine.validate_signature()
         engine.validate_arguments(*args, **kwargs)
         # split the input features from the input constants
-        references, consts, const_dtypes = engine.get_references_and_consts(*args, **kwargs)
+        references, objects, object_dtypes = engine.get_references_and_objects(*args, **kwargs)
 
-        # add all constants to the graph
-        for key, val in consts.items():
-            references[key] = graph.add_const_node(val, const_dtypes[key])
+        # collect all objects
+        for key, val in objects.items():
+            references[key] = graph.add_collect_node_with_constants(val, object_dtypes[key])
 
         # add the node and return the output feature
         ref = graph.add_compute_node(self, references)

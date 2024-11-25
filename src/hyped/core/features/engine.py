@@ -274,7 +274,7 @@ class FeatureEngine(object):
                 f"Invalid argument types provided in the call to '{self.name}'. "
             ) from e
 
-    def get_references_and_consts(
+    def get_references_and_objects(
         self, *args: Any, **kwargs: Any
     ) -> tuple[dict[str, Reference], dict[str, Any], dict[str, Type]]:
         """Separate input feature references and constants from the arguments.
@@ -285,7 +285,7 @@ class FeatureEngine(object):
 
         Returns:
             tuple[dict[str, _Feature], dict[str, Any], dict[str, TypeFactory]]: Tuple containing
-            input features and constants.
+            input features and objects.
         """
         # bind inputs to signature and extract the keyword arguments
         arguments = self.signature.bind(*args, **kwargs).arguments

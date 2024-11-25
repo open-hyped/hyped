@@ -1,6 +1,6 @@
 from itertools import chain
 from typing import Hashable
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import networkx as nx
 import pytest
@@ -474,6 +474,57 @@ class TestDataFlowGraph:
         # check edges
         assert (0, ref._node_id, "a.0") in graph.edges
         assert (1, ref._node_id, "a.1") in graph.edges
+
+    def test_add_collect_node_with_constants(self) -> None:
+        # create a data flow instance and a mock feature
+        graph = DataFlowGraph()
+        ref = graph.add_source_node(MagicMock(spec=MappingType))
+
+        # mock graph functions
+        graph.add_collect_node = MagicMock()
+        graph.add_const_node = MagicMock()
+        # test collect dictionary structure
+        graph.add_collect_node_with_constants({"x": ref})
+        graph.add_collect_node.assert_called_once_with({"x": ref})
+
+        # reset the mock graph
+        graph.add_collect_node.reset_mock()
+        graph.add_const_node.reset_mock()
+        # test collect list structure
+        graph.add_collect_node_with_constants([ref, ref])
+        graph.add_collect_node.assert_called_once_with([ref, ref])
+
+        with patch("hyped.core.graph.build_dtype_from_python_object") as mock_build_dtype:
+            # reset the mock graph
+            graph.add_collect_node.reset_mock()
+            graph.add_const_node.reset_mock()
+            # test collect with constants
+            graph.add_collect_node_with_constants({"x": ref, "y": 42})
+            graph.add_const_node.assert_called_once_with(42, dtype=mock_build_dtype.return_value)
+            graph.add_collect_node.assert_called_once_with(
+                {"x": ref, "y": graph.add_const_node.return_value}
+            )
+
+            # reset the mock graph
+            graph.add_collect_node.reset_mock()
+            graph.add_const_node.reset_mock()
+            # test collect with constants
+            graph.add_collect_node_with_constants([42, 42, 42])
+            assert graph.add_const_node.call_count == 3
+            graph.add_const_node.assert_has_calls(
+                [
+                    call(42, dtype=mock_build_dtype.return_value),
+                    call(42, dtype=mock_build_dtype.return_value),
+                    call(42, dtype=mock_build_dtype.return_value),
+                ]
+            )
+            graph.add_collect_node.assert_called_once_with(
+                [
+                    graph.add_const_node.return_value,
+                    graph.add_const_node.return_value,
+                    graph.add_const_node.return_value,
+                ]
+            )
 
     @pytest.mark.parametrize(
         "node_cls, expected_node_type",
