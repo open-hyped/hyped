@@ -33,7 +33,7 @@ Return = TypeVar("Return", covariant=True)
 @runtime_checkable
 class _ProcessFunctionProtocol(Protocol, Generic[Params, Return]):
     def process(self, *args: Params.args, **kwargs: Params.kwargs) -> Return:
-        ...
+        ...  # pragma: not covered
 
 
 class BaseDataProcessorConfig(BaseNodeConfig):
@@ -77,14 +77,54 @@ class BaseDataProcessor(BaseNode[C], ABC):
         return super().__new__(cls, *args, **kwargs)
 
     @classmethod
+    def _check_protocol(cls) -> bool:
+        """Validate that the class conforms to the :class:`_ProcessFunctionProtocol`.
+
+        This method ensures that the subclass implements a :code:`process` method
+        with the correct signature as required by the :class:`_ProcessFunctionProtocol`.
+
+        Returns:
+            bool: `True` if the class conforms to the protocol; `False` otherwise.
+        """
+        # check the protocol, in practice this can never fire because
+        # the process function is abstract
+        if not issubclass(cls, _ProcessFunctionProtocol):
+            return False  # pragma: not covered
+        # get the process function parameters
+        params = inspect.signature(cls.process).parameters
+        # check if the context argument is the first argument
+        # after self and has the correct annotation
+        return (
+            ("ctx" in params)
+            and (list(params.keys()).index("ctx") == 1)
+            and (params["ctx"].annotation is RunContext)
+        )
+
+    @classmethod
     def __init_subclass__(cls) -> None:
+        """Initialize a new subclass and enforce protocol adherence.
+
+        This method is called automatically whenever a class inherits from
+        :class:`BaseDataProcessor`. It performs the following tasks:
+
+        1. Sets the default processing mode to the :code:`process` method.
+        2. Validates that the subclass conforms to the :class:`_ProcessFunctionProtocol`.
+        3. Raises a :class:`TypeError` if the subclass does not meet the protocol requirements.
+
+        Raises:
+            TypeError: If the subclass does not implement a :code:`process` method
+            that matches the :class:`_ProcessFunctionProtocol` signature.
+        """
         # apply default process mode, only sets the process mode if the
         # function doesn't have a process mode applied to it yet
         ProcessMode(batched=False, backend="python").validate().set_default(cls.process)
 
-        if not issubclass(cls, _ProcessFunctionProtocol):
-            # TODO: error message, signature doesn't match expectation
-            raise TypeError()
+        if not cls._check_protocol():
+            raise TypeError(
+                f"The class '{cls.__name__}' must implement a 'process' method that matches "
+                "the signature defined in the '_ProcessFunctionProtocol'. Ensure the method's "
+                "arguments and return type conform to the expected protocol."
+            )
 
     def __init__(self, config: None | C = None, **kwargs) -> None:
         """Initialize the data processor.
@@ -146,6 +186,33 @@ class BaseDataProcessor(BaseNode[C], ABC):
         ...
 
     async def run(self, ctx: RunContext, arrays: dict[str, pa.Array]) -> pa.Array:
+        """Execute the main processing logic for the data processor.
+
+        This method serves as the primary entry point for processing data within
+        a data flow graph. It orchestrates the execution of the :code:`process`
+        method according to the configured :class:`ProcessMode`, handling input
+        preparation, processing, and output finalization. In detail the workflow
+        is:
+
+        1. Determine the processing mode (:class:`ProcessMode`) based on the
+           :code:`process` method's configuration.
+        2. Prepare the input data using the :class:`ProcessMode.prepare` method.
+        3. Apply the :code:`process` method to the prepared inputs. If the method
+           is asynchronous, the outputs are awaited using :code:`asyncio.gather`.
+        4. Finalize the outputs using the :code:`ProcessMode.finalize` method,
+           which ensures that the results are correctly formatted as an
+           :code:`PyArrow` array.
+
+
+        Args:
+            ctx (RunContext): The execution context containing runtime configurations,
+                such as execution environment details or shared resources.
+            arrays (dict[str, pa.Array]): A dictionary mapping input names to
+                Apache Arrow arrays, representing the input data to be processed.
+
+        Returns:
+            pa.Array: The processed output as an Apache Arrow array.
+        """
         # get the process mode
         mode = ProcessMode.from_decorated_fn(self.process)
 
