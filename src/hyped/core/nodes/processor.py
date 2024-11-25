@@ -77,7 +77,7 @@ class BaseDataProcessor(BaseNode[C], ABC):
         return super().__new__(cls, *args, **kwargs)
 
     @classmethod
-    def _check_protocol(cls) -> bool:
+    def _check_signature(cls) -> bool:
         """Validate that the class conforms to the :class:`_ProcessFunctionProtocol`.
 
         This method ensures that the subclass implements a :code:`process` method
@@ -105,7 +105,7 @@ class BaseDataProcessor(BaseNode[C], ABC):
         """Initialize a new subclass and enforce protocol adherence.
 
         This method is called automatically whenever a class inherits from
-        :class:`BaseDataProcessor`. It performs the following tasks:
+        :class:`BaseDataProcessor`. The workflow is as follows:
 
         1. Sets the default processing mode to the :code:`process` method.
         2. Validates that the subclass conforms to the :class:`_ProcessFunctionProtocol`.
@@ -119,7 +119,7 @@ class BaseDataProcessor(BaseNode[C], ABC):
         # function doesn't have a process mode applied to it yet
         ProcessMode(batched=False, backend="python").validate().set_default(cls.process)
 
-        if not cls._check_protocol():
+        if not cls._check_signature():
             raise TypeError(
                 f"The class '{cls.__name__}' must implement a 'process' method that matches "
                 "the signature defined in the '_ProcessFunctionProtocol'. Ensure the method's "
@@ -203,15 +203,13 @@ class BaseDataProcessor(BaseNode[C], ABC):
            which ensures that the results are correctly formatted as an
            :code:`PyArrow` array.
 
-
         Args:
-            ctx (RunContext): The execution context containing runtime configurations,
-                such as execution environment details or shared resources.
+            ctx (RunContext): The execution context containing.
             arrays (dict[str, pa.Array]): A dictionary mapping input names to
-                Apache Arrow arrays, representing the input data to be processed.
+                :code:`PyArrow` arrays, representing the input data to be processed.
 
         Returns:
-            pa.Array: The processed output as an Apache Arrow array.
+            pa.Array: The processed output as a :code:`PyArrow` array.
         """
         # get the process mode
         mode = ProcessMode.from_decorated_fn(self.process)
