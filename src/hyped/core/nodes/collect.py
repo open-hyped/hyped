@@ -152,7 +152,7 @@ class CollectNode(BaseNode[CollectNodeConfig]):
         return _collect(self.config.lookup, ctx.output_type)
 
     @property
-    def signature(self) -> Any:
+    def signature(self) -> Any:  # pragma: not covered
         """Property that raises an error, as signature is not supported for this node.
 
         Raises:
@@ -160,7 +160,7 @@ class CollectNode(BaseNode[CollectNodeConfig]):
         """
         raise EnvironmentError("The `signature` property is not available for collect nodes.")
 
-    def call(self, *args: Any, **kwargs: Any) -> Any:
+    def call(self, *args: Any, **kwargs: Any) -> Any:  # pragma: not covered
         """Raises an error, as direct calls are not supported for this node.
 
         Raises:

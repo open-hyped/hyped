@@ -454,8 +454,8 @@ class DataFlow(AbstractDataFlow, Generic[T]):
 
     def build(
         self,
-        collect: Feature,
-        aggregate: None | Feature = None,
+        collect: Feature | dict[str, Any],
+        aggregate: None | Feature | dict[str, Any] = None,
     ) -> ExecutableDataFlow:
         """Build an executable data flow for computing and collecting features.
 
@@ -465,7 +465,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         optimized for execution.
 
         Args:
-            collect (Feature): The feature to be computed and collected.
+            collect (Feature | dict[str, Any]): The feature to be computed and collected.
             aggregate (None | Feature): An optional feature for computing aggregated values
                 across the dataset.
 
@@ -479,12 +479,17 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             RuntimeError: If the :code:`aggregate` feature does not belong to the
                 current data flow graph.
         """
+        # collect the output features
+        collect = self.collect(collect)
+        aggregate = self.collect(aggregate) if aggregate is not None else None
+
+        # make sure output features belong to this flow
         if collect.ref._graph is not self._graph:
             raise RuntimeError("The collect feature does not belong to this flow.")
         if aggregate.ref._graph is not self._graph:
             raise RuntimeError("The aggregate feature does not belong to this flow.")
 
-        # make sure flow graph is initialized
+        # make sure flow is initialized
         if not self._is_initialized:
             self._initialize()
 
@@ -504,7 +509,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
     def apply(
         self,
         ds: Dataset,
-        collect: Feature,
+        collect: Feature | dict[str, Any],
         *,
         batch_size: int = 1000,
         drop_last_batch: bool = False,
@@ -520,8 +525,8 @@ class DataFlow(AbstractDataFlow, Generic[T]):
     def apply(
         self,
         ds: Dataset,
-        collect: Feature,
-        aggregate: Feature,
+        collect: Feature | dict[str, Any],
+        aggregate: Feature | dict[str, Any],
         *,
         batch_size: int = 1000,
         drop_last_batch: bool = False,
@@ -537,7 +542,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
     def apply(
         self,
         ds: ItDataset,
-        collect: Feature,
+        collect: Feature | dict[str, Any],
         *,
         batch_size: int = 1000,
         drop_last_batch: bool = False,
@@ -548,8 +553,8 @@ class DataFlow(AbstractDataFlow, Generic[T]):
     def apply(
         self,
         ds: ItDataset,
-        collect: Feature,
-        aggregate: Feature,
+        collect: Feature | dict[str, Any],
+        aggregate: Feature | dict[str, Any],
         *,
         batch_size: int = 1000,
         drop_last_batch: bool = False,
@@ -573,10 +578,11 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         Parameters:
             ds (Dataset | IterableDataset): The dataset to which the data flow graph will be
                 applied.
-            collect (Feature): The collect feature, which defines the primary transformations
-                applied to the dataset.
-            aggregate (None | Feature): An optional aggregate feature, which applies additional
-                aggregate-level transformations. If not provided, aggregation is skipped.
+            collect (Feature | dict[str, Any]): The collect feature, which defines the primary
+                transformations applied to the dataset.
+            aggregate (None | Feature | dict[str, Any]): An optional aggregate feature, which
+                applies additional aggregate-level transformations. If not provided, aggregation
+                is skipped.
             batch_size (int): The number of samples to process in a batch. Defaults to 1000.
             drop_last_batch (bool): Whether to drop the last batch if it is smaller than
                 the specified batch size. Defaults to :code:`False`.
@@ -604,7 +610,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         flow = self.build(collect, aggregate)
         ds = flow.apply(ds, **kwargs)
         # return the transformed dataset and optionally the aggregates
-        return ds if aggregate is None else (ds, dict(flow.aggregates))
+        return ds if aggregate is None else (ds, flow.aggregates)
 
 
 class ExecutableDataFlow(AbstractDataFlow):
