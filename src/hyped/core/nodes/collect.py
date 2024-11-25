@@ -15,7 +15,7 @@ import pyarrow.compute as pc
 
 from ..abstract import AbstractDataFlowGraph
 from ..features.reference import Reference
-from ..features.types import UNDEFINED_SEQUENCE_LENGTH, BoolType, MappingType, SequenceType, Type
+from ..features.types import UNDEFINED_SEQUENCE_LENGTH, MappingType, SequenceType, Type
 from ..utils import NestedType
 from .base import BaseNode, BaseNodeConfig, RunContext
 
@@ -23,7 +23,7 @@ from .base import BaseNode, BaseNodeConfig, RunContext
 class CollectNodeConfig(BaseNodeConfig):
     """Configuration for CollectNode."""
 
-    lookup: dict | list | tuple
+    lookup: dict | list | tuple | str
     """Nested collect structure.
 
     The structure has string identifiers matching the input arguments at the
@@ -65,21 +65,21 @@ class CollectNode(BaseNode[CollectNodeConfig]):
 
             elif isinstance(obj, (list, tuple)):
                 if len(obj) == 0:
-                    # default data type for empty sequences
-                    dtype = BoolType
+                    raise RuntimeError("Empty sequences are not supported in the lookup structure.")
 
-                else:
-                    dtype, *others = map(_build_type, obj)
-                    # check the data types of all sequence items
-                    if any(dtype != other for other in others):
-                        # TODO: try to cast the values in the sequence to a common type
-                        raise NotImplementedError(dtype, others)
+                dtype, *others = map(_build_type, obj)
+                # check the data types of all sequence items
+                if any(dtype != other for other in others):
+                    # TODO: try to cast the values in the sequence to a common type
+                    raise NotImplementedError(dtype, others)
 
                 # build the sequence type
                 return SequenceType(value_type=dtype, length=len(obj))
 
-            else:
-                raise TypeError(obj)
+            else:  # pragma: not covered
+                raise TypeError(
+                    f"Unsupported type encountered in lookup structure, got {type(obj).__name__}."
+                )
 
         return _build_type(self.config.lookup)
 
@@ -133,7 +133,10 @@ class CollectNode(BaseNode[CollectNodeConfig]):
                 struct = list(map(partial(_collect, dtype=dtype.value_type), struct))
                 # get dimensions
                 num_arrays, array_length = len(struct[0]), len(struct)
-                assert array_length == dtype.length != UNDEFINED_SEQUENCE_LENGTH
+                assert array_length == dtype.length != UNDEFINED_SEQUENCE_LENGTH, (
+                    f"Mismatch between sequence length ({array_length}) and expected "
+                    f"length ({dtype.length})."
+                )
                 # compute the zip reordering indices
                 zip_indices = np.add.outer(
                     np.arange(num_arrays), num_arrays * np.arange(array_length)
@@ -146,8 +149,11 @@ class CollectNode(BaseNode[CollectNodeConfig]):
                 # unflatten
                 return pa.FixedSizeListArray.from_arrays(flat_struct, type=dtype.arrow_type)
 
-            else:
-                raise TypeError(struct, dtype)
+            else:  # pragma: not covered
+                raise TypeError(
+                    "Unsupported structure or type encountered in collect: "
+                    f"{type(struct).__name__} with dtype {dtype}."
+                )
 
         return _collect(self.config.lookup, ctx.output_type)
 

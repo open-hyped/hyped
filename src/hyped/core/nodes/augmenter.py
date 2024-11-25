@@ -41,7 +41,7 @@ class _ProcessFunctionProtocol(Protocol, Generic[Params, Return]):
 
     def process(self, *args: Params.args, **kwargs: Params.kwargs) -> Iterable[Return]:
         """Processes data samples and returns an iterable of results."""
-        ...
+        ...  # pragma: not covered
 
 
 @runtime_checkable
@@ -50,7 +50,7 @@ class _AsyncProcessFunctionProtocol(Protocol, Generic[Params, Return]):
 
     def process(self, *args: Params.args, **kwargs: Params.kwargs) -> AsyncIterable[Return]:
         """Processes data samples asynchronously and returns an async iterable of results."""
-        ...
+        ...  # pragma: not covered
 
 
 @runtime_checkable
@@ -59,7 +59,7 @@ class _BatchProcessFunctionProtocol(Protocol, Generic[Params, Return]):
 
     def process(self, *args: Params.args, **kwargs: Params.kwargs) -> tuple[Return, TraceIndexList]:
         """Processes data batches and returns the result and corresponding trace index list."""
-        ...
+        ...  # pragma: not covered
 
 
 class BaseDataAugmenterConfig(BaseNodeConfig):
