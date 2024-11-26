@@ -204,7 +204,7 @@ class BaseDataAugmenter(BaseNode[C], ABC):
 
         Raises:
             TypeError: If the subclass does not implement a valid :code:`process` method
-            that adheres to one of the defined process function protocols.
+                that adheres to one of the defined process function protocols.
         """
         # set default process mode for process function
         ProcessMode(batched=False, backend="python").validate().set_default(cls.process)

@@ -55,7 +55,7 @@ class DataAggregationManager(object):
 
         Args:
             aggregators (dict[str, BaseDataAggregator]): A list of aggregators.
-            io_contexts (list[IOContext]): A list of contexts correspoding to the aggregators.
+            run_contexts (list[RunContext]): A list of contexts correspoding to the aggregators.
                 Only used for call to :func:`initialize` function of each aggregator instance.
         """
         global _manager
@@ -63,7 +63,7 @@ class DataAggregationManager(object):
         value_buffer = {}
         state_buffer = {}
         # fill buffers with initial values from aggregators
-        for agg, ctx in zip(aggregators, run_contexts):
+        for agg, ctx in zip(aggregators, run_contexts, strict=True):
             val, state = agg.initialize(ctx)
             val = pa.array([val], type=ctx.output_type.arrow_type)
             # write values to buffers
@@ -152,10 +152,10 @@ Return = TypeVar("Return")
 @runtime_checkable
 class _AggregatorProtocol(Protocol, Generic[Params, Return]):
     async def extract(self, *args: Params.args, **kwargs: Params.kwargs) -> Any:
-        ...
+        ...  # pragma: not covered
 
     async def update(self, *args: Any, **kwargs: Any) -> tuple[Return, Any]:
-        ...
+        ...  # pragma: not covered
 
 
 class BaseDataAggregatorConfig(BaseNodeConfig):
@@ -174,43 +174,133 @@ class BaseDataAggregator(BaseNode[C], ABC):
     """Base class for data aggregators.
 
     This class serves as the base for all data aggregators, defining the necessary
-    interfaces and methods for implementing custom aggregators.
+    interfaces and methods for implementing custom aggregators. Subclasses must
+    implement the `extract` and `update` methods, which define the logic for
+    retrieving and updating aggregated values in the data flow graph.
     """
-
-    @classmethod
-    def __init_subclass__(cls) -> None:
-        # set default process modes for extract and update functions
-        ProcessMode(batched=True, backend="python").validate().set_default(cls.extract)
-        ProcessMode(batched=False, backend="python").validate().set_default(cls.update)
-
-        if not issubclass(cls, _AggregatorProtocol):
-            # TODO: error message, signature doesn't match expectation
-            raise TypeError()
 
     def __new__(
         cls: (_AggregatorProtocol[Concatenate[Self, RunContext, Params], Return]),
         *args: Any,
         **kwargs: Any,
     ) -> NodeProtocol[Params, Return]:
+        """Creates a new instance of a data aggregator node.
+
+        Args:
+            *args (Any): Positional arguments for node initialization.
+            **kwargs (Any): Keyword arguments for node initialization.
+
+        Returns:
+            NodeProtocol[Params, Return]: An instance conforming to the node protocol.
+        """
         return super().__new__(cls, *args, **kwargs)
+
+    @classmethod
+    def _check_signature(cls) -> bool:
+        """Validate the signatures of the :code:`extract` and :code:`update` methods.
+
+        This method ensures that the :code:`extract` and :code:`update` methods conform to
+        the expected protocols and signature requirements.
+
+        Validations:
+            1. The class must implement the :class:`_AggregatorProtocol`.
+            2. The :code:`extract` method must have the :code:`ctx` argument as
+               the second parameter (after :code:`self`) annotated with :class:`RunContext`.
+            3. The `update` method must return a tuple containing two elements: the new
+               aggregation value and the state.
+
+        Returns:
+            bool: :code:`True` if the signatures match the expected protocols,
+            :code:`False` otherwise.
+        """
+        # check the protocol, in practice this can never fire because
+        # the process function is abstract
+        if not isinstance(cls, _AggregatorProtocol):
+            return False  # pragma: not covered
+
+        extract_signature = inspect.signature(cls.extract)
+        # check the context argument is the first argument
+        # after self and has the correct annotation
+        if not (
+            ("ctx" in extract_signature.parameters)
+            and (list(extract_signature.parameters.keys()).index("ctx") == 1)
+            and (extract_signature.parameters["ctx"].annotation is RunContext)
+        ):
+            return False
+
+        update_signature = inspect.signature(cls.update)
+        # return of update function must be a tuple containing the
+        # new aggregation value and state
+        return (
+            get_origin(update_signature.return_annotation) in (tuple, Tuple)
+            and len(get_args(update_signature.return_annotation)) == 2
+        )
+
+    @classmethod
+    def __init_subclass__(cls) -> None:
+        """Hook method to validate the subclass during initialization.
+
+        This method ensures that any subclass of :class:`BaseDataAggregator` adheres
+        to the required :code:`extract` and :code:`update` method signatures and sets default
+        :class:`ProcessMode` configurations for these methods.
+
+        Workflow:
+            1. Sets the default :class:`ProcessMode` for the :code:`extract` method to batched
+               mode.
+            2. Sets the default :class:`ProcessMode` for the :code:`update` method to non-batched
+               mode.
+            3. Calls :code:`_check_signature` to validate the method signatures.
+            4. Raises a :class:`TypeError` if the subclass does not conform to the expected
+               signatures and protocols.
+
+        Raises:
+            TypeError: If the subclass does not implement valid :code:`extract` and :code:`update`
+                methods as per the :class:`_AggregatorProtocol`.
+        """
+        # set default process modes for extract and update functions
+        ProcessMode(batched=True, backend="python").validate().set_default(cls.extract)
+        ProcessMode(batched=False, backend="python").validate().set_default(cls.update)
+
+        if not cls._check_signature():
+            # TODO: error message, signature doesn't match expectation
+            raise TypeError(
+                f"The class '{cls.__name__}' must implement valid 'extract' and 'update' "
+                "methods conforming to the '_AggregatorProtocol'. Ensure that 'extract' "
+                "has a correctly annotated 'ctx' argument and that 'update' returns a "
+                "(value, state)-tuple."
+            )
 
     @property
     def signature(self) -> inspect.Signature:
+        """Retrieve the signature for the aggregator node.
+
+        This method constructs a signature for the aggregator node by combining
+        the parameters of the :func:`extract` method with the return annotation
+        of the :func:`update` method. The :code:`ctx` parameter is excluded
+        from the parameter list, ensuring that the signature reflects only
+        the feature inputs relevant to the aggregation process.
+
+        The return annotation of the signature is derived from the :func:`update` method,
+        representing the aggregated feature type produced by the aggregator node.
+
+        Returns:
+            inspect.Signature: A constructed signature for the aggregator node,
+            with parameters from :func:`extract` (excluding :code:`ctx`) and a
+            return annotation based on the feature type from :func:`update`.
+
+        Raises:
+            TypeError: If the return annotation of :func:`update` does not represent
+            a valid aggregated feature type.
+        """
         param_annotations = inspect.signature(self.extract).parameters
         return_annotation = inspect.signature(self.update).return_annotation
-
-        # check return type annotation of update function
-        if (get_origin(return_annotation) not in {tuple, Tuple}) or (
-            len(get_args(return_annotation)) != 2
-        ):
-            raise TypeError("Return Annotation", return_annotation)
-
         # remove the ctx argument of the process function
         param_annotations = param_annotations.values()
         param_annotations = [param for param in param_annotations if param.name != "ctx"]
         # get the aggregation value feature type from the return annotation
+        # note that the return annotation is validated to be a two-tuple in
+        # the init-subclass methid
         return_annotation = get_args(return_annotation)[0]
-
         # build the signature
         return inspect.Signature(parameters=param_annotations, return_annotation=return_annotation)
 
@@ -223,8 +313,7 @@ class BaseDataAggregator(BaseNode[C], ABC):
         """Initialize the aggregator with the given features.
 
         Args:
-            io (IOContext): The execution context object wrapping the
-                input and output features.
+            ctx (RunContext): The run context object.
 
         Returns:
             tuple[Value, State]: The initial value and state for the aggregator.

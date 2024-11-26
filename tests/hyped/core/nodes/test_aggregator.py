@@ -1,8 +1,15 @@
+from inspect import Parameter, Signature, _ParameterKind
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from hyped.core.nodes.aggregator import BaseDataAggregator, DataAggregationManager
+from hyped.core.nodes.aggregator import (
+    BaseDataAggregator,
+    BaseDataAggregatorConfig,
+    DataAggregationManager,
+)
+from hyped.core.nodes.base import ProcessMode, RunContext
+from hyped.core.typing import Bool, Int
 
 
 class TestDataAggregationManager:
@@ -43,7 +50,7 @@ class TestDataAggregationManager:
     @patch("hyped.core.nodes.aggregator._manager", MagicMock(dict=MagicMock(side_effect=dict)))
     @patch("hyped.core.nodes.aggregator.pa.array", MagicMock(side_effect=lambda v, **_: v))
     @patch("hyped.core.nodes.aggregator.replace", MagicMock(side_effect=lambda x, **_: x))
-    async def test_safe_update(self) -> None:
+    async def test_aggregate(self) -> None:
         mock_value = MagicMock()
         mock_state = MagicMock()
         mock_new_value = MagicMock()
@@ -59,34 +66,134 @@ class TestDataAggregationManager:
         # create the data aggregator
         aggregation_manager = DataAggregationManager([mock_aggregator], [mock_run_context])
 
+        prepared_input_for_extract = {"x": MagicMock()}
+        prepared_context_for_extract = MagicMock(node_id=mock_run_context.node_id)
+        # create the mock process mode for the extract function
+        mock_extract_mode = MagicMock(
+            spec=ProcessMode,
+            prepare=MagicMock(
+                return_value=[(prepared_context_for_extract, prepared_input_for_extract)]
+            ),
+        )
+
+        prepared_value_for_update = MagicMock()
+        prepared_context_for_update = MagicMock(node_id=mock_run_context.node_id)
+        # create the mock process mode for the update function
+        mock_update_mode = MagicMock(
+            spec=ProcessMode,
+            prepare=MagicMock(
+                return_value=[(prepared_context_for_update, {"value": prepared_value_for_update})]
+            ),
+        )
+
         with patch("hyped.core.nodes.aggregator.ProcessMode") as mock_process_mode:
-            prepared_input = MagicMock()
-            prepared_context = MagicMock()
+            # specify mock process modes for extract and update
+            mock_process_mode.from_decorated_fn.side_effect = {
+                mock_aggregator.extract: mock_extract_mode,
+                mock_aggregator.update: mock_update_mode,
+            }.get
 
-            mock_mode = MagicMock(
-                prepare=MagicMock(return_value=[(prepared_context, {"value": prepared_input})]),
-            )
-            mock_process_mode.from_decorated_fn.return_value = mock_mode
+            # run the aggregator
+            mock_input = {"x": MagicMock()}
+            await aggregation_manager.aggregate(mock_aggregator, mock_run_context, mock_input)
 
-            # run the safe update
-            mock_extracted = MagicMock()
-            await aggregation_manager._safe_update(
-                mock_run_context, mock_aggregator, mock_extracted
+            # make sure aggregator extract was called as expected
+            mock_extract_mode.prepare.assert_called_once_with(mock_run_context, **mock_input)
+            mock_aggregator.extract.assert_called_once_with(
+                prepared_context_for_extract, **prepared_input_for_extract
             )
 
             # make sure the lock for the aggregator was aquired
             aggregation_manager._locks[mock_run_context.node_id].acquire.assert_called_once()
-            # check the aggregator was called as expected
-            mock_mode.prepare.assert_called_once_with(mock_run_context, value=[mock_value])
-            mock_aggregator.update.assert_called_once_with(
-                prepared_context, prepared_input, mock_state, mock_extracted
+
+            # check the aggregator update was called as expected
+            mock_update_mode.prepare.assert_called_once_with(
+                prepared_context_for_extract, value=[mock_value]
             )
-            mock_mode.finalize.assert_called_once_with(mock_run_context, [mock_new_value])
+            mock_aggregator.update.assert_called_once_with(
+                prepared_context_for_update,
+                prepared_value_for_update,
+                mock_state,
+                mock_aggregator.extract.return_value,
+            )
+            mock_update_mode.finalize.assert_called_once_with(
+                prepared_context_for_extract, [mock_new_value]
+            )
+
             # check that the buffers where updated as expected
             assert (
                 aggregation_manager.values_proxy[mock_run_context.node_id]
-                == mock_mode.finalize.return_value
+                == mock_update_mode.finalize.return_value
             )
             assert aggregation_manager._state_buffer[mock_run_context.node_id] == mock_new_state
+
             # make sure the lock for the aggregator was released
             aggregation_manager._locks[mock_run_context.node_id].release.assert_called_once()
+
+
+class MockConfig(BaseDataAggregatorConfig):
+    ...
+
+
+class TestBaseDataAggregator:
+    def test_signature(self):
+        class MockDataAggregator(BaseDataAggregator[MockConfig]):
+            def initialize(self, ctx: RunContext) -> tuple[Int, int]:
+                ...
+
+            def extract(self, ctx: RunContext, x: Bool, y: Int) -> object:
+                ...
+
+            def update(
+                self, ctx: RunContext, val: Int, state: int, extracted: object
+            ) -> tuple[Bool, int]:
+                ...
+
+        processor: MockDataAggregator = MockDataAggregator()
+        assert processor.signature == Signature(
+            parameters=[
+                Parameter(name="x", kind=_ParameterKind.POSITIONAL_OR_KEYWORD, annotation=Bool),
+                Parameter(name="y", kind=_ParameterKind.POSITIONAL_OR_KEYWORD, annotation=Int),
+            ],
+            return_annotation=Bool,
+        )
+
+    def test_init_subclass(self) -> None:
+        class MockDataAggregator(BaseDataAggregator[MockConfig]):
+            def initialize(self, ctx: RunContext) -> tuple[Int, int]:
+                ...
+
+            def extract(self, ctx: RunContext, x: Bool, y: Int) -> object:
+                ...
+
+            def update(
+                self, ctx: RunContext, val: Int, state: int, extracted: object
+            ) -> tuple[Bool, int]:
+                ...
+
+        # make sure the process mode default is set
+        ProcessMode.from_decorated_fn(MockDataAggregator.extract)
+        ProcessMode.from_decorated_fn(MockDataAggregator.update)
+
+        with pytest.raises(TypeError):
+            # missing the update function
+            class MockDataAggregator(BaseDataAggregator[MockConfig]):
+                def initialize(self, ctx: RunContext) -> tuple[Int, int]:
+                    ...
+
+                def extract(self, ctx: RunContext, x: Bool, y: Int) -> object:
+                    ...
+
+        with pytest.raises(TypeError):
+            # extract function missing context input
+            class MockDataAggregator(BaseDataAggregator[MockConfig]):
+                def initialize(self, ctx: RunContext) -> tuple[Int, int]:
+                    ...
+
+                def extract(self, x: Bool, y: Int) -> object:
+                    ...
+
+                def update(
+                    self, ctx: RunContext, val: Int, state: int, extracted: object
+                ) -> tuple[Bool, int]:
+                    ...
