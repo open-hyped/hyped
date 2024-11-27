@@ -249,7 +249,6 @@ class TestExecutionState:
         assert inputs["3"] == mock_arrow_chunked_array.return_value
 
 
-@pytest.mark.asyncio
 class TestDataFlowExecutor:
     def test_init(self) -> None:
         # create a simple data flow graph without data aggregators
@@ -344,6 +343,7 @@ class TestDataFlowExecutor:
             ),
         ],
     )
+    @pytest.mark.asyncio
     async def test_execute_node(
         self,
         edges: list[tuple[Hashable, Hashable]],

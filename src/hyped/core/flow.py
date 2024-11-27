@@ -11,8 +11,7 @@ import asyncio
 import re
 from dataclasses import replace
 from itertools import groupby
-from types import MappingProxyType
-from typing import Any, Generic, Literal, TypeVar, get_args, overload
+from typing import Any, Generic, Literal, Mapping, TypeVar, get_args, overload
 
 import datasets
 import matplotlib.pyplot as plt
@@ -486,7 +485,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         # make sure output features belong to this flow
         if collect.ref._graph is not self._graph:
             raise RuntimeError("The collect feature does not belong to this flow.")
-        if aggregate.ref._graph is not self._graph:
+        if (aggregate is not None) and (aggregate.ref._graph is not self._graph):
             raise RuntimeError("The aggregate feature does not belong to this flow.")
 
         # make sure flow is initialized
@@ -759,13 +758,13 @@ class ExecutableDataFlow(AbstractDataFlow):
         return self._graph.width  # pragma: not covered
 
     @property
-    def aggregates(self) -> MappingProxyType[str, Any]:
+    def aggregates(self) -> Mapping[str, Any]:  # pragma: not covered
         """Read-only view of the aggregated values computed during execution.
 
         Returns:
             MappingProxyType[str, Any]: A read-only mapping of aggregated values.
         """
-        return MappingProxyType(self._aggregates_executor)  # pragma: not covered
+        return self._aggregates_executor  # pragma: not covered
 
     def _build_aggregates_graph(
         self, aggregate: Reference, aggregator_nodes: set[NodeId]

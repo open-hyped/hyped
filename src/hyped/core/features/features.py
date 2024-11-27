@@ -1,4 +1,4 @@
-"""Feature Module.
+"""Features Module.
 
 This module defines the core classes and utilities for managing and validating different types of
 features. Features represent various data types and their structure, and they are validated using
@@ -17,16 +17,28 @@ import typing
 from dataclasses import dataclass, replace
 from functools import partial
 from types import GenericAlias
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, ClassVar, Final, TypeVar
 
 import pydantic
 from pydantic.type_adapter import _type_has_config
 from pydantic_core import PydanticCustomError, core_schema
+from typing_extensions import Self
 
 from hyped.common._pydantic import BaseModelWithArbitraryTypesAllowed
 from hyped.common.utils import is_python_version_less_than
 
 from . import types
+from .mixins import (
+    AbsMixin,
+    AddMixin,
+    DivMixin,
+    FloorDivMixin,
+    MethodRegistryMixin,
+    ModMixin,
+    MulMixin,
+    NegMixin,
+    SubMixin,
+)
 from .reference import FeatureKey, Reference
 
 if is_python_version_less_than(3, 11):  # pragma: not covered
@@ -43,11 +55,16 @@ else:
 
 
 @dataclass(eq=True, frozen=True)
-class Feature(object):
+class Feature(MethodRegistryMixin):
     """Base class for defining features in the system.
 
     The :class:`Feature` class serves as a descriptor for a feature, combining a
-    :class:`Reference` with the associated :class:`Type`.
+    :class:`Reference` with the associated :class:`Type`. It includes a mechanism for
+    registering and executing methods dynamically, allowing subclasses to define
+    custom behavior without directly coupling their implementation to other modules.
+
+    This design helps avoid circular imports, as method implementations can be registered
+    externally in sub-modules rather than being defined within the class itself.
     """
 
     ref: Reference
@@ -83,107 +100,224 @@ class PrimitiveFeature(Feature):
     with primitive data types.
     """
 
+    _expected_dtype: ClassVar[types.Type]
+    """The expected data type for this feature.
 
-class PrimitiveFeatureValidator(pydantic.WrapValidator):
-    """Validator for ensuring primitive features have the expected data type.
-
-    The :class:`PrimitiveTypeValidator` is a Pydantic validator enforcing that
-    instances of :class:`PrimitiveFeature` match a specified data type.
+    Subclasses should define this attribute to indicate the primitive data type
+    that the feature represents.
     """
 
-    @staticmethod
-    def validator_fn(
-        inst: Feature | Reference, validator: Callable[[Any], Any], dtype: types.Type
-    ) -> Feature:
-        """Validates and enforces the expected data type for a feature.
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: pydantic.GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        """Builds the Pydantic core schema for primitive feature types.
 
-        This static method ensures that a given instance is validated against
-        an expected data type. If the input is a :class:`Reference`, it is
-        converted to a :class:`PrimitiveFeature` with the specified data type.
-        The core validator is then applied to the instance, and the data
-        type is checked for a match.
+        Validates and enforces the expected data type for a feature. If the input
+        is a :class:`Reference`, it is converted to the corresponding feature type
+        using the :func:`build_feature_from_dtype` method. The core validator is
+        then applied to the instance, and the data type is checked for a match.
 
         Args:
-            inst (Feature | Reference): The instance to validate, which can be
-                a :class:`Reference` or a :class:`Feature`.
-            validator (Callable[[Any], Any]): A callable validator
-                that performs additional validation steps.
-            dtype (types.Type): The expected data type for the feature.
+            source_type (Any): The type being validated.
+            handler (pydantic.GetCoreSchemaHandler): A handler function used to the core schema.
 
         Returns:
-            Feature: The validated feature instance.
+            core_schema.CoreSchema: The Pydantic core schema for the mapping feature,
+                which is used to validate instances of the mapping.
 
         Raises:
             PydanticCustomError: If the data type of the instance does not match
                 the expected :code:`dtype`.
         """
-        if isinstance(inst, Reference):
-            # create scalar feature with expected data type
-            # from reference instance
-            inst = PrimitiveFeature(inst, dtype)
 
-        # run core validator
-        inst = validator(inst)
+        def validator_fn(inst: Feature | Reference, validator: Callable[[Any], Any]) -> Feature:
+            if isinstance(inst, PrimitiveFeature):
+                # convert the generic primitive instance to a
+                # specific feature type matching the provided data type
+                inst = build_feature_from_dtype(inst.ref, inst.dtype)
 
-        # make sure the data type matches the expectation
-        if inst.dtype is not dtype:
-            raise PydanticCustomError(
-                "Type Mismatch",
-                "Data type '{actual}' doesn't match expected data type '{expected}'",
-                {"actual": inst.dtype, "expected": dtype},
-            )
+            elif isinstance(inst, Reference):
+                # create primitve feature with expected data type
+                # from reference instance
+                inst = build_feature_from_dtype(inst, cls._expected_dtype)
 
-        return inst
+            # run core validator
+            inst = validator(inst)
 
-    def __init__(self, dtype: types.Type):
-        """Initializes the primitive type validator.
+            # make sure the data type matches the expectation
+            if inst.dtype is not cls._expected_dtype:
+                raise PydanticCustomError(
+                    "Type Mismatch",
+                    "Data type '{actual}' doesn't match expected data type '{expected}'",
+                    {"actual": inst.dtype, "expected": cls._expected_dtype},
+                )
 
-        Args:
-            dtype (types.Type): The expected data type for the primitive feature.
-        """
-        super(PrimitiveFeatureValidator, self).__init__(
-            func=partial(PrimitiveFeatureValidator.validator_fn, dtype=dtype)
+            return inst
+
+        return core_schema.no_info_wrap_validator_function(
+            validator_fn, schema=core_schema.is_instance_schema(cls)
         )
 
 
-BoolFeature = typing.Annotated[PrimitiveFeature, PrimitiveFeatureValidator(types.BoolType)]
-"""A primitive feature representing a boolean value."""
+class BoolFeature(PrimitiveFeature):
+    """A primitive feature representing a boolean value."""
 
-StringFeature = typing.Annotated[PrimitiveFeature, PrimitiveFeatureValidator(types.StringType)]
-"""A primitive feature representing a string value."""
+    _expected_dtype: Final[types.Type] = types.BoolType
 
-Int8Feature = typing.Annotated[PrimitiveFeature, PrimitiveFeatureValidator(types.Int8Type)]
-"""A primitive feature representing a signed 8-bit integer."""
+    def __invert__(self: Feature) -> Self:
+        """Performs bitwise not operation."""
+        return self.execute_method("__invert__")
 
-Int16Feature = typing.Annotated[PrimitiveFeature, PrimitiveFeatureValidator(types.Int16Type)]
-"""A primitive feature representing a signed 16-bit integer."""
 
-Int32Feature = typing.Annotated[PrimitiveFeature, PrimitiveFeatureValidator(types.Int32Type)]
-"""A primitive feature representing a signed 32-bit integer."""
+class StringFeature(PrimitiveFeature, AddMixin, MulMixin):
+    """A primitive feature representing a string value."""
 
-Int64Feature = typing.Annotated[PrimitiveFeature, PrimitiveFeatureValidator(types.Int64Type)]
-"""A primitive feature representing a signed 64-bit integer."""
+    _expected_dtype: Final[types.Type] = types.StringType
 
-UInt8Feature = typing.Annotated[PrimitiveFeature, PrimitiveFeatureValidator(types.UInt8Type)]
-"""A primitive feature representing an unsigned 8-bit integer."""
 
-UInt16Feature = typing.Annotated[PrimitiveFeature, PrimitiveFeatureValidator(types.UInt16Type)]
-"""A primitive feature representing an unsigned 16-bit integer."""
+class Int8Feature(
+    PrimitiveFeature,
+    AbsMixin,
+    NegMixin,
+    AddMixin,
+    SubMixin,
+    MulMixin,
+    DivMixin,
+    FloorDivMixin,
+    ModMixin,
+):
+    """A primitive feature representing a signed 8-bit integer."""
 
-UInt32Feature = typing.Annotated[PrimitiveFeature, PrimitiveFeatureValidator(types.UInt32Type)]
-"""A primitive feature representing an unsigned 32-bit integer."""
+    _expected_dtype: Final[types.Type] = types.Int8Type
 
-UInt64Feature = typing.Annotated[PrimitiveFeature, PrimitiveFeatureValidator(types.UInt64Type)]
-"""A primitive feature representing an unsigned 64-bit integer."""
 
-Float16Feature = typing.Annotated[PrimitiveFeature, PrimitiveFeatureValidator(types.Float16Type)]
-"""A primitive feature representing a 16-bit floating-point number."""
+class Int16Feature(
+    PrimitiveFeature,
+    AbsMixin,
+    NegMixin,
+    AddMixin,
+    SubMixin,
+    MulMixin,
+    DivMixin,
+    FloorDivMixin,
+    ModMixin,
+):
+    """A primitive feature representing a signed 16-bit integer."""
 
-Float32Feature = typing.Annotated[PrimitiveFeature, PrimitiveFeatureValidator(types.Float32Type)]
-"""A primitive feature representing a 32-bit floating-point number."""
+    _expected_dtype: Final[types.Type] = types.Int16Type
 
-Float64Feature = typing.Annotated[PrimitiveFeature, PrimitiveFeatureValidator(types.Float64Type)]
-"""A primitive feature representing a 64-bit floating-point number."""
+
+class Int32Feature(
+    PrimitiveFeature,
+    AbsMixin,
+    NegMixin,
+    AddMixin,
+    SubMixin,
+    MulMixin,
+    DivMixin,
+    FloorDivMixin,
+    ModMixin,
+):
+    """A primitive feature representing a signed 32-bit integer."""
+
+    _expected_dtype: Final[types.Type] = types.Int32Type
+
+
+class Int64Feature(
+    PrimitiveFeature,
+    AbsMixin,
+    NegMixin,
+    AddMixin,
+    SubMixin,
+    MulMixin,
+    DivMixin,
+    FloorDivMixin,
+    ModMixin,
+):
+    """A primitive feature representing a signed 64-bit integer."""
+
+    _expected_dtype: Final[types.Type] = types.Int64Type
+
+
+class UInt8Feature(
+    PrimitiveFeature, AbsMixin, AddMixin, SubMixin, MulMixin, DivMixin, FloorDivMixin, ModMixin
+):
+    """A primitive feature representing an unsigned 8-bit integer."""
+
+    _expected_dtype: Final[types.Type] = types.UInt8Type
+
+
+class UInt16Feature(
+    PrimitiveFeature, AbsMixin, AddMixin, SubMixin, MulMixin, DivMixin, FloorDivMixin, ModMixin
+):
+    """A primitive feature representing an unsigned 16-bit integer."""
+
+    _expected_dtype: Final[types.Type] = types.UInt16Type
+
+
+class UInt32Feature(
+    PrimitiveFeature, AbsMixin, AddMixin, SubMixin, MulMixin, DivMixin, FloorDivMixin, ModMixin
+):
+    """A primitive feature representing an unsigned 32-bit integer."""
+
+    _expected_dtype: Final[types.Type] = types.UInt32Type
+
+
+class UInt64Feature(
+    PrimitiveFeature, AbsMixin, AddMixin, SubMixin, MulMixin, DivMixin, FloorDivMixin, ModMixin
+):
+    """A primitive feature representing an unsigned 64-bit integer."""
+
+    _expected_dtype: Final[types.Type] = types.UInt64Type
+
+
+class Float16Feature(
+    PrimitiveFeature,
+    AbsMixin,
+    NegMixin,
+    AddMixin,
+    SubMixin,
+    MulMixin,
+    DivMixin,
+    FloorDivMixin,
+    ModMixin,
+):
+    """A primitive feature representing a 16-bit floating-point number."""
+
+    _expected_dtype: Final[types.Type] = types.Float16Type
+
+
+class Float32Feature(
+    PrimitiveFeature,
+    AbsMixin,
+    NegMixin,
+    AddMixin,
+    SubMixin,
+    MulMixin,
+    DivMixin,
+    FloorDivMixin,
+    ModMixin,
+):
+    """A primitive feature representing a 32-bit floating-point number."""
+
+    _expected_dtype: Final[types.Type] = types.Float32Type
+
+
+class Float64Feature(
+    PrimitiveFeature,
+    AbsMixin,
+    NegMixin,
+    AddMixin,
+    SubMixin,
+    MulMixin,
+    DivMixin,
+    FloorDivMixin,
+    ModMixin,
+):
+    """A primitive feature representing a 64-bit floating-point number."""
+
+    _expected_dtype: Final[types.Type] = types.Float64Type
 
 
 T = TypeVar("T")
@@ -267,8 +401,8 @@ class SequenceFeature(typing.Sequence[T], Feature):
         Args:
             source_type (Any): The source type being validated, including any generic
                 parameters that specify the expected value type.
-            handler (pydantic.GetCoreSchemaHandler): A handler function for generating
-                and processing the core schema.
+            handler (pydantic.GetCoreSchemaHandler): A handler function for generating the
+                core schema.
 
         Returns:
             core_schema.CoreSchema: A schema that validates `SequenceFeature` instances
@@ -436,17 +570,17 @@ class _MappingFeature(typing.Mapping, Feature):
 
         Args:
             source_type (Any): The type being validated, which may include generic parameters
-                                specifying the expected field types.
-            handler (pydantic.GetCoreSchemaHandler): A handler function used to generate and
-                                                    process the core schema.
+                specifying the expected field types.
+            handler (pydantic.GetCoreSchemaHandler): A handler function used to generate the
+                core schema.
 
         Returns:
             core_schema.CoreSchema: The Pydantic core schema for the mapping feature,
-                                    which is used to validate instances of the mapping.
+                which is used to validate instances of the mapping.
 
         Raises:
             RuntimeError: If a :class:`Reference` is provided, but no corresponding
-                        Pydantic model can be created for validation.
+                Pydantic model can be created for validation.
         """
         ignore_keys = set(typing.get_type_hints(_MappingFeature).keys())
 
@@ -566,6 +700,22 @@ else:
 
     MappingFeature: typing.TypeAlias = _MappingFeature
 
+PRIMITIVE_FEATURE_MAPPING = {
+    types.BoolType: BoolFeature,
+    types.StringType: StringFeature,
+    types.UInt8Type: UInt8Feature,
+    types.UInt16Type: UInt16Feature,
+    types.UInt32Type: UInt32Feature,
+    types.UInt64Type: UInt64Feature,
+    types.Int8Type: Int8Feature,
+    types.Int16Type: Int16Feature,
+    types.Int32Type: Int32Feature,
+    types.Int64Type: Int64Feature,
+    types.Float16Type: Float16Feature,
+    types.Float32Type: Float32Feature,
+    types.Float64Type: Float64Feature,
+}
+
 
 def build_feature_from_dtype(ref: Reference, dtype: types.Type) -> Feature:
     """Build a feature from a given data type and reference.
@@ -586,7 +736,7 @@ def build_feature_from_dtype(ref: Reference, dtype: types.Type) -> Feature:
         TypeError: If the :code:`dtype` is not recognized.
     """
     if isinstance(dtype, types.PrimitiveType):
-        return PrimitiveFeature(ref, dtype)
+        return PRIMITIVE_FEATURE_MAPPING[dtype](ref, dtype)
 
     elif isinstance(dtype, types.SequenceType):
         return SequenceFeature(ref, dtype)

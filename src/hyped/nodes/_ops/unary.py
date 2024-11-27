@@ -2,8 +2,8 @@ from typing import TypeVar
 
 import pyarrow.compute as pc
 
-from hyped.core.nodes.base import process_mode
-from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig, RunContext
+from hyped.core.nodes.base import RunContext, process_mode
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig
 from hyped.core.typing import Bool, Float, Int, UInt
 
 

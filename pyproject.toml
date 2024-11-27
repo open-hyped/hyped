@@ -80,7 +80,7 @@ exclude_also = [
 version_file = "src/hyped/__version__.py"
 
 [tool.black]
-target-version = ["py311"]
+target-version = ["py310"]
 line-length = 100
 docstring-style = "google"
 
