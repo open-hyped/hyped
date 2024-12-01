@@ -73,6 +73,8 @@ class CollectNode(BaseNode[CollectNodeConfig]):
             if src_dtype == tgt_dtype:
                 return
 
+            assert isinstance(obj, (str, dict, list, tuple)), f"Unexpected type: {obj}"
+
             if isinstance(obj, str):
                 required_casts[obj] = cast_dtype(src_dtype, tgt_dtype)
 
@@ -85,9 +87,6 @@ class CollectNode(BaseNode[CollectNodeConfig]):
                 assert isinstance(src_dtype, SequenceType) and isinstance(tgt_dtype, SequenceType)
                 for item in obj:
                     _cast(item, src_dtype.value_type, tgt_dtype.value_type)
-
-            else:  # pragma: not covered
-                raise RuntimeError()
 
         def _build_type(obj: NestedType[str]):
             if isinstance(obj, str):

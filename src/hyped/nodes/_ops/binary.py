@@ -6,7 +6,7 @@ from hyped.core.nodes.base import RunContext, process_mode
 from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig
 from hyped.core.typing import Float, Int, UInt
 
-ScalarType = TypeVar("ScalarType", Float, Int, UInt)
+ScalarType = TypeVar("ScalarType", bound=Float | Int | UInt)
 
 
 class AddConfig(BaseDataProcessorConfig):

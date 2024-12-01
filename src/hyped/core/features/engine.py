@@ -6,6 +6,7 @@ validation, and captures type variables during function calls. It integrates wit
 handle model validation.
 """
 import inspect
+from collections import defaultdict
 from functools import partial
 from typing import Annotated, Any, Generic, TypeVar
 from uuid import UUID, uuid4
@@ -16,9 +17,10 @@ import pydantic.generics
 from hyped._registry.config import BaseConfig
 from hyped.common._pydantic import BaseModelWithArbitraryTypesAllowed
 
+from ..utils import build_dtype_from_python_object
 from .features import Feature, build_feature_from_annotation
 from .reference import Reference
-from .types import Type
+from .types import Type, common_dtype
 
 
 class TypeVarRegister(object):
@@ -27,7 +29,7 @@ class TypeVarRegister(object):
     def __init__(self):
         """Initialize the TypeVarRegister."""
         self._registered_vars: dict[uuid4, TypeVar] = {}
-        self._captured_vars: dict[TypeVar, Type | type] = {}
+        self._captured_vars: dict[TypeVar, set[Type]] = defaultdict(set)
 
     def reset(self) -> None:
         """Reset the type var register."""
@@ -41,11 +43,7 @@ class TypeVarRegister(object):
             dict[TypeVar, type]: A dictionary mapping each registered TypeVar
             to its resolved type.
         """
-        # TODO: map python build-in types to data types
-        if any(not isinstance(dtype, Type) for dtype in self._captured_vars.values()):
-            raise NotImplementedError()
-
-        return self._captured_vars
+        return {var: self.solve_typevar(var) for var in self._captured_vars.keys()}
 
     def solve_typevar(self, var: TypeVar) -> Type:
         """Resolve a TypeVar to its captured type.
@@ -59,7 +57,7 @@ class TypeVarRegister(object):
         Raises:
             KeyError: If the TypeVar is not found in the captured variables.
         """
-        return self.typevar_mapping[var]
+        return common_dtype(*self._captured_vars[var])
 
     def create_trackable_typevar(self, *args: Any, **kwargs: Any) -> TypeVar:
         """Create and register a TypeVar with a custom validator.
@@ -103,7 +101,7 @@ class TypeVarRegister(object):
         self._registered_vars[uuid] = t
 
     def _validator(self, val: object, uuid: UUID) -> None:
-        """Validate and capture a TypeVar during validation.
+        """Capture a TypeVar during validation.
 
         Args:
             val (object): The value being validated.
@@ -117,18 +115,8 @@ class TypeVarRegister(object):
             not isinstance(self._captured_vars[t], Type)
             and isinstance(val, Feature)
         ):
-            self._captured_vars[t] = val.dtype if isinstance(val, Feature) else type(val)
-
-        if (
-            isinstance(val, Feature)
-            and (t in self._captured_vars)
-            and (self.solve_typevar(t) != val.dtype)
-        ):
-            raise TypeError(
-                f"TypeVar '{t.__name__}' has been assigned conflicting types. "
-                f"Current assigned type is '{self.solve_typevar(t)}', "
-                f"while newly attempted type is '{val.dtype}'."
-            ) from None
+            dtype = val.dtype if isinstance(val, Feature) else build_dtype_from_python_object(val)
+            self._captured_vars[t].add(dtype)
 
         return val
 
