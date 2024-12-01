@@ -3,7 +3,8 @@
 This module defines the type aliases that need to me used to define
 node interfaces.
 """
-from typing import Annotated, Any, TypeAlias, TypeVar, Union
+from typing import TYPE_CHECKING, Annotated, Any, TypeAlias, TypeVar, Union
+from typing import cast as typing_cast
 
 import pyarrow as pa
 
@@ -26,6 +27,7 @@ from .features.features import (
     UInt16Feature,
     UInt32Feature,
     UInt64Feature,
+    build_feature_from_annotation,
 )
 from .features.reference import NodeId
 from .features.validators import Len
@@ -59,6 +61,7 @@ __all__ = [
     "Sequence",
     "Mapping",
     "Len",
+    "cast",
 ]
 
 Index: TypeAlias = int
@@ -359,3 +362,55 @@ Supported types include:
 """
 
 Mapping: TypeAlias = MappingFeature
+
+
+def _cast(typ: Any, val: Any) -> Any:
+    """Cast a feature to a specified data type.
+
+    This function performs a type cast for a value if it is an instance of a
+    :class:`Feature`. It infers the target data type from the provided type
+    annotation, adds a cast node to the data flow graph, and retrieves the
+    resulting feature.
+
+    Args:
+        typ (Any): The target type to cast the value to. Typically, this is a type
+            annotation.
+        val (Any): The value to be cast. If the value is not a :class:`Feature`, it
+            is returned unchanged.
+
+    Returns:
+        Any: The cast value. If the input :code:`val` is a :class:`Feature`, the function
+        returns the feature resulting from the cast operation. Otherwise, it returns :code:`val`
+        unchanged.
+    """
+    # make sure the value is a feature
+    if not isinstance(val, _Feature):
+        return val
+
+    # infer the target dtype from the given type annotation and
+    # add the cast node to the graph
+    dtype = build_feature_from_annotation(val.ref, typ).dtype
+    ref = val.ref._graph.add_cast_node(val.ref, dtype)
+    # return the output feature of the cast operation
+    return val.ref._graph.get_feature_from_reference(ref)
+
+
+cast = typing_cast if TYPE_CHECKING else _cast
+"""Cast a feature to a specified data type.
+
+This function performs a type cast for a value if it is an instance of a
+:class:`Feature`. It infers the target data type from the provided type
+annotation, adds a cast node to the data flow graph, and retrieves the
+resulting feature.
+
+Args:
+    typ (Any): The target type to cast the value to. Typically, this is a type
+        annotation.
+    val (Any): The value to be cast. If the value is not a :class:`Feature`, it
+        is returned unchanged.
+
+Returns:
+    Any: The cast value. If the input :code:`val` is a :class:`Feature`, the function
+    returns the feature resulting from the cast operation. Otherwise, it returns :code:`val`
+    unchanged.
+"""

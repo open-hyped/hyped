@@ -1,4 +1,4 @@
-from .binary import Add, Multiply, Subtract
+from .binary import Add, Divide, Multiply, Subtract
 from .unary import Abs, Invert, Negate
 
-__all__ = ["Add", "Subtract", "Multiply", "Abs", "Negate", "Invert"]
+__all__ = ["Add", "Subtract", "Multiply", "Divide", "Abs", "Negate", "Invert"]

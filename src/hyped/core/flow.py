@@ -119,7 +119,8 @@ def plot_data_flow(
     default_color_map = {
         DataFlowGraph.NodeType.SOURCE: cmap.colors[0],
         DataFlowGraph.NodeType.CONST: cmap.colors[1],
-        DataFlowGraph.NodeType.COLLECT: cmap.colors[5],
+        DataFlowGraph.NodeType.CAST: cmap.colors[5],
+        DataFlowGraph.NodeType.COLLECT: cmap.colors[6],
         DataFlowGraph.NodeType.DATA_PROCESSOR: cmap.colors[2],
         DataFlowGraph.NodeType.DATA_AUGMENTER: cmap.colors[3],
         DataFlowGraph.NodeType.DATA_AGGREGATOR: cmap.colors[4],
@@ -154,9 +155,14 @@ def plot_data_flow(
             node_labels[node] = src_node_label
 
         else:
-            # get the processor type name of the current node
-            proc = data[DataFlowGraph.NodeAttribute.NODE_OBJ]
-            node_label = type(proc).__name__
+            # build the node label of this node
+            obj = data[DataFlowGraph.NodeAttribute.NODE_OBJ]
+            if data[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.CONST:
+                node_label = str(obj.to_pylist()[0])
+            elif data[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.CAST:
+                node_label = f"Cast[{str(obj)}]"
+            else:
+                node_label = str(obj)
             # split string into words
             words = re.split(r"(?<=[a-z])(?=[A-Z])", node_label)
             # group words such that each group has a limited number of

@@ -15,7 +15,14 @@ import pyarrow.compute as pc
 
 from ..abstract import AbstractDataFlowGraph
 from ..features.reference import Reference
-from ..features.types import UNDEFINED_SEQUENCE_LENGTH, MappingType, SequenceType, Type
+from ..features.types import (
+    UNDEFINED_SEQUENCE_LENGTH,
+    MappingType,
+    SequenceType,
+    Type,
+    cast_dtype,
+    common_dtype,
+)
 from ..utils import NestedType
 from .base import BaseNode, BaseNodeConfig, RunContext
 
@@ -39,7 +46,9 @@ class CollectNode(BaseNode[CollectNodeConfig]):
     format, supporting nested mappings and sequences.
     """
 
-    def build_output_type(self, graph: AbstractDataFlowGraph, inputs: dict[str, Reference]) -> Type:
+    def build_output_type(
+        self, graph: AbstractDataFlowGraph, inputs: dict[str, Reference]
+    ) -> tuple[Type, dict[str, Type]]:
         """Construct the output data type based on the input structure.
 
         This method recursively determines the type of each element in the structure specified by
@@ -52,8 +61,33 @@ class CollectNode(BaseNode[CollectNodeConfig]):
                 graph.
 
         Returns:
-            Type: The constructed output type, including mappings or sequences if specified.
+            tuple[Type, dict[str, Type]]: A tuple containing the constructed output type and a
+                lookup for inputs that need to be casted to a different data type before
+                collection.
         """
+        # dictionary mapping inputs to the dtype they need to be casted to
+        required_casts: dict[str, Type] = {}
+
+        def _cast(obj: NestedType[str], src_dtype: Type, tgt_dtype: Type) -> None:
+            # trivial case: no type casting required
+            if src_dtype == tgt_dtype:
+                return
+
+            if isinstance(obj, str):
+                required_casts[obj] = cast_dtype(src_dtype, tgt_dtype)
+
+            elif isinstance(obj, dict):
+                assert isinstance(src_dtype, MappingType) and isinstance(tgt_dtype, MappingType)
+                for key, item in obj.items():
+                    _cast(item, src_dtype[key], tgt_dtype[key])
+
+            elif isinstance(obj, (list, tuple)):
+                assert isinstance(src_dtype, SequenceType) and isinstance(tgt_dtype, SequenceType)
+                for item in obj:
+                    _cast(item, src_dtype.value_type, tgt_dtype.value_type)
+
+            else:  # pragma: not covered
+                raise RuntimeError()
 
         def _build_type(obj: NestedType[str]):
             if isinstance(obj, str):
@@ -70,8 +104,12 @@ class CollectNode(BaseNode[CollectNodeConfig]):
                 dtype, *others = map(_build_type, obj)
                 # check the data types of all sequence items
                 if any(dtype != other for other in others):
-                    # TODO: try to cast the values in the sequence to a common type
-                    raise NotImplementedError(dtype, others)
+                    # cast the values in the sequence to a common type
+                    target_dtype = common_dtype(dtype, *others)
+                    for o, t in zip(obj, (dtype, *others), strict=True):
+                        _cast(o, t, target_dtype)
+                    # update data type
+                    dtype = target_dtype
 
                 # build the sequence type
                 return SequenceType(value_type=dtype, length=len(obj))
@@ -81,7 +119,7 @@ class CollectNode(BaseNode[CollectNodeConfig]):
                     f"Unsupported type encountered in lookup structure, got {type(obj).__name__}."
                 )
 
-        return _build_type(self.config.lookup)
+        return _build_type(self.config.lookup), required_casts
 
     def collect(self, ctx: RunContext, inputs: dict[str, pa.Array]) -> pa.Array:
         """Collect and arrange input data according to the node’s structure.
@@ -172,4 +210,4 @@ class CollectNode(BaseNode[CollectNodeConfig]):
         Raises:
             EnvironmentError: This node does not support a callable interface.
         """
-        raise EnvironmentError("The `call` method is not available for collect nodes.")
+        raise EnvironmentError("The `call` method is not available for collect nodes.")  #

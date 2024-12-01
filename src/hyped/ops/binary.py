@@ -96,3 +96,23 @@ def sub(a: ScalarType, b: ScalarType) -> ScalarType:
 )
 def mul(a: ScalarType, b: ScalarType) -> ScalarType:
     return ops.Multiply().call(a, b)
+
+
+@register_all(
+    "__truediv__",
+    [
+        Int8Feature,
+        Int16Feature,
+        Int32Feature,
+        Int64Feature,
+        UInt8Feature,
+        UInt16Feature,
+        UInt32Feature,
+        UInt64Feature,
+        Float16Feature,
+        Float32Feature,
+        Float64Feature,
+    ],
+)
+def div(a: ScalarType, b: ScalarType) -> ScalarType:
+    return ops.Divide().call(a, b)

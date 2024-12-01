@@ -685,7 +685,7 @@ if typing.TYPE_CHECKING:  # pragma: not covered
         Example:
         .. code-block:: python
 
-            class MyMappingFeature(_MappingFeature):
+            class MyMappingFeature(MappingFeature):
                 key1: _String
                 key2: _Int32
 

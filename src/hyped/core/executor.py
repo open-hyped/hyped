@@ -17,9 +17,10 @@ from types import MappingProxyType
 import networkx as nx
 import numpy as np
 import pyarrow as pa
+import pyarrow.compute as pc
 
 from .features.reference import FeatureKey, Reference
-from .features.types import MappingType
+from .features.types import MappingType, Type
 from .graph import DataFlowGraph
 from .nodes.aggregator import BaseDataAggregator, DataAggregationManager
 from .nodes.augmenter import BaseDataAugmenter
@@ -321,6 +322,12 @@ class DataFlowExecutor(object):
             # for constant nodes the node object is a pyarrow array
             # of a single entry holding the value
             state.capture_output(node_id, node_obj)
+
+        elif node_type == DataFlowGraph.NodeType.CAST:
+            assert isinstance(node_obj, Type)
+            # cast the value to the expected data type
+            cast_value = pc.cast(inputs["value"], node_obj.arrow_type)
+            state.capture_output(node_id, cast_value)
 
         elif node_type == DataFlowGraph.NodeType.COLLECT:
             assert isinstance(node_obj, CollectNode)

@@ -65,6 +65,14 @@ class PrimitiveType(Type):
         """
         return self._arrow_type
 
+    def __str__(self) -> str:
+        """Returns the string representation.
+
+        Returns:
+            str: A string representation of the :class:`PrimitiveType` instance.
+        """
+        return str(self._arrow_type).capitalize()
+
 
 # Primitive Types
 BoolType = PrimitiveType(pa.bool_())
@@ -219,6 +227,14 @@ class SequenceType(Type, typing.Sequence):
         # TODO: decide if unkown == known length is ok
         return self.value_type == other.value_type and (self.length == other.length)
 
+    def __str__(self) -> str:
+        """Returns the string representation.
+
+        Returns:
+            str: A string representation of the sequence instance including the value type.
+        """
+        return f"SequenceType[{str(self.value_type)}]"
+
 
 @dataclass(eq=True, frozen=True)
 class MappingType(Type, typing.Mapping):
@@ -304,3 +320,134 @@ class MappingType(Type, typing.Mapping):
             MappingType: A new :class:`MappingType` instance.
         """
         return cls(fields=tuple((key, fields[key]) for key in sorted(fields.keys())))
+
+    def __str__(self) -> str:
+        """Returns the string representation.
+
+        Returns:
+            str: The name of the class (`MappingType`).
+        """
+        return type(self).__name__
+
+
+def cast_dtype(src_dtype: Type, tgt_dtype: Type) -> Type:
+    """Perform type casting between two data types.
+
+    Args:
+        src_dtype (Type): The source data type.
+        tgt_dtype (Type): The target data type.
+
+    Returns:
+        Type: The resulting data type after a successful cast.
+
+    Raises:
+        RuntimeError: If the casting operation is not feasible due to type
+            mismatches or constraints.
+    """
+    if isinstance(src_dtype, SequenceType) and isinstance(tgt_dtype, SequenceType):
+        if (
+            src_dtype.length != UNDEFINED_SEQUENCE_LENGTH
+            and tgt_dtype.length != UNDEFINED_SEQUENCE_LENGTH
+            and src_dtype.length != tgt_dtype.length
+        ):
+            raise RuntimeError(
+                f"Cannot cast sequence of length {src_dtype.length} to a "
+                f"sequence of length {tgt_dtype.length}."
+            )
+
+        length = (
+            src_dtype.length if src_dtype.length != UNDEFINED_SEQUENCE_LENGTH else tgt_dtype.length
+        )
+
+        return SequenceType(cast_dtype(src_dtype.value_type, tgt_dtype.value_type), length=length)
+
+    elif isinstance(src_dtype, MappingType) and isinstance(tgt_dtype, MappingType):
+        if set(src_dtype.keys()) != set(tgt_dtype.keys()):
+            raise RuntimeError(
+                f"Cannot cast mapping with keys {set(src_dtype.keys())} to a "
+                f"mapping with keys {set(tgt_dtype.keys())}."
+            )
+
+        # make sure both mappings contain all keys and the fields
+        # are castable
+        fields = {k: cast_dtype[src_dtype[k], tgt_dtype[k]] for k in src_dtype.keys()}
+        return MappingType.from_dict(fields)
+
+    elif isinstance(src_dtype, PrimitiveType) and isinstance(tgt_dtype, PrimitiveType):
+        # can cast all primitive types to all other primitive types
+        return tgt_dtype
+
+    raise RuntimeError(
+        f"Cannot cast type {type(src_dtype).__name__} to {type(tgt_dtype).__name__}."
+    )
+
+
+def common_dtype(*dtypes: Type) -> Type:
+    """Determine the common dtype for a set of input dtypes.
+
+    This function identifies a dtype to which all input dtypes can be cast
+    without loss of information, based on a predefined priority hierarchy.
+    It supports primitive types, sequences, and mappings.
+
+    Args:
+        dtypes (Type): The input dtypes to compare. These can be :class:`PrimitiveType`,
+            :class:`SequenceType`, or :class:`MappingType` objects.
+
+    Returns:
+        Type: The common dtype that can represent all input dtypes.
+
+    Raises:
+        ValueError: If no dtypes are provided or the dtypes cannot be combined.
+        RuntimeError: If dtypes are incompatible or cannot be resolved to a common dtype.
+    """
+    # Ensure at least one dtype is provided
+    assert len(dtypes) > 0, "At least one dtype must be provided to determine a common dtype."
+
+    PRIORITY = {  # noqa: N806
+        BoolType: 0,
+        UInt8Type: 1,
+        Int8Type: 2,
+        UInt16Type: 3,
+        Int16Type: 4,
+        UInt32Type: 5,
+        Int32Type: 6,
+        UInt64Type: 7,
+        Int64Type: 8,
+        Float16Type: 9,
+        Float32Type: 10,
+        Float64Type: 11,
+        StringType: 12,
+    }
+
+    # Handle sequence types
+    if all(isinstance(dtype, SequenceType) for dtype in dtypes):
+        # Check for common sequence length
+        unique_lengths = set(dtype.length for dtype in dtypes)
+        length = (
+            UNDEFINED_SEQUENCE_LENGTH if len(unique_lengths) > 1 else next(iter(unique_lengths))
+        )
+        # Determine common value type
+        value_type = common_dtype(*(dtype.value_type for dtype in dtypes))
+        return SequenceType(value_type, length)
+
+    # Handle mapping types
+    elif all(isinstance(dtype, MappingType) for dtype in dtypes):
+        # Ensure all mappings have the same keys
+        keys = set(dtypes[0].keys())
+        if any(keys != set(dtype.keys()) for dtype in dtypes[1:]):
+            raise RuntimeError(
+                "MappingType dtypes must have identical keys to determine a common dtype."
+            )
+        # Determine common dtype for each field
+        fields = {k: common_dtype(*(dtype[k] for dtype in dtypes)) for k in keys}
+        return MappingType.from_dict(fields)
+
+    # Handle primitive types
+    elif all(isinstance(dtype, PrimitiveType) for dtype in dtypes):
+        try:
+            return max(dtypes, key=PRIORITY.get)
+        except KeyError as e:
+            raise ValueError(f"Unsupported dtype encountered: {e.args[0]}") from e
+
+    # Raise error for incompatible dtypes
+    raise RuntimeError("Dtypes are incompatible or cannot be resolved to a common dtype. ")

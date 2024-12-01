@@ -157,7 +157,7 @@ class AddMixin:
         except NotImplementedError:
             return self.execute_method("__add__", other)
 
-    def __radd__(self: MethodRegistryMixin, other: Any) -> None:
+    def __radd__(self: MethodRegistryMixin, other: Any) -> Self:
         """Implements reverse addition ('+').
 
         This method attempts to execute the reverse addition method (:code:`__radd__`).
@@ -306,7 +306,7 @@ class FloorDivMixin:
 
 
 class ModMixin:
-    """Mixin for implementing modulus ('%', '%=') and right modulo ('%')."""
+    """Mixin for implementing modulo ('%', '%=') and right modulo ('%')."""
 
     def __mod__(self: MethodRegistryMixin, other: Any) -> Self:
         """Implements modulo ('%').

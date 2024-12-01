@@ -4,8 +4,7 @@ from unittest.mock import MagicMock
 import pyarrow as pa
 import pytest
 
-from hyped.core.features.reference import Reference
-from hyped.core.features.types import BoolType, Int32Type, MappingType, SequenceType, Type
+from hyped.core.features.types import Int32Type, Int64Type, MappingType, SequenceType, Type
 from hyped.core.nodes.base import RunContext
 from hyped.core.nodes.collect import CollectNode
 from hyped.core.utils import NestedType
@@ -13,10 +12,10 @@ from hyped.core.utils import NestedType
 
 class TestCollectNode:
     @pytest.mark.parametrize(
-        "collect, input_types, input_objects, expected_dtype, expected_object",
+        "collect, input_types, input_objects, expected_dtype, expected_object, expected_required_casts",
         [
             # collect simple feature
-            ("x", {"x": Int32Type}, {"x": 0}, Int32Type, 0),
+            ("x", {"x": Int32Type}, {"x": 0}, Int32Type, 0, {}),
             # collect sequence type
             (
                 ["x", "y", "z"],
@@ -24,6 +23,15 @@ class TestCollectNode:
                 {"x": 0, "y": 1, "z": 2},
                 SequenceType(Int32Type, length=3),
                 [0, 1, 2],
+                {},
+            ),
+            (
+                ["x", "y", "z"],
+                {"x": Int32Type, "y": Int64Type, "z": Int32Type},
+                {"x": 0, "y": 1, "z": 2},
+                SequenceType(Int64Type, length=3),
+                [0, 1, 2],
+                {"x": Int64Type, "z": Int64Type},
             ),
             # collect mapping type
             (
@@ -32,6 +40,7 @@ class TestCollectNode:
                 {"x": 0, "y": 1},
                 MappingType.from_dict({"a": Int32Type, "b": Int32Type}),
                 {"a": 0, "b": 1},
+                {},
             ),
             # nested mapping and sequence types
             (
@@ -40,6 +49,7 @@ class TestCollectNode:
                 {"x": 0, "y": 1},
                 MappingType.from_dict({"a": SequenceType(Int32Type, length=2), "b": Int32Type}),
                 {"a": [0, 0], "b": 1},
+                {},
             ),
         ],
     )
@@ -50,6 +60,7 @@ class TestCollectNode:
         input_objects: dict[str, Any],
         expected_dtype: Type,
         expected_object: pa.Array,
+        expected_required_casts: dict[str, Type],
     ) -> None:
         # create a mock graph
         graph = MagicMock()
@@ -57,15 +68,16 @@ class TestCollectNode:
         # create the collect node instance
         node = CollectNode(lookup=collect)
         # build the output type and check it
-        dtype = node.build_output_type(graph, input_types)
+        dtype, required_casts = node.build_output_type(graph, input_types)
         assert dtype == expected_dtype
+        assert required_casts == expected_required_casts
 
         # build a run context with the expected input and output types
         ctx = RunContext(
             node_id=0,
             index=[0],
             rank=0,
-            input_type=MappingType.from_dict(input_types),
+            input_type=MappingType.from_dict(input_types | required_casts),
             output_type=dtype,
         )
 

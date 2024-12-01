@@ -85,3 +85,29 @@ class Multiply(BaseDataProcessor[MultiplyConfig]):
             ScalarType: The product of :code:`x` and :code:`y`.
         """
         return pc.multiply(x, y)
+
+
+class DivideConfig(BaseDataProcessorConfig):
+    """Configuration for the Divide processor."""
+
+
+class Divide(BaseDataProcessor[DivideConfig]):
+    """Element-wise division.
+
+    This processor takes two numeric inputs, :code:`x` and :code:`y`, and
+    computes their quotient (:code:`x / y`).
+    """
+
+    @process_mode(batched=True, backend="arrow")
+    def process(self, ctx: RunContext, x: ScalarType, y: ScalarType) -> ScalarType:
+        """Perform element-wise division of two numeric inputs.
+
+        Args:
+            ctx (RunContext): The execution context for the processor.
+            x (ScalarType): The numerator.
+            y (ScalarType): The denominator.
+
+        Returns:
+            ScalarType: The quotient of :code:`x` and :code:`y`.
+        """
+        return pc.divide(x, y)

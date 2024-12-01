@@ -418,6 +418,14 @@ class BaseNode(BaseConfigurable[C], ABC):
         """
         ...
 
+    def __str__(self) -> str:
+        """Returns the string representation of the node.
+
+        Returns:
+            str: The class name of the node instance.
+        """
+        return type(self).__name__
+
     def _extract_graph_from_args(
         self, args: tuple[AbstractDataFlow | Feature], kwargs: dict[str, AbstractDataFlow | Feature]
     ) -> tuple[AbstractDataFlowGraph, tuple[Feature], dict[str, Feature]]:

@@ -22,7 +22,7 @@ from .abstract import AbstractDataFlowGraph
 from .features.engine import FeatureEngine
 from .features.features import Feature, build_feature_from_dtype
 from .features.reference import FeatureKey, Reference
-from .features.types import MappingType, SequenceType, Type
+from .features.types import MappingType, SequenceType, Type, cast_dtype
 from .nodes.aggregator import BaseDataAggregator
 from .nodes.augmenter import BaseDataAugmenter
 from .nodes.base import BaseNode
@@ -180,6 +180,15 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         (nested) feature. This enables the combination of outputs from various sources
         or transformations into a unified structure, which can be further processed
         downstream.
+        """
+
+        CAST = "CAST_NODE"
+        """
+        Represents a cast node in the data flow graph.
+
+        This type of node is responsible for type conversion within the data flow.
+        It transforms data from one type to another, ensuring compatibility between
+        different nodes or preparing the data for specific processing requirements.
         """
 
         DATA_PROCESSOR = "DATA_PROCESSOR_NODE"
@@ -653,7 +662,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         Args:
             collect (NestedType[Reference]): A nested structure (e.g., lists, dictionaries)
                 containing :class:`Reference` objects that specify the features to collect.
-            node_id (None | NodeId, optional): A unique identifier for the node.
+            node_id (None | NodeId): A unique identifier for the node.
                 If :code:`None`, a random UUID is generated. Defaults to :code:`None`.
 
         Returns:
@@ -678,17 +687,26 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         # create the collect node object
         obj = CollectNode(lookup=lookup)
 
+        # build the output type of the collect operation
+        output_type, required_casts = obj.build_output_type(self, inputs)
+        # add required cast nodes to graph
+        for key, dtype in required_casts.items():
+            inputs[key] = self.add_cast_node(inputs[key], dtype)
+
         # add the node object
         return self.add_node(
             node_obj=obj,
             node_type=DataFlowGraph.NodeType.COLLECT,
             inputs=inputs,
-            output_type=obj.build_output_type(self, inputs),
+            output_type=output_type,
             node_id=node_id,
         )
 
     def add_collect_node_with_constants(
-        self, collect: NestedType[Reference | Any], dtype: None | Type = None
+        self,
+        collect: NestedType[Reference | Any],
+        dtype: None | Type = None,
+        node_id: None | NodeId = None,
     ) -> Reference:
         """Add a collect node and all contained constants to a data flow graph.
 
@@ -704,6 +722,8 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 the graph.
             dtype (None | Type): The expected data type of the :code:`collect` structure. If
                 :code:`None`, the function attempts to infer the type where possible.
+            node_id (None | NodeId): A unique identifier for the node. If :code:`None`, a random
+                UUID is generated. Defaults to :code:`None`.
 
         Returns:
             Reference: A reference to the :code:`collect` node added to the graph.
@@ -760,7 +780,48 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         collect = add_constants(collect, dtype)
 
         # add the collect node to the graph and return the reference to it
-        return self.add_collect_node(collect)
+        return self.add_collect_node(collect, node_id)
+
+    def add_cast_node(
+        self, ref: Reference, dtype: Type, node_id: None | NodeId = None
+    ) -> Reference:
+        """Add a cast node to the data flow graph.
+
+        This method adds a cast node, which transforms data from one type to another,
+        ensuring compatibility between nodes or preparing the data for specific processing
+        requirements. The method validates type compatibility and computes the resulting
+        type if the cast is feasible.
+
+        Args:
+            ref (Reference): A reference to the input data to be cast.
+            dtype (Type): The target type to which the input data should be cast.
+            node_id (None | NodeId): An optional unique identifier for the node. If not
+                provided, a random UUID is generated. Defaults to :code:`None`.
+
+        Returns:
+            Reference: A reference to the added cast node, allowing access to its output.
+
+        Raises:
+            RuntimeError: If the source and target types are incompatible or if other
+                casting constraints are violated.
+        """
+        try:
+            dtype = cast_dtype(self.get_dtype_from_reference(ref), dtype)
+        except RuntimeError as e:
+            raise RuntimeError(
+                f"Error while casting from {self.get_dtype_from_reference(ref)} to {dtype}."
+            ) from e
+
+        # create a random node id if not provided
+        node_id = node_id if node_id is not None else str(uuid.uuid4())
+        # add the node to the graph
+        return self.add_node(
+            node_obj=dtype,
+            node_type=DataFlowGraph.NodeType.CAST,
+            inputs={"value": ref},
+            output_type=dtype,
+            node_id=node_id,
+        )
 
     def add_compute_node(
         self,

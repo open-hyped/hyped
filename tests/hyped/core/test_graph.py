@@ -485,14 +485,14 @@ class TestDataFlowGraph:
         graph.add_const_node = MagicMock()
         # test collect dictionary structure
         graph.add_collect_node_with_constants({"x": ref})
-        graph.add_collect_node.assert_called_once_with({"x": ref})
+        graph.add_collect_node.assert_called_once_with({"x": ref}, None)
 
         # reset the mock graph
         graph.add_collect_node.reset_mock()
         graph.add_const_node.reset_mock()
         # test collect list structure
         graph.add_collect_node_with_constants([ref, ref])
-        graph.add_collect_node.assert_called_once_with([ref, ref])
+        graph.add_collect_node.assert_called_once_with([ref, ref], None)
 
         with patch("hyped.core.graph.build_dtype_from_python_object") as mock_build_dtype:
             # reset the mock graph
@@ -502,7 +502,7 @@ class TestDataFlowGraph:
             graph.add_collect_node_with_constants({"x": ref, "y": 42})
             graph.add_const_node.assert_called_once_with(42, dtype=mock_build_dtype.return_value)
             graph.add_collect_node.assert_called_once_with(
-                {"x": ref, "y": graph.add_const_node.return_value}
+                {"x": ref, "y": graph.add_const_node.return_value}, None
             )
 
             # reset the mock graph
@@ -523,7 +523,8 @@ class TestDataFlowGraph:
                     graph.add_const_node.return_value,
                     graph.add_const_node.return_value,
                     graph.add_const_node.return_value,
-                ]
+                ],
+                None,
             )
 
     @pytest.mark.parametrize(
