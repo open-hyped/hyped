@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Callable, Generic, TypeVar
+from typing import Any, Callable, Generic, TypeVar, get_overloads, get_type_hints
 from unittest.mock import MagicMock
 
 import pydantic
@@ -1727,7 +1727,7 @@ class TestPrimitiveFeatures:
         feature.get_method = MagicMock(side_effect=feature.get_method)
 
         # collect all arguments
-        args = (
+        args = tuple(
             ftype
             if not (isinstance(ftype, type) and issubclass(ftype, PrimitiveFeature))
             else ftype(
@@ -1747,6 +1747,27 @@ class TestPrimitiveFeatures:
 
         # make sure the call was forwarded to the right registered method
         feature.get_method.assert_called_once_with(registered_fn_name)
+
+        # find a candidate function that matches the inputs
+        for candidate_fn in get_overloads(fn):
+            # get the parameter order of the arguments of the candidate function
+            # and remove the self argument
+            parameter_order = list(inspect.signature(candidate_fn).parameters.keys())
+            parameter_order = parameter_order[1:]
+            # get type hints of candidate function
+            annotations = get_type_hints(candidate_fn)
+            return_annotation = annotations.pop("return")
+
+            # check if all arguments match the signature
+            for param, arg in zip(parameter_order, args):
+                if not isinstance(arg, annotations[param]):
+                    break
+
+            else:
+                # all params match the candidate function signature
+                assert issubclass(
+                    return_annotation, expected_return_feature_type
+                ), f"{return_annotation} != {expected_return_feature_type}"
 
 
 class TestSequenceFeature:
