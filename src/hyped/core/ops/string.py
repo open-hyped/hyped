@@ -492,14 +492,10 @@ class StringLeftStrip(BaseDataProcessor[StringLeftStripConfig]):
 
 
 StringFeature.register_method("__add__")(
-    StringFeature.register_method("__radd__")(
-        StringFeature.register_method("__iadd__")(StringAdd().call)
-    )
+    StringFeature.register_method("__radd__")(StringAdd().call)
 )
 StringFeature.register_method("__mul__")(
-    StringFeature.register_method("__rmul__")(
-        StringFeature.register_method("__imul__")(StringMultiply().call)
-    )
+    StringFeature.register_method("__rmul__")(StringMultiply().call)
 )
 StringFeature.register_method("length")(StringLength().call)
 StringFeature.register_method("upper")(StringUpper().call)

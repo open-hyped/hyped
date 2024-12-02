@@ -88,10 +88,11 @@ class TypeResolver(BeforeValidator):
 
             # resolve type variable
             if isinstance(target_type, TypeVar):
-                if target_type not in info.context["typevars"].keys():
+                typevars = {str(var): typ for var, typ in info.context["typevars"].items()}
+                if str(target_type) not in typevars.keys():
                     raise RuntimeError(f"Invalid TypeVar {target_type}")
 
-                target_dtype = info.context["typevars"][target_type]
+                target_dtype = typevars[str(target_type)]
                 assert isinstance(target_dtype, Type)
 
                 target_type = Annotated[

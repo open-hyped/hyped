@@ -20,8 +20,6 @@ from ..typing import Bool
 class InvertConfig(BaseDataProcessorConfig):
     """Configuration for the :class:`Invert` processor."""
 
-    pass
-
 
 class Invert(BaseDataProcessor[InvertConfig]):
     """Data processor for inverting Boolean values (logical NOT)."""
@@ -42,8 +40,6 @@ class Invert(BaseDataProcessor[InvertConfig]):
 
 class AndConfig(BaseDataProcessorConfig):
     """Configuration for the :class:`And` processor."""
-
-    pass
 
 
 class And(BaseDataProcessor[AndConfig]):
@@ -67,8 +63,6 @@ class And(BaseDataProcessor[AndConfig]):
 class OrConfig(BaseDataProcessorConfig):
     """Configuration for the :class:`Or` processor."""
 
-    pass
-
 
 class Or(BaseDataProcessor[AndConfig]):
     """Data processor for computing the logical OR of two Boolean values."""
@@ -91,8 +85,6 @@ class Or(BaseDataProcessor[AndConfig]):
 class XorConfig(BaseDataProcessorConfig):
     """Configuration for the :class:`Xor` processor."""
 
-    pass
-
 
 class Xor(BaseDataProcessor[AndConfig]):
     """Data processor for computing the logical XOR of two Boolean values."""
@@ -114,12 +106,6 @@ class Xor(BaseDataProcessor[AndConfig]):
 
 # Register all methods
 BoolFeature.register_method("__invert__")(Invert().call)
-BoolFeature.register_method("__and__")(
-    BoolFeature.register_method("__rand__")(BoolFeature.register_method("__iand__")(And().call))
-)
-BoolFeature.register_method("__or__")(
-    BoolFeature.register_method("__ror__")(BoolFeature.register_method("__ior__")(Or().call))
-)
-BoolFeature.register_method("__xor__")(
-    BoolFeature.register_method("__rxor__")(BoolFeature.register_method("__ixor__")(Xor().call))
-)
+BoolFeature.register_method("__and__")(BoolFeature.register_method("__rand__")(And().call))
+BoolFeature.register_method("__or__")(BoolFeature.register_method("__ror__")(Or().call))
+BoolFeature.register_method("__xor__")(BoolFeature.register_method("__rxor__")(Xor().call))

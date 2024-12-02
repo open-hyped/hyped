@@ -17,7 +17,7 @@ import typing
 from dataclasses import dataclass, replace
 from functools import partial
 from types import GenericAlias
-from typing import Any, Callable, ClassVar, Final, TypeVar
+from typing import Any, Callable, ClassVar, Final, TypeVar, overload
 
 import pydantic
 from pydantic.type_adapter import _type_has_config
@@ -27,17 +27,7 @@ from hyped.common._pydantic import BaseModelWithArbitraryTypesAllowed
 from hyped.common.utils import is_python_version_less_than
 
 from . import types
-from .mixins import (
-    AbsMixin,
-    AddMixin,
-    DivMixin,
-    FloorDivMixin,
-    MethodRegistryMixin,
-    ModMixin,
-    MulMixin,
-    NegMixin,
-    SubMixin,
-)
+from .mixins import MethodRegistryMixin
 from .reference import FeatureKey, Reference
 
 if is_python_version_less_than(3, 11):  # pragma: not covered
@@ -50,7 +40,7 @@ if is_python_version_less_than(3, 11):  # pragma: not covered
             raise TypeError(f"Expected an instance of type, got {type(cls).__name__!r}") from None
 
 else:
-    from types import get_original_bases  # noqa:
+    from types import get_original_bases  # noqa: E402
 
 
 @dataclass(eq=True, frozen=False)
@@ -194,17 +184,6 @@ class BoolFeature(PrimitiveFeature):
         """
         return self.execute_method("__rand__", other)
 
-    def __iand__(self, other: Any) -> BoolFeature:
-        """Performs in-place boolean 'and' operation ('&=').
-
-        Args:
-            other (Any): The boolean value to perform the 'and' operation with.
-
-        Returns:
-            BoolFeature: The updated :class:`BoolFeature` after the in-place 'and' operation.
-        """
-        return self.execute_method("__and__", other)
-
     def __or__(self, other: Any) -> BoolFeature:
         """Performs boolean 'or' operation ('|').
 
@@ -226,17 +205,6 @@ class BoolFeature(PrimitiveFeature):
             BoolFeature: A new :class:`BoolFeature` resulting from the right 'or' operation.
         """
         return self.execute_method("__ror__", other)
-
-    def __ior__(self, other: Any) -> BoolFeature:
-        """Performs in-place boolean 'or' operation ('|=').
-
-        Args:
-            other (Any): The boolean value to perform the 'or' operation with.
-
-        Returns:
-            BoolFeature: The updated :class:`BoolFeature` after the in-place 'or' operation.
-        """
-        return self.execute_method("__or__", other)
 
     def __xor__(self, other: Any) -> BoolFeature:
         """Performs boolean 'exclusive or' operation ('^').
@@ -260,18 +228,6 @@ class BoolFeature(PrimitiveFeature):
             operation.
         """
         return self.execute_method("__rxor__", other)
-
-    def __ixor__(self, other: Any) -> BoolFeature:
-        """Performs in-place boolean 'exclusive or' operation ('^=').
-
-        Args:
-            other (Any): The boolean value to perform the 'exclusive or' operation with.
-
-        Returns:
-            BoolFeature: The updated :class:`BoolFeature` after the in-place 'exclusive or'
-            operation.
-        """
-        return self.execute_method("__ixor__", other)
 
 
 class StringFeature(PrimitiveFeature):
@@ -301,17 +257,6 @@ class StringFeature(PrimitiveFeature):
         """
         return self.execute_method("__radd__", other)
 
-    def __iadd__(self, other: Any) -> StringFeature:
-        """Performs in-place string concatenation ('+=').
-
-        Args:
-            other (Any): The value to concatenate to this string.
-
-        Returns:
-            StringFeature: The updated :class:`StringFeature` after concatenation.
-        """
-        return self.execute_method("__iadd__", other)
-
     def __mul__(self, other: Any) -> StringFeature:
         """Performs string repetition ('*').
 
@@ -333,17 +278,6 @@ class StringFeature(PrimitiveFeature):
             StringFeature: A new :class:`StringFeature` with the repeated string.
         """
         return self.execute_method("__rmul__", other)
-
-    def __imul__(self, other: Any) -> StringFeature:
-        """Performs in-place string repetition ('*=').
-
-        Args:
-            other (Any): The number of repetitions.
-
-        Returns:
-            StringFeature: The updated :class:`StringFeature` after repetition.
-        """
-        return self.execute_method("__imul__", other)
 
     def __getitem__(self, idx: int | slice) -> StringFeature:
         """Performs string slicing or indexing ('[]').
@@ -532,145 +466,493 @@ class StringFeature(PrimitiveFeature):
         return self.execute_method("format", *args, **kwargs)
 
 
-class Int8Feature(
-    PrimitiveFeature,
-    AbsMixin,
-    NegMixin,
-    AddMixin,
-    SubMixin,
-    MulMixin,
-    DivMixin,
-    FloorDivMixin,
-    ModMixin,
-):
+class Int8Feature(PrimitiveFeature):
     """A primitive feature representing a signed 8-bit integer."""
 
     _expected_dtype: Final[types.Type] = types.Int8Type
 
+    def __abs__(self) -> Int8Feature:
+        """Performs the absolute value operation ('abs').
 
-class Int16Feature(
-    PrimitiveFeature,
-    AbsMixin,
-    NegMixin,
-    AddMixin,
-    SubMixin,
-    MulMixin,
-    DivMixin,
-    FloorDivMixin,
-    ModMixin,
-):
+        Returns:
+            Int8Feature: A new feature representing the absolute value of the original feature.
+        """
+        return self.execute_method("__abs__")
+
+    def __neg__(self) -> Int8Feature:
+        """Performs the negation operation ('-').
+
+        Returns:
+            Int8Feature: A new feature representing the negated value of the original feature.
+        """
+        return self.execute_method("__neg__")
+
+    @overload
+    def __add__(self, other: Int8Feature) -> Int8Feature:
+        ...
+
+    @overload
+    def __add__(self, other: Int16Feature) -> Int16Feature:
+        ...
+
+    @overload
+    def __add__(self, other: Int32Feature) -> Int32Feature:
+        ...
+
+    @overload
+    def __add__(self, other: Int64Feature) -> Int64Feature:
+        ...
+
+    @overload
+    def __add__(self, other: UInt8Feature) -> Int16Feature:
+        ...
+
+    @overload
+    def __add__(self, other: UInt16Feature) -> Int32Feature:
+        ...
+
+    @overload
+    def __add__(self, other: UInt32Feature) -> Int64Feature:
+        ...
+
+    @overload
+    def __add__(self, other: UInt64Feature) -> Int64Feature:
+        ...
+
+    @overload
+    def __add__(self, other: Float16Feature) -> Float16Feature:
+        ...
+
+    @overload
+    def __add__(self, other: Float32Feature) -> Float32Feature:
+        ...
+
+    @overload
+    def __add__(self, other: Float64Feature) -> Float64Feature:
+        ...
+
+    @overload
+    def __add__(self, other: int) -> Int8Feature:
+        ...
+
+    @overload
+    def __add__(self, other: float) -> Int8Feature:
+        # TODO: currently float is casted to integer
+        ...
+
+    def __add__(self, other: Any) -> Feature:
+        """Performs addition operation ('+').
+
+        Returns:
+            Feature: A new feature representing the sum of the original features.
+        """
+        return self.execute_method("__add__", other)
+
+    @overload
+    def __radd__(self, other: int) -> Int8Feature:
+        ...
+
+    @overload
+    def __radd__(self, other: float) -> Int8Feature:
+        # TODO: currently float is casted to integer
+        ...
+
+    def __radd__(self, other: Any) -> Feature:
+        """Performs right addition operation with constant ('+').
+
+        Returns:
+            Feature: A new feature representing the sum of the original feature and the constant.
+        """
+        return self.execute_method("__radd__", other)
+
+    @overload
+    def __sub__(self, other: Int8Feature) -> Int8Feature:
+        ...
+
+    @overload
+    def __sub__(self, other: Int16Feature) -> Int16Feature:
+        ...
+
+    @overload
+    def __sub__(self, other: Int32Feature) -> Int32Feature:
+        ...
+
+    @overload
+    def __sub__(self, other: Int64Feature) -> Int64Feature:
+        ...
+
+    @overload
+    def __sub__(self, other: UInt8Feature) -> Int16Feature:
+        ...
+
+    @overload
+    def __sub__(self, other: UInt16Feature) -> Int32Feature:
+        ...
+
+    @overload
+    def __sub__(self, other: UInt32Feature) -> Int64Feature:
+        ...
+
+    @overload
+    def __sub__(self, other: UInt64Feature) -> Int64Feature:
+        ...
+
+    @overload
+    def __sub__(self, other: Float16Feature) -> Float16Feature:
+        ...
+
+    @overload
+    def __sub__(self, other: Float32Feature) -> Float32Feature:
+        ...
+
+    @overload
+    def __sub__(self, other: Float64Feature) -> Float64Feature:
+        ...
+
+    @overload
+    def __sub__(self, other: int) -> Int8Feature:
+        ...
+
+    @overload
+    def __sub__(self, other: float) -> Int8Feature:
+        # TODO: currently float is casted to integer
+        ...
+
+    def __sub__(self, other: Any) -> Feature:
+        """Performs subtraction operation ('-').
+
+        Returns:
+            Feature: A new feature representing the difference of the original features.
+        """
+        return self.execute_method("__sub__", other)
+
+    @overload
+    def __rsub__(self, other: int) -> Int8Feature:
+        ...
+
+    @overload
+    def __rsub__(self, other: float) -> Int8Feature:
+        # TODO: currently float is casted to integer
+        ...
+
+    def __rsub__(self, other: Any) -> Feature:
+        """Performs right subtraction operation with constant ('-').
+
+        Returns:
+            Feature: A new feature representing the difference between the constant and the
+            original feature.
+        """
+        return self.execute_method("__rsub__", other)
+
+    @overload
+    def __mul__(self, other: Int8Feature) -> Int8Feature:
+        ...
+
+    @overload
+    def __mul__(self, other: Int16Feature) -> Int16Feature:
+        ...
+
+    @overload
+    def __mul__(self, other: Int32Feature) -> Int32Feature:
+        ...
+
+    @overload
+    def __mul__(self, other: Int64Feature) -> Int64Feature:
+        ...
+
+    @overload
+    def __mul__(self, other: UInt8Feature) -> Int16Feature:
+        ...
+
+    @overload
+    def __mul__(self, other: UInt16Feature) -> Int32Feature:
+        ...
+
+    @overload
+    def __mul__(self, other: UInt32Feature) -> Int64Feature:
+        ...
+
+    @overload
+    def __mul__(self, other: UInt64Feature) -> Int64Feature:
+        ...
+
+    @overload
+    def __mul__(self, other: Float16Feature) -> Float16Feature:
+        ...
+
+    @overload
+    def __mul__(self, other: Float32Feature) -> Float32Feature:
+        ...
+
+    @overload
+    def __mul__(self, other: Float64Feature) -> Float64Feature:
+        ...
+
+    @overload
+    def __mul__(self, other: int) -> Int8Feature:
+        ...
+
+    @overload
+    def __mul__(self, other: float) -> Int8Feature:
+        # TODO: currently float is casted to integer
+        ...
+
+    def __mul__(self, other: Any) -> Feature:
+        """Performs multiplication operation ('*').
+
+        Returns:
+            Feature: A new feature representing the product of the original features.
+        """
+        return self.execute_method("__mul__", other)
+
+    @overload
+    def __rmul__(self, other: int) -> Int8Feature:
+        ...
+
+    @overload
+    def __rmul__(self, other: float) -> Int8Feature:
+        # TODO: currently float is casted to integer
+        ...
+
+    def __rmul__(self, other: Any) -> Feature:
+        """Performs right multiplication operation with constant ('*').
+
+        Returns:
+            Feature: A new feature representing the product of the constant and the
+            original feature.
+        """
+        return self.execute_method("__rmul__", other)
+
+    @overload
+    def __truediv__(
+        self,
+        other: (
+            Int8Feature
+            | Int16Feature
+            | Int32Feature
+            | Int64Feature
+            | UInt8Feature
+            | UInt16Feature
+            | UInt32Feature
+            | UInt64Feature
+        ),
+    ) -> Float64Feature:
+        ...
+
+    @overload
+    def __truediv__(self, other: Float16Feature) -> Float16Feature:
+        ...
+
+    @overload
+    def __truediv__(self, other: Float32Feature) -> Float32Feature:
+        ...
+
+    @overload
+    def __truediv__(self, other: Float64Feature) -> Float64Feature:
+        ...
+
+    @overload
+    def __truediv__(self, other: int) -> Float64Feature:
+        ...
+
+    @overload
+    def __truediv__(self, other: float) -> Float64Feature:
+        # TODO: currently float is casted
+        ...
+
+    def __truediv__(self, other: Any) -> Feature:
+        """Performs true division operation ('/').
+
+        Returns:
+            Feature: A new feature representing the quotient of the original features.
+        """
+        return self.execute_method("__truediv__", other)
+
+    @overload
+    def __rtruediv__(self, other: int) -> Float64Feature:
+        ...
+
+    @overload
+    def __rtruediv__(self, other: float) -> Float64Feature:
+        # TODO: currently float is casted to integer
+        ...
+
+    def __rtruediv__(self, other: Any) -> Feature:
+        """Performs true right division operation with a constant ('/').
+
+        Returns:
+            Feature: A new feature representing the quotient of the constant and the original
+            feature.
+        """
+        return self.get_method("__truediv__")(other, self)
+
+    @overload
+    def __floordiv__(self, other: Int8Feature) -> Int8Feature:
+        ...
+
+    @overload
+    def __floordiv__(self, other: Int16Feature) -> Int16Feature:
+        ...
+
+    @overload
+    def __floordiv__(self, other: Int32Feature) -> Int32Feature:
+        ...
+
+    @overload
+    def __floordiv__(self, other: Int64Feature) -> Int64Feature:
+        ...
+
+    @overload
+    def __floordiv__(self, other: UInt8Feature) -> Int16Feature:
+        ...
+
+    @overload
+    def __floordiv__(self, other: UInt16Feature) -> Int32Feature:
+        ...
+
+    @overload
+    def __floordiv__(self, other: UInt32Feature) -> Int64Feature:
+        ...
+
+    @overload
+    def __floordiv__(self, other: UInt64Feature) -> Int64Feature:
+        ...
+
+    @overload
+    def __floordiv__(self, other: Float16Feature) -> Int64Feature:
+        ...
+
+    @overload
+    def __floordiv__(self, other: Float32Feature) -> Int64Feature:
+        ...
+
+    @overload
+    def __floordiv__(self, other: Float64Feature) -> Int64Feature:
+        ...
+
+    @overload
+    def __floordiv__(self, other: int) -> Int8Feature:
+        ...
+
+    @overload
+    def __floordiv__(self, other: float) -> Int8Feature:
+        # TODO: currently float is casted to integer
+        ...
+
+    def __floordiv__(self, other: Any) -> Feature:
+        """Performs floor division operation ('//').
+
+        Returns:
+            Feature: A new feature representing the integer quotient of the original features.
+        """
+        return self.execute_method("__floordiv__", other)
+
+    @overload
+    def __rfloordiv__(self, other: int) -> Int8Feature:
+        ...
+
+    @overload
+    def __rfloordiv__(self, other: float) -> Int16Feature:
+        # TODO: currently float is casted to integer
+        ...
+
+    def __rfloordiv__(self, other: Any) -> Feature:
+        """Performs true right division operation with a constant ('/').
+
+        Returns:
+            Feature: A new feature representing the quotient of the constant and the original
+            feature.
+        """
+        return self.get_method("__truediv__")(other, self)
+
+
+class Int16Feature(PrimitiveFeature):
     """A primitive feature representing a signed 16-bit integer."""
 
     _expected_dtype: Final[types.Type] = types.Int16Type
 
 
-class Int32Feature(
-    PrimitiveFeature,
-    AbsMixin,
-    NegMixin,
-    AddMixin,
-    SubMixin,
-    MulMixin,
-    DivMixin,
-    FloorDivMixin,
-    ModMixin,
-):
+class Int32Feature(PrimitiveFeature):
     """A primitive feature representing a signed 32-bit integer."""
 
     _expected_dtype: Final[types.Type] = types.Int32Type
 
 
-class Int64Feature(
-    PrimitiveFeature,
-    AbsMixin,
-    NegMixin,
-    AddMixin,
-    SubMixin,
-    MulMixin,
-    DivMixin,
-    FloorDivMixin,
-    ModMixin,
-):
+class Int64Feature(PrimitiveFeature):
     """A primitive feature representing a signed 64-bit integer."""
 
     _expected_dtype: Final[types.Type] = types.Int64Type
 
 
-class UInt8Feature(
-    PrimitiveFeature, AbsMixin, AddMixin, SubMixin, MulMixin, DivMixin, FloorDivMixin, ModMixin
-):
+class UInt8Feature(PrimitiveFeature):
     """A primitive feature representing an unsigned 8-bit integer."""
 
     _expected_dtype: Final[types.Type] = types.UInt8Type
 
+    def __neg__(self: Feature) -> UInt16Feature:
+        """Performs the negation operation ('-').
 
-class UInt16Feature(
-    PrimitiveFeature, AbsMixin, AddMixin, SubMixin, MulMixin, DivMixin, FloorDivMixin, ModMixin
-):
+        Returns:
+            UInt16Feature: A new feature representing the negated value of the original feature.
+        """
+        return self.execute_method("__neg__")
+
+
+class UInt16Feature(PrimitiveFeature):
     """A primitive feature representing an unsigned 16-bit integer."""
 
     _expected_dtype: Final[types.Type] = types.UInt16Type
 
+    def __neg__(self: Feature) -> UInt32Feature:
+        """Performs the negation operation ('-').
 
-class UInt32Feature(
-    PrimitiveFeature, AbsMixin, AddMixin, SubMixin, MulMixin, DivMixin, FloorDivMixin, ModMixin
-):
+        Returns:
+            UInt32Feature: A new feature representing the negated value of the original feature.
+        """
+        return self.execute_method("__neg__")
+
+
+class UInt32Feature(PrimitiveFeature):
     """A primitive feature representing an unsigned 32-bit integer."""
 
     _expected_dtype: Final[types.Type] = types.UInt32Type
 
+    def __neg__(self: Feature) -> UInt64Feature:
+        """Performs the negation operation ('-').
 
-class UInt64Feature(
-    PrimitiveFeature, AbsMixin, AddMixin, SubMixin, MulMixin, DivMixin, FloorDivMixin, ModMixin
-):
+        Returns:
+            UInt64Feature: A new feature representing the negated value of the original feature.
+        """
+        return self.execute_method("__neg__")
+
+
+class UInt64Feature(PrimitiveFeature):
     """A primitive feature representing an unsigned 64-bit integer."""
 
     _expected_dtype: Final[types.Type] = types.UInt64Type
 
+    def __neg__(self: Feature) -> UInt64Feature:
+        """Performs the negation operation ('-').
 
-class Float16Feature(
-    PrimitiveFeature,
-    AbsMixin,
-    NegMixin,
-    AddMixin,
-    SubMixin,
-    MulMixin,
-    DivMixin,
-    FloorDivMixin,
-    ModMixin,
-):
+        Returns:
+            UInt64Feature: A new feature representing the negated value of the original feature.
+        """
+        return self.execute_method("__neg__")
+
+
+class Float16Feature(PrimitiveFeature):
     """A primitive feature representing a 16-bit floating-point number."""
 
     _expected_dtype: Final[types.Type] = types.Float16Type
 
 
-class Float32Feature(
-    PrimitiveFeature,
-    AbsMixin,
-    NegMixin,
-    AddMixin,
-    SubMixin,
-    MulMixin,
-    DivMixin,
-    FloorDivMixin,
-    ModMixin,
-):
+class Float32Feature(PrimitiveFeature):
     """A primitive feature representing a 32-bit floating-point number."""
 
     _expected_dtype: Final[types.Type] = types.Float32Type
 
 
-class Float64Feature(
-    PrimitiveFeature,
-    AbsMixin,
-    NegMixin,
-    AddMixin,
-    SubMixin,
-    MulMixin,
-    DivMixin,
-    FloorDivMixin,
-    ModMixin,
-):
+class Float64Feature(PrimitiveFeature):
     """A primitive feature representing a 64-bit floating-point number."""
 
     _expected_dtype: Final[types.Type] = types.Float64Type

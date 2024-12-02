@@ -447,18 +447,21 @@ def common_dtype(*dtypes: Type) -> Type:
         try:
             # get the data type with the highest priority
             dtype = max(dtypes, key=PRIORITY.__getitem__)
-            # promote data type if required
-            if (dtype == Int8Type) and (UInt8Type in dtypes):
-                return Int16Type
-            elif (dtype == Int16Type) and (UInt16Type in dtypes):
-                return Int32Type
-            elif (dtype == Int32Type) and (UInt32Type in dtypes):
-                return Int64Type
-            else:
-                return dtype
-
         except KeyError as e:
             raise ValueError(f"Unsupported dtype encountered: {e.args[0]}") from e
+
+        int_types = [Int8Type, Int16Type, Int32Type, Int64Type]
+        # promote data type if required
+        if (dtype == UInt8Type) and any(typ in dtypes for typ in int_types):
+            return Int16Type
+        elif (dtype == UInt16Type) and any(typ in dtypes for typ in int_types):
+            return Int32Type
+        elif (dtype == UInt32Type) and any(typ in dtypes for typ in int_types):
+            return Int64Type
+        elif (dtype == UInt64Type) and any(typ in dtypes for typ in int_types):
+            return Int64Type
+        else:
+            return dtype
 
     # Raise error for incompatible dtypes
     raise RuntimeError("Dtypes are incompatible or cannot be resolved to a common dtype. ")
