@@ -255,7 +255,7 @@ class FloorDiv(BaseDataProcessor[TrueDivConfig]):
     def process(
         self, ctx: RunContext, x: ScalarType, y: ScalarType
     ) -> Annotated[
-        Int,
+        Int | UInt,
         TypeResolver(
             lambda _, inputs, session: (
                 ScalarType
