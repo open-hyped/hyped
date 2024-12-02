@@ -187,20 +187,20 @@ Supported types include:
 """
 
 UInt: TypeAlias = Union[
-    UInt8Feature,
-    UInt16Feature,
-    UInt32Feature,
     UInt64Feature,
+    UInt32Feature,
+    UInt16Feature,
+    UInt8Feature,
     int,
     list[int],
-    pa.UInt8Scalar,
-    pa.UInt16Scalar,
-    pa.UInt32Scalar,
     pa.UInt64Scalar,
-    pa.UInt8Array,
-    pa.UInt16Array,
-    pa.UInt32Array,
+    pa.UInt32Scalar,
+    pa.UInt16Scalar,
+    pa.UInt8Scalar,
     pa.UInt64Array,
+    pa.UInt32Array,
+    pa.UInt16Array,
+    pa.UInt8Array,
 ]
 """
 UInt: Type alias for an unsigned integer of varying bit length.
@@ -260,20 +260,20 @@ Supported types include:
 """
 
 Int: TypeAlias = Union[
-    Int8Feature,
-    Int16Feature,
-    Int32Feature,
     Int64Feature,
+    Int32Feature,
+    Int16Feature,
+    Int8Feature,
     int,
     list[int],
-    pa.Int8Scalar,
-    pa.Int16Scalar,
-    pa.Int32Scalar,
     pa.Int64Scalar,
-    pa.Int8Array,
-    pa.Int16Array,
-    pa.Int32Array,
+    pa.Int32Scalar,
+    pa.Int16Scalar,
+    pa.Int8Scalar,
     pa.Int64Array,
+    pa.Int32Array,
+    pa.Int16Array,
+    pa.Int8Array,
 ]
 """
 Int: Type alias for a signed integer of varying bit length.
@@ -324,17 +324,17 @@ Supported types include:
 """
 
 Float: TypeAlias = Union[
-    Float16Feature,
-    Float32Feature,
     Float64Feature,
+    Float32Feature,
+    Float16Feature,
     float,
     list[float],
-    pa.HalfFloatScalar,
-    pa.FloatScalar,
     pa.DoubleScalar,
-    pa.HalfFloatArray,
-    pa.FloatArray,
+    pa.FloatScalar,
+    pa.HalfFloatScalar,
     pa.DoubleArray,
+    pa.FloatArray,
+    pa.HalfFloatArray,
 ]
 """
 Float: Type alias for a floating-point number of varying precision.

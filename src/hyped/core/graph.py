@@ -748,10 +748,9 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             elif isinstance(val, (list, tuple)):
                 assert (dtype is None) or isinstance(dtype, SequenceType)
 
-                if len(val) == 0:
-                    raise NotImplementedError()
-
                 if dtype is None:
+                    if len(val) == 0:
+                        raise NotImplementedError()
                     # try to infer the dtype from the reference instances in the sequence
                     if any(isinstance(r, Reference) for r in val):
                         ref = next(r for r in val if isinstance(r, Reference))

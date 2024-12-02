@@ -74,7 +74,7 @@ class BaseDataProcessor(BaseNode[C], ABC):
         Returns:
             NodeProtocol[Params, Return]: An instance of the processor node in the data flow graph.
         """
-        return super().__new__(cls, *args, **kwargs)
+        return super().__new__(cls)
 
     @classmethod
     def _check_signature(cls) -> bool:

@@ -28,8 +28,11 @@ __all__ = [
     "BaseDataAugmenterConfig",
     "BaseDataAggregator",
     "BaseDataAggregatorConfig",
+    "ops",
 ]
 
+# import operators module to register all operators
+from . import ops
 from .flow import DataFlow
 from .nodes.aggregator import BaseDataAggregator, BaseDataAggregatorConfig
 from .nodes.augmenter import BaseDataAugmenter, BaseDataAugmenterConfig

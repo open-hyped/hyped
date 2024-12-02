@@ -22,7 +22,6 @@ from typing import Any, Callable, ClassVar, Final, TypeVar
 import pydantic
 from pydantic.type_adapter import _type_has_config
 from pydantic_core import PydanticCustomError, core_schema
-from typing_extensions import Self
 
 from hyped.common._pydantic import BaseModelWithArbitraryTypesAllowed
 from hyped.common.utils import is_python_version_less_than
@@ -54,7 +53,7 @@ else:
     from types import get_original_bases  # noqa:
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(eq=True, frozen=False)
 class Feature(MethodRegistryMixin):
     """Base class for defining features in the system.
 
@@ -92,7 +91,7 @@ class Feature(MethodRegistryMixin):
         return core_schema.is_instance_schema(cls)
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(eq=True, frozen=False)
 class PrimitiveFeature(Feature):
     """Base class for primitive feature types.
 
@@ -165,15 +164,372 @@ class BoolFeature(PrimitiveFeature):
 
     _expected_dtype: Final[types.Type] = types.BoolType
 
-    def __invert__(self: Feature) -> Self:
-        """Performs bitwise not operation."""
+    def __invert__(self) -> BoolFeature:
+        """Performs boolean negation ('~').
+
+        Returns:
+            BoolFeature: A new :class:`BoolFeature` with the negated value.
+        """
         return self.execute_method("__invert__")
 
+    def __and__(self, other: Any) -> BoolFeature:
+        """Performs boolean 'and' operation ('&').
 
-class StringFeature(PrimitiveFeature, AddMixin, MulMixin):
+        Args:
+            other (Any): The boolean value to perform the 'and' operation with.
+
+        Returns:
+            BoolFeature: A new :class:`BoolFeature` resulting from the 'and' operation.
+        """
+        return self.execute_method("__and__", other)
+
+    def __rand__(self, other: Any) -> BoolFeature:
+        """Performs right boolean 'and' operation ('&').
+
+        Args:
+            other (Any): The boolean value to perform the 'and' operation with.
+
+        Returns:
+            BoolFeature: A new :class:`BoolFeature` resulting from the right 'and' operation.
+        """
+        return self.execute_method("__rand__", other)
+
+    def __iand__(self, other: Any) -> BoolFeature:
+        """Performs in-place boolean 'and' operation ('&=').
+
+        Args:
+            other (Any): The boolean value to perform the 'and' operation with.
+
+        Returns:
+            BoolFeature: The updated :class:`BoolFeature` after the in-place 'and' operation.
+        """
+        return self.execute_method("__and__", other)
+
+    def __or__(self, other: Any) -> BoolFeature:
+        """Performs boolean 'or' operation ('|').
+
+        Args:
+            other (Any): The boolean value to perform the 'or' operation with.
+
+        Returns:
+            BoolFeature: A new :class:`BoolFeature` resulting from the 'or' operation.
+        """
+        return self.execute_method("__or__", other)
+
+    def __ror__(self, other: Any) -> BoolFeature:
+        """Performs right boolean 'or' operation ('|').
+
+        Args:
+            other (Any): The boolean value to perform the 'or' operation with.
+
+        Returns:
+            BoolFeature: A new :class:`BoolFeature` resulting from the right 'or' operation.
+        """
+        return self.execute_method("__ror__", other)
+
+    def __ior__(self, other: Any) -> BoolFeature:
+        """Performs in-place boolean 'or' operation ('|=').
+
+        Args:
+            other (Any): The boolean value to perform the 'or' operation with.
+
+        Returns:
+            BoolFeature: The updated :class:`BoolFeature` after the in-place 'or' operation.
+        """
+        return self.execute_method("__or__", other)
+
+    def __xor__(self, other: Any) -> BoolFeature:
+        """Performs boolean 'exclusive or' operation ('^').
+
+        Args:
+            other (Any): The boolean value to perform the 'exclusive or' operation with.
+
+        Returns:
+            BoolFeature: A new :class:`BoolFeature` resulting from the 'exclusive or' operation.
+        """
+        return self.execute_method("__xor__", other)
+
+    def __rxor__(self, other: Any) -> BoolFeature:
+        """Performs right boolean 'exclusive or' operation ('^').
+
+        Args:
+            other (Any): The boolean value to perform the 'exclusive or' operation with.
+
+        Returns:
+            BoolFeature: A new :class:`BoolFeature` resulting from the right 'exclusive or'
+            operation.
+        """
+        return self.execute_method("__rxor__", other)
+
+    def __ixor__(self, other: Any) -> BoolFeature:
+        """Performs in-place boolean 'exclusive or' operation ('^=').
+
+        Args:
+            other (Any): The boolean value to perform the 'exclusive or' operation with.
+
+        Returns:
+            BoolFeature: The updated :class:`BoolFeature` after the in-place 'exclusive or'
+            operation.
+        """
+        return self.execute_method("__ixor__", other)
+
+
+class StringFeature(PrimitiveFeature):
     """A primitive feature representing a string value."""
 
     _expected_dtype: Final[types.Type] = types.StringType
+
+    def __add__(self, other: Any) -> StringFeature:
+        """Performs string concatenation ('+').
+
+        Args:
+            other (Any): The value to concatenate to this string.
+
+        Returns:
+            StringFeature: A new :class:`StringFeature` resulting from the concatenation.
+        """
+        return self.execute_method("__add__", other)
+
+    def __radd__(self, other: Any) -> StringFeature:
+        """Performs right string concatenation ('+').
+
+        Args:
+            other (Any): The value to concatenate to this string.
+
+        Returns:
+            StringFeature: A new :class:`StringFeature` resulting from the concatenation.
+        """
+        return self.execute_method("__radd__", other)
+
+    def __iadd__(self, other: Any) -> StringFeature:
+        """Performs in-place string concatenation ('+=').
+
+        Args:
+            other (Any): The value to concatenate to this string.
+
+        Returns:
+            StringFeature: The updated :class:`StringFeature` after concatenation.
+        """
+        return self.execute_method("__iadd__", other)
+
+    def __mul__(self, other: Any) -> StringFeature:
+        """Performs string repetition ('*').
+
+        Args:
+            other (Any): The number of repetitions.
+
+        Returns:
+            StringFeature: A new :class:`StringFeature` with the repeated string.
+        """
+        return self.execute_method("__mul__", other)
+
+    def __rmul__(self, other: Any) -> StringFeature:
+        """Performs right string repetition ('*').
+
+        Args:
+            other (Any): The number of repetitions.
+
+        Returns:
+            StringFeature: A new :class:`StringFeature` with the repeated string.
+        """
+        return self.execute_method("__rmul__", other)
+
+    def __imul__(self, other: Any) -> StringFeature:
+        """Performs in-place string repetition ('*=').
+
+        Args:
+            other (Any): The number of repetitions.
+
+        Returns:
+            StringFeature: The updated :class:`StringFeature` after repetition.
+        """
+        return self.execute_method("__imul__", other)
+
+    def __getitem__(self, idx: int | slice) -> StringFeature:
+        """Performs string slicing or indexing ('[]').
+
+        Args:
+            idx (int | slice): The index or slice to extract from the string.
+
+        Returns:
+            StringFeature: A new :class:`StringFeature` representing the sliced or indexed value.
+        """
+        return self.execute_method("__getitem__", idx)
+
+    def __setitem__(self, idx: int | slice, replacement: Any) -> None:
+        """Sets a substring or slice ('[] =').
+
+        Args:
+            idx (int | slice): The index or slice to replace in the string.
+            replacement (Any): The replacement value.
+
+        Returns:
+            None
+        """
+        self.ref = self.execute_method("__setitem__", idx, replacement).ref
+
+    def upper(self) -> StringFeature:
+        """Converts the string to uppercase.
+
+        Returns:
+            StringFeature: A new :class:`StringFeature` with all characters in uppercase.
+        """
+        return self.execute_method("upper")
+
+    def lower(self) -> StringFeature:
+        """Converts the string to lowercase.
+
+        Returns:
+            StringFeature: A new :class:`StringFeature` with all characters in lowercase.
+        """
+        return self.execute_method("lower")
+
+    def capitalize(self) -> StringFeature:
+        """Capitalizes the string (first character uppercase, others lowercase).
+
+        Returns:
+            StringFeature: A new :class:`StringFeature` with the string capitalized.
+        """
+        return self.execute_method("capitalize")
+
+    def title(self) -> StringFeature:
+        """Converts the string to title case.
+
+        Returns:
+            StringFeature: A new :class:`StringFeature` with each word capitalized.
+        """
+        return self.execute_method("title")
+
+    def swapcase(self) -> StringFeature:
+        """Swaps the case of all characters in the string.
+
+        Returns:
+            StringFeature: A new :class:`StringFeature` with case-swapped characters.
+        """
+        return self.execute_method("swapcase")
+
+    def startswith(self, pattern: str) -> BoolFeature:
+        """Checks if the string starts with the specified pattern.
+
+        Args:
+            pattern (str): The prefix to check for.
+
+        Returns:
+            BoolFeature: True if the string starts with the pattern, otherwise False.
+        """
+        return self.execute_method("startswith", pattern)
+
+    def endswith(self, pattern: str) -> BoolFeature:
+        """Checks if the string ends with the specified pattern.
+
+        Args:
+            pattern (str): The suffix to check for.
+
+        Returns:
+            BoolFeature: True if the string ends with the pattern, otherwise False.
+        """
+        return self.execute_method("endswith", pattern)
+
+    def replace(self, pattern: str, replacement: str) -> StringFeature:
+        """Replaces occurrences of a pattern with a replacement string.
+
+        Args:
+            pattern (str): The substring to replace.
+            replacement (str): The replacement string.
+
+        Returns:
+            StringFeature: A new :class:`StringFeature` with replacements applied.
+        """
+        return self.execute_method("replace", pattern, replacement)
+
+    def find(self, pattern: str) -> Int32Feature:
+        """Finds the first occurrence of a pattern in the string.
+
+        Note that the resulting index presents the index of the first occurance of the
+        pattern in the string **in bytes**. It give unexpected results depending on the
+        string encoding.
+
+        Args:
+            pattern (str): The substring to search for.
+
+        Returns:
+            Int32Feature: The index of the first occurrence of the pattern, in bytes, or -1 if
+            not found.
+        """
+        return self.execute_method("find", pattern)
+
+    def split(
+        self, pattern: str = " ", maxsplits: None | int = None
+    ) -> SequenceFeature[StringFeature]:
+        """Splits the string by a delimiter.
+
+        Args:
+            pattern (str): The delimiter to split on. Defaults to a space.
+            maxsplits (None | int): The maximum number of splits to perform. Defaults to None.
+
+        Returns:
+            SequenceFeature[StringFeature]: A sequence of substrings resulting from the split.
+        """
+        return self.execute_method("split", pattern, maxsplits, False)
+
+    def rsplit(
+        self, pattern: str = " ", maxsplits: None | int = None
+    ) -> SequenceFeature[StringFeature]:
+        """Splits the string by a delimiter from the right.
+
+        Args:
+            pattern (str): The delimiter to split on. Defaults to a space.
+            maxsplits (None | int): The maximum number of splits to perform. Defaults to None.
+
+        Returns:
+            SequenceFeature[StringFeature]: A sequence of substrings resulting from the split.
+        """
+        return self.execute_method("split", pattern, maxsplits, True)
+
+    def strip(self, characters: str = " ") -> StringFeature:
+        """Strips leading and trailing characters from the string.
+
+        Args:
+            characters (str): The characters to strip. Defaults to whitespace.
+
+        Returns:
+            StringFeature: A new :class:`StringFeature` with stripped characters.
+        """
+        return self.execute_method("strip", characters)
+
+    def lstrip(self, characters: str = " ") -> StringFeature:
+        """Strips leading characters from the string.
+
+        Args:
+            characters (str): The characters to strip. Defaults to whitespace.
+
+        Returns:
+            StringFeature: A new :class:`StringFeature` with leading characters stripped.
+        """
+        return self.execute_method("lstrip", characters)
+
+    def rstrip(self, characters: str = " ") -> StringFeature:
+        """Strips trailing characters from the string.
+
+        Args:
+            characters (str): The characters to strip. Defaults to whitespace.
+
+        Returns:
+            StringFeature: A new :class:`StringFeature` with trailing characters stripped.
+        """
+        return self.execute_method("rstrip", characters)
+
+    def format(self, *args: Any, **kwargs: Any) -> StringFeature:
+        """Formats the string using provided positional and keyword arguments.
+
+        Args:
+            *args (Any): Positional arguments for formatting.
+            **kwargs (Any): Keyword arguments for formatting.
+
+        Returns:
+            StringFeature: The formatted string feature.
+        """
+        return self.execute_method("format", *args, **kwargs)
 
 
 class Int8Feature(
@@ -323,7 +679,7 @@ class Float64Feature(
 T = TypeVar("T")
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(eq=True, frozen=False)
 class SequenceFeature(typing.Sequence[T], Feature):
     """A feature representing a sequence of items.
 
@@ -454,7 +810,7 @@ class SequenceFeature(typing.Sequence[T], Feature):
         )
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(eq=True, frozen=False)
 class _MappingFeature(typing.Mapping, Feature):
     """A base class for defining strongly-typed mappings.
 

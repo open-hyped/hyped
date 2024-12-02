@@ -78,7 +78,7 @@ class PrimitiveType(Type):
 BoolType = PrimitiveType(pa.bool_())
 """Boolean type."""
 
-StringType = PrimitiveType(pa.string())
+StringType = PrimitiveType(pa.utf8())
 """String type."""
 
 # Signed Integer Types
