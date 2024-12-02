@@ -520,10 +520,6 @@ class Int8Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __add__(self, other: Float16Feature) -> Float16Feature:
-        ...
-
-    @overload
     def __add__(self, other: Float32Feature) -> Float32Feature:
         ...
 
@@ -594,10 +590,6 @@ class Int8Feature(PrimitiveFeature):
 
     @overload
     def __sub__(self, other: UInt64Feature) -> Int64Feature:
-        ...
-
-    @overload
-    def __sub__(self, other: Float16Feature) -> Float16Feature:
         ...
 
     @overload
@@ -675,10 +667,6 @@ class Int8Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __mul__(self, other: Float16Feature) -> Float16Feature:
-        ...
-
-    @overload
     def __mul__(self, other: Float32Feature) -> Float32Feature:
         ...
 
@@ -734,10 +722,6 @@ class Int8Feature(PrimitiveFeature):
             | UInt64Feature
         ),
     ) -> Float64Feature:
-        ...
-
-    @overload
-    def __truediv__(self, other: Float16Feature) -> Float16Feature:
         ...
 
     @overload
@@ -813,10 +797,6 @@ class Int8Feature(PrimitiveFeature):
 
     @overload
     def __floordiv__(self, other: UInt64Feature) -> Int64Feature:
-        ...
-
-    @overload
-    def __floordiv__(self, other: Float16Feature) -> Int64Feature:
         ...
 
     @overload
@@ -917,10 +897,6 @@ class Int16Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __add__(self, other: Float16Feature) -> Float16Feature:
-        ...
-
-    @overload
     def __add__(self, other: Float32Feature) -> Float32Feature:
         ...
 
@@ -991,10 +967,6 @@ class Int16Feature(PrimitiveFeature):
 
     @overload
     def __sub__(self, other: UInt64Feature) -> Int64Feature:
-        ...
-
-    @overload
-    def __sub__(self, other: Float16Feature) -> Float16Feature:
         ...
 
     @overload
@@ -1072,10 +1044,6 @@ class Int16Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __mul__(self, other: Float16Feature) -> Float16Feature:
-        ...
-
-    @overload
     def __mul__(self, other: Float32Feature) -> Float32Feature:
         ...
 
@@ -1131,10 +1099,6 @@ class Int16Feature(PrimitiveFeature):
             | UInt64Feature
         ),
     ) -> Float64Feature:
-        ...
-
-    @overload
-    def __truediv__(self, other: Float16Feature) -> Float16Feature:
         ...
 
     @overload
@@ -1210,10 +1174,6 @@ class Int16Feature(PrimitiveFeature):
 
     @overload
     def __floordiv__(self, other: UInt64Feature) -> Int64Feature:
-        ...
-
-    @overload
-    def __floordiv__(self, other: Float16Feature) -> Int64Feature:
         ...
 
     @overload
@@ -1314,10 +1274,6 @@ class Int32Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __add__(self, other: Float16Feature) -> Float16Feature:
-        ...
-
-    @overload
     def __add__(self, other: Float32Feature) -> Float32Feature:
         ...
 
@@ -1388,10 +1344,6 @@ class Int32Feature(PrimitiveFeature):
 
     @overload
     def __sub__(self, other: UInt64Feature) -> Int64Feature:
-        ...
-
-    @overload
-    def __sub__(self, other: Float16Feature) -> Float16Feature:
         ...
 
     @overload
@@ -1469,10 +1421,6 @@ class Int32Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __mul__(self, other: Float16Feature) -> Float16Feature:
-        ...
-
-    @overload
     def __mul__(self, other: Float32Feature) -> Float32Feature:
         ...
 
@@ -1528,10 +1476,6 @@ class Int32Feature(PrimitiveFeature):
             | UInt64Feature
         ),
     ) -> Float64Feature:
-        ...
-
-    @overload
-    def __truediv__(self, other: Float16Feature) -> Float16Feature:
         ...
 
     @overload
@@ -1607,10 +1551,6 @@ class Int32Feature(PrimitiveFeature):
 
     @overload
     def __floordiv__(self, other: UInt64Feature) -> Int64Feature:
-        ...
-
-    @overload
-    def __floordiv__(self, other: Float16Feature) -> Int64Feature:
         ...
 
     @overload
@@ -1711,10 +1651,6 @@ class Int64Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __add__(self, other: Float16Feature) -> Float16Feature:
-        ...
-
-    @overload
     def __add__(self, other: Float32Feature) -> Float32Feature:
         ...
 
@@ -1785,10 +1721,6 @@ class Int64Feature(PrimitiveFeature):
 
     @overload
     def __sub__(self, other: UInt64Feature) -> Int64Feature:
-        ...
-
-    @overload
-    def __sub__(self, other: Float16Feature) -> Float16Feature:
         ...
 
     @overload
@@ -1866,10 +1798,6 @@ class Int64Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __mul__(self, other: Float16Feature) -> Float16Feature:
-        ...
-
-    @overload
     def __mul__(self, other: Float32Feature) -> Float32Feature:
         ...
 
@@ -1925,10 +1853,6 @@ class Int64Feature(PrimitiveFeature):
             | UInt64Feature
         ),
     ) -> Float64Feature:
-        ...
-
-    @overload
-    def __truediv__(self, other: Float16Feature) -> Float16Feature:
         ...
 
     @overload
@@ -2004,10 +1928,6 @@ class Int64Feature(PrimitiveFeature):
 
     @overload
     def __floordiv__(self, other: UInt64Feature) -> Int64Feature:
-        ...
-
-    @overload
-    def __floordiv__(self, other: Float16Feature) -> Int64Feature:
         ...
 
     @overload
@@ -2108,10 +2028,6 @@ class UInt8Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __add__(self, other: Float16Feature) -> Float16Feature:
-        ...
-
-    @overload
     def __add__(self, other: Float32Feature) -> Float32Feature:
         ...
 
@@ -2182,10 +2098,6 @@ class UInt8Feature(PrimitiveFeature):
 
     @overload
     def __sub__(self, other: UInt64Feature) -> UInt64Feature:
-        ...
-
-    @overload
-    def __sub__(self, other: Float16Feature) -> Float16Feature:
         ...
 
     @overload
@@ -2263,10 +2175,6 @@ class UInt8Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __mul__(self, other: Float16Feature) -> Float16Feature:
-        ...
-
-    @overload
     def __mul__(self, other: Float32Feature) -> Float32Feature:
         ...
 
@@ -2322,10 +2230,6 @@ class UInt8Feature(PrimitiveFeature):
             | UInt64Feature
         ),
     ) -> Float64Feature:
-        ...
-
-    @overload
-    def __truediv__(self, other: Float16Feature) -> Float16Feature:
         ...
 
     @overload
@@ -2401,10 +2305,6 @@ class UInt8Feature(PrimitiveFeature):
 
     @overload
     def __floordiv__(self, other: UInt64Feature) -> UInt64Feature:
-        ...
-
-    @overload
-    def __floordiv__(self, other: Float16Feature) -> Int64Feature:
         ...
 
     @overload
@@ -2505,10 +2405,6 @@ class UInt16Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __add__(self, other: Float16Feature) -> Float16Feature:
-        ...
-
-    @overload
     def __add__(self, other: Float32Feature) -> Float32Feature:
         ...
 
@@ -2579,10 +2475,6 @@ class UInt16Feature(PrimitiveFeature):
 
     @overload
     def __sub__(self, other: UInt64Feature) -> UInt64Feature:
-        ...
-
-    @overload
-    def __sub__(self, other: Float16Feature) -> Float16Feature:
         ...
 
     @overload
@@ -2660,10 +2552,6 @@ class UInt16Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __mul__(self, other: Float16Feature) -> Float16Feature:
-        ...
-
-    @overload
     def __mul__(self, other: Float32Feature) -> Float32Feature:
         ...
 
@@ -2719,10 +2607,6 @@ class UInt16Feature(PrimitiveFeature):
             | UInt64Feature
         ),
     ) -> Float64Feature:
-        ...
-
-    @overload
-    def __truediv__(self, other: Float16Feature) -> Float16Feature:
         ...
 
     @overload
@@ -2798,10 +2682,6 @@ class UInt16Feature(PrimitiveFeature):
 
     @overload
     def __floordiv__(self, other: UInt64Feature) -> UInt64Feature:
-        ...
-
-    @overload
-    def __floordiv__(self, other: Float16Feature) -> Int64Feature:
         ...
 
     @overload
@@ -2902,10 +2782,6 @@ class UInt32Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __add__(self, other: Float16Feature) -> Float16Feature:
-        ...
-
-    @overload
     def __add__(self, other: Float32Feature) -> Float32Feature:
         ...
 
@@ -2976,10 +2852,6 @@ class UInt32Feature(PrimitiveFeature):
 
     @overload
     def __sub__(self, other: UInt64Feature) -> UInt64Feature:
-        ...
-
-    @overload
-    def __sub__(self, other: Float16Feature) -> Float16Feature:
         ...
 
     @overload
@@ -3057,10 +2929,6 @@ class UInt32Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __mul__(self, other: Float16Feature) -> Float16Feature:
-        ...
-
-    @overload
     def __mul__(self, other: Float32Feature) -> Float32Feature:
         ...
 
@@ -3116,10 +2984,6 @@ class UInt32Feature(PrimitiveFeature):
             | UInt64Feature
         ),
     ) -> Float64Feature:
-        ...
-
-    @overload
-    def __truediv__(self, other: Float16Feature) -> Float16Feature:
         ...
 
     @overload
@@ -3195,10 +3059,6 @@ class UInt32Feature(PrimitiveFeature):
 
     @overload
     def __floordiv__(self, other: UInt64Feature) -> UInt64Feature:
-        ...
-
-    @overload
-    def __floordiv__(self, other: Float16Feature) -> Int64Feature:
         ...
 
     @overload
@@ -3299,10 +3159,6 @@ class UInt64Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __add__(self, other: Float16Feature) -> Float16Feature:
-        ...
-
-    @overload
     def __add__(self, other: Float32Feature) -> Float32Feature:
         ...
 
@@ -3373,10 +3229,6 @@ class UInt64Feature(PrimitiveFeature):
 
     @overload
     def __sub__(self, other: UInt64Feature) -> UInt64Feature:
-        ...
-
-    @overload
-    def __sub__(self, other: Float16Feature) -> Float16Feature:
         ...
 
     @overload
@@ -3454,10 +3306,6 @@ class UInt64Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __mul__(self, other: Float16Feature) -> Float16Feature:
-        ...
-
-    @overload
     def __mul__(self, other: Float32Feature) -> Float32Feature:
         ...
 
@@ -3513,10 +3361,6 @@ class UInt64Feature(PrimitiveFeature):
             | UInt64Feature
         ),
     ) -> Float64Feature:
-        ...
-
-    @overload
-    def __truediv__(self, other: Float16Feature) -> Float16Feature:
         ...
 
     @overload
@@ -3595,10 +3439,6 @@ class UInt64Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __floordiv__(self, other: Float16Feature) -> Int64Feature:
-        ...
-
-    @overload
     def __floordiv__(self, other: Float32Feature) -> Int64Feature:
         ...
 
@@ -3642,22 +3482,472 @@ class UInt64Feature(PrimitiveFeature):
         return self.get_method("__floordiv__")(other, self)
 
 
-class Float16Feature(PrimitiveFeature):
-    """A primitive feature representing a 16-bit floating-point number."""
-
-    _expected_dtype: Final[types.Type] = types.Float16Type
-
-
 class Float32Feature(PrimitiveFeature):
     """A primitive feature representing a 32-bit floating-point number."""
 
     _expected_dtype: Final[types.Type] = types.Float32Type
+
+    def __abs__(self) -> Float32Feature:
+        """Performs the absolute value operation ('abs').
+
+        Returns:
+            Float32Feature: A new feature representing the absolute value of the original feature.
+        """
+        return self.execute_method("__abs__")
+
+    def __neg__(self) -> Float32Feature:
+        """Performs the negation operation ('-').
+
+        Returns:
+            Float32Feature: A new feature representing the negated value of the original feature.
+        """
+        return self.execute_method("__neg__")
+
+    @overload
+    def __add__(self, other: Float32Feature) -> Float32Feature:
+        ...
+
+    @overload
+    def __add__(self, other: Float64Feature) -> Float64Feature:
+        ...
+
+    @overload
+    def __add__(
+        self,
+        other: (
+            Int8Feature
+            | Int16Feature
+            | Int32Feature
+            | Int64Feature
+            | UInt8Feature
+            | UInt16Feature
+            | UInt32Feature
+            | UInt64Feature
+            | int
+            | float
+        ),
+    ) -> Float32Feature:
+        ...
+
+    def __add__(self, other: Any) -> Feature:
+        """Performs addition operation ('+').
+
+        Returns:
+            Feature: A new feature representing the sum of the original features.
+        """
+        return self.execute_method("__add__", other)
+
+    def __radd__(self, other: int | float) -> Float32Feature:
+        """Performs right addition operation with constant ('+').
+
+        Returns:
+            Feature: A new feature representing the sum of the original features.
+        """
+        return self.execute_method("__add__", other)
+
+    @overload
+    def __sub__(self, other: Float32Feature) -> Float32Feature:
+        ...
+
+    @overload
+    def __sub__(self, other: Float64Feature) -> Float64Feature:
+        ...
+
+    @overload
+    def __sub__(
+        self,
+        other: (
+            Int8Feature
+            | Int16Feature
+            | Int32Feature
+            | Int64Feature
+            | UInt8Feature
+            | UInt16Feature
+            | UInt32Feature
+            | UInt64Feature
+            | int
+            | float
+        ),
+    ) -> Float32Feature:
+        ...
+
+    def __sub__(self, other: Any) -> Feature:
+        """Performs subtraction operation ('-').
+
+        Returns:
+            Feature: A new feature representing the difference of the original features.
+        """
+        return self.execute_method("__sub__", other)
+
+    @overload
+    def __rsub__(self, other: int) -> Float32Feature:
+        ...
+
+    @overload
+    def __rsub__(self, other: float) -> Float64Feature:
+        ...
+
+    def __rsub__(self, other: int | float) -> Feature:
+        """Performs right subtraction operation with constant ('-').
+
+        Returns:
+            Feature: A new feature representing the difference of the original features.
+        """
+        return self.get_method("__sub__")(other, self)
+
+    @overload
+    def __mul__(self, other: Float32Feature) -> Float32Feature:
+        ...
+
+    @overload
+    def __mul__(self, other: Float64Feature) -> Float64Feature:
+        ...
+
+    @overload
+    def __mul__(
+        self,
+        other: (
+            Int8Feature
+            | Int16Feature
+            | Int32Feature
+            | Int64Feature
+            | UInt8Feature
+            | UInt16Feature
+            | UInt32Feature
+            | UInt64Feature
+            | int
+            | float
+        ),
+    ) -> Float32Feature:
+        ...
+
+    def __mul__(self, other: Any) -> Feature:
+        """Performs multiplication operation ('*').
+
+        Returns:
+            Feature: A new feature representing the product of the original features.
+        """
+        return self.execute_method("__mul__", other)
+
+    def __rmul__(self, other: int | float) -> Float32Feature:
+        """Performs right multiplication operation with constant ('*').
+
+        Returns:
+            Feature: A new feature representing the product of the original features.
+        """
+        return self.execute_method("__mul__", other)
+
+    @overload
+    def __truediv__(self, other: Float32Feature) -> Float32Feature:
+        ...
+
+    @overload
+    def __truediv__(self, other: Float64Feature) -> Float64Feature:
+        ...
+
+    @overload
+    def __truediv__(
+        self,
+        other: (
+            Int8Feature
+            | Int16Feature
+            | Int32Feature
+            | Int64Feature
+            | UInt8Feature
+            | UInt16Feature
+            | UInt32Feature
+            | UInt64Feature
+            | int
+            | float
+        ),
+    ) -> Float32Feature:
+        ...
+
+    def __truediv__(self, other: Any) -> Feature:
+        """Performs true division operation ('/').
+
+        Returns:
+            Feature: A new feature representing the quotient of the original features.
+        """
+        return self.execute_method("__truediv__", other)
+
+    @overload
+    def __rtruediv__(self, other: int) -> Float32Feature:
+        ...
+
+    @overload
+    def __rtruediv__(self, other: float) -> Float64Feature:
+        ...
+
+    def __rtruediv__(self, other: int | float) -> Float32Feature | Float64Feature:
+        """Performs true true right division operation with constant ('/').
+
+        Returns:
+            Feature: A new feature representing the quotient of the original features.
+        """
+        return self.get_method("__truediv__")(other, self)
+
+    def __floordiv__(
+        self,
+        other: (
+            Int8Feature
+            | Int16Feature
+            | Int32Feature
+            | Int64Feature
+            | UInt8Feature
+            | UInt16Feature
+            | UInt32Feature
+            | UInt64Feature
+            | Float32Feature
+            | Float64Feature
+            | int
+            | float
+        ),
+    ) -> Int64Feature:
+        """Performs floor division operation ('//').
+
+        Returns:
+            Int64Feature: A new feature representing the integer quotient of the original features.
+        """
+        return self.execute_method("__floordiv__", other)
+
+    def __rfloordiv__(self, other: int | float) -> Int64Feature:
+        """Performs true right floor division operation with constant ('//').
+
+        Returns:
+            Feature: A new feature representing the integer quotient of the original features.
+        """
+        return self.get_method("__floordiv__")(other, self)
 
 
 class Float64Feature(PrimitiveFeature):
     """A primitive feature representing a 64-bit floating-point number."""
 
     _expected_dtype: Final[types.Type] = types.Float64Type
+
+    def __abs__(self) -> Float64Feature:
+        """Performs the absolute value operation ('abs').
+
+        Returns:
+            Float64Feature: A new feature representing the absolute value of the original feature.
+        """
+        return self.execute_method("__abs__")
+
+    def __neg__(self) -> Float64Feature:
+        """Performs the negation operation ('-').
+
+        Returns:
+            Float64Feature: A new feature representing the negated value of the original feature.
+        """
+        return self.execute_method("__neg__")
+
+    @overload
+    def __add__(self, other: Float32Feature) -> Float64Feature:
+        ...
+
+    @overload
+    def __add__(self, other: Float64Feature) -> Float64Feature:
+        ...
+
+    @overload
+    def __add__(
+        self,
+        other: (
+            Int8Feature
+            | Int16Feature
+            | Int32Feature
+            | Int64Feature
+            | UInt8Feature
+            | UInt16Feature
+            | UInt32Feature
+            | UInt64Feature
+            | int
+            | float
+        ),
+    ) -> Float64Feature:
+        ...
+
+    def __add__(self, other: Any) -> Feature:
+        """Performs addition operation ('+').
+
+        Returns:
+            Feature: A new feature representing the sum of the original features.
+        """
+        return self.execute_method("__add__", other)
+
+    def __radd__(self, other: int | float) -> Float64Feature:
+        """Performs right addition operation with constant ('+').
+
+        Returns:
+            Feature: A new feature representing the sum of the original features.
+        """
+        return self.execute_method("__add__", other)
+
+    @overload
+    def __sub__(self, other: Float32Feature) -> Float64Feature:
+        ...
+
+    @overload
+    def __sub__(self, other: Float64Feature) -> Float64Feature:
+        ...
+
+    @overload
+    def __sub__(
+        self,
+        other: (
+            Int8Feature
+            | Int16Feature
+            | Int32Feature
+            | Int64Feature
+            | UInt8Feature
+            | UInt16Feature
+            | UInt32Feature
+            | UInt64Feature
+            | int
+            | float
+        ),
+    ) -> Float64Feature:
+        ...
+
+    def __sub__(self, other: Any) -> Feature:
+        """Performs subtraction operation ('-').
+
+        Returns:
+            Feature: A new feature representing the difference of the original features.
+        """
+        return self.execute_method("__sub__", other)
+
+    @overload
+    def __rsub__(self, other: int) -> Float64Feature:
+        ...
+
+    @overload
+    def __rsub__(self, other: float) -> Float64Feature:
+        ...
+
+    def __rsub__(self, other: int | float) -> Feature:
+        """Performs right subtraction operation with constant ('-').
+
+        Returns:
+            Feature: A new feature representing the difference of the original features.
+        """
+        return self.get_method("__sub__")(other, self)
+
+    @overload
+    def __mul__(self, other: Float32Feature) -> Float64Feature:
+        ...
+
+    @overload
+    def __mul__(self, other: Float64Feature) -> Float64Feature:
+        ...
+
+    @overload
+    def __mul__(
+        self,
+        other: (
+            Int8Feature
+            | Int16Feature
+            | Int32Feature
+            | Int64Feature
+            | UInt8Feature
+            | UInt16Feature
+            | UInt32Feature
+            | UInt64Feature
+            | int
+            | float
+        ),
+    ) -> Float64Feature:
+        ...
+
+    def __mul__(self, other: Any) -> Feature:
+        """Performs multiplication operation ('*').
+
+        Returns:
+            Feature: A new feature representing the product of the original features.
+        """
+        return self.execute_method("__mul__", other)
+
+    def __rmul__(self, other: int | float) -> Float64Feature:
+        """Performs right multiplication operation with constant ('*').
+
+        Returns:
+            Feature: A new feature representing the product of the original features.
+        """
+        return self.execute_method("__mul__", other)
+
+    @overload
+    def __truediv__(self, other: Float32Feature) -> Float64Feature:
+        ...
+
+    @overload
+    def __truediv__(self, other: Float64Feature) -> Float64Feature:
+        ...
+
+    @overload
+    def __truediv__(
+        self,
+        other: (
+            Int8Feature
+            | Int16Feature
+            | Int32Feature
+            | Int64Feature
+            | UInt8Feature
+            | UInt16Feature
+            | UInt32Feature
+            | UInt64Feature
+            | int
+            | float
+        ),
+    ) -> Float64Feature:
+        ...
+
+    def __truediv__(self, other: Any) -> Feature:
+        """Performs true division operation ('/').
+
+        Returns:
+            Feature: A new feature representing the quotient of the original features.
+        """
+        return self.execute_method("__truediv__", other)
+
+    def __rtruediv__(self, other: int | float) -> Float64Feature:
+        """Performs true true right division operation with constant ('/').
+
+        Returns:
+            Feature: A new feature representing the quotient of the original features.
+        """
+        return self.get_method("__truediv__")(other, self)
+
+    def __floordiv__(
+        self,
+        other: (
+            Int8Feature
+            | Int16Feature
+            | Int32Feature
+            | Int64Feature
+            | UInt8Feature
+            | UInt16Feature
+            | UInt32Feature
+            | UInt64Feature
+            | Float32Feature
+            | Float64Feature
+            | int
+            | float
+        ),
+    ) -> Int64Feature:
+        """Performs floor division operation ('//').
+
+        Returns:
+            Int64Feature: A new feature representing the integer quotient of the original features.
+        """
+        return self.execute_method("__floordiv__", other)
+
+    def __rfloordiv__(self, other: int | float) -> Int64Feature:
+        """Performs true right floor division operation with constant ('//').
+
+        Returns:
+            Feature: A new feature representing the integer quotient of the original features.
+        """
+        return self.get_method("__floordiv__")(other, self)
 
 
 T = TypeVar("T")
@@ -4051,7 +4341,6 @@ PRIMITIVE_FEATURE_MAPPING = {
     types.Int16Type: Int16Feature,
     types.Int32Type: Int32Feature,
     types.Int64Type: Int64Feature,
-    types.Float16Type: Float16Feature,
     types.Float32Type: Float32Feature,
     types.Float64Type: Float64Feature,
 }

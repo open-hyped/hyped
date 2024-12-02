@@ -14,7 +14,6 @@ import pyarrow.compute as pc
 
 from ..features.features import (
     Feature,
-    Float16Feature,
     Float32Feature,
     Float64Feature,
     Int8Feature,
@@ -218,8 +217,8 @@ class TrueDiv(BaseDataProcessor[TrueDivConfig]):
             lambda _, inputs, session: (
                 ScalarType
                 if (
-                    isinstance(inputs["x"], (Float16Feature, Float32Feature, Float64Feature))
-                    or isinstance(inputs["y"], (Float16Feature, Float32Feature, Float64Feature))
+                    isinstance(inputs["x"], (Float32Feature, Float64Feature))
+                    or isinstance(inputs["y"], (Float32Feature, Float64Feature))
                 )
                 else Float64Feature
             )
@@ -311,7 +310,6 @@ register_all(
         Int16Feature,
         Int32Feature,
         Int64Feature,
-        Float16Feature,
         Float32Feature,
         Float64Feature,
     ],
@@ -340,7 +338,6 @@ register_all(
         UInt16Feature,
         UInt32Feature,
         UInt64Feature,
-        Float16Feature,
         Float32Feature,
         Float64Feature,
     ],
@@ -357,7 +354,6 @@ register_all(
         UInt16Feature,
         UInt32Feature,
         UInt64Feature,
-        Float16Feature,
         Float32Feature,
         Float64Feature,
     ],
@@ -374,7 +370,6 @@ register_all(
         UInt16Feature,
         UInt32Feature,
         UInt64Feature,
-        Float16Feature,
         Float32Feature,
         Float64Feature,
     ],
@@ -391,7 +386,6 @@ register_all(
         UInt16Feature,
         UInt32Feature,
         UInt64Feature,
-        Float16Feature,
         Float32Feature,
         Float64Feature,
     ],
@@ -408,7 +402,6 @@ register_all(
         UInt16Feature,
         UInt32Feature,
         UInt64Feature,
-        Float16Feature,
         Float32Feature,
         Float64Feature,
     ],
@@ -425,7 +418,6 @@ register_all(
         UInt16Feature,
         UInt32Feature,
         UInt64Feature,
-        Float16Feature,
         Float32Feature,
         Float64Feature,
     ],

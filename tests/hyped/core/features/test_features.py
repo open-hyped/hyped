@@ -1,4 +1,5 @@
 import inspect
+from itertools import chain
 from typing import Any, Callable, Generic, TypeVar, get_overloads, get_type_hints
 from unittest.mock import MagicMock
 
@@ -8,7 +9,6 @@ import pytest
 from hyped.core.features.features import (
     BoolFeature,
     Feature,
-    Float16Feature,
     Float32Feature,
     Float64Feature,
     Int8Feature,
@@ -100,7 +100,6 @@ class TestPrimitiveFeatures:
             (Int8Feature, Int8Feature.__add__, "__add__", (UInt16Feature,), Int32Feature),
             (Int8Feature, Int8Feature.__add__, "__add__", (UInt32Feature,), Int64Feature),
             (Int8Feature, Int8Feature.__add__, "__add__", (UInt64Feature,), Int64Feature),
-            (Int8Feature, Int8Feature.__add__, "__add__", (Float16Feature,), Float16Feature),
             (Int8Feature, Int8Feature.__add__, "__add__", (Float32Feature,), Float32Feature),
             (Int8Feature, Int8Feature.__add__, "__add__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -117,7 +116,6 @@ class TestPrimitiveFeatures:
             (Int8Feature, Int8Feature.__sub__, "__sub__", (UInt16Feature,), Int32Feature),
             (Int8Feature, Int8Feature.__sub__, "__sub__", (UInt32Feature,), Int64Feature),
             (Int8Feature, Int8Feature.__sub__, "__sub__", (UInt64Feature,), Int64Feature),
-            (Int8Feature, Int8Feature.__sub__, "__sub__", (Float16Feature,), Float16Feature),
             (Int8Feature, Int8Feature.__sub__, "__sub__", (Float32Feature,), Float32Feature),
             (Int8Feature, Int8Feature.__sub__, "__sub__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -134,7 +132,6 @@ class TestPrimitiveFeatures:
             (Int8Feature, Int8Feature.__mul__, "__mul__", (UInt16Feature,), Int32Feature),
             (Int8Feature, Int8Feature.__mul__, "__mul__", (UInt32Feature,), Int64Feature),
             (Int8Feature, Int8Feature.__mul__, "__mul__", (UInt64Feature,), Int64Feature),
-            (Int8Feature, Int8Feature.__mul__, "__mul__", (Float16Feature,), Float16Feature),
             (Int8Feature, Int8Feature.__mul__, "__mul__", (Float32Feature,), Float32Feature),
             (Int8Feature, Int8Feature.__mul__, "__mul__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -151,13 +148,6 @@ class TestPrimitiveFeatures:
             (Int8Feature, Int8Feature.__truediv__, "__truediv__", (UInt16Feature,), Float64Feature),
             (Int8Feature, Int8Feature.__truediv__, "__truediv__", (UInt32Feature,), Float64Feature),
             (Int8Feature, Int8Feature.__truediv__, "__truediv__", (UInt64Feature,), Float64Feature),
-            (
-                Int8Feature,
-                Int8Feature.__truediv__,
-                "__truediv__",
-                (Float16Feature,),
-                Float16Feature,
-            ),
             (
                 Int8Feature,
                 Int8Feature.__truediv__,
@@ -189,13 +179,6 @@ class TestPrimitiveFeatures:
                 Int8Feature,
                 Int8Feature.__floordiv__,
                 "__floordiv__",
-                (Float16Feature,),
-                Int64Feature,
-            ),
-            (
-                Int8Feature,
-                Int8Feature.__floordiv__,
-                "__floordiv__",
                 (Float32Feature,),
                 Int64Feature,
             ),
@@ -223,7 +206,6 @@ class TestPrimitiveFeatures:
             (Int16Feature, Int16Feature.__add__, "__add__", (UInt16Feature,), Int32Feature),
             (Int16Feature, Int16Feature.__add__, "__add__", (UInt32Feature,), Int64Feature),
             (Int16Feature, Int16Feature.__add__, "__add__", (UInt64Feature,), Int64Feature),
-            (Int16Feature, Int16Feature.__add__, "__add__", (Float16Feature,), Float16Feature),
             (Int16Feature, Int16Feature.__add__, "__add__", (Float32Feature,), Float32Feature),
             (Int16Feature, Int16Feature.__add__, "__add__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -240,7 +222,6 @@ class TestPrimitiveFeatures:
             (Int16Feature, Int16Feature.__sub__, "__sub__", (UInt16Feature,), Int32Feature),
             (Int16Feature, Int16Feature.__sub__, "__sub__", (UInt32Feature,), Int64Feature),
             (Int16Feature, Int16Feature.__sub__, "__sub__", (UInt64Feature,), Int64Feature),
-            (Int16Feature, Int16Feature.__sub__, "__sub__", (Float16Feature,), Float16Feature),
             (Int16Feature, Int16Feature.__sub__, "__sub__", (Float32Feature,), Float32Feature),
             (Int16Feature, Int16Feature.__sub__, "__sub__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -257,7 +238,6 @@ class TestPrimitiveFeatures:
             (Int16Feature, Int16Feature.__mul__, "__mul__", (UInt16Feature,), Int32Feature),
             (Int16Feature, Int16Feature.__mul__, "__mul__", (UInt32Feature,), Int64Feature),
             (Int16Feature, Int16Feature.__mul__, "__mul__", (UInt64Feature,), Int64Feature),
-            (Int16Feature, Int16Feature.__mul__, "__mul__", (Float16Feature,), Float16Feature),
             (Int16Feature, Int16Feature.__mul__, "__mul__", (Float32Feature,), Float32Feature),
             (Int16Feature, Int16Feature.__mul__, "__mul__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -315,13 +295,6 @@ class TestPrimitiveFeatures:
                 "__truediv__",
                 (UInt64Feature,),
                 Float64Feature,
-            ),
-            (
-                Int16Feature,
-                Int16Feature.__truediv__,
-                "__truediv__",
-                (Float16Feature,),
-                Float16Feature,
             ),
             (
                 Int16Feature,
@@ -396,13 +369,6 @@ class TestPrimitiveFeatures:
                 Int16Feature,
                 Int16Feature.__floordiv__,
                 "__floordiv__",
-                (Float16Feature,),
-                Int64Feature,
-            ),
-            (
-                Int16Feature,
-                Int16Feature.__floordiv__,
-                "__floordiv__",
                 (Float32Feature,),
                 Int64Feature,
             ),
@@ -430,7 +396,6 @@ class TestPrimitiveFeatures:
             (Int32Feature, Int32Feature.__add__, "__add__", (UInt16Feature,), Int32Feature),
             (Int32Feature, Int32Feature.__add__, "__add__", (UInt32Feature,), Int64Feature),
             (Int32Feature, Int32Feature.__add__, "__add__", (UInt64Feature,), Int64Feature),
-            (Int32Feature, Int32Feature.__add__, "__add__", (Float16Feature,), Float16Feature),
             (Int32Feature, Int32Feature.__add__, "__add__", (Float32Feature,), Float32Feature),
             (Int32Feature, Int32Feature.__add__, "__add__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -447,7 +412,6 @@ class TestPrimitiveFeatures:
             (Int32Feature, Int32Feature.__sub__, "__sub__", (UInt16Feature,), Int32Feature),
             (Int32Feature, Int32Feature.__sub__, "__sub__", (UInt32Feature,), Int64Feature),
             (Int32Feature, Int32Feature.__sub__, "__sub__", (UInt64Feature,), Int64Feature),
-            (Int32Feature, Int32Feature.__sub__, "__sub__", (Float16Feature,), Float16Feature),
             (Int32Feature, Int32Feature.__sub__, "__sub__", (Float32Feature,), Float32Feature),
             (Int32Feature, Int32Feature.__sub__, "__sub__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -464,7 +428,6 @@ class TestPrimitiveFeatures:
             (Int32Feature, Int32Feature.__mul__, "__mul__", (UInt16Feature,), Int32Feature),
             (Int32Feature, Int32Feature.__mul__, "__mul__", (UInt32Feature,), Int64Feature),
             (Int32Feature, Int32Feature.__mul__, "__mul__", (UInt64Feature,), Int64Feature),
-            (Int32Feature, Int32Feature.__mul__, "__mul__", (Float16Feature,), Float16Feature),
             (Int32Feature, Int32Feature.__mul__, "__mul__", (Float32Feature,), Float32Feature),
             (Int32Feature, Int32Feature.__mul__, "__mul__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -522,13 +485,6 @@ class TestPrimitiveFeatures:
                 "__truediv__",
                 (UInt64Feature,),
                 Float64Feature,
-            ),
-            (
-                Int32Feature,
-                Int32Feature.__truediv__,
-                "__truediv__",
-                (Float16Feature,),
-                Float16Feature,
             ),
             (
                 Int32Feature,
@@ -603,13 +559,6 @@ class TestPrimitiveFeatures:
                 Int32Feature,
                 Int32Feature.__floordiv__,
                 "__floordiv__",
-                (Float16Feature,),
-                Int64Feature,
-            ),
-            (
-                Int32Feature,
-                Int32Feature.__floordiv__,
-                "__floordiv__",
                 (Float32Feature,),
                 Int64Feature,
             ),
@@ -637,7 +586,6 @@ class TestPrimitiveFeatures:
             (Int64Feature, Int64Feature.__add__, "__add__", (UInt16Feature,), Int64Feature),
             (Int64Feature, Int64Feature.__add__, "__add__", (UInt32Feature,), Int64Feature),
             (Int64Feature, Int64Feature.__add__, "__add__", (UInt64Feature,), Int64Feature),
-            (Int64Feature, Int64Feature.__add__, "__add__", (Float16Feature,), Float16Feature),
             (Int64Feature, Int64Feature.__add__, "__add__", (Float32Feature,), Float32Feature),
             (Int64Feature, Int64Feature.__add__, "__add__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -654,7 +602,6 @@ class TestPrimitiveFeatures:
             (Int64Feature, Int64Feature.__sub__, "__sub__", (UInt16Feature,), Int64Feature),
             (Int64Feature, Int64Feature.__sub__, "__sub__", (UInt32Feature,), Int64Feature),
             (Int64Feature, Int64Feature.__sub__, "__sub__", (UInt64Feature,), Int64Feature),
-            (Int64Feature, Int64Feature.__sub__, "__sub__", (Float16Feature,), Float16Feature),
             (Int64Feature, Int64Feature.__sub__, "__sub__", (Float32Feature,), Float32Feature),
             (Int64Feature, Int64Feature.__sub__, "__sub__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -671,7 +618,6 @@ class TestPrimitiveFeatures:
             (Int64Feature, Int64Feature.__mul__, "__mul__", (UInt16Feature,), Int64Feature),
             (Int64Feature, Int64Feature.__mul__, "__mul__", (UInt32Feature,), Int64Feature),
             (Int64Feature, Int64Feature.__mul__, "__mul__", (UInt64Feature,), Int64Feature),
-            (Int64Feature, Int64Feature.__mul__, "__mul__", (Float16Feature,), Float16Feature),
             (Int64Feature, Int64Feature.__mul__, "__mul__", (Float32Feature,), Float32Feature),
             (Int64Feature, Int64Feature.__mul__, "__mul__", (Float64Feature,), Float64Feature),
             (Int64Feature, Int64Feature.__mul__, "__mul__", (1,), Int64Feature),
@@ -728,13 +674,6 @@ class TestPrimitiveFeatures:
                 "__truediv__",
                 (UInt64Feature,),
                 Float64Feature,
-            ),
-            (
-                Int64Feature,
-                Int64Feature.__truediv__,
-                "__truediv__",
-                (Float16Feature,),
-                Float16Feature,
             ),
             (
                 Int64Feature,
@@ -809,13 +748,6 @@ class TestPrimitiveFeatures:
                 Int64Feature,
                 Int64Feature.__floordiv__,
                 "__floordiv__",
-                (Float16Feature,),
-                Int64Feature,
-            ),
-            (
-                Int64Feature,
-                Int64Feature.__floordiv__,
-                "__floordiv__",
                 (Float32Feature,),
                 Int64Feature,
             ),
@@ -843,7 +775,6 @@ class TestPrimitiveFeatures:
             (UInt8Feature, UInt8Feature.__add__, "__add__", (UInt16Feature,), UInt16Feature),
             (UInt8Feature, UInt8Feature.__add__, "__add__", (UInt32Feature,), UInt32Feature),
             (UInt8Feature, UInt8Feature.__add__, "__add__", (UInt64Feature,), UInt64Feature),
-            (UInt8Feature, UInt8Feature.__add__, "__add__", (Float16Feature,), Float16Feature),
             (UInt8Feature, UInt8Feature.__add__, "__add__", (Float32Feature,), Float32Feature),
             (UInt8Feature, UInt8Feature.__add__, "__add__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -860,7 +791,6 @@ class TestPrimitiveFeatures:
             (UInt8Feature, UInt8Feature.__sub__, "__sub__", (UInt16Feature,), UInt16Feature),
             (UInt8Feature, UInt8Feature.__sub__, "__sub__", (UInt32Feature,), UInt32Feature),
             (UInt8Feature, UInt8Feature.__sub__, "__sub__", (UInt64Feature,), UInt64Feature),
-            (UInt8Feature, UInt8Feature.__sub__, "__sub__", (Float16Feature,), Float16Feature),
             (UInt8Feature, UInt8Feature.__sub__, "__sub__", (Float32Feature,), Float32Feature),
             (UInt8Feature, UInt8Feature.__sub__, "__sub__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -877,7 +807,6 @@ class TestPrimitiveFeatures:
             (UInt8Feature, UInt8Feature.__mul__, "__mul__", (UInt16Feature,), UInt16Feature),
             (UInt8Feature, UInt8Feature.__mul__, "__mul__", (UInt32Feature,), UInt32Feature),
             (UInt8Feature, UInt8Feature.__mul__, "__mul__", (UInt64Feature,), UInt64Feature),
-            (UInt8Feature, UInt8Feature.__mul__, "__mul__", (Float16Feature,), Float16Feature),
             (UInt8Feature, UInt8Feature.__mul__, "__mul__", (Float32Feature,), Float32Feature),
             (UInt8Feature, UInt8Feature.__mul__, "__mul__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -935,13 +864,6 @@ class TestPrimitiveFeatures:
                 "__truediv__",
                 (UInt64Feature,),
                 Float64Feature,
-            ),
-            (
-                UInt8Feature,
-                UInt8Feature.__truediv__,
-                "__truediv__",
-                (Float16Feature,),
-                Float16Feature,
             ),
             (
                 UInt8Feature,
@@ -1016,13 +938,6 @@ class TestPrimitiveFeatures:
                 UInt8Feature,
                 UInt8Feature.__floordiv__,
                 "__floordiv__",
-                (Float16Feature,),
-                Int64Feature,
-            ),
-            (
-                UInt8Feature,
-                UInt8Feature.__floordiv__,
-                "__floordiv__",
                 (Float32Feature,),
                 Int64Feature,
             ),
@@ -1050,7 +965,6 @@ class TestPrimitiveFeatures:
             (UInt16Feature, UInt16Feature.__add__, "__add__", (UInt16Feature,), UInt16Feature),
             (UInt16Feature, UInt16Feature.__add__, "__add__", (UInt32Feature,), UInt32Feature),
             (UInt16Feature, UInt16Feature.__add__, "__add__", (UInt64Feature,), UInt64Feature),
-            (UInt16Feature, UInt16Feature.__add__, "__add__", (Float16Feature,), Float16Feature),
             (UInt16Feature, UInt16Feature.__add__, "__add__", (Float32Feature,), Float32Feature),
             (UInt16Feature, UInt16Feature.__add__, "__add__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -1067,7 +981,6 @@ class TestPrimitiveFeatures:
             (UInt16Feature, UInt16Feature.__sub__, "__sub__", (UInt16Feature,), UInt16Feature),
             (UInt16Feature, UInt16Feature.__sub__, "__sub__", (UInt32Feature,), UInt32Feature),
             (UInt16Feature, UInt16Feature.__sub__, "__sub__", (UInt64Feature,), UInt64Feature),
-            (UInt16Feature, UInt16Feature.__sub__, "__sub__", (Float16Feature,), Float16Feature),
             (UInt16Feature, UInt16Feature.__sub__, "__sub__", (Float32Feature,), Float32Feature),
             (UInt16Feature, UInt16Feature.__sub__, "__sub__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -1084,7 +997,6 @@ class TestPrimitiveFeatures:
             (UInt16Feature, UInt16Feature.__mul__, "__mul__", (UInt16Feature,), UInt16Feature),
             (UInt16Feature, UInt16Feature.__mul__, "__mul__", (UInt32Feature,), UInt32Feature),
             (UInt16Feature, UInt16Feature.__mul__, "__mul__", (UInt64Feature,), UInt64Feature),
-            (UInt16Feature, UInt16Feature.__mul__, "__mul__", (Float16Feature,), Float16Feature),
             (UInt16Feature, UInt16Feature.__mul__, "__mul__", (Float32Feature,), Float32Feature),
             (UInt16Feature, UInt16Feature.__mul__, "__mul__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -1148,13 +1060,6 @@ class TestPrimitiveFeatures:
                 "__truediv__",
                 (UInt64Feature,),
                 Float64Feature,
-            ),
-            (
-                UInt16Feature,
-                UInt16Feature.__truediv__,
-                "__truediv__",
-                (Float16Feature,),
-                Float16Feature,
             ),
             (
                 UInt16Feature,
@@ -1235,13 +1140,6 @@ class TestPrimitiveFeatures:
                 UInt16Feature,
                 UInt16Feature.__floordiv__,
                 "__floordiv__",
-                (Float16Feature,),
-                Int64Feature,
-            ),
-            (
-                UInt16Feature,
-                UInt16Feature.__floordiv__,
-                "__floordiv__",
                 (Float32Feature,),
                 Int64Feature,
             ),
@@ -1269,7 +1167,6 @@ class TestPrimitiveFeatures:
             (UInt32Feature, UInt32Feature.__add__, "__add__", (UInt16Feature,), UInt32Feature),
             (UInt32Feature, UInt32Feature.__add__, "__add__", (UInt32Feature,), UInt32Feature),
             (UInt32Feature, UInt32Feature.__add__, "__add__", (UInt64Feature,), UInt64Feature),
-            (UInt32Feature, UInt32Feature.__add__, "__add__", (Float16Feature,), Float16Feature),
             (UInt32Feature, UInt32Feature.__add__, "__add__", (Float32Feature,), Float32Feature),
             (UInt32Feature, UInt32Feature.__add__, "__add__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -1286,7 +1183,6 @@ class TestPrimitiveFeatures:
             (UInt32Feature, UInt32Feature.__sub__, "__sub__", (UInt16Feature,), UInt32Feature),
             (UInt32Feature, UInt32Feature.__sub__, "__sub__", (UInt32Feature,), UInt32Feature),
             (UInt32Feature, UInt32Feature.__sub__, "__sub__", (UInt64Feature,), UInt64Feature),
-            (UInt32Feature, UInt32Feature.__sub__, "__sub__", (Float16Feature,), Float16Feature),
             (UInt32Feature, UInt32Feature.__sub__, "__sub__", (Float32Feature,), Float32Feature),
             (UInt32Feature, UInt32Feature.__sub__, "__sub__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -1303,7 +1199,6 @@ class TestPrimitiveFeatures:
             (UInt32Feature, UInt32Feature.__mul__, "__mul__", (UInt16Feature,), UInt32Feature),
             (UInt32Feature, UInt32Feature.__mul__, "__mul__", (UInt32Feature,), UInt32Feature),
             (UInt32Feature, UInt32Feature.__mul__, "__mul__", (UInt64Feature,), UInt64Feature),
-            (UInt32Feature, UInt32Feature.__mul__, "__mul__", (Float16Feature,), Float16Feature),
             (UInt32Feature, UInt32Feature.__mul__, "__mul__", (Float32Feature,), Float32Feature),
             (UInt32Feature, UInt32Feature.__mul__, "__mul__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -1367,13 +1262,6 @@ class TestPrimitiveFeatures:
                 "__truediv__",
                 (UInt64Feature,),
                 Float64Feature,
-            ),
-            (
-                UInt32Feature,
-                UInt32Feature.__truediv__,
-                "__truediv__",
-                (Float16Feature,),
-                Float16Feature,
             ),
             (
                 UInt32Feature,
@@ -1454,13 +1342,6 @@ class TestPrimitiveFeatures:
                 UInt32Feature,
                 UInt32Feature.__floordiv__,
                 "__floordiv__",
-                (Float16Feature,),
-                Int64Feature,
-            ),
-            (
-                UInt32Feature,
-                UInt32Feature.__floordiv__,
-                "__floordiv__",
                 (Float32Feature,),
                 Int64Feature,
             ),
@@ -1488,7 +1369,6 @@ class TestPrimitiveFeatures:
             (UInt64Feature, UInt64Feature.__add__, "__add__", (UInt16Feature,), UInt64Feature),
             (UInt64Feature, UInt64Feature.__add__, "__add__", (UInt32Feature,), UInt64Feature),
             (UInt64Feature, UInt64Feature.__add__, "__add__", (UInt64Feature,), UInt64Feature),
-            (UInt64Feature, UInt64Feature.__add__, "__add__", (Float16Feature,), Float16Feature),
             (UInt64Feature, UInt64Feature.__add__, "__add__", (Float32Feature,), Float32Feature),
             (UInt64Feature, UInt64Feature.__add__, "__add__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -1505,7 +1385,6 @@ class TestPrimitiveFeatures:
             (UInt64Feature, UInt64Feature.__sub__, "__sub__", (UInt16Feature,), UInt64Feature),
             (UInt64Feature, UInt64Feature.__sub__, "__sub__", (UInt32Feature,), UInt64Feature),
             (UInt64Feature, UInt64Feature.__sub__, "__sub__", (UInt64Feature,), UInt64Feature),
-            (UInt64Feature, UInt64Feature.__sub__, "__sub__", (Float16Feature,), Float16Feature),
             (UInt64Feature, UInt64Feature.__sub__, "__sub__", (Float32Feature,), Float32Feature),
             (UInt64Feature, UInt64Feature.__sub__, "__sub__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -1522,7 +1401,6 @@ class TestPrimitiveFeatures:
             (UInt64Feature, UInt64Feature.__mul__, "__mul__", (UInt16Feature,), UInt64Feature),
             (UInt64Feature, UInt64Feature.__mul__, "__mul__", (UInt32Feature,), UInt64Feature),
             (UInt64Feature, UInt64Feature.__mul__, "__mul__", (UInt64Feature,), UInt64Feature),
-            (UInt64Feature, UInt64Feature.__mul__, "__mul__", (Float16Feature,), Float16Feature),
             (UInt64Feature, UInt64Feature.__mul__, "__mul__", (Float32Feature,), Float32Feature),
             (UInt64Feature, UInt64Feature.__mul__, "__mul__", (Float64Feature,), Float64Feature),
             # TODO: output type is not clear
@@ -1586,13 +1464,6 @@ class TestPrimitiveFeatures:
                 "__truediv__",
                 (UInt64Feature,),
                 Float64Feature,
-            ),
-            (
-                UInt64Feature,
-                UInt64Feature.__truediv__,
-                "__truediv__",
-                (Float16Feature,),
-                Float16Feature,
             ),
             (
                 UInt64Feature,
@@ -1673,13 +1544,6 @@ class TestPrimitiveFeatures:
                 UInt64Feature,
                 UInt64Feature.__floordiv__,
                 "__floordiv__",
-                (Float16Feature,),
-                Int64Feature,
-            ),
-            (
-                UInt64Feature,
-                UInt64Feature.__floordiv__,
-                "__floordiv__",
                 (Float32Feature,),
                 Int64Feature,
             ),
@@ -1695,6 +1559,422 @@ class TestPrimitiveFeatures:
             # TODO: output type is not clear
             (UInt64Feature, UInt64Feature.__rfloordiv__, "__floordiv__", (1,), Int64Feature),
             (UInt64Feature, UInt64Feature.__rfloordiv__, "__floordiv__", (1.2,), Int64Feature),
+            # float32 methods
+            (Float32Feature, Float32Feature.__abs__, "__abs__", tuple(), Float32Feature),
+            (Float32Feature, Float32Feature.__neg__, "__neg__", tuple(), Float32Feature),
+            # addition
+            (Float32Feature, Float32Feature.__add__, "__add__", (Float32Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__add__, "__add__", (Float32Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__add__, "__add__", (Float64Feature,), Float64Feature),
+            (Float32Feature, Float32Feature.__add__, "__add__", (Int8Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__add__, "__add__", (Int16Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__add__, "__add__", (Int32Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__add__, "__add__", (Int64Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__add__, "__add__", (UInt8Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__add__, "__add__", (UInt16Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__add__, "__add__", (UInt32Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__add__, "__add__", (UInt64Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__add__, "__add__", (1,), Float32Feature),
+            (Float32Feature, Float32Feature.__add__, "__add__", (1.2,), Float32Feature),
+            (Float32Feature, Float32Feature.__radd__, "__add__", (1,), Float32Feature),
+            (Float32Feature, Float32Feature.__radd__, "__add__", (1.2,), Float32Feature),
+            # subtraction
+            (Float32Feature, Float32Feature.__sub__, "__sub__", (Float32Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__sub__, "__sub__", (Float32Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__sub__, "__sub__", (Float64Feature,), Float64Feature),
+            (Float32Feature, Float32Feature.__sub__, "__sub__", (Int8Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__sub__, "__sub__", (Int16Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__sub__, "__sub__", (Int32Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__sub__, "__sub__", (Int64Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__sub__, "__sub__", (UInt8Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__sub__, "__sub__", (UInt16Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__sub__, "__sub__", (UInt32Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__sub__, "__sub__", (UInt64Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__sub__, "__sub__", (1,), Float32Feature),
+            (Float32Feature, Float32Feature.__sub__, "__sub__", (1.2,), Float32Feature),
+            (Float32Feature, Float32Feature.__rsub__, "__sub__", (1,), Float32Feature),
+            (Float32Feature, Float32Feature.__rsub__, "__sub__", (1.2,), Float64Feature),
+            # multiplication
+            (Float32Feature, Float32Feature.__mul__, "__mul__", (Float32Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__mul__, "__mul__", (Float32Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__mul__, "__mul__", (Float64Feature,), Float64Feature),
+            (Float32Feature, Float32Feature.__mul__, "__mul__", (Int8Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__mul__, "__mul__", (Int16Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__mul__, "__mul__", (Int32Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__mul__, "__mul__", (Int64Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__mul__, "__mul__", (UInt8Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__mul__, "__mul__", (UInt16Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__mul__, "__mul__", (UInt32Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__mul__, "__mul__", (UInt64Feature,), Float32Feature),
+            (Float32Feature, Float32Feature.__mul__, "__mul__", (1,), Float32Feature),
+            (Float32Feature, Float32Feature.__mul__, "__mul__", (1.2,), Float32Feature),
+            (Float32Feature, Float32Feature.__rmul__, "__mul__", (1,), Float32Feature),
+            (Float32Feature, Float32Feature.__rmul__, "__mul__", (1.2,), Float32Feature),
+            # true division
+            (
+                Float32Feature,
+                Float32Feature.__truediv__,
+                "__truediv__",
+                (Float32Feature,),
+                Float32Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__truediv__,
+                "__truediv__",
+                (Float32Feature,),
+                Float32Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__truediv__,
+                "__truediv__",
+                (Float64Feature,),
+                Float64Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__truediv__,
+                "__truediv__",
+                (Int8Feature,),
+                Float32Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__truediv__,
+                "__truediv__",
+                (Int16Feature,),
+                Float32Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__truediv__,
+                "__truediv__",
+                (Int32Feature,),
+                Float32Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__truediv__,
+                "__truediv__",
+                (Int64Feature,),
+                Float32Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__truediv__,
+                "__truediv__",
+                (UInt8Feature,),
+                Float32Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__truediv__,
+                "__truediv__",
+                (UInt16Feature,),
+                Float32Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__truediv__,
+                "__truediv__",
+                (UInt32Feature,),
+                Float32Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__truediv__,
+                "__truediv__",
+                (UInt64Feature,),
+                Float32Feature,
+            ),
+            (Float32Feature, Float32Feature.__truediv__, "__truediv__", (1,), Float32Feature),
+            (Float32Feature, Float32Feature.__truediv__, "__truediv__", (1.2,), Float32Feature),
+            (Float32Feature, Float32Feature.__rtruediv__, "__truediv__", (1,), Float32Feature),
+            (Float32Feature, Float32Feature.__rtruediv__, "__truediv__", (1.2,), Float64Feature),
+            # floor division
+            (
+                Float32Feature,
+                Float32Feature.__floordiv__,
+                "__floordiv__",
+                (Float32Feature,),
+                Int64Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__floordiv__,
+                "__floordiv__",
+                (Float64Feature,),
+                Int64Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__floordiv__,
+                "__floordiv__",
+                (Int8Feature,),
+                Int64Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__floordiv__,
+                "__floordiv__",
+                (Int16Feature,),
+                Int64Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__floordiv__,
+                "__floordiv__",
+                (Int32Feature,),
+                Int64Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__floordiv__,
+                "__floordiv__",
+                (Int64Feature,),
+                Int64Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__floordiv__,
+                "__floordiv__",
+                (UInt8Feature,),
+                Int64Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__floordiv__,
+                "__floordiv__",
+                (UInt16Feature,),
+                Int64Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__floordiv__,
+                "__floordiv__",
+                (UInt32Feature,),
+                Int64Feature,
+            ),
+            (
+                Float32Feature,
+                Float32Feature.__floordiv__,
+                "__floordiv__",
+                (UInt64Feature,),
+                Int64Feature,
+            ),
+            (Float32Feature, Float32Feature.__floordiv__, "__floordiv__", (1,), Int64Feature),
+            (Float32Feature, Float32Feature.__floordiv__, "__floordiv__", (1.2,), Int64Feature),
+            (Float32Feature, Float32Feature.__floordiv__, "__floordiv__", (1,), Int64Feature),
+            (Float32Feature, Float32Feature.__floordiv__, "__floordiv__", (1.2,), Int64Feature),
+            # float64 methods
+            (Float64Feature, Float64Feature.__abs__, "__abs__", tuple(), Float64Feature),
+            (Float64Feature, Float64Feature.__neg__, "__neg__", tuple(), Float64Feature),
+            # addition
+            (Float64Feature, Float64Feature.__add__, "__add__", (Float32Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__add__, "__add__", (Float32Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__add__, "__add__", (Float64Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__add__, "__add__", (Int8Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__add__, "__add__", (Int16Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__add__, "__add__", (Int32Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__add__, "__add__", (Int64Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__add__, "__add__", (UInt8Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__add__, "__add__", (UInt16Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__add__, "__add__", (UInt32Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__add__, "__add__", (UInt64Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__add__, "__add__", (1,), Float64Feature),
+            (Float64Feature, Float64Feature.__add__, "__add__", (1.2,), Float64Feature),
+            (Float64Feature, Float64Feature.__radd__, "__add__", (1,), Float64Feature),
+            (Float64Feature, Float64Feature.__radd__, "__add__", (1.2,), Float64Feature),
+            # subtraction
+            (Float64Feature, Float64Feature.__sub__, "__sub__", (Float32Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__sub__, "__sub__", (Float32Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__sub__, "__sub__", (Float64Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__sub__, "__sub__", (Int8Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__sub__, "__sub__", (Int16Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__sub__, "__sub__", (Int32Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__sub__, "__sub__", (Int64Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__sub__, "__sub__", (UInt8Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__sub__, "__sub__", (UInt16Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__sub__, "__sub__", (UInt32Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__sub__, "__sub__", (UInt64Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__sub__, "__sub__", (1,), Float64Feature),
+            (Float64Feature, Float64Feature.__sub__, "__sub__", (1.2,), Float64Feature),
+            (Float64Feature, Float64Feature.__rsub__, "__sub__", (1,), Float64Feature),
+            (Float64Feature, Float64Feature.__rsub__, "__sub__", (1.2,), Float64Feature),
+            # multiplication
+            (Float64Feature, Float64Feature.__mul__, "__mul__", (Float32Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__mul__, "__mul__", (Float32Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__mul__, "__mul__", (Float64Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__mul__, "__mul__", (Int8Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__mul__, "__mul__", (Int16Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__mul__, "__mul__", (Int32Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__mul__, "__mul__", (Int64Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__mul__, "__mul__", (UInt8Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__mul__, "__mul__", (UInt16Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__mul__, "__mul__", (UInt32Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__mul__, "__mul__", (UInt64Feature,), Float64Feature),
+            (Float64Feature, Float64Feature.__mul__, "__mul__", (1,), Float64Feature),
+            (Float64Feature, Float64Feature.__mul__, "__mul__", (1.2,), Float64Feature),
+            (Float64Feature, Float64Feature.__rmul__, "__mul__", (1,), Float64Feature),
+            (Float64Feature, Float64Feature.__rmul__, "__mul__", (1.2,), Float64Feature),
+            # true division
+            (
+                Float64Feature,
+                Float64Feature.__truediv__,
+                "__truediv__",
+                (Float32Feature,),
+                Float64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__truediv__,
+                "__truediv__",
+                (Float32Feature,),
+                Float64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__truediv__,
+                "__truediv__",
+                (Float64Feature,),
+                Float64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__truediv__,
+                "__truediv__",
+                (Int8Feature,),
+                Float64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__truediv__,
+                "__truediv__",
+                (Int16Feature,),
+                Float64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__truediv__,
+                "__truediv__",
+                (Int32Feature,),
+                Float64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__truediv__,
+                "__truediv__",
+                (Int64Feature,),
+                Float64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__truediv__,
+                "__truediv__",
+                (UInt8Feature,),
+                Float64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__truediv__,
+                "__truediv__",
+                (UInt16Feature,),
+                Float64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__truediv__,
+                "__truediv__",
+                (UInt32Feature,),
+                Float64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__truediv__,
+                "__truediv__",
+                (UInt64Feature,),
+                Float64Feature,
+            ),
+            (Float64Feature, Float64Feature.__truediv__, "__truediv__", (1,), Float64Feature),
+            (Float64Feature, Float64Feature.__truediv__, "__truediv__", (1.2,), Float64Feature),
+            (Float64Feature, Float64Feature.__rtruediv__, "__truediv__", (1,), Float64Feature),
+            (Float64Feature, Float64Feature.__rtruediv__, "__truediv__", (1.2,), Float64Feature),
+            # floor division
+            (
+                Float64Feature,
+                Float64Feature.__floordiv__,
+                "__floordiv__",
+                (Float32Feature,),
+                Int64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__floordiv__,
+                "__floordiv__",
+                (Float64Feature,),
+                Int64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__floordiv__,
+                "__floordiv__",
+                (Int8Feature,),
+                Int64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__floordiv__,
+                "__floordiv__",
+                (Int16Feature,),
+                Int64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__floordiv__,
+                "__floordiv__",
+                (Int32Feature,),
+                Int64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__floordiv__,
+                "__floordiv__",
+                (Int64Feature,),
+                Int64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__floordiv__,
+                "__floordiv__",
+                (UInt8Feature,),
+                Int64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__floordiv__,
+                "__floordiv__",
+                (UInt16Feature,),
+                Int64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__floordiv__,
+                "__floordiv__",
+                (UInt32Feature,),
+                Int64Feature,
+            ),
+            (
+                Float64Feature,
+                Float64Feature.__floordiv__,
+                "__floordiv__",
+                (UInt64Feature,),
+                Int64Feature,
+            ),
+            (Float64Feature, Float64Feature.__floordiv__, "__floordiv__", (1,), Int64Feature),
+            (Float64Feature, Float64Feature.__floordiv__, "__floordiv__", (1.2,), Int64Feature),
+            (Float64Feature, Float64Feature.__floordiv__, "__floordiv__", (1,), Int64Feature),
+            (Float64Feature, Float64Feature.__floordiv__, "__floordiv__", (1.2,), Int64Feature),
         ],
     )
     def test_primitive_feature_method(
@@ -1749,7 +2029,7 @@ class TestPrimitiveFeatures:
         feature.get_method.assert_called_once_with(registered_fn_name)
 
         # find a candidate function that matches the inputs
-        for candidate_fn in get_overloads(fn):
+        for candidate_fn in chain(get_overloads(fn), [fn]):
             # get the parameter order of the arguments of the candidate function
             # and remove the self argument
             parameter_order = list(inspect.signature(candidate_fn).parameters.keys())
@@ -1760,14 +2040,22 @@ class TestPrimitiveFeatures:
 
             # check if all arguments match the signature
             for param, arg in zip(parameter_order, args):
-                if not isinstance(arg, annotations[param]):
+                try:
+                    if not ((annotations[param] is Any) or isinstance(arg, annotations[param])):
+                        break
+                except TypeError:
                     break
 
             else:
-                # all params match the candidate function signature
-                assert issubclass(
-                    return_annotation, expected_return_feature_type
-                ), f"{return_annotation} != {expected_return_feature_type}"
+                try:
+                    # all params match the candidate function signature
+                    assert issubclass(
+                        return_annotation, expected_return_feature_type
+                    ), f"{return_annotation} != {expected_return_feature_type}"
+                except TypeError:
+                    pass
+
+                break
 
 
 class TestSequenceFeature:

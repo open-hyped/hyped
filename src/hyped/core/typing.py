@@ -13,7 +13,6 @@ from hyped.common._worker import Rank
 from .features.features import BoolFeature
 from .features.features import Feature as _Feature
 from .features.features import (
-    Float16Feature,
     Float32Feature,
     Float64Feature,
     Int8Feature,
@@ -55,7 +54,6 @@ __all__ = [
     "UInt32",
     "UInt64",
     "Float",
-    "Float16",
     "Float32",
     "Float64",
     "Sequence",
@@ -288,19 +286,6 @@ Supported types include:
   :class:`pyarrow.Int32Array`, :class:`pyarrow.Int64Array`
 """
 
-Float16: TypeAlias = Union[
-    Float16Feature, float, list[float], pa.HalfFloatScalar, pa.HalfFloatArray
-]
-"""
-Float16: Type alias for a 16-bit floating-point number.
-
-Supported types include:
-- Feature Types: :class:`Float16Feature`
-- Built-in types: :class:`float`, :code:`list[float]`
-- PyArrow scalar types: :class:`pyarrow.HalfFloatScalar`
-- PyArrow array types: :class:`pyarrow.HalfFloatArray`
-"""
-
 Float32: TypeAlias = Union[Float32Feature, float, list[float], pa.FloatScalar, pa.FloatArray]
 """
 Float32: Type alias for a 32-bit floating-point number.
@@ -326,26 +311,21 @@ Supported types include:
 Float: TypeAlias = Union[
     Float64Feature,
     Float32Feature,
-    Float16Feature,
     float,
     list[float],
     pa.DoubleScalar,
     pa.FloatScalar,
-    pa.HalfFloatScalar,
     pa.DoubleArray,
     pa.FloatArray,
-    pa.HalfFloatArray,
 ]
 """
 Float: Type alias for a floating-point number of varying precision.
 
 Supported types include:
-- Feature Types: :class:`Float16Feature`, :class:`Float32Feature`, :class:`Float64Feature`
+- Feature Types: :class:`Float32Feature`, :class:`Float64Feature`
 - Built-in types: :class:`float`, :code:`list[float]`
-- PyArrow scalar types: :class:`pyarrow.HalfFloatScalar`, :class:`pyarrow.FloatScalar`,
-  :class:`pyarrow.DoubleScalar`
-- PyArrow array types: :class:`pyarrow.HalfFloatArray`, :class:`pyarrow.FloatArray`,
-  :class:`pyarrow.DoubleArray`
+- PyArrow scalar types: :class:`pyarrow.FloatScalar`, :class:`pyarrow.DoubleScalar`
+- PyArrow array types: :class:`pyarrow.FloatArray`, :class:`pyarrow.DoubleArray`
 """
 
 T = TypeVar("T")
