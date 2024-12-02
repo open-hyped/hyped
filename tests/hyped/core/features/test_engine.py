@@ -1,6 +1,6 @@
 import inspect
 from typing import TypeVar
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -77,9 +77,13 @@ class TestFeatureEngine:
         engine.validate_arguments(a=a, b=a)
         engine.validate_arguments(a=b, b=b)
 
-        with pytest.raises(TypeError):
-            # arguments are of different types
+        with patch("hyped.core.features.engine.common_dtype") as mock_common_dtype:
             engine.validate_arguments(a=a, b=b)
+            # build typevar mapping
+            engine.typevar_register.typevar_mapping
+            # make sure typevar was resolved to common type
+            mock_common_dtype.assert_called_once()
+            assert set(mock_common_dtype.mock_calls[0].args) == {BoolType, Int16Type}
 
     def test_build_return_feature(self) -> None:
         a = PrimitiveFeature(Reference(), BoolType)

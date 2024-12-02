@@ -260,9 +260,31 @@ class FloorDiv(BaseDataProcessor[TrueDivConfig]):
             lambda _, inputs, session: (
                 ScalarType
                 if (
-                    isinstance(inputs["x"], (Int8Feature, Int16Feature, Int32Feature, Int64Feature))
+                    isinstance(
+                        inputs["x"],
+                        (
+                            Int8Feature,
+                            Int16Feature,
+                            Int32Feature,
+                            Int64Feature,
+                            UInt8Feature,
+                            UInt16Feature,
+                            UInt32Feature,
+                            UInt64Feature,
+                        ),
+                    )
                     and isinstance(
-                        inputs["y"], (Int8Feature, Int16Feature, Int32Feature, Int64Feature)
+                        inputs["y"],
+                        (
+                            Int8Feature,
+                            Int16Feature,
+                            Int32Feature,
+                            Int64Feature,
+                            UInt8Feature,
+                            UInt16Feature,
+                            UInt32Feature,
+                            UInt64Feature,
+                        ),
                     )
                 )
                 else Int64Feature

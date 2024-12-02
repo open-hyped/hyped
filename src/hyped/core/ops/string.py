@@ -499,8 +499,9 @@ StringFeature.register_method("__mul__")(
 )
 StringFeature.register_method("length")(StringLength().call)
 StringFeature.register_method("upper")(StringUpper().call)
-StringFeature.register_method("lower")(StringCapitalize().call)
-StringFeature.register_method("capitalize")(StringTitle().call)
+StringFeature.register_method("lower")(StringLower().call)
+StringFeature.register_method("capitalize")(StringCapitalize().call)
+StringFeature.register_method("title")(StringTitle().call)
 StringFeature.register_method("swapcase")(StringSwapCase().call)
 
 
@@ -677,12 +678,19 @@ def string_setitem(string: String, idx: int | slice, replacement: str) -> String
 
     Raises:
         ValueError: If the slice step is not 1.
+        ValueError: If the length of the replacement string does not match the slice range.
     """
     idx = slice(idx, idx + 1) if isinstance(idx, int) else idx
     idx = slice(idx.start or 0, idx.stop, idx.step or 1)
 
     if idx.step != 1:
         raise ValueError(f"Only step of 1 is supported for slice indexing, got {idx.step}.")
+
+    if idx.stop - idx.start != len(replacement):
+        raise ValueError(
+            f"The length of the replacement string ({len(replacement)}) must match the length "
+            f"of the slice range ({idx.stop - idx.start})."
+        )
 
     node = StringSetSlice(start=idx.start, stop=idx.stop, replacement=replacement)
     return node.call(string)

@@ -1,4 +1,5 @@
-from typing import Generic, TypeVar
+import inspect
+from typing import Any, Callable, Generic, TypeVar
 from unittest.mock import MagicMock
 
 import pydantic
@@ -7,14 +8,261 @@ import pytest
 from hyped.core.features.features import (
     BoolFeature,
     Feature,
+    Float16Feature,
+    Float32Feature,
+    Float64Feature,
+    Int8Feature,
+    Int16Feature,
+    Int32Feature,
+    Int64Feature,
     PrimitiveFeature,
     SequenceFeature,
     StringFeature,
+    UInt8Feature,
+    UInt16Feature,
+    UInt32Feature,
+    UInt64Feature,
 )
 from hyped.core.features.features import _MappingFeature as MappingFeature
 from hyped.core.features.features import build_feature_from_annotation, build_feature_from_dtype
 from hyped.core.features.reference import FeatureKey, Reference
 from hyped.core.features.types import BoolType, MappingType, SequenceType, StringType, Type
+from hyped.core.graph import DataFlowGraph
+
+
+class TestPrimitiveFeatures:
+    @pytest.mark.parametrize(
+        "feature_type, fn, registered_fn_name, args, expected_return_feature_type",
+        [
+            # Boolean methods
+            (BoolFeature, BoolFeature.__invert__, "__invert__", tuple(), BoolFeature),
+            (BoolFeature, BoolFeature.__and__, "__and__", (BoolFeature,), BoolFeature),
+            (BoolFeature, BoolFeature.__and__, "__and__", (False,), BoolFeature),
+            (BoolFeature, BoolFeature.__rand__, "__rand__", (False,), BoolFeature),
+            (BoolFeature, BoolFeature.__or__, "__or__", (BoolFeature,), BoolFeature),
+            (BoolFeature, BoolFeature.__or__, "__or__", (False,), BoolFeature),
+            (BoolFeature, BoolFeature.__ror__, "__ror__", (False,), BoolFeature),
+            (BoolFeature, BoolFeature.__xor__, "__xor__", (BoolFeature,), BoolFeature),
+            (BoolFeature, BoolFeature.__xor__, "__xor__", (False,), BoolFeature),
+            (BoolFeature, BoolFeature.__rxor__, "__rxor__", (False,), BoolFeature),
+            # String methods
+            (StringFeature, StringFeature.__add__, "__add__", (StringFeature,), StringFeature),
+            (StringFeature, StringFeature.__add__, "__add__", ("OTHER_STRING",), StringFeature),
+            (StringFeature, StringFeature.__radd__, "__radd__", ("OTHER_STRING",), StringFeature),
+            (StringFeature, StringFeature.__mul__, "__mul__", (Int8Feature,), StringFeature),
+            (StringFeature, StringFeature.__mul__, "__mul__", (3,), StringFeature),
+            (StringFeature, StringFeature.__rmul__, "__rmul__", (3,), StringFeature),
+            (StringFeature, StringFeature.__getitem__, "__getitem__", (3,), StringFeature),
+            (
+                StringFeature,
+                StringFeature.__getitem__,
+                "__getitem__",
+                (slice(1, 3),),
+                StringFeature,
+            ),
+            (StringFeature, StringFeature.__setitem__, "__setitem__", (1, "A"), None),
+            (StringFeature, StringFeature.__setitem__, "__setitem__", (slice(1, 3), "AB"), None),
+            (StringFeature, StringFeature.upper, "upper", tuple(), StringFeature),
+            (StringFeature, StringFeature.lower, "lower", tuple(), StringFeature),
+            (StringFeature, StringFeature.capitalize, "capitalize", tuple(), StringFeature),
+            (StringFeature, StringFeature.title, "title", tuple(), StringFeature),
+            (StringFeature, StringFeature.swapcase, "swapcase", tuple(), StringFeature),
+            (StringFeature, StringFeature.startswith, "startswith", ("PATTERN",), BoolFeature),
+            (StringFeature, StringFeature.endswith, "endswith", ("PATTERN",), BoolFeature),
+            (
+                StringFeature,
+                StringFeature.replace,
+                "replace",
+                ("PATTERN", "REPLACEMENT"),
+                StringFeature,
+            ),
+            (StringFeature, StringFeature.find, "find", ("PATTERN",), Int32Feature),
+            (StringFeature, StringFeature.split, "split", ("PATTERN",), SequenceFeature),
+            (StringFeature, StringFeature.split, "split", ("PATTERN", 3), SequenceFeature),
+            (StringFeature, StringFeature.rsplit, "split", ("PATTERN",), SequenceFeature),
+            (StringFeature, StringFeature.rsplit, "split", ("PATTERN", 3), SequenceFeature),
+            (StringFeature, StringFeature.strip, "strip", tuple(), StringFeature),
+            (StringFeature, StringFeature.strip, "strip", ("PATTERN",), StringFeature),
+            (StringFeature, StringFeature.rstrip, "rstrip", tuple(), StringFeature),
+            (StringFeature, StringFeature.rstrip, "rstrip", ("PATTERN",), StringFeature),
+            (StringFeature, StringFeature.lstrip, "lstrip", tuple(), StringFeature),
+            (StringFeature, StringFeature.lstrip, "lstrip", ("PATTERN",), StringFeature),
+            (StringFeature, StringFeature.format, "format", tuple(), StringFeature),
+            # Int8 methods
+            (Int8Feature, Int8Feature.__abs__, "__abs__", tuple(), Int8Feature),
+            (Int8Feature, Int8Feature.__neg__, "__neg__", tuple(), Int8Feature),
+            # addition
+            (Int8Feature, Int8Feature.__add__, "__add__", (Int8Feature,), Int8Feature),
+            (Int8Feature, Int8Feature.__add__, "__add__", (Int16Feature,), Int16Feature),
+            (Int8Feature, Int8Feature.__add__, "__add__", (Int32Feature,), Int32Feature),
+            (Int8Feature, Int8Feature.__add__, "__add__", (Int64Feature,), Int64Feature),
+            (Int8Feature, Int8Feature.__add__, "__add__", (UInt8Feature,), Int16Feature),
+            (Int8Feature, Int8Feature.__add__, "__add__", (UInt16Feature,), Int32Feature),
+            (Int8Feature, Int8Feature.__add__, "__add__", (UInt32Feature,), Int64Feature),
+            (Int8Feature, Int8Feature.__add__, "__add__", (UInt64Feature,), Int64Feature),
+            (Int8Feature, Int8Feature.__add__, "__add__", (Float16Feature,), Float16Feature),
+            (Int8Feature, Int8Feature.__add__, "__add__", (Float32Feature,), Float32Feature),
+            (Int8Feature, Int8Feature.__add__, "__add__", (Float64Feature,), Float64Feature),
+            # TODO: output type is not clear
+            (Int8Feature, Int8Feature.__add__, "__add__", (1,), Int8Feature),
+            (Int8Feature, Int8Feature.__add__, "__add__", (1.2,), Int8Feature),
+            (Int8Feature, Int8Feature.__radd__, "__add__", (1,), Int32Feature),
+            (Int8Feature, Int8Feature.__radd__, "__add__", (1.2,), Float64Feature),
+            # subtraction
+            (Int8Feature, Int8Feature.__sub__, "__sub__", (Int8Feature,), Int8Feature),
+            (Int8Feature, Int8Feature.__sub__, "__sub__", (Int16Feature,), Int16Feature),
+            (Int8Feature, Int8Feature.__sub__, "__sub__", (Int32Feature,), Int32Feature),
+            (Int8Feature, Int8Feature.__sub__, "__sub__", (Int64Feature,), Int64Feature),
+            (Int8Feature, Int8Feature.__sub__, "__sub__", (UInt8Feature,), Int16Feature),
+            (Int8Feature, Int8Feature.__sub__, "__sub__", (UInt16Feature,), Int32Feature),
+            (Int8Feature, Int8Feature.__sub__, "__sub__", (UInt32Feature,), Int64Feature),
+            (Int8Feature, Int8Feature.__sub__, "__sub__", (UInt64Feature,), Int64Feature),
+            (Int8Feature, Int8Feature.__sub__, "__sub__", (Float16Feature,), Float16Feature),
+            (Int8Feature, Int8Feature.__sub__, "__sub__", (Float32Feature,), Float32Feature),
+            (Int8Feature, Int8Feature.__sub__, "__sub__", (Float64Feature,), Float64Feature),
+            # TODO: output type is not clear
+            (Int8Feature, Int8Feature.__sub__, "__sub__", (1,), Int8Feature),
+            (Int8Feature, Int8Feature.__sub__, "__sub__", (1.2,), Int8Feature),
+            (Int8Feature, Int8Feature.__rsub__, "__sub__", (1,), Int32Feature),
+            (Int8Feature, Int8Feature.__rsub__, "__sub__", (1.2,), Float64Feature),
+            # multiplication
+            (Int8Feature, Int8Feature.__mul__, "__mul__", (Int8Feature,), Int8Feature),
+            (Int8Feature, Int8Feature.__mul__, "__mul__", (Int16Feature,), Int16Feature),
+            (Int8Feature, Int8Feature.__mul__, "__mul__", (Int32Feature,), Int32Feature),
+            (Int8Feature, Int8Feature.__mul__, "__mul__", (Int64Feature,), Int64Feature),
+            (Int8Feature, Int8Feature.__mul__, "__mul__", (UInt8Feature,), Int16Feature),
+            (Int8Feature, Int8Feature.__mul__, "__mul__", (UInt16Feature,), Int32Feature),
+            (Int8Feature, Int8Feature.__mul__, "__mul__", (UInt32Feature,), Int64Feature),
+            (Int8Feature, Int8Feature.__mul__, "__mul__", (UInt64Feature,), Int64Feature),
+            (Int8Feature, Int8Feature.__mul__, "__mul__", (Float16Feature,), Float16Feature),
+            (Int8Feature, Int8Feature.__mul__, "__mul__", (Float32Feature,), Float32Feature),
+            (Int8Feature, Int8Feature.__mul__, "__mul__", (Float64Feature,), Float64Feature),
+            # TODO: output type is not clear
+            (Int8Feature, Int8Feature.__mul__, "__mul__", (1,), Int8Feature),
+            (Int8Feature, Int8Feature.__mul__, "__mul__", (1.2,), Int8Feature),
+            (Int8Feature, Int8Feature.__rmul__, "__mul__", (1,), Int32Feature),
+            (Int8Feature, Int8Feature.__rmul__, "__mul__", (1.2,), Float64Feature),
+            # true division
+            (Int8Feature, Int8Feature.__truediv__, "__truediv__", (Int8Feature,), Float64Feature),
+            (Int8Feature, Int8Feature.__truediv__, "__truediv__", (Int16Feature,), Float64Feature),
+            (Int8Feature, Int8Feature.__truediv__, "__truediv__", (Int32Feature,), Float64Feature),
+            (Int8Feature, Int8Feature.__truediv__, "__truediv__", (Int64Feature,), Float64Feature),
+            (Int8Feature, Int8Feature.__truediv__, "__truediv__", (UInt8Feature,), Float64Feature),
+            (Int8Feature, Int8Feature.__truediv__, "__truediv__", (UInt16Feature,), Float64Feature),
+            (Int8Feature, Int8Feature.__truediv__, "__truediv__", (UInt32Feature,), Float64Feature),
+            (Int8Feature, Int8Feature.__truediv__, "__truediv__", (UInt64Feature,), Float64Feature),
+            (
+                Int8Feature,
+                Int8Feature.__truediv__,
+                "__truediv__",
+                (Float16Feature,),
+                Float16Feature,
+            ),
+            (
+                Int8Feature,
+                Int8Feature.__truediv__,
+                "__truediv__",
+                (Float32Feature,),
+                Float32Feature,
+            ),
+            (
+                Int8Feature,
+                Int8Feature.__truediv__,
+                "__truediv__",
+                (Float64Feature,),
+                Float64Feature,
+            ),
+            (Int8Feature, Int8Feature.__truediv__, "__truediv__", (1,), Float64Feature),
+            (Int8Feature, Int8Feature.__truediv__, "__truediv__", (1.2,), Float64Feature),
+            (Int8Feature, Int8Feature.__rtruediv__, "__truediv__", (1,), Float64Feature),
+            (Int8Feature, Int8Feature.__rtruediv__, "__truediv__", (1.2,), Float64Feature),
+            # floor division
+            (Int8Feature, Int8Feature.__floordiv__, "__floordiv__", (Int8Feature,), Int8Feature),
+            (Int8Feature, Int8Feature.__floordiv__, "__floordiv__", (Int16Feature,), Int16Feature),
+            (Int8Feature, Int8Feature.__floordiv__, "__floordiv__", (Int32Feature,), Int32Feature),
+            (Int8Feature, Int8Feature.__floordiv__, "__floordiv__", (Int64Feature,), Int64Feature),
+            (Int8Feature, Int8Feature.__floordiv__, "__floordiv__", (UInt8Feature,), Int16Feature),
+            (Int8Feature, Int8Feature.__floordiv__, "__floordiv__", (UInt16Feature,), Int32Feature),
+            (Int8Feature, Int8Feature.__floordiv__, "__floordiv__", (UInt32Feature,), Int64Feature),
+            (Int8Feature, Int8Feature.__floordiv__, "__floordiv__", (UInt64Feature,), Int64Feature),
+            (
+                Int8Feature,
+                Int8Feature.__floordiv__,
+                "__floordiv__",
+                (Float16Feature,),
+                Int64Feature,
+            ),
+            (
+                Int8Feature,
+                Int8Feature.__floordiv__,
+                "__floordiv__",
+                (Float32Feature,),
+                Int64Feature,
+            ),
+            (
+                Int8Feature,
+                Int8Feature.__floordiv__,
+                "__floordiv__",
+                (Float64Feature,),
+                Int64Feature,
+            ),
+            (Int8Feature, Int8Feature.__floordiv__, "__floordiv__", (1,), Int8Feature),
+            (Int8Feature, Int8Feature.__floordiv__, "__floordiv__", (1.2,), Int8Feature),
+            # TODO: output type is not clear
+            (Int8Feature, Int8Feature.__rfloordiv__, "__floordiv__", (1,), Int32Feature),
+            (Int8Feature, Int8Feature.__rfloordiv__, "__floordiv__", (1.2,), Int64Feature),
+        ],
+    )
+    def test_primitive_feature_method(
+        self,
+        feature_type: type[PrimitiveFeature],
+        fn: Callable,
+        registered_fn_name: str,
+        args: tuple[Any | type[PrimitiveFeature]],
+        expected_return_feature_type: None | type[PrimitiveFeature],
+    ) -> None:
+        # create a data flow graph
+        graph = DataFlowGraph()
+        # add all feature arguments to the source node
+        source = graph.add_source_node(
+            MappingType.from_dict(
+                {"feature": feature_type._expected_dtype}
+                | {
+                    str(i): ftype._expected_dtype
+                    for i, ftype in enumerate(args)
+                    if isinstance(ftype, type) and issubclass(ftype, PrimitiveFeature)
+                }
+            )
+        )
+
+        # get the feature and mock the get method function to check execution later
+        feature = feature_type(
+            Reference(FeatureKey("feature"), source._node_id, source._graph),
+            feature_type._expected_dtype,
+        )
+        feature.get_method = MagicMock(side_effect=feature.get_method)
+
+        # collect all arguments
+        args = (
+            ftype
+            if not (isinstance(ftype, type) and issubclass(ftype, PrimitiveFeature))
+            else ftype(
+                Reference(FeatureKey(str(i)), source._node_id, source._graph), ftype._expected_dtype
+            )
+            for i, ftype in enumerate(args)
+        )
+
+        out_feature = fn(feature, *args)
+
+        if expected_return_feature_type is not None:
+            # make sure the return value matches the expected type
+            assert isinstance(out_feature, expected_return_feature_type)
+        else:
+            # no output expected
+            assert out_feature is None
+
+        # make sure the call was forwarded to the right registered method
+        feature.get_method.assert_called_once_with(registered_fn_name)
 
 
 class TestSequenceFeature:

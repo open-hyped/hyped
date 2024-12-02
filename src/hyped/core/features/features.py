@@ -549,12 +549,11 @@ class Int8Feature(PrimitiveFeature):
         return self.execute_method("__add__", other)
 
     @overload
-    def __radd__(self, other: int) -> Int8Feature:
+    def __radd__(self, other: int) -> Float64Feature:
         ...
 
     @overload
-    def __radd__(self, other: float) -> Int8Feature:
-        # TODO: currently float is casted to integer
+    def __radd__(self, other: float) -> Float64Feature:
         ...
 
     def __radd__(self, other: Any) -> Feature:
@@ -563,7 +562,7 @@ class Int8Feature(PrimitiveFeature):
         Returns:
             Feature: A new feature representing the sum of the original feature and the constant.
         """
-        return self.execute_method("__radd__", other)
+        return self.get_method("__add__")(other, self)
 
     @overload
     def __sub__(self, other: Int8Feature) -> Int8Feature:
@@ -627,12 +626,11 @@ class Int8Feature(PrimitiveFeature):
         return self.execute_method("__sub__", other)
 
     @overload
-    def __rsub__(self, other: int) -> Int8Feature:
+    def __rsub__(self, other: int) -> Float64Feature:
         ...
 
     @overload
-    def __rsub__(self, other: float) -> Int8Feature:
-        # TODO: currently float is casted to integer
+    def __rsub__(self, other: float) -> Float64Feature:
         ...
 
     def __rsub__(self, other: Any) -> Feature:
@@ -642,7 +640,7 @@ class Int8Feature(PrimitiveFeature):
             Feature: A new feature representing the difference between the constant and the
             original feature.
         """
-        return self.execute_method("__rsub__", other)
+        return self.get_method("__sub__")(other, self)
 
     @overload
     def __mul__(self, other: Int8Feature) -> Int8Feature:
@@ -706,12 +704,11 @@ class Int8Feature(PrimitiveFeature):
         return self.execute_method("__mul__", other)
 
     @overload
-    def __rmul__(self, other: int) -> Int8Feature:
+    def __rmul__(self, other: int) -> Int32Feature:
         ...
 
     @overload
-    def __rmul__(self, other: float) -> Int8Feature:
-        # TODO: currently float is casted to integer
+    def __rmul__(self, other: float) -> Float64Feature:
         ...
 
     def __rmul__(self, other: Any) -> Feature:
@@ -721,7 +718,7 @@ class Int8Feature(PrimitiveFeature):
             Feature: A new feature representing the product of the constant and the
             original feature.
         """
-        return self.execute_method("__rmul__", other)
+        return self.get_method("__mul__")(other, self)
 
     @overload
     def __truediv__(
@@ -852,7 +849,7 @@ class Int8Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __rfloordiv__(self, other: float) -> Int16Feature:
+    def __rfloordiv__(self, other: float) -> Int8Feature:
         # TODO: currently float is casted to integer
         ...
 
@@ -863,7 +860,7 @@ class Int8Feature(PrimitiveFeature):
             Feature: A new feature representing the quotient of the constant and the original
             feature.
         """
-        return self.get_method("__truediv__")(other, self)
+        return self.get_method("__floordiv__")(other, self)
 
 
 class Int16Feature(PrimitiveFeature):
