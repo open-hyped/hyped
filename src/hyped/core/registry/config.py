@@ -10,17 +10,18 @@ from pydantic._internal._model_construction import ModelMetaclass
 from pydantic.fields import Field
 from typing_extensions import dataclass_transform
 
-from ..common._generic import solve_typevar
+from hyped.common._generic import solve_typevar
+
 from .auto import BaseAutoClass
-from .registry import RegisterTypes, Registrable, register_meta_mixin
+from .registry import RegisterMeta, RegisterTypeMixin, Registrable
 
 
 @dataclass_transform(kw_only_default=True, field_specifiers=(Field,))
-class _register_model_meta(register_meta_mixin, ModelMetaclass):
+class RegisterModelMeta(RegisterMeta, ModelMetaclass):
     """metaclass for registrable pydantic model."""
 
 
-class BaseConfig(Registrable, BaseModel, metaclass=_register_model_meta):
+class BaseConfig(Registrable, BaseModel, metaclass=RegisterModelMeta):
     """Base Configuration Pydantic Model."""
 
     # validate default argument
@@ -107,18 +108,18 @@ class AutoConfig(BaseAutoClass[BaseConfig]):
         if "__type_hash__" in dct:
             # get type from registry
             h = dct.get("__type_hash__")
-            T = cls.type_registry.get_type_by_hash(h)
+            var = cls.type_registry.get_type_by_hash(h)
 
         elif "type_id" in dct:
             # get type from type id
             t = dct.get("type_id")
-            T = cls.type_registry.get_type_by_t(t)
+            var = cls.type_registry.get_type_by_t(t)
 
         else:
             raise TypeError("Unable to resolve type of config: `%s`" % str(dct))
 
         # create instance
-        return T.from_dict(dct)
+        return var.from_dict(dct)
 
     @classmethod
     def from_json(cls, serialized: str) -> BaseConfig:
@@ -145,7 +146,7 @@ class AutoConfig(BaseAutoClass[BaseConfig]):
 U = TypeVar("U", bound=BaseConfig)
 
 
-class BaseConfigurable(Generic[U], RegisterTypes, ABC):
+class BaseConfigurable(Generic[U], RegisterTypeMixin, ABC):
     """Base class for configurable types."""
 
     CONFIG_TYPE: None | type[U] = None
@@ -192,7 +193,7 @@ class BaseConfigurable(Generic[U], RegisterTypes, ABC):
 
     @classmethod
     @property
-    def generic_config_type(cls) -> type[U]:
+    def generic_config_type(cls) -> type[U] | None:
         """Config Type specified by generic type var `U`.
 
         Get the generic configuration type of the configurable specified
@@ -206,11 +207,11 @@ class BaseConfigurable(Generic[U], RegisterTypes, ABC):
                 "Configurable config type `%s` doesn't inherit from `%s`"
                 % (str(t), str(BaseConfig))
             )
-        return t or BaseConfig
+        return t
 
     @classmethod
     @property
-    def config_type(cls) -> type[U]:
+    def config_type(cls) -> type[U] | None:
         """Get the (final) configuration type of the configurable.
 
         The final configuration type is specified by the `CONFIG_TYPE`
@@ -232,14 +233,15 @@ class BaseConfigurable(Generic[U], RegisterTypes, ABC):
 
     @classmethod
     @property
-    def type_id(cls) -> str:
+    def type_id(cls) -> str | None:
         """Type Identifier.
 
         Type identifier used in type registry. Identifier is build
         from configuration type identifier by appending `.impl`.
         """
-        # TODO: what should the relation between the type ids of a
-        #       configurable and it's config be
+        # no concrete config type
+        if cls.config_type is None:
+            return None
         # specify registry type identifier based on config type identifier
         return "%s.impl" % cls.config_type.type_id
 
@@ -263,6 +265,6 @@ class BaseAutoConfigurable(BaseAutoClass[V]):
         # build type identifier of configurable corresponding
         # to the config
         t = "%s.impl" % config.type_id
-        T = cls.type_registry.get_type_by_t(t)
+        var = cls.type_registry.get_type_by_t(t)
         # create instance
-        return T.from_config(config)
+        return var.from_config(config)

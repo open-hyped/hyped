@@ -336,7 +336,7 @@ class FloorDivConfig(BaseDataProcessorConfig):
     """Configuration for the floor division processor."""
 
 
-class FloorDiv(BaseDataProcessor[TrueDivConfig]):
+class FloorDiv(BaseDataProcessor[FloorDivConfig]):
     """Data Processor implementing floor division.
 
     This processor takes two numeric inputs, :code:`x` and :code:`y`, and

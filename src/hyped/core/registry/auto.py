@@ -1,7 +1,8 @@
 """Base Auto Class."""
 from typing import Generic, TypeVar
 
-from ..common._generic import solve_typevar
+from hyped.common._generic import solve_typevar
+
 from .registry import Registrable, RootedTypeRegistryView, TypeRegistry, default_registry
 
 T = TypeVar("T", bound=Registrable)

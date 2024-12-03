@@ -6,14 +6,21 @@ from typing import ClassVar, Iterator
 
 from datasets.packaged_modules import _hash_python_lines
 
+from hyped.common.logging import get_logger
 
-class Registrable(ABC):
+logger = get_logger(__name__)
+
+
+class Registrable(ABC):  # noqa: B024
     """Base Class for Registrable Types."""
 
     @classmethod
     @property
-    def type_id(cls) -> str:
-        """Type identifier."""
+    def type_id(cls) -> str | None:
+        """Type identifier.
+
+        If None, the type will not be registered.
+        """
         return ".".join([cls.__module__, cls.__name__])
 
     @classmethod
@@ -57,27 +64,37 @@ class TypeRegistry(object):
         self.global_type_register: dict[str, type] = {}
         self.hash_tree: dict[str, list[str]] = {}
 
-    def register_type(self, T: type, bases: tuple[type]):
+    def register_type(self, var: type, bases: tuple[type]):
         """Register a type.
 
         Arguments:
-            T (type): the type to register, must be a subclass of `Registrable`
+            var (type): the type to register, must be a subclass of `Registrable`
             bases (tuple[type]): the base types of the type `T`
         """
         # check type
-        if not issubclass(T, Registrable):
+        if not issubclass(var, Registrable):
             raise TypeError("Registrable types must inherit from `%s`" % str(Registrable))
 
-        h = T.type_hash
+        # do not register types with type id set to None
+        if var.type_id is None:
+            return
+
+        # make sure type is not registered yet
+        if var.type_id in self.global_hash_register:
+            raise RuntimeError(f"Type with id '{var.type_id}' already registered!")
+
+        h = var.type_hash
         # update registers
-        self.global_hash_register[T.type_id] = h
-        self.global_type_register[h] = T
+        self.global_hash_register[var.type_id] = h
+        self.global_type_register[h] = var
         # add type hash to all base nodes of the type
         for b in [b.type_hash for b in bases if issubclass(b, Registrable)]:
             if b in self.hash_tree:
                 self.hash_tree[b].add(h)
         # add node for type in hash tree
         self.hash_tree[h] = set()
+
+        logger.debug(f"Registered type with id '{var.type_id}'")
 
     def hash_tree_bfs(self, root: str) -> Iterator[str]:
         """Breadth-Frist Search through inheritance tree rooted at given type.
@@ -224,7 +241,7 @@ default_registry = TypeRegistry()
 """Default type registry tracking all registrable types"""
 
 
-class register_meta_mixin:
+class RegisterMeta:
     """register type metaclass mixin."""
 
     _registry: ClassVar[TypeRegistry] = default_registry
@@ -232,18 +249,18 @@ class register_meta_mixin:
     def __new__(cls, name, bases, attrs, **kwargs) -> type:
         """Register new types to registry."""
         # create new type and register it
-        T = super().__new__(cls, name, bases, attrs, **kwargs)
-        cls._registry.register_type(T, bases)
+        var = super().__new__(cls, name, bases, attrs, **kwargs)
+        cls._registry.register_type(var, bases)
         # return new type
-        return T
+        return var
 
     @property
-    def type_registry(cls) -> RootedTypeRegistryView:
+    def type_registry(cls) -> RootedTypeRegistryView:  # noqa: N805
         """Type Registry rooted at the current type."""
         return RootedTypeRegistryView(root=cls, registry=cls._registry)
 
 
-class register_type_meta(register_meta_mixin, ABCMeta):
+class RegisterTypeMeta(RegisterMeta, ABCMeta):
     """Register type meta.
 
     meta-class to automatically register sub-types of a specific
@@ -251,8 +268,7 @@ class register_type_meta(register_meta_mixin, ABCMeta):
     """
 
 
-# TODO: rename to RegisterTypeMixin
-class RegisterTypes(Registrable, metaclass=register_type_meta):
+class RegisterTypeMixin(Registrable, metaclass=RegisterTypeMeta):
     """Register Types.
 
     Base class that automatically registers sub-types to the

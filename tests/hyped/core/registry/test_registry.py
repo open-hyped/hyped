@@ -2,7 +2,7 @@ from copy import deepcopy
 
 import pytest
 
-from hyped._registry.registry import RegisterTypes, default_registry
+from hyped.core.registry.registry import RegisterTypeMixin, default_registry
 
 
 @pytest.fixture(autouse=True)
@@ -23,18 +23,18 @@ def _reset_registry():
 
 class TestTypeRegistry:
     def test_registers(self):
-        types = set(RegisterTypes.type_registry.types)
-        type_ids = set(RegisterTypes.type_registry.type_ids)
+        types = set(RegisterTypeMixin.type_registry.types)
+        type_ids = set(RegisterTypeMixin.type_registry.type_ids)
 
-        class A(RegisterTypes):
+        class A(RegisterTypeMixin):
             pass
 
         # check simple case
-        assert {A} == set(RegisterTypes.type_registry.types) - types
-        assert {A.type_id} == set(RegisterTypes.type_registry.type_ids) - type_ids
+        assert {A} == set(RegisterTypeMixin.type_registry.types) - types
+        assert {A.type_id} == set(RegisterTypeMixin.type_registry.type_ids) - type_ids
 
         # set up complex case
-        class B(RegisterTypes):
+        class B(RegisterTypeMixin):
             pass
 
         class C(B):
@@ -44,26 +44,21 @@ class TestTypeRegistry:
             pass
 
         # check complex case
-        assert {A, B, C, D} == set(RegisterTypes.type_registry.types) - types
+        assert {A, B, C, D} == set(RegisterTypeMixin.type_registry.types) - types
         assert {A.type_id, B.type_id, C.type_id, D.type_id} == set(
-            RegisterTypes.type_registry.type_ids
+            RegisterTypeMixin.type_registry.type_ids
         ) - type_ids
 
-        # test overwriting registered type ids
-        class C(D):
-            pass
-
-        # should have a new type but the type id is overwritten
-        assert {A, B, C, D, C} == set(RegisterTypes.type_registry.types) - types
-        assert {A.type_id, B.type_id, C.type_id, D.type_id} == set(
-            RegisterTypes.type_registry.type_ids
-        ) - type_ids
+        with pytest.raises(RuntimeError):
+            # test overwriting registered type ids
+            class C(D):
+                pass
 
     def test_subtype_registers(self):
-        types = set(RegisterTypes.type_registry.types)
-        type_ids = set(RegisterTypes.type_registry.type_ids)
+        types = set(RegisterTypeMixin.type_registry.types)
+        type_ids = set(RegisterTypeMixin.type_registry.type_ids)
 
-        class A(RegisterTypes):
+        class A(RegisterTypeMixin):
             pass
 
         class B(A):
@@ -79,13 +74,13 @@ class TestTypeRegistry:
             pass
 
         # check types
-        assert {A, B, C, D, D2} == set(RegisterTypes.type_registry.types) - types
+        assert {A, B, C, D, D2} == set(RegisterTypeMixin.type_registry.types) - types
         assert {A, B, C, D, D2} == set(A.type_registry.types)
         assert {B, D} == set(B.type_registry.types)
         assert {C, D2} == set(C.type_registry.types)
         # check type ids
         assert {A.type_id, B.type_id, C.type_id, D.type_id, D2.type_id} == set(
-            RegisterTypes.type_registry.type_ids
+            RegisterTypeMixin.type_registry.type_ids
         ) - type_ids
         assert {A.type_id, B.type_id, C.type_id, D.type_id, D2.type_id} == set(
             A.type_registry.type_ids
@@ -94,29 +89,29 @@ class TestTypeRegistry:
         assert {C.type_id, D2.type_id} == set(C.type_registry.type_ids)
 
     def test_get_type_by_hash(self):
-        class A(RegisterTypes):
+        class A(RegisterTypeMixin):
             pass
 
-        class B(RegisterTypes):
+        class B(RegisterTypeMixin):
             pass
 
         class C(B):
             pass
 
-        assert A == RegisterTypes.type_registry.get_type_by_hash(A.type_hash)
-        assert B == RegisterTypes.type_registry.get_type_by_hash(B.type_hash)
-        assert C == RegisterTypes.type_registry.get_type_by_hash(C.type_hash)
+        assert A == RegisterTypeMixin.type_registry.get_type_by_hash(A.type_hash)
+        assert B == RegisterTypeMixin.type_registry.get_type_by_hash(B.type_hash)
+        assert C == RegisterTypeMixin.type_registry.get_type_by_hash(C.type_hash)
 
     def test_get_type_by_t(self):
-        class A(RegisterTypes):
+        class A(RegisterTypeMixin):
             pass
 
-        class B(RegisterTypes):
+        class B(RegisterTypeMixin):
             pass
 
         class C(B):
             pass
 
-        assert A == RegisterTypes.type_registry.get_type_by_t(A.type_id)
-        assert B == RegisterTypes.type_registry.get_type_by_t(B.type_id)
-        assert C == RegisterTypes.type_registry.get_type_by_t(C.type_id)
+        assert A == RegisterTypeMixin.type_registry.get_type_by_t(A.type_id)
+        assert B == RegisterTypeMixin.type_registry.get_type_by_t(B.type_id)
+        assert C == RegisterTypeMixin.type_registry.get_type_by_t(C.type_id)

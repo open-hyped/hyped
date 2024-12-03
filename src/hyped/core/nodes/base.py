@@ -27,12 +27,11 @@ from typing import (
 
 import pyarrow as pa
 
-from hyped._registry.config import BaseConfig, BaseConfigurable
-
 from ..abstract import AbstractDataFlow, AbstractDataFlowGraph
 from ..features.engine import FeatureEngine
 from ..features.features import Feature as _Feature
 from ..features.types import MappingType, Type
+from ..registry.config import BaseConfig, BaseConfigurable
 from ..typing import Feature, Index, IndexList, NodeId, Rank
 
 

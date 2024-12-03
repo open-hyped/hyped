@@ -13,8 +13,7 @@ from uuid import UUID
 
 from pydantic import AfterValidator, BeforeValidator, TypeAdapter, ValidationInfo
 
-from hyped._registry.config import BaseConfig
-
+from ..registry.config import BaseConfig
 from .features import Feature, SequenceFeature, build_feature_from_dtype
 from .types import Type
 

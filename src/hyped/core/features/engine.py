@@ -14,9 +14,9 @@ from uuid import UUID, uuid4
 import pydantic
 import pydantic.generics
 
-from hyped._registry.config import BaseConfig
 from hyped.common._pydantic import BaseModelWithArbitraryTypesAllowed
 
+from ..registry.config import BaseConfig
 from ..utils import build_dtype_from_python_object
 from .features import Feature, build_feature_from_annotation
 from .reference import Reference

@@ -64,7 +64,7 @@ class OrConfig(BaseDataProcessorConfig):
     """Configuration for the :class:`Or` processor."""
 
 
-class Or(BaseDataProcessor[AndConfig]):
+class Or(BaseDataProcessor[OrConfig]):
     """Data processor for computing the logical OR of two Boolean values."""
 
     @process_mode(batched=True, backend="arrow")
@@ -86,7 +86,7 @@ class XorConfig(BaseDataProcessorConfig):
     """Configuration for the :class:`Xor` processor."""
 
 
-class Xor(BaseDataProcessor[AndConfig]):
+class Xor(BaseDataProcessor[XorConfig]):
     """Data processor for computing the logical XOR of two Boolean values."""
 
     @process_mode(batched=True, backend="arrow")

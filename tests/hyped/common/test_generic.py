@@ -30,6 +30,14 @@ class TestResolveTypeVar:
 
         assert solve_typevar(A, T) is None
 
+    def test_solve_typevar_fallback_to_bound(self) -> None:
+        T = TypeVar("T", bound=int)
+
+        class A(Generic[T]):
+            pass
+
+        assert solve_typevar(A, T) is int
+
     def test_solve_typevar_easy(self) -> None:
         T = TypeVar("T")
 
