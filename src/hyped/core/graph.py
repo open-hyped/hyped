@@ -1227,7 +1227,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 with their serialized objects and feature types, and links between them.
         """
         # get dictionary representation of data flow graph
-        data = nx.node_link_data(self)
+        data = nx.node_link_data(self, edges="edges")
 
         for node in data["nodes"]:
             obj = node[DataFlowGraph.NodeAttribute.NODE_OBJ]
@@ -1317,4 +1317,4 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 *edge[DataFlowGraph.EdgeAttribute.KEY]
             )
 
-        return DataFlowGraph(nx.node_link_graph(data))
+        return DataFlowGraph(nx.node_link_graph(data, edges="edges"))

@@ -8,13 +8,22 @@ import pytest
 from hyped.core.features.reference import FeatureKey, Reference
 from hyped.core.features.types import BoolType as MockType
 from hyped.core.features.types import MappingType, SequenceType, Type
-from hyped.core.graph import DataFlowGraph, _build_dependency_graph, _compute_node_depth
+from hyped.core.graph import (
+    DataFlowGraph,
+    _build_dependency_graph,
+    _compute_node_depth,
+    random_uuid,
+)
 from hyped.core.nodes.aggregator import BaseDataAggregator
 from hyped.core.nodes.augmenter import BaseDataAugmenter
-from hyped.core.nodes.processor import BaseDataProcessor
+from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig
 from hyped.core.typing import PartitionId
 
 from .utils import build_graph
+
+
+def test_random_uuid() -> None:
+    assert len(set([str(random_uuid()) for _ in range(1_000_000)])) == 1_000_000
 
 
 @pytest.mark.parametrize(

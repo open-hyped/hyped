@@ -22,6 +22,7 @@ from hyped.core.features.types import (
     UInt16Type,
     UInt32Type,
     UInt64Type,
+    build_type_from_dict,
 )
 
 
@@ -166,3 +167,29 @@ class TestMappingType:
     def test_from_dict(self) -> None:
         dtype = MappingType((("fieldA", BoolType), ("fieldB", Int16Type)))
         assert dtype == MappingType.construct(dict(dtype))
+
+
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        BoolType,
+        StringType,
+        Int8Type,
+        Int16Type,
+        Int32Type,
+        Int64Type,
+        UInt8Type,
+        UInt16Type,
+        UInt32Type,
+        UInt64Type,
+        Float16Type,
+        Float32Type,
+        Float64Type,
+        SequenceType(BoolType),
+        SequenceType(BoolType, length=10),
+        MappingType.construct({"field": BoolType}),
+        MappingType.construct({"field": SequenceType(BoolType)}),
+    ],
+)
+def test_type_serialization(dtype: Type) -> None:
+    assert build_type_from_dict(dtype.to_dict()) == dtype
