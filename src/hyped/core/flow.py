@@ -1051,14 +1051,14 @@ class ExecutableDataFlow(AbstractDataFlow):
             Dataset | ItDataset: The processed dataset.
         """
         if isinstance(ds, datasets.Dataset):
+            # use arrow formatter and only the required input columns
+            prepared_ds = ds.with_format(type="arrow", columns=list(self._source_feature.keys()))
+
             # compute the new fingerprint
-            fingerprint = datasets.fingerprint.generate_fingerprint(ds)
+            fingerprint = datasets.fingerprint.generate_fingerprint(prepared_ds)
             fingerprint = datasets.fingerprint.update_fingerprint(
                 fingerprint, transform=self.serialize(), transform_args={}
             )
-
-            # use arrow formatter and only the required input columns
-            prepared_ds = ds.with_format(type="arrow", columns=list(self._source_feature.keys()))
             # use pyarrow table as output format for in-memory
             # datasets that support caching
             transformed_ds = prepared_ds.map(

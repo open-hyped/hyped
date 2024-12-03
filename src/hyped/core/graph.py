@@ -9,13 +9,14 @@ and edges (data flow between processors).
 from __future__ import annotations
 
 import operator
-import uuid
 from enum import Enum
 from functools import wraps
 from itertools import groupby
 from typing import Any, Hashable
+from uuid import UUID
 
 import networkx as nx
+import numpy as np
 import pyarrow as pa
 
 from .abstract import AbstractDataFlowGraph
@@ -31,6 +32,21 @@ from .nodes.processor import BaseDataProcessor
 from .registry.config import AutoConfigurable
 from .typing import NodeId, PartitionId
 from .utils import NestedType, build_dtype_from_python_object, map_recursive
+
+rng = np.random.Generator(np.random.PCG64(42))
+
+
+def random_uuid() -> UUID:
+    """Generates a random UUID using a numpy random number generator.
+
+    This function uses the random number generator to produce 16 random bytes,
+    which are then used to create a UUID (version 4). The resulting UUID is
+    unique and reproducible based on the underlying random byte generation.
+
+    Returns:
+        UUID: A randomly generated UUID created from 16 random bytes.
+    """
+    return UUID(bytes=rng.bytes(16))
 
 
 def _compute_node_depth(g: nx.DiGraph) -> dict[Hashable, int]:
@@ -557,7 +573,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         )
 
         # create a random node id if no was given
-        node_id = node_id if node_id is not None else str(uuid.uuid4())
+        node_id = node_id if node_id is not None else str(random_uuid())
         # add the node to the graph
         super(DataFlowGraph, self).add_node(
             node_id,
@@ -640,7 +656,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         # make sure the data type matches the value
         array = pa.array([value], type=dtype.arrow_type)
         # create a random node id if not provided
-        node_id = node_id if node_id is not None else str(uuid.uuid4())
+        node_id = node_id if node_id is not None else str(random_uuid())
 
         # add the node to the graph
         return self.add_node(
@@ -813,7 +829,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             ) from e
 
         # create a random node id if not provided
-        node_id = node_id if node_id is not None else str(uuid.uuid4())
+        node_id = node_id if node_id is not None else str(random_uuid())
         # add the node to the graph
         return self.add_node(
             node_obj=dtype,

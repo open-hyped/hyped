@@ -28,7 +28,7 @@ class TypeVarRegister(object):
 
     def __init__(self):
         """Initialize the TypeVarRegister."""
-        self._registered_vars: dict[uuid4, TypeVar] = {}
+        self._registered_vars: dict[UUID, TypeVar] = {}
         self._captured_vars: dict[TypeVar, set[Type]] = defaultdict(set)
 
     def reset(self) -> None:
