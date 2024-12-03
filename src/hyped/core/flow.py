@@ -1050,7 +1050,13 @@ class ExecutableDataFlow(AbstractDataFlow):
         Returns:
             Dataset | ItDataset: The processed dataset.
         """
-        if isinstance(ds, (datasets.Dataset, datasets.DatasetDict)):
+        if isinstance(ds, datasets.Dataset):
+            # compute the new fingerprint
+            fingerprint = datasets.fingerprint.generate_fingerprint(ds)
+            fingerprint = datasets.fingerprint.update_fingerprint(
+                fingerprint, transform=self.serialize(), transform_args={}
+            )
+
             # use arrow formatter and only the required input columns
             prepared_ds = ds.with_format(type="arrow", columns=list(self._source_feature.keys()))
             # use pyarrow table as output format for in-memory
@@ -1067,6 +1073,7 @@ class ExecutableDataFlow(AbstractDataFlow):
                 writer_batch_size=writer_batch_size,
                 num_proc=num_proc,
                 desc=desc,
+                new_fingerprint=fingerprint,
             )
             # get the format of the input dataset
             input_format = (
@@ -1078,6 +1085,24 @@ class ExecutableDataFlow(AbstractDataFlow):
                 output_all_columns=True,
             )
             return transformed_ds
+
+        elif isinstance(ds, datasets.DatasetDict):
+            # apply to each dataset in the dataset dict
+            return datasets.DatasetDict(
+                {
+                    key: self._internal_apply(
+                        ds=val,
+                        batch_size=batch_size,
+                        drop_last_batch=drop_last_batch,
+                        keep_in_memory=keep_in_memory,
+                        load_from_cache_file=load_from_cache_file,
+                        writer_batch_size=writer_batch_size,
+                        num_proc=num_proc,
+                        desc=desc or key,
+                    )
+                    for key, val in ds.items()
+                }
+            )
 
         elif isinstance(ds, datasets.IterableDataset):
             # use arrow formatter and only the required input columns
@@ -1151,7 +1176,7 @@ class ExecutableDataFlow(AbstractDataFlow):
         )
         data["graph"] = self._graph.to_dict()
         # serialize the dictionary
-        return json.dumps(data, indent=indent)
+        return json.dumps(data, indent=indent, sort_keys=True)
 
     @classmethod
     def deserialize(cls, data: str) -> ExecutableDataFlow:

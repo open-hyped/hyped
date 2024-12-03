@@ -351,6 +351,8 @@ class TestExecutableDataFlow:
             )
             assert out == mock_table.return_value
 
+    @patch("hyped.core.flow.datasets.fingerprint.generate_fingerprint", MagicMock())
+    @patch("hyped.core.flow.datasets.fingerprint.update_fingerprint", MagicMock())
     def test_apply(self) -> None:
         # create a simple data flow graph containing only a source node
         graph = DataFlowGraph()
@@ -383,6 +385,7 @@ class TestExecutableDataFlow:
             writer_batch_size=ANY,
             num_proc=ANY,
             desc=ANY,
+            new_fingerprint=ANY,
         )
 
         with patch("hyped.core.flow.is_dtype_subset", MagicMock(return_value=False)), pytest.raises(
@@ -391,13 +394,15 @@ class TestExecutableDataFlow:
             # required source dtype is not a subset of the dataset
             flow.apply(ds)
 
+        ds.reset_mock()
+
         # create a mock dataset dict
-        ds_dict = MagicMock(spec=datasets.DatasetDict, values=MagicMock(return_value=[ds]))
+        ds_dict = datasets.DatasetDict({"data": ds})
         # apply the flow to the mock dataset
         flow.apply(ds_dict)
         # make sure the map function was called correctly
-        ds_dict.with_format.assert_called_once_with(type="arrow", columns=[])
-        ds_dict.with_format.return_value.map.assert_called_once_with(
+        ds.with_format.assert_called_once_with(type="arrow", columns=[])
+        ds.with_format.return_value.map.assert_called_once_with(
             flow.pyarrow_process,
             with_indices=True,
             with_rank=True,
@@ -409,6 +414,7 @@ class TestExecutableDataFlow:
             writer_batch_size=ANY,
             num_proc=ANY,
             desc=ANY,
+            new_fingerprint=ANY,
         )
 
         # create a mock iterable dataset
