@@ -8,10 +8,11 @@ These processors are registered as methods on the respective numeric feature cla
 :class:`IntFeature` and :class:`FloatFeature`, allowing them to be applied directly to numeric
 features.
 """
-from typing import Annotated, Callable, TypeVar
+from typing import Annotated, Any, Callable, TypeVar
 
 import pyarrow.compute as pc
 
+from ..abstract import AbstractDataFlowGraph
 from ..features.features import (
     Feature,
     Float32Feature,
@@ -25,10 +26,24 @@ from ..features.features import (
     UInt32Feature,
     UInt64Feature,
 )
+from ..features.types import (
+    Float32Type,
+    Float64Type,
+    Int8Type,
+    Int16Type,
+    Int32Type,
+    Int64Type,
+    Type,
+    UInt8Type,
+    UInt16Type,
+    UInt32Type,
+    UInt64Type,
+)
 from ..features.validators import TypeResolver
 from ..nodes.base import RunContext, process_mode
 from ..nodes.processor import BaseDataProcessor, BaseDataProcessorConfig
 from ..typing import Float, Int, UInt
+from ..utils import build_dtype_from_python_object
 
 ScalarType = TypeVar("ScalarType", bound=Float | Int | UInt)
 
@@ -52,6 +67,84 @@ def register_all(name: str, types: type[Feature]) -> Callable[[Fn], Fn]:
         for feature_type in types:
             feature_type.register_method(name)(fn)
         return fn
+
+    return wrapper
+
+
+def add_constant(val: Any, candidate_dtype: Type, graph: AbstractDataFlowGraph) -> Feature:
+    """Adds a constant value to a data flow graph as a node and returns it as a :class:`Feature`.
+
+    This function evaluates the provided constant value's data type. If the candidate
+    data type matches the value (e.g., a float value with a float type or an integer
+    value with an integer type), it uses the candidate type. Otherwise, it infers the
+    data type from the value. The constant is then added to the graph as a node.
+
+    Args:
+        val (Any): The constant value to be added to the graph.
+        candidate_dtype (Type): The candidate data type for the value, expected to
+            be a type like :code:`Float32Type` or :code:`Int64Type`.
+        graph (AbstractDataFlowGraph): The data flow graph where the constant will
+            be added.
+
+    Returns:
+        Feature: A :class:`Feature` object representing the constant added to the graph.
+    """
+    if isinstance(val, float) and candidate_dtype in {Float32Type, Float64Type}:
+        # candidate type is float and value is a float value
+        # use the candidate data type to represent the value
+        dtype = candidate_dtype
+
+    elif (
+        isinstance(val, int)
+        and (val >= 0)
+        and candidate_dtype in {UInt8Type, UInt16Type, UInt32Type, UInt64Type}
+    ):
+        # candidate type is an unsigned integer and value is a non-negative
+        # integer value, use the candidate data type to represent the value
+        dtype = candidate_dtype
+
+    elif isinstance(val, int) and candidate_dtype in {Int8Type, Int16Type, Int32Type, Int64Type}:
+        # candidate type is integer and value is an integer value
+        # use the candidate data type to represent the value
+        dtype = candidate_dtype
+
+    else:
+        # infer the data type from the value
+        dtype = build_dtype_from_python_object(val)
+
+    # add the constant node to the graph
+    ref = graph.add_const_node(val, dtype)
+    return graph.get_feature_from_reference(ref)
+
+
+def handle_constant_for_binary_operation(
+    f: Callable[[Feature, Feature], Feature]
+) -> Callable[[Any, Any], Feature]:
+    """A decorator that enables binary operations to handle constant values.
+
+    This decorator ensures that if one operand in a binary operation is a
+    constant, it is converted into :class:`Feature` objects before the operation
+    is performed. It wraps the provided binary operation function and seamlessly
+    supports constants as inputs.
+
+    Args:
+        f (Callable[[Feature, Feature], Feature]): The binary operation function
+            that operates on two :class:`Feature` objects.
+
+    Returns:
+        Callable[[Any, Any], Feature]: A wrapped function that handles constants
+        by converting them into :class:`Feature` objects when necessary, then performs
+        the binary operation.
+    """
+
+    def wrapper(a: Any, b: Any) -> Feature:
+        # one must be a feature
+        assert isinstance(a, Feature) or isinstance(b, Feature)
+        # add constant if required and call function
+        return f(
+            a if isinstance(a, Feature) else add_constant(a, b.dtype, b.ref._graph),
+            b if isinstance(b, Feature) else add_constant(b, a.dtype, a.ref._graph),
+        )
 
     return wrapper
 
@@ -343,6 +436,7 @@ register_all(
     ],
 )(Negate().call)
 
+
 register_all(
     "__add__",
     [
@@ -357,7 +451,7 @@ register_all(
         Float32Feature,
         Float64Feature,
     ],
-)(Add().call)
+)(handle_constant_for_binary_operation(Add().call))
 
 register_all(
     "__sub__",
@@ -373,7 +467,7 @@ register_all(
         Float32Feature,
         Float64Feature,
     ],
-)(Subtract().call)
+)(handle_constant_for_binary_operation(Subtract().call))
 
 register_all(
     "__mul__",
@@ -389,7 +483,7 @@ register_all(
         Float32Feature,
         Float64Feature,
     ],
-)(Multiply().call)
+)(handle_constant_for_binary_operation(Multiply().call))
 
 register_all(
     "__truediv__",
@@ -405,7 +499,7 @@ register_all(
         Float32Feature,
         Float64Feature,
     ],
-)(TrueDiv().call)
+)(handle_constant_for_binary_operation(TrueDiv().call))
 
 register_all(
     "__floordiv__",
@@ -421,4 +515,4 @@ register_all(
         Float32Feature,
         Float64Feature,
     ],
-)(FloorDiv().call)
+)(handle_constant_for_binary_operation(FloorDiv().call))

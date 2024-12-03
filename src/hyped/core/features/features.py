@@ -532,8 +532,7 @@ class Int8Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __add__(self, other: float) -> Int8Feature:
-        # TODO: currently float is casted to integer
+    def __add__(self, other: float) -> Float64Feature:
         ...
 
     def __add__(self, other: Any) -> Feature:
@@ -545,7 +544,7 @@ class Int8Feature(PrimitiveFeature):
         return self.execute_method("__add__", other)
 
     @overload
-    def __radd__(self, other: int) -> Int32Feature:
+    def __radd__(self, other: int) -> Int8Feature:
         ...
 
     @overload
@@ -605,8 +604,7 @@ class Int8Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __sub__(self, other: float) -> Int8Feature:
-        # TODO: currently float is casted to integer
+    def __sub__(self, other: float) -> Float64Feature:
         ...
 
     def __sub__(self, other: Any) -> Feature:
@@ -618,7 +616,7 @@ class Int8Feature(PrimitiveFeature):
         return self.execute_method("__sub__", other)
 
     @overload
-    def __rsub__(self, other: int) -> Int32Feature:
+    def __rsub__(self, other: int) -> Int8Feature:
         ...
 
     @overload
@@ -679,8 +677,7 @@ class Int8Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __mul__(self, other: float) -> Int8Feature:
-        # TODO: currently float is casted to integer
+    def __mul__(self, other: float) -> Float64Feature:
         ...
 
     def __mul__(self, other: Any) -> Feature:
@@ -692,7 +689,7 @@ class Int8Feature(PrimitiveFeature):
         return self.execute_method("__mul__", other)
 
     @overload
-    def __rmul__(self, other: int) -> Int32Feature:
+    def __rmul__(self, other: int) -> Int8Feature:
         ...
 
     @overload
@@ -738,7 +735,6 @@ class Int8Feature(PrimitiveFeature):
 
     @overload
     def __truediv__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted
         ...
 
     def __truediv__(self, other: Any) -> Feature:
@@ -755,7 +751,6 @@ class Int8Feature(PrimitiveFeature):
 
     @overload
     def __rtruediv__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __rtruediv__(self, other: Any) -> Feature:
@@ -812,8 +807,7 @@ class Int8Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __floordiv__(self, other: float) -> Int8Feature:
-        # TODO: currently float is casted to integer
+    def __floordiv__(self, other: float) -> Int64Feature:
         ...
 
     def __floordiv__(self, other: Any) -> Feature:
@@ -825,12 +819,11 @@ class Int8Feature(PrimitiveFeature):
         return self.execute_method("__floordiv__", other)
 
     @overload
-    def __rfloordiv__(self, other: int) -> Int32Feature:
+    def __rfloordiv__(self, other: int) -> Int8Feature:
         ...
 
     @overload
     def __rfloordiv__(self, other: float) -> Int64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __rfloordiv__(self, other: Any) -> Feature:
@@ -909,8 +902,7 @@ class Int16Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __add__(self, other: float) -> Int16Feature:
-        # TODO: currently float is casted to integer
+    def __add__(self, other: float) -> Float64Feature:
         ...
 
     def __add__(self, other: Any) -> Feature:
@@ -922,7 +914,7 @@ class Int16Feature(PrimitiveFeature):
         return self.execute_method("__add__", other)
 
     @overload
-    def __radd__(self, other: int) -> Int32Feature:
+    def __radd__(self, other: int) -> Int16Feature:
         ...
 
     @overload
@@ -982,8 +974,7 @@ class Int16Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __sub__(self, other: float) -> Int16Feature:
-        # TODO: currently float is casted to integer
+    def __sub__(self, other: float) -> Float64Feature:
         ...
 
     def __sub__(self, other: Any) -> Feature:
@@ -995,7 +986,7 @@ class Int16Feature(PrimitiveFeature):
         return self.execute_method("__sub__", other)
 
     @overload
-    def __rsub__(self, other: int) -> Int32Feature:
+    def __rsub__(self, other: int) -> Int16Feature:
         ...
 
     @overload
@@ -1056,7 +1047,7 @@ class Int16Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __mul__(self, other: float) -> Int16Feature:
+    def __mul__(self, other: float) -> Float64Feature:
         # TODO: currently float is casted to integer
         ...
 
@@ -1069,7 +1060,7 @@ class Int16Feature(PrimitiveFeature):
         return self.execute_method("__mul__", other)
 
     @overload
-    def __rmul__(self, other: int) -> Int32Feature:
+    def __rmul__(self, other: int) -> Int16Feature:
         ...
 
     @overload
@@ -1115,7 +1106,6 @@ class Int16Feature(PrimitiveFeature):
 
     @overload
     def __truediv__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted
         ...
 
     def __truediv__(self, other: Any) -> Feature:
@@ -1132,7 +1122,6 @@ class Int16Feature(PrimitiveFeature):
 
     @overload
     def __rtruediv__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __rtruediv__(self, other: Any) -> Feature:
@@ -1189,8 +1178,7 @@ class Int16Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __floordiv__(self, other: float) -> Int16Feature:
-        # TODO: currently float is casted to integer
+    def __floordiv__(self, other: float) -> Int64Feature:
         ...
 
     def __floordiv__(self, other: Any) -> Feature:
@@ -1202,12 +1190,11 @@ class Int16Feature(PrimitiveFeature):
         return self.execute_method("__floordiv__", other)
 
     @overload
-    def __rfloordiv__(self, other: int) -> Int32Feature:
+    def __rfloordiv__(self, other: int) -> Int16Feature:
         ...
 
     @overload
     def __rfloordiv__(self, other: float) -> Int64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __rfloordiv__(self, other: Any) -> Feature:
@@ -1286,8 +1273,7 @@ class Int32Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __add__(self, other: float) -> Int32Feature:
-        # TODO: currently float is casted to integer
+    def __add__(self, other: float) -> Float64Feature:
         ...
 
     def __add__(self, other: Any) -> Feature:
@@ -1359,8 +1345,7 @@ class Int32Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __sub__(self, other: float) -> Int32Feature:
-        # TODO: currently float is casted to integer
+    def __sub__(self, other: float) -> Float64Feature:
         ...
 
     def __sub__(self, other: Any) -> Feature:
@@ -1433,8 +1418,7 @@ class Int32Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __mul__(self, other: float) -> Int32Feature:
-        # TODO: currently float is casted to integer
+    def __mul__(self, other: float) -> Float64Feature:
         ...
 
     def __mul__(self, other: Any) -> Feature:
@@ -1492,7 +1476,6 @@ class Int32Feature(PrimitiveFeature):
 
     @overload
     def __truediv__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted
         ...
 
     def __truediv__(self, other: Any) -> Feature:
@@ -1509,7 +1492,6 @@ class Int32Feature(PrimitiveFeature):
 
     @overload
     def __rtruediv__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __rtruediv__(self, other: Any) -> Feature:
@@ -1566,8 +1548,7 @@ class Int32Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __floordiv__(self, other: float) -> Int32Feature:
-        # TODO: currently float is casted to integer
+    def __floordiv__(self, other: float) -> Int64Feature:
         ...
 
     def __floordiv__(self, other: Any) -> Feature:
@@ -1583,8 +1564,9 @@ class Int32Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __rfloordiv__(self, other: float) -> Int64Feature:
-        # TODO: currently float is casted to integer
+    def __rfloordiv__(
+        self, other: float
+    ) -> Int64Feature:  # TODO: why is this 64-bit, is it really?
         ...
 
     def __rfloordiv__(self, other: Any) -> Feature:
@@ -1663,8 +1645,7 @@ class Int64Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __add__(self, other: float) -> Int64Feature:
-        # TODO: currently float is casted to integer
+    def __add__(self, other: float) -> Float64Feature:
         ...
 
     def __add__(self, other: Any) -> Feature:
@@ -1736,8 +1717,7 @@ class Int64Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __sub__(self, other: float) -> Int64Feature:
-        # TODO: currently float is casted to integer
+    def __sub__(self, other: float) -> Float64Feature:
         ...
 
     def __sub__(self, other: Any) -> Feature:
@@ -1810,8 +1790,7 @@ class Int64Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __mul__(self, other: float) -> Int64Feature:
-        # TODO: currently float is casted to integer
+    def __mul__(self, other: float) -> Float64Feature:
         ...
 
     def __mul__(self, other: Any) -> Feature:
@@ -1869,7 +1848,6 @@ class Int64Feature(PrimitiveFeature):
 
     @overload
     def __truediv__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted
         ...
 
     def __truediv__(self, other: Any) -> Feature:
@@ -1886,7 +1864,6 @@ class Int64Feature(PrimitiveFeature):
 
     @overload
     def __rtruediv__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __rtruediv__(self, other: Any) -> Feature:
@@ -1944,7 +1921,6 @@ class Int64Feature(PrimitiveFeature):
 
     @overload
     def __floordiv__(self, other: float) -> Int64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __floordiv__(self, other: Any) -> Feature:
@@ -1961,7 +1937,6 @@ class Int64Feature(PrimitiveFeature):
 
     @overload
     def __rfloordiv__(self, other: float) -> Int64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __rfloordiv__(self, other: Any) -> Feature:
@@ -2036,12 +2011,11 @@ class UInt8Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __add__(self, other: int) -> UInt8Feature:
+    def __add__(self, other: int) -> UInt8Feature | Int32Feature:
         ...
 
     @overload
-    def __add__(self, other: float) -> UInt8Feature:
-        # TODO: currently float is casted to integer
+    def __add__(self, other: float) -> Float64Feature:
         ...
 
     def __add__(self, other: Any) -> Feature:
@@ -2053,7 +2027,7 @@ class UInt8Feature(PrimitiveFeature):
         return self.execute_method("__add__", other)
 
     @overload
-    def __radd__(self, other: int) -> Int32Feature:
+    def __radd__(self, other: int) -> UInt8Feature | Int32Feature:
         ...
 
     @overload
@@ -2109,12 +2083,11 @@ class UInt8Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __sub__(self, other: int) -> UInt8Feature:
+    def __sub__(self, other: int) -> UInt8Feature | Int32Feature:
         ...
 
     @overload
-    def __sub__(self, other: float) -> UInt8Feature:
-        # TODO: currently float is casted to integer
+    def __sub__(self, other: float) -> Float64Feature:
         ...
 
     def __sub__(self, other: Any) -> Feature:
@@ -2126,7 +2099,7 @@ class UInt8Feature(PrimitiveFeature):
         return self.execute_method("__sub__", other)
 
     @overload
-    def __rsub__(self, other: int) -> Int32Feature:
+    def __rsub__(self, other: int) -> UInt8Feature | Int32Feature:
         ...
 
     @overload
@@ -2183,12 +2156,11 @@ class UInt8Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __mul__(self, other: int) -> UInt8Feature:
+    def __mul__(self, other: int) -> UInt8Feature | Int32Feature:
         ...
 
     @overload
-    def __mul__(self, other: float) -> UInt8Feature:
-        # TODO: currently float is casted to integer
+    def __mul__(self, other: float) -> Float64Feature:
         ...
 
     def __mul__(self, other: Any) -> Feature:
@@ -2200,7 +2172,7 @@ class UInt8Feature(PrimitiveFeature):
         return self.execute_method("__mul__", other)
 
     @overload
-    def __rmul__(self, other: int) -> Int32Feature:
+    def __rmul__(self, other: int) -> UInt8Feature | Int32Feature:
         ...
 
     @overload
@@ -2246,7 +2218,6 @@ class UInt8Feature(PrimitiveFeature):
 
     @overload
     def __truediv__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted
         ...
 
     def __truediv__(self, other: Any) -> Feature:
@@ -2263,7 +2234,6 @@ class UInt8Feature(PrimitiveFeature):
 
     @overload
     def __rtruediv__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __rtruediv__(self, other: Any) -> Feature:
@@ -2316,12 +2286,11 @@ class UInt8Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __floordiv__(self, other: int) -> UInt8Feature:
+    def __floordiv__(self, other: int) -> UInt8Feature | Int32Feature:
         ...
 
     @overload
-    def __floordiv__(self, other: float) -> UInt8Feature:
-        # TODO: currently float is casted to integer
+    def __floordiv__(self, other: float) -> Int64Feature:
         ...
 
     def __floordiv__(self, other: Any) -> Feature:
@@ -2333,12 +2302,11 @@ class UInt8Feature(PrimitiveFeature):
         return self.execute_method("__floordiv__", other)
 
     @overload
-    def __rfloordiv__(self, other: int) -> Int32Feature:
+    def __rfloordiv__(self, other: int) -> UInt8Feature | Int32Feature:
         ...
 
     @overload
     def __rfloordiv__(self, other: float) -> Int64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __rfloordiv__(self, other: Any) -> Feature:
@@ -2413,12 +2381,11 @@ class UInt16Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __add__(self, other: int) -> UInt16Feature:
+    def __add__(self, other: int) -> UInt16Feature | Int32Feature:
         ...
 
     @overload
-    def __add__(self, other: float) -> UInt16Feature:
-        # TODO: currently float is casted to integer
+    def __add__(self, other: float) -> Float64Feature:
         ...
 
     def __add__(self, other: Any) -> Feature:
@@ -2430,7 +2397,7 @@ class UInt16Feature(PrimitiveFeature):
         return self.execute_method("__add__", other)
 
     @overload
-    def __radd__(self, other: int) -> Int32Feature:
+    def __radd__(self, other: int) -> UInt16Feature | Int32Feature:
         ...
 
     @overload
@@ -2486,12 +2453,11 @@ class UInt16Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __sub__(self, other: int) -> UInt16Feature:
+    def __sub__(self, other: int) -> UInt16Feature | Int32Feature:
         ...
 
     @overload
-    def __sub__(self, other: float) -> UInt16Feature:
-        # TODO: currently float is casted to integer
+    def __sub__(self, other: float) -> Float64Feature:
         ...
 
     def __sub__(self, other: Any) -> Feature:
@@ -2503,7 +2469,7 @@ class UInt16Feature(PrimitiveFeature):
         return self.execute_method("__sub__", other)
 
     @overload
-    def __rsub__(self, other: int) -> Int32Feature:
+    def __rsub__(self, other: int) -> UInt16Feature | Int32Feature:
         ...
 
     @overload
@@ -2560,12 +2526,11 @@ class UInt16Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __mul__(self, other: int) -> UInt16Feature:
+    def __mul__(self, other: int) -> UInt16Feature | Int32Feature:
         ...
 
     @overload
-    def __mul__(self, other: float) -> UInt16Feature:
-        # TODO: currently float is casted to integer
+    def __mul__(self, other: float) -> Float64Feature:
         ...
 
     def __mul__(self, other: Any) -> Feature:
@@ -2577,7 +2542,7 @@ class UInt16Feature(PrimitiveFeature):
         return self.execute_method("__mul__", other)
 
     @overload
-    def __rmul__(self, other: int) -> Int32Feature:
+    def __rmul__(self, other: int) -> UInt16Feature | Int32Feature:
         ...
 
     @overload
@@ -2640,7 +2605,6 @@ class UInt16Feature(PrimitiveFeature):
 
     @overload
     def __rtruediv__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __rtruediv__(self, other: Any) -> Feature:
@@ -2693,12 +2657,11 @@ class UInt16Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __floordiv__(self, other: int) -> UInt16Feature:
+    def __floordiv__(self, other: int) -> Int32Feature | UInt16Feature:
         ...
 
     @overload
-    def __floordiv__(self, other: float) -> UInt16Feature:
-        # TODO: currently float is casted to integer
+    def __floordiv__(self, other: float) -> Int64Feature:
         ...
 
     def __floordiv__(self, other: Any) -> Feature:
@@ -2710,12 +2673,11 @@ class UInt16Feature(PrimitiveFeature):
         return self.execute_method("__floordiv__", other)
 
     @overload
-    def __rfloordiv__(self, other: int) -> Int32Feature:
+    def __rfloordiv__(self, other: int) -> Int32Feature | UInt16Feature:
         ...
 
     @overload
     def __rfloordiv__(self, other: float) -> Int64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __rfloordiv__(self, other: Any) -> Feature:
@@ -2790,11 +2752,11 @@ class UInt32Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __add__(self, other: int) -> UInt32Feature:
+    def __add__(self, other: int) -> UInt32Feature | Int64Feature:
         ...
 
     @overload
-    def __add__(self, other: float) -> UInt32Feature:
+    def __add__(self, other: float) -> Float64Feature:
         # TODO: currently float is casted to integer
         ...
 
@@ -2807,7 +2769,7 @@ class UInt32Feature(PrimitiveFeature):
         return self.execute_method("__add__", other)
 
     @overload
-    def __radd__(self, other: int) -> Int64Feature:
+    def __radd__(self, other: int) -> UInt32Feature | Int64Feature:
         ...
 
     @overload
@@ -2863,12 +2825,11 @@ class UInt32Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __sub__(self, other: int) -> UInt32Feature:
+    def __sub__(self, other: int) -> UInt32Feature | Int64Feature:
         ...
 
     @overload
-    def __sub__(self, other: float) -> UInt32Feature:
-        # TODO: currently float is casted to integer
+    def __sub__(self, other: float) -> Float64Feature:
         ...
 
     def __sub__(self, other: Any) -> Feature:
@@ -2880,7 +2841,7 @@ class UInt32Feature(PrimitiveFeature):
         return self.execute_method("__sub__", other)
 
     @overload
-    def __rsub__(self, other: int) -> Int64Feature:
+    def __rsub__(self, other: int) -> UInt32Feature | Int64Feature:
         ...
 
     @overload
@@ -2937,12 +2898,11 @@ class UInt32Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __mul__(self, other: int) -> UInt32Feature:
+    def __mul__(self, other: int) -> UInt32Feature | Int64Feature:
         ...
 
     @overload
-    def __mul__(self, other: float) -> UInt32Feature:
-        # TODO: currently float is casted to integer
+    def __mul__(self, other: float) -> Float64Feature:
         ...
 
     def __mul__(self, other: Any) -> Feature:
@@ -2954,7 +2914,7 @@ class UInt32Feature(PrimitiveFeature):
         return self.execute_method("__mul__", other)
 
     @overload
-    def __rmul__(self, other: int) -> Int64Feature:
+    def __rmul__(self, other: int) -> UInt32Feature | Int64Feature:
         ...
 
     @overload
@@ -3070,12 +3030,11 @@ class UInt32Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __floordiv__(self, other: int) -> UInt32Feature:
+    def __floordiv__(self, other: int) -> Int64Feature | UInt32Feature:
         ...
 
     @overload
-    def __floordiv__(self, other: float) -> UInt32Feature:
-        # TODO: currently float is casted to integer
+    def __floordiv__(self, other: float) -> Int64Feature:
         ...
 
     def __floordiv__(self, other: Any) -> Feature:
@@ -3087,12 +3046,11 @@ class UInt32Feature(PrimitiveFeature):
         return self.execute_method("__floordiv__", other)
 
     @overload
-    def __rfloordiv__(self, other: int) -> Int64Feature:
+    def __rfloordiv__(self, other: int) -> Int64Feature | UInt32Feature:
         ...
 
     @overload
     def __rfloordiv__(self, other: float) -> Int64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __rfloordiv__(self, other: Any) -> Feature:
@@ -3167,12 +3125,11 @@ class UInt64Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __add__(self, other: int) -> UInt64Feature:
+    def __add__(self, other: int) -> UInt64Feature | Int64Feature:
         ...
 
     @overload
-    def __add__(self, other: float) -> UInt64Feature:
-        # TODO: currently float is casted to integer
+    def __add__(self, other: float) -> Float64Feature:
         ...
 
     def __add__(self, other: Any) -> Feature:
@@ -3184,7 +3141,7 @@ class UInt64Feature(PrimitiveFeature):
         return self.execute_method("__add__", other)
 
     @overload
-    def __radd__(self, other: int) -> Int64Feature:
+    def __radd__(self, other: int) -> UInt64Feature | Int64Feature:
         ...
 
     @overload
@@ -3240,12 +3197,11 @@ class UInt64Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __sub__(self, other: int) -> UInt64Feature:
+    def __sub__(self, other: int) -> UInt64Feature | Int64Feature:
         ...
 
     @overload
-    def __sub__(self, other: float) -> UInt64Feature:
-        # TODO: currently float is casted to integer
+    def __sub__(self, other: float) -> Float64Feature:
         ...
 
     def __sub__(self, other: Any) -> Feature:
@@ -3257,7 +3213,7 @@ class UInt64Feature(PrimitiveFeature):
         return self.execute_method("__sub__", other)
 
     @overload
-    def __rsub__(self, other: int) -> Int64Feature:
+    def __rsub__(self, other: int) -> UInt64Feature | Int64Feature:
         ...
 
     @overload
@@ -3314,12 +3270,11 @@ class UInt64Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __mul__(self, other: int) -> UInt64Feature:
+    def __mul__(self, other: int) -> UInt64Feature | Int64Feature:
         ...
 
     @overload
-    def __mul__(self, other: float) -> UInt64Feature:
-        # TODO: currently float is casted to integer
+    def __mul__(self, other: float) -> Float64Feature:
         ...
 
     def __mul__(self, other: Any) -> Feature:
@@ -3331,7 +3286,7 @@ class UInt64Feature(PrimitiveFeature):
         return self.execute_method("__mul__", other)
 
     @overload
-    def __rmul__(self, other: int) -> Int64Feature:
+    def __rmul__(self, other: int) -> UInt64Feature | Int64Feature:
         ...
 
     @overload
@@ -3377,7 +3332,6 @@ class UInt64Feature(PrimitiveFeature):
 
     @overload
     def __truediv__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted
         ...
 
     def __truediv__(self, other: Any) -> Feature:
@@ -3394,7 +3348,6 @@ class UInt64Feature(PrimitiveFeature):
 
     @overload
     def __rtruediv__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __rtruediv__(self, other: Any) -> Feature:
@@ -3447,12 +3400,11 @@ class UInt64Feature(PrimitiveFeature):
         ...
 
     @overload
-    def __floordiv__(self, other: int) -> UInt64Feature:
+    def __floordiv__(self, other: int) -> UInt64Feature | Int64Feature:
         ...
 
     @overload
-    def __floordiv__(self, other: float) -> UInt64Feature:
-        # TODO: currently float is casted to integer
+    def __floordiv__(self, other: float) -> Int64Feature:
         ...
 
     def __floordiv__(self, other: Any) -> Feature:
@@ -3464,12 +3416,11 @@ class UInt64Feature(PrimitiveFeature):
         return self.execute_method("__floordiv__", other)
 
     @overload
-    def __rfloordiv__(self, other: int) -> Int64Feature:
+    def __rfloordiv__(self, other: int) -> UInt64Feature | Int64Feature:
         ...
 
     @overload
     def __rfloordiv__(self, other: float) -> Int64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __rfloordiv__(self, other: Any) -> Feature:
@@ -3579,19 +3530,11 @@ class Float32Feature(PrimitiveFeature):
         """
         return self.execute_method("__sub__", other)
 
-    @overload
-    def __rsub__(self, other: int) -> Float32Feature:
-        ...
-
-    @overload
-    def __rsub__(self, other: float) -> Float64Feature:
-        ...
-
-    def __rsub__(self, other: int | float) -> Feature:
+    def __rsub__(self, other: int | float) -> Float32Feature:
         """Performs right subtraction operation with constant ('-').
 
         Returns:
-            Feature: A new feature representing the difference of the original features.
+            Float32Feature: A new feature representing the difference of the original features.
         """
         return self.get_method("__sub__")(other, self)
 
@@ -3671,19 +3614,11 @@ class Float32Feature(PrimitiveFeature):
         """
         return self.execute_method("__truediv__", other)
 
-    @overload
-    def __rtruediv__(self, other: int) -> Float32Feature:
-        ...
-
-    @overload
-    def __rtruediv__(self, other: float) -> Float64Feature:
-        ...
-
-    def __rtruediv__(self, other: int | float) -> Float32Feature | Float64Feature:
+    def __rtruediv__(self, other: int | float) -> Float32Feature:
         """Performs true true right division operation with constant ('/').
 
         Returns:
-            Feature: A new feature representing the quotient of the original features.
+            Float32Feature: A new feature representing the quotient of the original features.
         """
         return self.get_method("__truediv__")(other, self)
 
@@ -3817,19 +3752,11 @@ class Float64Feature(PrimitiveFeature):
         """
         return self.execute_method("__sub__", other)
 
-    @overload
-    def __rsub__(self, other: int) -> Float64Feature:
-        ...
-
-    @overload
-    def __rsub__(self, other: float) -> Float64Feature:
-        ...
-
-    def __rsub__(self, other: int | float) -> Feature:
+    def __rsub__(self, other: int | float) -> Float64Feature:
         """Performs right subtraction operation with constant ('-').
 
         Returns:
-            Feature: A new feature representing the difference of the original features.
+            Float64Feature: A new feature representing the difference of the original features.
         """
         return self.get_method("__sub__")(other, self)
 
@@ -3871,7 +3798,7 @@ class Float64Feature(PrimitiveFeature):
         """Performs right multiplication operation with constant ('*').
 
         Returns:
-            Feature: A new feature representing the product of the original features.
+            Float64Feature: A new feature representing the product of the original features.
         """
         return self.execute_method("__mul__", other)
 
