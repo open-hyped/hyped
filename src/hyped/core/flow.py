@@ -284,7 +284,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             # validate the feature instance with respect to the type annotation
             try:
                 adapter = pydantic.TypeAdapter(src_type_annotation)
-                instance = adapter.validate_python(instance, context={"strict": True})
+                instance = adapter.validate_python(instance, context={"strict": True}, strict=True)
             except pydantic.ValidationError as e:
                 raise RuntimeError(
                     f"The provided HuggingFace features '{self._hf_source_features}' are "

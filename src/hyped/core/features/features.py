@@ -4004,7 +4004,7 @@ class SequenceFeature(typing.Sequence[T], Feature):
             core_schema.CoreSchema: A schema that validates `SequenceFeature` instances
             and enforces type constraints for sequence features.
         """
-        adapter = None
+        adapter: pydantic.TypeAdapter = None
 
         if isinstance(source_type, GenericAlias):
             # get the expected item type from the generic annotation
@@ -4041,7 +4041,7 @@ class SequenceFeature(typing.Sequence[T], Feature):
                 # and validate the value feature at position 0 as a representative
                 # of all the sequence values
                 value_feature = replace(inst, dtype=replace(inst.dtype, length=1))[0]
-                adapter.validate_python(value_feature, context=info.context)
+                adapter.validate_python(value_feature, context=info.context, strict=True)
 
             return inst
 
@@ -4247,7 +4247,7 @@ class _MappingFeature(typing.Mapping, Feature):
 
             if model is not None:
                 # validate the field types
-                model.model_validate(dict(inst), context=info.context)
+                model.model_validate(dict(inst), context=info.context, strict=True)
 
             strict = (info.context or {}).get("strict", False)
             # convert the instance to the actual class type in case of
