@@ -1,5 +1,6 @@
 from inspect import Parameter, Signature, _ParameterKind
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 
@@ -132,7 +133,10 @@ class TestDataAggregationManager:
 
 
 class MockConfig(BaseDataAggregatorConfig):
-    ...
+    @classmethod
+    @property
+    def type_id(self) -> str:
+        return str(uuid4())
 
 
 class TestBaseDataAggregator:
@@ -159,6 +163,9 @@ class TestBaseDataAggregator:
         )
 
     def test_init_subclass(self) -> None:
+        class MockConfig(BaseDataAggregatorConfig):
+            ...
+
         class MockDataAggregator(BaseDataAggregator[MockConfig]):
             def initialize(self, ctx: RunContext) -> tuple[Int, int]:
                 ...

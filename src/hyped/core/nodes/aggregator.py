@@ -109,7 +109,7 @@ class DataAggregationManager(object):
         state = self._state_buffer[ctx.node_id]
 
         # prepare the value for the update
-        value_type = MappingType.from_dict({"value": ctx.output_type})
+        value_type = MappingType.construct({"value": ctx.output_type})
         inputs = mode.prepare(replace(ctx, input_type=value_type), value=value)
         # should only contain a single input tuple
         update_ctx, update_kw = next(iter(inputs))

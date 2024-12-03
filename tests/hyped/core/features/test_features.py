@@ -1975,7 +1975,7 @@ class TestPrimitiveFeatures:
         graph = DataFlowGraph()
         # add all feature arguments to the source node
         source = graph.add_source_node(
-            MappingType.from_dict(
+            MappingType.construct(
                 {"feature": feature_type._expected_dtype}
                 | {
                     str(i): ftype._expected_dtype
@@ -2119,7 +2119,7 @@ class TestSequenceFeature:
 class TestMappingFeature:
     def test_post_init(self) -> None:
         ref = Reference()
-        dtype = MappingType.from_dict({"fieldA": BoolType, "fieldB": StringType})
+        dtype = MappingType.construct({"fieldA": BoolType, "fieldB": StringType})
 
         # base mapping feature allows arbitrary fields
         MappingFeature(ref, dtype=dtype)
@@ -2150,7 +2150,7 @@ class TestMappingFeature:
 
     def test_get_item(self) -> None:
         ref = Reference()
-        dtype = MappingType.from_dict({"fieldA": BoolType, "fieldB": StringType})
+        dtype = MappingType.construct({"fieldA": BoolType, "fieldB": StringType})
         # base mapping feature allows arbitrary fields
         mapping = MappingFeature(ref, dtype=dtype)
 
@@ -2170,7 +2170,7 @@ class TestMappingFeature:
     def test_pydantic_core_schema(self) -> None:
         # create mapping feature instance
         ref = Reference()
-        dtype = MappingType.from_dict({"fieldA": BoolType, "fieldB": StringType})
+        dtype = MappingType.construct({"fieldA": BoolType, "fieldB": StringType})
         mapping = MappingFeature(ref, dtype=dtype)
 
         class CustomMappingFeature(MappingFeature):

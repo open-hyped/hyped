@@ -249,8 +249,8 @@ class BaseConfigurable(Generic[U], RegisterTypeMixin, ABC):
 V = TypeVar("V", bound=BaseConfigurable)
 
 
-class BaseAutoConfigurable(BaseAutoClass[V]):
-    """Base Auto Class for configurable types."""
+class AutoConfigurable(BaseAutoClass[V]):
+    """Auto Class for configurable types."""
 
     @classmethod
     def from_config(cls, config: BaseConfig) -> V:
@@ -260,7 +260,7 @@ class BaseAutoConfigurable(BaseAutoClass[V]):
             config (BaseConfig): configuration
 
         Returns:
-            inst (V): instance created from config
+            V: instance created from config
         """
         # build type identifier of configurable corresponding
         # to the config
@@ -268,3 +268,15 @@ class BaseAutoConfigurable(BaseAutoClass[V]):
         var = cls.type_registry.get_type_by_t(t)
         # create instance
         return var.from_config(config)
+
+    @classmethod
+    def from_config_dict(cls, config: dict) -> V:
+        """Create instance from given config dict.
+
+        Arguments:
+            config (dict): configuration dict
+
+        Returns:
+            V: instance created from config dict
+        """
+        return cls.from_config(AutoConfig.from_dict(config))

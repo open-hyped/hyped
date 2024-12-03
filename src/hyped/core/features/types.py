@@ -17,16 +17,25 @@ import pydantic
 from pydantic_core import core_schema
 
 
+@dataclass(eq=True, frozen=True)
 class Type(ABC):
-    """Abstract base class for types in the system."""
+    """Abstract base class for types in the system.
+
+    This class provides the foundation for defining types within the system.
+    Subclasses must implement the :code:`arrow_type` property to map their type
+    to a corresponding PyArrow data type
+    """
 
     @property
     @abstractmethod
     def arrow_type(self) -> pa.DataType:
-        """Returns the corresponding :code:`PyArrow` data type.
+        """Abstract property that returns the corresponding PyArrow data type.
+
+        This property must be implemented by subclasses to provide the PyArrow
+        data type representation for the specific type.
 
         Returns:
-            pa.DataType: The :code:`PyArrow` data type representation.
+            pa.DataType: The PyArrow data type representation of the type.
         """
         ...
 
@@ -48,10 +57,43 @@ class Type(ABC):
         """
         return core_schema.is_instance_schema(cls)
 
+    @abstractmethod
+    def to_dict(self) -> dict:
+        """Converts the object to a dictionary representation.
+
+        This method must be implemented by subclasses to provide a consistent
+        dictionary serialization format.
+
+        Returns:
+            dict: A dictionary representing the object.
+        """
+        ...
+
+    @classmethod
+    @abstractmethod
+    def from_dict(cls, data: dict) -> Type:
+        """Constructs an object from its dictionary representation.
+
+        Subclasses must implement this method to enable deserialization
+        of the object from a dictionary.
+
+        Args:
+            data (dict): The dictionary representation of the object.
+
+        Returns:
+            Type: An instance of the type reconstructed from the dictionary.
+        """
+        ...
+
 
 @dataclass(eq=True, frozen=True)
 class PrimitiveType(Type):
-    """Represents a primitive type in the typing system."""
+    """Represents a primitive type in the typing system.
+
+    A primitive type corresponds directly to a PyArrow primitive data type such as
+    :code:`int32`, :code:`float64`, or :code:`bool`. This class provides methods for
+    serialization and deserialization of primitive types.
+    """
 
     _arrow_type: pa.DataType
     """The underlying :code:`PyArrow` data type."""
@@ -72,6 +114,38 @@ class PrimitiveType(Type):
             str: A string representation of the :class:`PrimitiveType` instance.
         """
         return str(self._arrow_type).capitalize()
+
+    def to_dict(self) -> dict:
+        """Converts the :class:`PrimitiveType` instance to a dictionary representation.
+
+        Returns:
+            dict: A dictionary with the following keys:
+                - :code:`type` (str): The type identifier ("PrimitiveType").
+                - :code:`arrow_type` (str): The string representation of the PyArrow type.
+        """
+        return {
+            "type": "PrimitiveType",
+            "arrow_type": str(self.arrow_type),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "PrimitiveType":
+        """Constructs a PrimitiveType instance from a dictionary representation.
+
+        Args:
+            data (dict): A dictionary with the following keys:
+                - :code:`type` (str): Must be "PrimitiveType".
+                - :code:`arrow_type` (str): The string representation of the PyArrow type.
+
+        Returns:
+            PrimitiveType: An instance of the PrimitiveType class.
+
+        Raises:
+            ValueError: If the :code:`type` field is not "PrimitiveType".
+        """
+        if data["type"] != "PrimitiveType":
+            raise ValueError("Invalid type for deserialization")
+        return ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING[data["arrow_type"]]
 
 
 # Primitive Types
@@ -116,6 +190,23 @@ Float32Type = PrimitiveType(pa.float32())
 
 Float64Type = PrimitiveType(pa.float64())
 """64-bit floating point type."""
+
+ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING: dict[str, Type] = {
+    str(BoolType.arrow_type): BoolType,
+    str(StringType.arrow_type): StringType,
+    str(Int8Type.arrow_type): Int8Type,
+    str(Int16Type.arrow_type): Int16Type,
+    str(Int32Type.arrow_type): Int32Type,
+    str(Int64Type.arrow_type): Int64Type,
+    str(UInt8Type.arrow_type): UInt8Type,
+    str(UInt16Type.arrow_type): UInt16Type,
+    str(UInt32Type.arrow_type): UInt32Type,
+    str(UInt64Type.arrow_type): UInt64Type,
+    str(Float16Type.arrow_type): Float16Type,
+    str(Float32Type.arrow_type): Float32Type,
+    str(Float64Type.arrow_type): Float64Type,
+}
+
 
 # Constant
 UNDEFINED_SEQUENCE_LENGTH = 2**32 - 1
@@ -235,9 +326,40 @@ class SequenceType(Type, typing.Sequence):
         """
         return f"SequenceType[{str(self.value_type)}]"
 
+    def to_dict(self) -> dict:
+        """Serializes the sequence type to a dictionary representation.
+
+        Returns:
+            dict: A dictionary containing the serialized information of the sequence type.
+        """
+        return {
+            "type": "SequenceType",
+            "value_type": self.value_type.to_dict(),
+            "length": self.length,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> SequenceType:
+        """Deserializes a dictionary representation into a :class:`SequenceType` instance.
+
+        Args:
+            data (dict): A dictionary containing serialized information of a sequence type.
+
+        Returns:
+            SequenceType: The deserialized sequence type.
+
+        Raises:
+            ValueError: If the dictionary does not represent a SequenceType.
+        """
+        if data["type"] != "SequenceType":
+            raise ValueError("Invalid type for deserialization")
+        return SequenceType(
+            value_type=build_type_from_dict(data["value_type"]), length=data["length"]
+        )
+
 
 @dataclass(eq=True, frozen=True)
-class MappingType(Type, typing.Mapping):
+class MappingType(Type, typing.Mapping[str, Type]):
     """Represents a mapping type in the typing system.
 
     This type associates field names with their corresponding types.
@@ -310,7 +432,7 @@ class MappingType(Type, typing.Mapping):
         return dict(self.fields) == dict(other.fields)
 
     @classmethod
-    def from_dict(cls, fields: dict[str, Type]) -> MappingType:
+    def construct(cls, fields: dict[str, Type]) -> MappingType:
         """Creates a :class:`MappingType` instance from a dictionary of fields.
 
         Args:
@@ -328,6 +450,65 @@ class MappingType(Type, typing.Mapping):
             str: The name of the class (`MappingType`).
         """
         return type(self).__name__
+
+    def to_dict(self) -> dict:
+        """Serializes the :class:`MappingType` instance to a dictionary.
+
+        Converts the mapping's fields into a dictionary format,
+        suitable for JSON serialization or storage.
+
+        Returns:
+            dict: A dictionary representing the mapping type.
+        """
+        return {
+            "type": "MappingType",
+            "fields": {key: field.to_dict() for key, field in self.items()},
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> MappingType:
+        """Deserializes a :class:`MappingType` instance from a dictionary.
+
+        Args:
+            data (dict): A dictionary containing the serialized form of a MappingType.
+
+        Returns:
+            MappingType: A new instance of :class:`MappingType` constructed from the data.
+
+        Raises:
+            ValueError: If the "type" field in the dictionary is not "MappingType".
+        """
+        if data["type"] != "MappingType":
+            raise ValueError("Invalid type for deserialization")
+        return MappingType.construct(
+            {key: build_type_from_dict(field) for key, field in data["fields"].items()}
+        )
+
+
+def build_type_from_dict(data: dict) -> Type:
+    """Constructs a Type instance from a dictionary.
+
+    This function determines the type of the serialized data and calls the appropriate
+    `from_dict` method to reconstruct the corresponding `Type` instance.
+
+    Args:
+        data (dict): A dictionary representing the serialized form of a Type,
+                     containing a "type" field.
+
+    Returns:
+        Type: An instance of the appropriate Type subclass.
+
+    Raises:
+        ValueError: If the "type" field does not correspond to a recognized Type subclass.
+    """
+    if data["type"] == "PrimitiveType":
+        return PrimitiveType.from_dict(data)
+    elif data["type"] == "SequenceType":
+        return SequenceType.from_dict(data)
+    elif data["type"] == "MappingType":
+        return MappingType.from_dict(data)
+
+    raise ValueError(f"Unknown type for deserialization: {data['type']}")
 
 
 def cast_dtype(src_dtype: Type, tgt_dtype: Type) -> Type:
@@ -371,7 +552,7 @@ def cast_dtype(src_dtype: Type, tgt_dtype: Type) -> Type:
         # make sure both mappings contain all keys and the fields
         # are castable
         fields = {k: cast_dtype[src_dtype[k], tgt_dtype[k]] for k in src_dtype.keys()}
-        return MappingType.from_dict(fields)
+        return MappingType.construct(fields)
 
     elif isinstance(src_dtype, PrimitiveType) and isinstance(tgt_dtype, PrimitiveType):
         # can cast all primitive types to all other primitive types
@@ -440,7 +621,7 @@ def common_dtype(*dtypes: Type) -> Type:
             )
         # Determine common dtype for each field
         fields = {k: common_dtype(*(dtype[k] for dtype in dtypes)) for k in keys}
-        return MappingType.from_dict(fields)
+        return MappingType.construct(fields)
 
     # Handle primitive types
     elif all(isinstance(dtype, PrimitiveType) for dtype in dtypes):

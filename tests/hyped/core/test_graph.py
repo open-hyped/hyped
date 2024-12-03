@@ -104,27 +104,27 @@ class TestDataFlowGraph:
         [
             (
                 [(0, 1, ("x")), (0, 2, ("y"))],
-                MappingType.from_dict({"x": MockType, "y": MockType}),
-                MappingType.from_dict({"x": MockType, "y": MockType}),
+                MappingType.construct({"x": MockType, "y": MockType}),
+                MappingType.construct({"x": MockType, "y": MockType}),
             ),
             (
                 [(0, 1, ("x")), (0, 2, ("x"))],
-                MappingType.from_dict({"x": MockType, "y": MockType}),
-                MappingType.from_dict({"x": MockType}),
+                MappingType.construct({"x": MockType, "y": MockType}),
+                MappingType.construct({"x": MockType}),
             ),
             (
                 [(0, 1, ("y")), (0, 2, ("x", "a"))],
-                MappingType.from_dict(
-                    {"x": MappingType.from_dict({"a": MockType, "b": MockType}), "y": MockType}
+                MappingType.construct(
+                    {"x": MappingType.construct({"a": MockType, "b": MockType}), "y": MockType}
                 ),
-                MappingType.from_dict({"x": MappingType.from_dict({"a": MockType}), "y": MockType}),
+                MappingType.construct({"x": MappingType.construct({"a": MockType}), "y": MockType}),
             ),
             (
                 [(0, 1, ("x", 0, "a"))],
-                MappingType.from_dict(
-                    {"x": SequenceType(MappingType.from_dict({"a": MockType, "b": MockType}))}
+                MappingType.construct(
+                    {"x": SequenceType(MappingType.construct({"a": MockType, "b": MockType}))}
                 ),
-                MappingType.from_dict({"x": SequenceType(MappingType.from_dict({"a": MockType}))}),
+                MappingType.construct({"x": SequenceType(MappingType.construct({"a": MockType}))}),
             ),
         ],
     )
@@ -342,7 +342,7 @@ class TestDataFlowGraph:
         assert attrs[DataFlowGraph.NodeAttribute.NODE_TYPE] == node_type
         assert attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] == MockType
         assert attrs[DataFlowGraph.NodeAttribute.DEPTH] == expected_depth
-        assert attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] == MappingType.from_dict(
+        assert attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] == MappingType.construct(
             {str(u): MockType for u in in_nodes}
         )
 
@@ -387,7 +387,7 @@ class TestDataFlowGraph:
         assert attrs[DataFlowGraph.NodeAttribute.NODE_OBJ] == mock_pa_array()
         assert attrs[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.CONST
         assert attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] == MockType
-        assert attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] == MappingType.from_dict({})
+        assert attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] == MappingType.construct({})
 
     def test_add_collect_node(self) -> None:
         # create simple linear graph
@@ -406,7 +406,7 @@ class TestDataFlowGraph:
         assert (
             attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE]
             == attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
-            == MappingType.from_dict(
+            == MappingType.construct(
                 {
                     "a": graph.nodes[0][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
                     "b": graph.nodes[1][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
@@ -431,15 +431,15 @@ class TestDataFlowGraph:
             "a": {"b": "a.b", "c": "a.c"}
         }
         assert attrs[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.COLLECT
-        assert attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] == MappingType.from_dict(
+        assert attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] == MappingType.construct(
             {
                 "a.b": graph.nodes[0][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
                 "a.c": graph.nodes[1][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
             }
         )
-        assert attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] == MappingType.from_dict(
+        assert attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] == MappingType.construct(
             {
-                "a": MappingType.from_dict(
+                "a": MappingType.construct(
                     {
                         "b": graph.nodes[0][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
                         "c": graph.nodes[1][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
@@ -458,13 +458,13 @@ class TestDataFlowGraph:
         attrs = graph.nodes[ref._node_id]
         assert attrs[DataFlowGraph.NodeAttribute.NODE_OBJ].config.lookup == {"a": ["a.0", "a.1"]}
         assert attrs[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.COLLECT
-        assert attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] == MappingType.from_dict(
+        assert attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] == MappingType.construct(
             {
                 "a.0": graph.nodes[0][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
                 "a.1": graph.nodes[1][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
             }
         )
-        assert attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] == MappingType.from_dict(
+        assert attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] == MappingType.construct(
             {
                 "a": SequenceType(
                     graph.nodes[0][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE], length=2

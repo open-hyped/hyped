@@ -32,7 +32,7 @@ from hyped.core.utils import (
         # Struct type conversion
         (
             pa.struct([("field1", pa.int32()), ("field2", pa.float64())]),
-            MappingType.from_dict({"field1": Int32Type, "field2": Float64Type}),
+            MappingType.construct({"field1": Int32Type, "field2": Float64Type}),
             False,
         ),
         # List type conversion
@@ -64,7 +64,7 @@ def test_build_dtype_from_arrow_type(arrow_type, expected_output, expect_excepti
             datasets.Features(
                 {"field1": datasets.Value("int32"), "field2": datasets.Value("float64")}
             ),
-            MappingType.from_dict({"field1": Int32Type, "field2": Float64Type}),
+            MappingType.construct({"field1": Int32Type, "field2": Float64Type}),
             False,
         ),
         # Sequence type conversion (fixed length)
@@ -96,7 +96,7 @@ def test_build_dtype_from_hf_feature(hf_feature, expected_output, expect_excepti
         # Mapping type conversion
         (
             {"field1": 1, "field2": 3.14},
-            MappingType.from_dict({"field1": Int32Type, "field2": Float64Type}),
+            MappingType.construct({"field1": Int32Type, "field2": Float64Type}),
             False,
             None,
         ),
@@ -133,14 +133,14 @@ def test_build_dtype_from_python_object(obj, expected_output, expect_exception, 
         (Int32Type, Float64Type, False),
         # Mapping types (subset)
         (
-            MappingType.from_dict({"field1": Int32Type}),
-            MappingType.from_dict({"field1": Int32Type, "field2": Float64Type}),
+            MappingType.construct({"field1": Int32Type}),
+            MappingType.construct({"field1": Int32Type, "field2": Float64Type}),
             True,
         ),
         # Mapping types (not a subset)
         (
-            MappingType.from_dict({"field1": Int32Type, "field3": BoolType}),
-            MappingType.from_dict({"field1": Int32Type, "field2": Float64Type}),
+            MappingType.construct({"field1": Int32Type, "field3": BoolType}),
+            MappingType.construct({"field1": Int32Type, "field2": Float64Type}),
             False,
         ),
         # Sequence types (subset)
@@ -163,13 +163,13 @@ def test_build_dtype_from_python_object(obj, expected_output, expect_exception, 
         ),
         # Complex nested types (subset)
         (
-            MappingType.from_dict(
+            MappingType.construct(
                 {
                     "field1": Int32Type,
                     "field2": SequenceType(value_type=Float64Type, length=2),
                 }
             ),
-            MappingType.from_dict(
+            MappingType.construct(
                 {
                     "field1": Int32Type,
                     "field2": SequenceType(value_type=Float64Type, length=2),
@@ -180,13 +180,13 @@ def test_build_dtype_from_python_object(obj, expected_output, expect_exception, 
         ),
         # Complex nested types (not a subset)
         (
-            MappingType.from_dict(
+            MappingType.construct(
                 {
                     "field1": Int32Type,
                     "field2": SequenceType(value_type=BoolType, length=2),
                 }
             ),
-            MappingType.from_dict(
+            MappingType.construct(
                 {
                     "field1": Int32Type,
                     "field2": SequenceType(value_type=Float64Type, length=2),

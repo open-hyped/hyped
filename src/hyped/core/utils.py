@@ -12,40 +12,16 @@ import pyarrow as pa
 from datasets.features.features import FeatureType
 
 from .features.types import (
+    ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING,
     UNDEFINED_SEQUENCE_LENGTH,
     BoolType,
-    Float16Type,
-    Float32Type,
     Float64Type,
-    Int8Type,
-    Int16Type,
     Int32Type,
-    Int64Type,
     MappingType,
     SequenceType,
     StringType,
     Type,
-    UInt8Type,
-    UInt16Type,
-    UInt32Type,
-    UInt64Type,
 )
-
-ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING: dict[str, Type] = {
-    "bool": BoolType,
-    "string": StringType,
-    "int8": Int8Type,
-    "int16": Int16Type,
-    "int32": Int32Type,
-    "int64": Int64Type,
-    "uint8": UInt8Type,
-    "uint16": UInt16Type,
-    "uint32": UInt32Type,
-    "uint64": UInt64Type,
-    "halffloat": Float16Type,
-    "float": Float32Type,
-    "double": Float64Type,
-}
 
 PYTHON_PRIMITIVE_TO_DTYPE_MAPPING: dict[type, Type] = {
     bool: BoolType,
@@ -99,7 +75,7 @@ def build_dtype_from_arrow_type(arrow_type: pa.DataType) -> Type:
     if pa.types.is_struct(arrow_type):
         fields = map(arrow_type.field, range(arrow_type.num_fields))
         fields = {field.name: build_dtype_from_arrow_type(field.type) for field in fields}
-        return MappingType.from_dict(fields)
+        return MappingType.construct(fields)
 
     elif pa.types.is_list(arrow_type):
         return SequenceType(
@@ -129,7 +105,7 @@ def build_dtype_from_hf_feature(feature: FeatureType) -> Type:
     """
     if isinstance(feature, datasets.Features):
         fields = {key: build_dtype_from_hf_feature(field) for key, field in feature.items()}
-        return MappingType.from_dict(fields)
+        return MappingType.construct(fields)
 
     if isinstance(feature, datasets.Sequence):
         value_type = get_hf_sequence_feature(feature)
@@ -161,7 +137,7 @@ def build_dtype_from_python_object(obj: Any) -> Type:
         RuntimeError: If there are inconsistencies in list item types.
     """
     if isinstance(obj, dict):
-        return MappingType.from_dict(
+        return MappingType.construct(
             {key: build_dtype_from_python_object(val) for key, val in obj.items()}
         )
 

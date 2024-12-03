@@ -4,12 +4,7 @@ from typing import TypeVar
 
 import pytest
 
-from hyped.core.registry.config import (
-    AutoConfig,
-    BaseAutoConfigurable,
-    BaseConfig,
-    BaseConfigurable,
-)
+from hyped.core.registry.config import AutoConfig, AutoConfigurable, BaseConfig, BaseConfigurable
 from hyped.core.registry.registry import default_registry
 
 T = TypeVar("T")
@@ -186,13 +181,10 @@ class TestBaseConfigurable:
         class B(BaseConfigurable[bConfig]):
             pass
 
-        class AutoConfigurable(BaseAutoConfigurable[BaseConfigurable]):
+        class AutoA(AutoConfigurable[A]):
             pass
 
-        class AutoA(BaseAutoConfigurable[A]):
-            pass
-
-        class AutoB(BaseAutoConfigurable[B]):
+        class AutoB(AutoConfigurable[B]):
             pass
 
         # shared auto class

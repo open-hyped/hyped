@@ -94,7 +94,7 @@ class CollectNode(BaseNode[CollectNodeConfig]):
                 return graph.get_dtype_from_reference(inputs[obj])
 
             elif isinstance(obj, dict):
-                return MappingType.from_dict({key: _build_type(item) for key, item in obj.items()})
+                return MappingType.construct({key: _build_type(item) for key, item in obj.items()})
 
             elif isinstance(obj, (list, tuple)):
                 if len(obj) == 0:

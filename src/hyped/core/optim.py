@@ -151,7 +151,7 @@ class DataFlowGraphOptimizer(object):
                         for src_node_id, name, key in in_edge_identifiers
                     }
 
-                    if identifier.node_type is DataFlowGraph.NodeType.SOURCE:
+                    if identifier.node_type == DataFlowGraph.NodeType.SOURCE:
                         identifier.node_id = cse_graph.add_source_node(
                             out_feature_type, node_id=node_id
                         )._node_id
@@ -224,7 +224,7 @@ class DataFlowGraphOptimizer(object):
             const_node_ids = list(const_graph.nodes)
 
             # create a dummy input feature for execution
-            dummy_type = MappingType.from_dict({"field": BoolType})
+            dummy_type = MappingType.construct({"field": BoolType})
             dummy_array = pa.array([{"field": True}], type=dummy_type.arrow_type)
 
             # create a new graph from the view

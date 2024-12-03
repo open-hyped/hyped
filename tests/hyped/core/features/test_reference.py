@@ -30,15 +30,15 @@ class TestFeatureKey:
         [
             (BoolType, FeatureKey(), BoolType),
             (SequenceType(BoolType), FeatureKey(0), BoolType),
-            (MappingType.from_dict({"fieldA": BoolType}), FeatureKey("fieldA"), BoolType),
+            (MappingType.construct({"fieldA": BoolType}), FeatureKey("fieldA"), BoolType),
             (SequenceType(BoolType), FeatureKey(slice(None)), SequenceType(BoolType)),
             (
-                MappingType.from_dict({"fieldA": SequenceType(BoolType)}),
+                MappingType.construct({"fieldA": SequenceType(BoolType)}),
                 FeatureKey("fieldA"),
                 SequenceType(BoolType),
             ),
             (
-                MappingType.from_dict({"fieldA": SequenceType(BoolType)}),
+                MappingType.construct({"fieldA": SequenceType(BoolType)}),
                 FeatureKey("fieldA", 0),
                 BoolType,
             ),
@@ -52,10 +52,10 @@ class TestFeatureKey:
             FeatureKey(0).index_dtype(BoolType)
 
         with pytest.raises(TypeError):
-            FeatureKey(0).index_dtype(MappingType.from_dict({"fieldA": BoolType}))
+            FeatureKey(0).index_dtype(MappingType.construct({"fieldA": BoolType}))
 
         with pytest.raises(TypeError):
-            FeatureKey(slice(None)).index_dtype(MappingType.from_dict({"fieldA": BoolType}))
+            FeatureKey(slice(None)).index_dtype(MappingType.construct({"fieldA": BoolType}))
 
         with pytest.raises(TypeError):
             FeatureKey("fieldA").index_dtype(SequenceType(BoolType))

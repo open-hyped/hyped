@@ -21,7 +21,7 @@ class Registrable(ABC):  # noqa: B024
 
         If None, the type will not be registered.
         """
-        return ".".join([cls.__module__, cls.__name__])
+        return ".".join([cls.__module__, cls.__qualname__])
 
     @classmethod
     @property
@@ -132,7 +132,7 @@ class TypeRegistry(object):
         inv_hash_register = {h: t for t, h in self.global_hash_register.items()}
         # build up-to-date sub-tree hash register
         subtree = list(self.hash_tree_bfs(root=root.type_hash))
-        return {self.global_type_register[h].type_id: h for h in subtree} | {
+        return {inv_hash_register[h]: h for h in subtree} | {
             inv_hash_register[h]: h for h in filter(inv_hash_register.__contains__, subtree)
         }
 

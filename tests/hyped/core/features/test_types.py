@@ -165,4 +165,4 @@ class TestMappingType:
 
     def test_from_dict(self) -> None:
         dtype = MappingType((("fieldA", BoolType), ("fieldB", Int16Type)))
-        assert dtype == MappingType.from_dict(dict(dtype))
+        assert dtype == MappingType.construct(dict(dtype))

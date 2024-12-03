@@ -4215,7 +4215,7 @@ class _MappingFeature(typing.Mapping, Feature):
                 members = {key: inst for key in model.model_fields.keys()}
                 members = {key: field.dtype for key, field in model.model_validate(members)}
                 # create the mapping instance from the member types
-                inst = cls(inst, types.MappingType.from_dict(members))
+                inst = cls(inst, types.MappingType.construct(members))
 
             # run the core validator checking that the instance
             # is a valid mapping

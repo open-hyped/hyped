@@ -38,7 +38,7 @@ class TestCollectNode:
                 {"a": "x", "b": "y"},
                 {"x": Int32Type, "y": Int32Type},
                 {"x": 0, "y": 1},
-                MappingType.from_dict({"a": Int32Type, "b": Int32Type}),
+                MappingType.construct({"a": Int32Type, "b": Int32Type}),
                 {"a": 0, "b": 1},
                 {},
             ),
@@ -47,7 +47,7 @@ class TestCollectNode:
                 {"a": ["x", "x"], "b": "y"},
                 {"x": Int32Type, "y": Int32Type},
                 {"x": 0, "y": 1},
-                MappingType.from_dict({"a": SequenceType(Int32Type, length=2), "b": Int32Type}),
+                MappingType.construct({"a": SequenceType(Int32Type, length=2), "b": Int32Type}),
                 {"a": [0, 0], "b": 1},
                 {},
             ),
@@ -77,7 +77,7 @@ class TestCollectNode:
             node_id=0,
             index=[0],
             rank=0,
-            input_type=MappingType.from_dict(input_types | required_casts),
+            input_type=MappingType.construct(input_types | required_casts),
             output_type=dtype,
         )
 

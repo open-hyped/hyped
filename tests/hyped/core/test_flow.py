@@ -89,7 +89,7 @@ class TestDataFlow:
             field: Bool
 
         hf_features = datasets.Features({"field": datasets.Value("bool")})
-        hyped_type = MappingType.from_dict({"field": BoolType})
+        hyped_type = MappingType.construct({"field": BoolType})
 
         # initialize from huggingface features
         flow = DataFlow(hf_features)
@@ -246,7 +246,7 @@ class TestExecutableDataFlow:
                         1: DataFlowGraph.NodeType.DATA_PROCESSOR,
                         2: DataFlowGraph.NodeType.DATA_PROCESSOR,
                     },
-                    output_type=MappingType.from_dict({"x": BoolType}),
+                    output_type=MappingType.construct({"x": BoolType}),
                 ),
                 2,
                 None,
@@ -262,7 +262,7 @@ class TestExecutableDataFlow:
                         1: DataFlowGraph.NodeType.DATA_AGGREGATOR,
                         2: DataFlowGraph.NodeType.DATA_PROCESSOR,
                     },
-                    output_type=MappingType.from_dict({"x": BoolType}),
+                    output_type=MappingType.construct({"x": BoolType}),
                 ),
                 0,
                 2,
@@ -310,7 +310,7 @@ class TestExecutableDataFlow:
     def test_pyarrow_process(self) -> None:
         # create a simple data flow graph containing only a source node
         graph = DataFlowGraph()
-        graph.add_source_node(MappingType.from_dict({"x": BoolType}))
+        graph.add_source_node(MappingType.construct({"x": BoolType}))
         # create the collect reference
         collect = Reference(_node_id=graph.src_node_id, _graph=graph)
 
@@ -354,7 +354,7 @@ class TestExecutableDataFlow:
     def test_apply(self) -> None:
         # create a simple data flow graph containing only a source node
         graph = DataFlowGraph()
-        graph.add_source_node(MappingType.from_dict({"x": BoolType}))
+        graph.add_source_node(MappingType.construct({"x": BoolType}))
         # create the collect reference
         collect = Reference(_node_id=graph.src_node_id, _graph=graph)
         # create the executable data flow instance

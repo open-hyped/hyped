@@ -460,7 +460,7 @@ class TestLazyDataFlowExecutor:
     ) -> LazyDataFlowExecutor:
         # create a mock graph with the required functionality
         mock_graph = MagicMock()
-        mock_graph.get_dtype_from_reference.return_value = MappingType.from_dict({"y": BoolType})
+        mock_graph.get_dtype_from_reference.return_value = MappingType.construct({"y": BoolType})
 
         # create the lazy executor instance
         return LazyDataFlowExecutor(mock_graph, MagicMock(), MappingProxyType(mock_inputs))

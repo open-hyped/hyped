@@ -154,7 +154,7 @@ class TestProcessMode:
             node_id=0,
             index=[0, 1, 2, 3, 4],
             rank=0,
-            input_type=MappingType.from_dict({"field": Int32Type}),
+            input_type=MappingType.construct({"field": Int32Type}),
             output_type=Int32Type,
         )
         # create an array

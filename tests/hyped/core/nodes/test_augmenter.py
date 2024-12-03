@@ -2,6 +2,7 @@ from inspect import Parameter, Signature, _ParameterKind
 from itertools import chain
 from typing import AsyncIterable, Iterable
 from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
+from uuid import uuid4
 
 import pytest
 
@@ -11,7 +12,10 @@ from hyped.core.typing import Bool, Int, TraceIndexList
 
 
 class MockConfig(BaseDataAugmenterConfig):
-    ...
+    @classmethod
+    @property
+    def type_id(self) -> str:
+        return str(uuid4())
 
 
 class TestBaseDataProcessor:
