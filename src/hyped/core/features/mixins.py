@@ -14,6 +14,10 @@ modulus, floor division, and negation can be consistently implemented.
 
 from typing import Any, Callable, ClassVar, TypeVar
 
+from hyped.common.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 class MethodRegistryMixin:
     """A mixin class to provide method registration functionality."""
@@ -58,6 +62,7 @@ class MethodRegistryMixin:
                     "Use `force=True` to override."
                 )
             cls._methods[key] = fn
+            logger.debug(f"Registerd method {name} to {cls.__qualname__}")
             return fn
 
         return decorator

@@ -3923,6 +3923,15 @@ class SequenceFeature(typing.Sequence[T], Feature):
         # and infer build the corrsponding feature
         return build_feature_from_dtype(ref, self.dtype[index])
 
+    def __len__(self) -> int:
+        """Raises :class:`EnvironmentError` to avoid confusion with the :code:`length` method.
+
+        This method is intentionally not implemented to ensure that users explicitly
+        use the :code:`length` method for determining the length of the sequence. The
+        :code:`length` method supports dynamic resolution during execution.
+        """
+        raise EnvironmentError("Use '.length' instead of 'len()'.")
+
     def length(self) -> int | Int32Feature:
         """Returns the length of the sequence.
 
@@ -3937,14 +3946,29 @@ class SequenceFeature(typing.Sequence[T], Feature):
             else self.execute_method("length")
         )
 
-    def __len__(self) -> int:
-        """Raises :class:`EnvironmentError` to avoid confusion with the :code:`length` method.
+    def min(self) -> T:
+        """Returns the minimum value in the sequence.
 
-        This method is intentionally not implemented to ensure that users explicitly
-        use the :code:`length` method for determining the length of the sequence. The
-        :code:`length` method supports dynamic resolution during execution.
+        Returns:
+            T: A feature representing the minimum value in the sequence.
         """
-        raise EnvironmentError("Use '.length' instead of 'len()'.")
+        return self.execute_method("min")
+
+    def max(self) -> T:
+        """Returns the maximum value in the sequence.
+
+        Returns:
+            T: A feature representing the maximum value in the sequence.
+        """
+        return self.execute_method("max")
+
+    def sum(self) -> T:
+        """Returns the sum of the sequence.
+
+        Returns:
+            T: A feature representing the sum of the sequence.
+        """
+        return self.execute_method("sum")
 
     @classmethod
     def __init_subclass__(cls) -> None:
