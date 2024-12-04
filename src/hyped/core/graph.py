@@ -459,6 +459,9 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         these partitions. The resulting partition graph is required to have a tree
         structure, where each partition (except the root) has a single parent partition.
 
+        Note that while the data flow graph itself is asyclic, the partition graph
+        doesn't need to be.
+
         Note that while the partition graph includes the constant partition, it does not
         model the flow of constants to other partitions, i.e. the constant partition is
         not isolated from the remaining partition graph. Reason for this design choice is
@@ -506,12 +509,6 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 graph, src_partition, tgt_partition
             ):
                 graph.add_edge(src_partition, tgt_partition)
-
-        # the partition graph needs to be a tree structure
-        assert max(dict(graph.in_degree).values()) <= 1, (
-            "The partition graph must be a tree structure, but a node with more "
-            "than one incoming edge was found."
-        )
 
         return graph
 

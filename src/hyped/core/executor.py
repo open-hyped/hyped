@@ -125,10 +125,9 @@ class ExecutionState(object):
         trace_index = np.arange(len(index))
         # follow the path from partition u to partition v and apply the trace
         # of each partition transition to build the final trace index
-        while src != tgt:
-            edge = next(iter(self.p_graph.out_edges(src)))
+        path = nx.shortest_path(self.p_graph, src, tgt)
+        for edge in zip(path[:-1], path[1:], strict=True):
             trace_index = trace_index[self.traces[edge]]
-            _, src = edge
 
         # apply the final trace index to the given values
         return [vals.take(trace_index) for vals in values]

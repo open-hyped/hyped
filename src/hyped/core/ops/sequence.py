@@ -125,7 +125,7 @@ class SequenceSum(BaseDataProcessor[SequenceSumConfig]):
 T = TypeVar("T")
 
 
-class FlatValuesWithIndex(Mapping, Generic[T]):
+class ValuesWithIndex(Mapping, Generic[T]):
     """Represents a flat sequence values with associated index mapping."""
 
     value: T
@@ -170,7 +170,7 @@ class SequenceUnpackWithIndex(BaseDataAugmenter[SequenceUnpackWithIndexConfig]):
     @process_mode(batched=True, backend="arrow")
     def process(
         self, ctx: RunContext, seq: Sequence[T]
-    ) -> tuple[FlatValuesWithIndex[T], TraceIndexList]:
+    ) -> tuple[ValuesWithIndex[T], TraceIndexList]:
         """Unpack a sequence and compute trace indices.
 
         Args:
