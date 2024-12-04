@@ -1113,9 +1113,7 @@ class ExecutableDataFlow(AbstractDataFlow):
                 remove_columns=(
                     set(self._source_feature.keys()) - set(self._collect_feature.keys())
                 ),
-                features=datasets.Features.from_arrow_schema(
-                    self._collect_feature.dtype.arrow_schema
-                ),
+                features=self._collect_feature.dtype.hf_features,
             )
             # unset the dataset format
             return transformed_ds.with_format(type=None)
@@ -1138,9 +1136,7 @@ class ExecutableDataFlow(AbstractDataFlow):
             )
             # iterable dataset dict doesn't support features argument to map function
             for split in ds.values():
-                split.info.features = datasets.Features.from_arrow_schema(
-                    self._collect_feature.dtype.arrow_schema
-                )
+                split.info.features = self._collect_feature.dtype.hf_features
 
             # unset the dataset format
             return transformed_ds.with_format(type=None)

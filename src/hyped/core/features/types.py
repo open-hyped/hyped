@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
+import datasets
 import pyarrow as pa
 import pydantic
 from pydantic_core import core_schema
@@ -385,6 +386,19 @@ class MappingType(Type, typing.Mapping[str, Type]):
             pa.Schema: The :code:`PyArrow` schema representation.
         """
         return pa.schema(self.arrow_type)
+
+    @property
+    def hf_features(self) -> datasets.Features:
+        """Returns the corresponding HuggingFace dataset features for this mapping.
+
+        This property converts the PyArrow schema associated with the mapping type into a
+        HuggingFace :class:`Features` object.
+
+        Returns:
+            datasets.Features: The Hugging Face :class:`Features` object representing
+            the mapping type.
+        """
+        return datasets.Features.from_arrow_schema(self.arrow_schema)
 
     def __len__(self) -> int:
         """Returns the number of fields in the mapping.

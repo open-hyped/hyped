@@ -11,12 +11,12 @@ from .__version__ import __version__, __version_tuple__  # noqa: F401
 __all__ = [
     # modules
     "io",
-    # "ops",
-    # "nodes",
     "core",
+    "typing",
     # core
     "DataFlow",
+    "plot_data_flow",
 ]
 
-from . import core, io
-from .core.flow import DataFlow
+from . import core, io, typing
+from .core.flow import DataFlow, plot_data_flow
