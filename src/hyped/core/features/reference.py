@@ -15,8 +15,9 @@ from __future__ import annotations
 import typing
 from dataclasses import dataclass
 
-import numpy as np
 import pyarrow as pa
+
+from hyped.common._pyarrow import flatten_list_array, unflatten_list_array
 
 from ..abstract import AbstractDataFlowGraph
 from .types import MappingType, SequenceType, Type
@@ -183,28 +184,13 @@ class FeatureKey(tuple[int | str | slice]):
 
                 if i + 1 < len(self):
                     # flatten the list for further processing
-                    flat_array = pa.compute.list_flatten(array)
-
-                    # get information needed to invert the flatten operation
-                    parent_index = pa.compute.list_parent_indices(array).to_numpy()
-                    nested_ids = [np.nonzero(parent_index == j)[0] for j in range(len(array))]
+                    flat_array, offsets = flatten_list_array(array)
 
                     # apply the remainding key on the flattened array
                     flat_array = self[i + 1 :].index_array(flat_array)
 
-                    # unflatten the array using the nested ids
-                    array = [
-                        pa.compute.take(flat_array, idx, boundscheck=False) for idx in nested_ids
-                    ]
-                    array = pa.array(
-                        array,
-                        type=pa.list_(
-                            flat_array.type,
-                            array.type.list_size
-                            if pa.types.is_fixed_size_list(flat_array.type)
-                            else -1,
-                        ),
-                    )
+                    # unflatten the array
+                    array = unflatten_list_array(flat_array, offsets)
 
                 return array
 
