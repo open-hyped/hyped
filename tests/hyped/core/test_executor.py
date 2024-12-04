@@ -5,7 +5,6 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import networkx as nx
 import numpy as np
-import pyarrow as pa
 import pytest
 
 from hyped.core.executor import DataFlowExecutor, ExecutionState, LazyDataFlowExecutor
@@ -159,7 +158,17 @@ class TestExecutionState:
         index = [0, 1, 2, 3, 4]
         trace_index = np.asarray(trace_index)
 
-        graph = build_graph(edges, node_types)
+        # mock augmenter nodes
+        mock_augmenter_nodes = {
+            i: MagicMock(
+                __spec__=BaseDataAugmenter, infer_output_partition=MagicMock(return_value=i)
+            )
+            for i, node_type in node_types.items()
+            if node_type == DataFlowGraph.NodeType.DATA_AUGMENTER
+        }
+
+        # build the data flow graph
+        graph = build_graph(edges, node_types, node_objects=mock_augmenter_nodes)
         state = ExecutionState(
             graph, graph.build_partition_graph(), MagicMock(), index, MagicMock()
         )
@@ -202,6 +211,11 @@ class TestExecutionState:
                 2: DataFlowGraph.NodeType.DATA_AUGMENTER,
                 3: DataFlowGraph.NodeType.CONST,
                 4: DataFlowGraph.NodeType.DATA_PROCESSOR,
+            },
+            {
+                2: MagicMock(
+                    __spec__=BaseDataAugmenter, infer_output_partition=MagicMock(return_value=2)
+                )
             },
         )
 

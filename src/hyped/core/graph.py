@@ -26,7 +26,7 @@ from .features.reference import FeatureKey, Reference
 from .features.types import MappingType, SequenceType, Type, build_type_from_dict, cast_dtype
 from .nodes.aggregator import BaseDataAggregator
 from .nodes.augmenter import BaseDataAugmenter
-from .nodes.base import BaseNode
+from .nodes.base import BaseNode, RunContext
 from .nodes.collect import CollectNode
 from .nodes.const import ConstNode
 from .nodes.processor import BaseDataProcessor
@@ -937,12 +937,18 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             return DataFlowGraph.Partition.AGGREGATED.value
 
         elif input_node_type == DataFlowGraph.NodeType.DATA_AUGMENTER:
-            # data augmenters always point into their own partition
-            # we re-use the node-id of the augmenter as the partition
-            # note that while they point into their own partition, they
-            # are not part of them, similar to aggregators they point
-            # from outside the partition into it
-            return node_id
+            # build a mock run context
+            ctx = RunContext(
+                node_id=node_id,
+                index=[],
+                rank=0,
+                input_type=input_node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE],
+                output_type=input_node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
+            )
+            # infer the output partition of the aggregation operation
+            node_obj = input_node[DataFlowGraph.NodeAttribute.NODE_OBJ]
+            partition = input_node[DataFlowGraph.NodeAttribute.PARTITION]
+            return node_obj.infer_output_partition(ctx, partition)
 
         else:
             # other node types don't transition between partitions

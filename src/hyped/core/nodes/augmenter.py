@@ -31,7 +31,7 @@ from typing import (
 import pyarrow as pa
 from typing_extensions import Self
 
-from ..typing import Feature, TraceIndexList
+from ..typing import Feature, PartitionId, TraceIndexList
 from .base import BaseNode, BaseNodeConfig, NodeProtocol, ProcessMode, RunContext
 
 Params = ParamSpec("Params")
@@ -108,7 +108,7 @@ class BaseDataAugmenter(BaseNode[C], ABC):
         Returns:
             NodeProtocol[Params, Return]: An instance conforming to the node protocol.
         """
-        return super().__new__(cls, *args, **kwargs)
+        return super().__new__(cls)
 
     def __init__(self, config: None | C = None, **kwargs) -> None:
         """Initializes the data augmenter with optional configuration.
@@ -119,6 +119,22 @@ class BaseDataAugmenter(BaseNode[C], ABC):
         """
         super().__init__(config, **kwargs)
         self._is_process_async = inspect.isasyncgenfunction(self.process)
+
+    def infer_output_partition(self, ctx: RunContext, partition: PartitionId) -> PartitionId:
+        """Determine the output partition of the augmentater.
+
+        By default, data augmenters point to their own partition. This method
+        reuses the node ID of the augmenter as the output partition ID.
+
+        Args:
+            ctx (RunContext): Execution context for the node.
+            partition (PartitionId): The ID of the input partition, i.e. the partition that the
+                node is assigned to.
+
+        Returns:
+            PartitionId: The output partition ID, corresponding to the node ID of the augmenter.
+        """
+        return ctx.node_id
 
     @classmethod
     def _check_signature(cls) -> bool:

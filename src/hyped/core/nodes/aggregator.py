@@ -193,7 +193,7 @@ class BaseDataAggregator(BaseNode[C], ABC):
         Returns:
             NodeProtocol[Params, Return]: An instance conforming to the node protocol.
         """
-        return super().__new__(cls, *args, **kwargs)
+        return super().__new__(cls)
 
     @classmethod
     def _check_signature(cls) -> bool:

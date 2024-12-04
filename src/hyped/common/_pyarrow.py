@@ -65,7 +65,7 @@ def unflatten_list_array(
     if isinstance(offsets, int):
         return pa.FixedSizeListArray.from_arrays(array, offsets)
 
-    elif isinstance(offsets, pa.Int32Array):
+    elif isinstance(offsets, pa.Array) and pa.types.is_integer(offsets.type):
         return pa.ListArray.from_arrays(offsets, array)
 
     elif isinstance(offsets, list):

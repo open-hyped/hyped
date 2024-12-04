@@ -2001,7 +2001,7 @@ class TestPrimitiveFeatures:
             Reference(FeatureKey("feature"), source._node_id, source._graph),
             feature_type._expected_dtype,
         )
-        feature.get_method = MagicMock(side_effect=feature.get_method)
+        type(feature).get_method = MagicMock(side_effect=type(feature).get_method)
 
         # collect all arguments
         args = tuple(
@@ -2023,7 +2023,7 @@ class TestPrimitiveFeatures:
             assert out_feature is None
 
         # make sure the call was forwarded to the right registered method
-        feature.get_method.assert_called_once_with(registered_fn_name)
+        type(feature).get_method.assert_called_once_with(registered_fn_name)
 
         # find a candidate function that matches the inputs
         for candidate_fn in chain(get_overloads(fn), [fn]):

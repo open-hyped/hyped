@@ -298,7 +298,15 @@ class TestDataFlowGraph:
         nodes: dict[Hashable, DataFlowGraph.NodeType],
         partition_edges: list[tuple[PartitionId, PartitionId]],
     ) -> None:
-        graph = build_graph(edges, nodes)
+        mock_augmenter_nodes = {
+            i: MagicMock(
+                __spec__=BaseDataAugmenter, infer_output_partition=MagicMock(return_value=i)
+            )
+            for i, node_type in nodes.items()
+            if node_type == DataFlowGraph.NodeType.DATA_AUGMENTER
+        }
+
+        graph = build_graph(edges, nodes, mock_augmenter_nodes)
         partition = graph.build_partition_graph()
 
         target_partition_graph = nx.DiGraph()
@@ -732,8 +740,16 @@ class TestDataFlowGraph:
         expected_partition: None | PartitionId,
         raises_error: bool,
     ) -> None:
+        mock_augmenter_nodes = {
+            i: MagicMock(
+                __spec__=BaseDataAugmenter, infer_output_partition=MagicMock(return_value=i)
+            )
+            for i, node_type in node_types.items()
+            if node_type == DataFlowGraph.NodeType.DATA_AUGMENTER
+        }
+
         # build the data flow
-        graph = build_graph(edges, node_types, stop_at_node=node_id)
+        graph = build_graph(edges, node_types, mock_augmenter_nodes, stop_at_node=node_id)
 
         # get the node type and build the reference instances
         node_type = node_types[node_id]

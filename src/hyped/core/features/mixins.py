@@ -67,30 +67,31 @@ class MethodRegistryMixin:
 
         return decorator
 
-    def get_method(self, name: str) -> Callable:
-        """Retrieves a method registered to the current class by its name.
+    @classmethod
+    def get_method(cls, name: str) -> Callable:
+        """Retrieve a registered method by name for the current class.
 
-        This method looks up the :code:`_methods` registry for the calling class
-        (:code:`type(self)`) using a tuple key that includes the class's qualified
-        name and the method's name. If the method is not found, it raises a
+        This class method accesses the :code:`_methods` registry using a key
+        composed of the class's qualified name and the method's name. If the
+        specified method is not found in the registry, it raises a
         :class:`NotImplementedError`.
 
         Args:
             name (str): The name of the method to retrieve.
 
         Returns:
-            Callable: The registered method as a callable object.
+            Callable: The method registered under the specified name.
 
         Raises:
-            NotImplementedError: If no method with the specified name is registered
-                for the class of the current object.
+            NotImplementedError: If no method with the given name is registered
+                for the current class.
         """
-        key = (type(self).__qualname__, name)
-        if key not in self._methods:
+        key = (cls.__qualname__, name)
+        if key not in cls._methods:
             raise NotImplementedError(
-                f"Method '{name}' not registered for class '{type(self).__qualname__}'."
+                f"Method '{name}' not registered for class '{cls.__qualname__}'."
             )
-        return self._methods[key]
+        return cls._methods[key]
 
     def execute_method(self, name: str, *args: Any, **kwargs: Any) -> Any:
         """Executes a registered method by its name with the provided arguments.
@@ -111,4 +112,4 @@ class MethodRegistryMixin:
             NotImplementedError: If no method with the specified name is registered
                 for the class of the current object.
         """
-        return self.get_method(name)(self, *args, **kwargs)
+        return type(self).get_method(name)(self, *args, **kwargs)

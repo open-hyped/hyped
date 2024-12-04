@@ -557,7 +557,7 @@ class Int8Feature(PrimitiveFeature):
         Returns:
             Feature: A new feature representing the sum of the original feature and the constant.
         """
-        return self.get_method("__add__")(other, self)
+        return type(self).get_method("__add__")(other, self)
 
     @overload
     def __sub__(self, other: Int8Feature) -> Int8Feature:
@@ -630,7 +630,7 @@ class Int8Feature(PrimitiveFeature):
             Feature: A new feature representing the difference between the constant and the
             original feature.
         """
-        return self.get_method("__sub__")(other, self)
+        return type(self).get_method("__sub__")(other, self)
 
     @overload
     def __mul__(self, other: Int8Feature) -> Int8Feature:
@@ -703,7 +703,7 @@ class Int8Feature(PrimitiveFeature):
             Feature: A new feature representing the product of the constant and the
             original feature.
         """
-        return self.get_method("__mul__")(other, self)
+        return type(self).get_method("__mul__")(other, self)
 
     @overload
     def __truediv__(
@@ -760,7 +760,7 @@ class Int8Feature(PrimitiveFeature):
             Feature: A new feature representing the quotient of the constant and the original
             feature.
         """
-        return self.get_method("__truediv__")(other, self)
+        return type(self).get_method("__truediv__")(other, self)
 
     @overload
     def __floordiv__(self, other: Int8Feature) -> Int8Feature:
@@ -833,7 +833,7 @@ class Int8Feature(PrimitiveFeature):
             Feature: A new feature representing the quotient of the constant and the original
             feature.
         """
-        return self.get_method("__floordiv__")(other, self)
+        return type(self).get_method("__floordiv__")(other, self)
 
 
 class Int16Feature(PrimitiveFeature):
@@ -927,7 +927,7 @@ class Int16Feature(PrimitiveFeature):
         Returns:
             Feature: A new feature representing the sum of the original feature and the constant.
         """
-        return self.get_method("__add__")(other, self)
+        return type(self).get_method("__add__")(other, self)
 
     @overload
     def __sub__(self, other: Int8Feature) -> Int16Feature:
@@ -1000,7 +1000,7 @@ class Int16Feature(PrimitiveFeature):
             Feature: A new feature representing the difference between the constant and the
             original feature.
         """
-        return self.get_method("__sub__")(other, self)
+        return type(self).get_method("__sub__")(other, self)
 
     @overload
     def __mul__(self, other: Int8Feature) -> Int16Feature:
@@ -1074,7 +1074,7 @@ class Int16Feature(PrimitiveFeature):
             Feature: A new feature representing the product of the constant and the
             original feature.
         """
-        return self.get_method("__mul__")(other, self)
+        return type(self).get_method("__mul__")(other, self)
 
     @overload
     def __truediv__(
@@ -1131,7 +1131,7 @@ class Int16Feature(PrimitiveFeature):
             Feature: A new feature representing the quotient of the constant and the original
             feature.
         """
-        return self.get_method("__truediv__")(other, self)
+        return type(self).get_method("__truediv__")(other, self)
 
     @overload
     def __floordiv__(self, other: Int8Feature) -> Int16Feature:
@@ -1204,7 +1204,7 @@ class Int16Feature(PrimitiveFeature):
             Feature: A new feature representing the quotient of the constant and the original
             feature.
         """
-        return self.get_method("__floordiv__")(other, self)
+        return type(self).get_method("__floordiv__")(other, self)
 
 
 class Int32Feature(PrimitiveFeature):
@@ -1298,7 +1298,7 @@ class Int32Feature(PrimitiveFeature):
         Returns:
             Feature: A new feature representing the sum of the original feature and the constant.
         """
-        return self.get_method("__add__")(other, self)
+        return type(self).get_method("__add__")(other, self)
 
     @overload
     def __sub__(self, other: Int8Feature) -> Int32Feature:
@@ -1371,7 +1371,7 @@ class Int32Feature(PrimitiveFeature):
             Feature: A new feature representing the difference between the constant and the
             original feature.
         """
-        return self.get_method("__sub__")(other, self)
+        return type(self).get_method("__sub__")(other, self)
 
     @overload
     def __mul__(self, other: Int8Feature) -> Int32Feature:
@@ -1444,7 +1444,7 @@ class Int32Feature(PrimitiveFeature):
             Feature: A new feature representing the product of the constant and the
             original feature.
         """
-        return self.get_method("__mul__")(other, self)
+        return type(self).get_method("__mul__")(other, self)
 
     @overload
     def __truediv__(
@@ -1501,7 +1501,7 @@ class Int32Feature(PrimitiveFeature):
             Feature: A new feature representing the quotient of the constant and the original
             feature.
         """
-        return self.get_method("__truediv__")(other, self)
+        return type(self).get_method("__truediv__")(other, self)
 
     @overload
     def __floordiv__(self, other: Int8Feature) -> Int32Feature:
@@ -1576,7 +1576,7 @@ class Int32Feature(PrimitiveFeature):
             Feature: A new feature representing the quotient of the constant and the original
             feature.
         """
-        return self.get_method("__floordiv__")(other, self)
+        return type(self).get_method("__floordiv__")(other, self)
 
 
 class Int64Feature(PrimitiveFeature):
@@ -1670,7 +1670,7 @@ class Int64Feature(PrimitiveFeature):
         Returns:
             Feature: A new feature representing the sum of the original feature and the constant.
         """
-        return self.get_method("__add__")(other, self)
+        return type(self).get_method("__add__")(other, self)
 
     @overload
     def __sub__(self, other: Int8Feature) -> Int64Feature:
@@ -1743,7 +1743,7 @@ class Int64Feature(PrimitiveFeature):
             Feature: A new feature representing the difference between the constant and the
             original feature.
         """
-        return self.get_method("__sub__")(other, self)
+        return type(self).get_method("__sub__")(other, self)
 
     @overload
     def __mul__(self, other: Int8Feature) -> Int64Feature:
@@ -1816,7 +1816,7 @@ class Int64Feature(PrimitiveFeature):
             Feature: A new feature representing the product of the constant and the
             original feature.
         """
-        return self.get_method("__mul__")(other, self)
+        return type(self).get_method("__mul__")(other, self)
 
     @overload
     def __truediv__(
@@ -1873,7 +1873,7 @@ class Int64Feature(PrimitiveFeature):
             Feature: A new feature representing the quotient of the constant and the original
             feature.
         """
-        return self.get_method("__truediv__")(other, self)
+        return type(self).get_method("__truediv__")(other, self)
 
     @overload
     def __floordiv__(self, other: Int8Feature) -> Int64Feature:
@@ -1946,7 +1946,7 @@ class Int64Feature(PrimitiveFeature):
             Feature: A new feature representing the quotient of the constant and the original
             feature.
         """
-        return self.get_method("__floordiv__")(other, self)
+        return type(self).get_method("__floordiv__")(other, self)
 
 
 class UInt8Feature(PrimitiveFeature):
@@ -2040,7 +2040,7 @@ class UInt8Feature(PrimitiveFeature):
         Returns:
             Feature: A new feature representing the sum of the original feature and the constant.
         """
-        return self.get_method("__add__")(other, self)
+        return type(self).get_method("__add__")(other, self)
 
     @overload
     def __sub__(self, other: Int8Feature) -> Int16Feature:
@@ -2113,7 +2113,7 @@ class UInt8Feature(PrimitiveFeature):
             Feature: A new feature representing the difference between the constant and the
             original feature.
         """
-        return self.get_method("__sub__")(other, self)
+        return type(self).get_method("__sub__")(other, self)
 
     @overload
     def __mul__(self, other: Int8Feature) -> Int16Feature:
@@ -2186,7 +2186,7 @@ class UInt8Feature(PrimitiveFeature):
             Feature: A new feature representing the product of the constant and the
             original feature.
         """
-        return self.get_method("__mul__")(other, self)
+        return type(self).get_method("__mul__")(other, self)
 
     @overload
     def __truediv__(
@@ -2243,7 +2243,7 @@ class UInt8Feature(PrimitiveFeature):
             Feature: A new feature representing the quotient of the constant and the original
             feature.
         """
-        return self.get_method("__truediv__")(other, self)
+        return type(self).get_method("__truediv__")(other, self)
 
     @overload
     def __floordiv__(self, other: Int8Feature) -> Int16Feature:
@@ -2316,7 +2316,7 @@ class UInt8Feature(PrimitiveFeature):
             Feature: A new feature representing the quotient of the constant and the original
             feature.
         """
-        return self.get_method("__floordiv__")(other, self)
+        return type(self).get_method("__floordiv__")(other, self)
 
 
 class UInt16Feature(PrimitiveFeature):
@@ -2410,7 +2410,7 @@ class UInt16Feature(PrimitiveFeature):
         Returns:
             Feature: A new feature representing the sum of the original feature and the constant.
         """
-        return self.get_method("__add__")(other, self)
+        return type(self).get_method("__add__")(other, self)
 
     @overload
     def __sub__(self, other: Int8Feature) -> Int32Feature:
@@ -2483,7 +2483,7 @@ class UInt16Feature(PrimitiveFeature):
             Feature: A new feature representing the difference between the constant and the
             original feature.
         """
-        return self.get_method("__sub__")(other, self)
+        return type(self).get_method("__sub__")(other, self)
 
     @overload
     def __mul__(self, other: Int8Feature) -> Int32Feature:
@@ -2556,7 +2556,7 @@ class UInt16Feature(PrimitiveFeature):
             Feature: A new feature representing the product of the constant and the
             original feature.
         """
-        return self.get_method("__mul__")(other, self)
+        return type(self).get_method("__mul__")(other, self)
 
     @overload
     def __truediv__(
@@ -2614,7 +2614,7 @@ class UInt16Feature(PrimitiveFeature):
             Feature: A new feature representing the quotient of the constant and the original
             feature.
         """
-        return self.get_method("__truediv__")(other, self)
+        return type(self).get_method("__truediv__")(other, self)
 
     @overload
     def __floordiv__(self, other: Int8Feature) -> Int32Feature:
@@ -2687,7 +2687,7 @@ class UInt16Feature(PrimitiveFeature):
             Feature: A new feature representing the quotient of the constant and the original
             feature.
         """
-        return self.get_method("__floordiv__")(other, self)
+        return type(self).get_method("__floordiv__")(other, self)
 
 
 class UInt32Feature(PrimitiveFeature):
@@ -2782,7 +2782,7 @@ class UInt32Feature(PrimitiveFeature):
         Returns:
             Feature: A new feature representing the sum of the original feature and the constant.
         """
-        return self.get_method("__add__")(other, self)
+        return type(self).get_method("__add__")(other, self)
 
     @overload
     def __sub__(self, other: Int8Feature) -> Int64Feature:
@@ -2855,7 +2855,7 @@ class UInt32Feature(PrimitiveFeature):
             Feature: A new feature representing the difference between the constant and the
             original feature.
         """
-        return self.get_method("__sub__")(other, self)
+        return type(self).get_method("__sub__")(other, self)
 
     @overload
     def __mul__(self, other: Int8Feature) -> Int64Feature:
@@ -2928,7 +2928,7 @@ class UInt32Feature(PrimitiveFeature):
             Feature: A new feature representing the product of the constant and the
             original feature.
         """
-        return self.get_method("__mul__")(other, self)
+        return type(self).get_method("__mul__")(other, self)
 
     @overload
     def __truediv__(
@@ -2987,7 +2987,7 @@ class UInt32Feature(PrimitiveFeature):
             Feature: A new feature representing the quotient of the constant and the original
             feature.
         """
-        return self.get_method("__truediv__")(other, self)
+        return type(self).get_method("__truediv__")(other, self)
 
     @overload
     def __floordiv__(self, other: Int8Feature) -> Int64Feature:
@@ -3060,7 +3060,7 @@ class UInt32Feature(PrimitiveFeature):
             Feature: A new feature representing the quotient of the constant and the original
             feature.
         """
-        return self.get_method("__floordiv__")(other, self)
+        return type(self).get_method("__floordiv__")(other, self)
 
 
 class UInt64Feature(PrimitiveFeature):
@@ -3154,7 +3154,7 @@ class UInt64Feature(PrimitiveFeature):
         Returns:
             Feature: A new feature representing the sum of the original feature and the constant.
         """
-        return self.get_method("__add__")(other, self)
+        return type(self).get_method("__add__")(other, self)
 
     @overload
     def __sub__(self, other: Int8Feature) -> Int64Feature:
@@ -3227,7 +3227,7 @@ class UInt64Feature(PrimitiveFeature):
             Feature: A new feature representing the difference between the constant and the
             original feature.
         """
-        return self.get_method("__sub__")(other, self)
+        return type(self).get_method("__sub__")(other, self)
 
     @overload
     def __mul__(self, other: Int8Feature) -> Int64Feature:
@@ -3300,7 +3300,7 @@ class UInt64Feature(PrimitiveFeature):
             Feature: A new feature representing the product of the constant and the
             original feature.
         """
-        return self.get_method("__mul__")(other, self)
+        return type(self).get_method("__mul__")(other, self)
 
     @overload
     def __truediv__(
@@ -3357,7 +3357,7 @@ class UInt64Feature(PrimitiveFeature):
             Feature: A new feature representing the quotient of the constant and the original
             feature.
         """
-        return self.get_method("__truediv__")(other, self)
+        return type(self).get_method("__truediv__")(other, self)
 
     @overload
     def __floordiv__(self, other: Int8Feature) -> Int64Feature:
@@ -3430,7 +3430,7 @@ class UInt64Feature(PrimitiveFeature):
             Feature: A new feature representing the quotient of the constant and the original
             feature.
         """
-        return self.get_method("__floordiv__")(other, self)
+        return type(self).get_method("__floordiv__")(other, self)
 
 
 class Float32Feature(PrimitiveFeature):
@@ -3536,7 +3536,7 @@ class Float32Feature(PrimitiveFeature):
         Returns:
             Float32Feature: A new feature representing the difference of the original features.
         """
-        return self.get_method("__sub__")(other, self)
+        return type(self).get_method("__sub__")(other, self)
 
     @overload
     def __mul__(self, other: Float32Feature) -> Float32Feature:
@@ -3620,7 +3620,7 @@ class Float32Feature(PrimitiveFeature):
         Returns:
             Float32Feature: A new feature representing the quotient of the original features.
         """
-        return self.get_method("__truediv__")(other, self)
+        return type(self).get_method("__truediv__")(other, self)
 
     def __floordiv__(
         self,
@@ -3652,7 +3652,7 @@ class Float32Feature(PrimitiveFeature):
         Returns:
             Feature: A new feature representing the integer quotient of the original features.
         """
-        return self.get_method("__floordiv__")(other, self)
+        return type(self).get_method("__floordiv__")(other, self)
 
 
 class Float64Feature(PrimitiveFeature):
@@ -3758,7 +3758,7 @@ class Float64Feature(PrimitiveFeature):
         Returns:
             Float64Feature: A new feature representing the difference of the original features.
         """
-        return self.get_method("__sub__")(other, self)
+        return type(self).get_method("__sub__")(other, self)
 
     @overload
     def __mul__(self, other: Float32Feature) -> Float64Feature:
@@ -3842,7 +3842,7 @@ class Float64Feature(PrimitiveFeature):
         Returns:
             Feature: A new feature representing the quotient of the original features.
         """
-        return self.get_method("__truediv__")(other, self)
+        return type(self).get_method("__truediv__")(other, self)
 
     def __floordiv__(
         self,
@@ -3874,7 +3874,7 @@ class Float64Feature(PrimitiveFeature):
         Returns:
             Feature: A new feature representing the integer quotient of the original features.
         """
-        return self.get_method("__floordiv__")(other, self)
+        return type(self).get_method("__floordiv__")(other, self)
 
 
 T = TypeVar("T")
@@ -3969,6 +3969,57 @@ class SequenceFeature(typing.Sequence[T], Feature):
             T: A feature representing the sum of the sequence.
         """
         return self.execute_method("sum")
+
+    U = TypeVar("U")
+
+    def foreach(self, fn: Callable[[T], U]) -> SequenceFeature[U]:
+        """Apply a transformation function to each element in the sequence.
+
+        This method applies the provided transformation function to each element
+        in the sequence.
+
+        Args:
+            fn (Callable[[T], U]): A function to apply to each element of the sequence.
+
+        Returns:
+            SequenceFeature[U]: A new :class:`SequenceFeature` instance containing the
+            transformed sequence, with the same structural layout as the original.
+        """
+        values, index = self.unpack(return_index=True)
+        return SequenceFeature.get_method("pack")(fn(values), index, values.ref)
+
+    @overload
+    def unpack(self) -> T:
+        ...
+
+    @overload
+    def unpack(self, return_index: typing.Literal[False]) -> T:
+        ...
+
+    @overload
+    def unpack(self, return_index: typing.Literal[True]) -> tuple[T, Int32Feature]:
+        ...
+
+    def unpack(self, return_index: bool = False) -> T | tuple[T, Int32Feature]:
+        """Unpack the sequence into its values.
+
+        This method retrieves the values of the sequence, and if :code:`return_index` is set to
+        :code:`True`, it also includes the index mapping that relates the values to their
+        original structure.
+
+        Args:
+            return_index (bool, optional): If :code:`True`, the method returns both the sequence
+                values and their indices. Defaults to :code:`False`.
+
+        Returns:
+            T | tuple[T, Int32Feature]: The unpacked sequence values and optionally the trace
+                indices if :code:`return_index` is set to :code:`True`.
+        """
+        if return_index:
+            values_with_index = self.execute_method("unpack_with_index")
+            return values_with_index["value"], values_with_index["index"]
+        else:
+            return self.execute_method("unpack")
 
     @classmethod
     def __init_subclass__(cls) -> None:
