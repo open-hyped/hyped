@@ -237,8 +237,10 @@ class TestDataFlowGraphOptimizer:
                 n1[DataFlowGraph.NodeAttribute.NODE_OBJ] == n2[DataFlowGraph.NodeAttribute.NODE_OBJ]
             )
 
-        with patch("hyped.core.graph.pa.array"), patch(
-            "hyped.core.optim.DataFlowExecutor.execute", AsyncMock(return_value=MagicMock())
+        with (
+            patch("hyped.core.graph.pa.array"),
+            patch("hyped.core.graph.ConstNode"),
+            patch("hyped.core.optim.DataFlowExecutor.execute", AsyncMock(return_value=MagicMock())),
         ):
             # apply constant evaluation to the graph and compare to the target graph
             optim_graph = DataFlowGraphOptimizer().constant_evaluation(graph, leaf_nodes)
@@ -326,8 +328,10 @@ class TestDataFlowGraphOptimizer:
                 n1[DataFlowGraph.NodeAttribute.NODE_OBJ] == n2[DataFlowGraph.NodeAttribute.NODE_OBJ]
             )
 
-        with patch("hyped.core.graph.pa.array"), patch(
-            "hyped.core.optim.DataFlowExecutor.execute", AsyncMock(return_value=MagicMock())
+        with (
+            patch("hyped.core.graph.pa.array"),
+            patch("hyped.core.graph.ConstNode"),
+            patch("hyped.core.optim.DataFlowExecutor.execute", AsyncMock(return_value=MagicMock())),
         ):
             # apply constant evaluation to the graph and compare to the target graph
             optim_graph = DataFlowGraphOptimizer().optimize(graph, leaf_nodes)

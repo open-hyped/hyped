@@ -3,6 +3,7 @@ from typing import Hashable
 from unittest.mock import MagicMock, call, patch
 
 import networkx as nx
+import pyarrow as pa
 import pytest
 
 from hyped.core.features.reference import FeatureKey, Reference
@@ -16,7 +17,8 @@ from hyped.core.graph import (
 )
 from hyped.core.nodes.aggregator import BaseDataAggregator
 from hyped.core.nodes.augmenter import BaseDataAugmenter
-from hyped.core.nodes.processor import BaseDataProcessor, BaseDataProcessorConfig
+from hyped.core.nodes.const import ConstNode
+from hyped.core.nodes.processor import BaseDataProcessor
 from hyped.core.typing import PartitionId
 
 from .utils import build_graph
@@ -383,20 +385,36 @@ class TestDataFlowGraph:
         sub_graph = DataFlowGraph(graph.subgraph([]))
         assert sub_graph.src_node_id is None
 
-    @patch("hyped.core.graph.pa.array")
-    def test_add_const_node(self, mock_pa_array: MagicMock) -> None:
+    def test_add_const_node(self) -> None:
         graph = DataFlowGraph()
 
-        value = MagicMock()
         # add the node to the graph
-        ref = graph.add_const_node(value, MockType)
+        ref = graph.add_const_node(False, MockType)
 
         # make sure node was added as expected
         attrs = graph.nodes[ref._node_id]
-        assert attrs[DataFlowGraph.NodeAttribute.NODE_OBJ] == mock_pa_array()
+        assert isinstance(attrs[DataFlowGraph.NodeAttribute.NODE_OBJ], ConstNode)
         assert attrs[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.CONST
         assert attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] == MockType
         assert attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] == MappingType.construct({})
+
+    def test_add_cast_node(self) -> None:
+        graph = DataFlowGraph()
+        src_ref = graph.add_source_node(MockType)
+        # add cast node to graph
+        ref = graph.add_cast_node(src_ref, MockType)
+        # make sure node was added as expected
+        attrs = graph.nodes[ref._node_id]
+        assert attrs[DataFlowGraph.NodeAttribute.NODE_OBJ] == None
+        assert attrs[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.CAST
+        assert attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] == MockType
+        assert attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] == MappingType.construct(
+            {"value": MockType}
+        )
+        # check error handling when type casting is invalid
+        with patch("hyped.core.graph.cast_dtype", MagicMock(side_effect=RuntimeError)):
+            with pytest.raises(RuntimeError):
+                graph.add_cast_node(src_ref, MockType)
 
     def test_add_collect_node(self) -> None:
         # create simple linear graph
@@ -869,3 +887,33 @@ class TestDataFlowGraph:
         graph = build_graph(edges, node_types)
         subgraph = graph.drop_partition(partition)
         assert set(list(subgraph.nodes)) == set(expected_nodes)
+
+    @pytest.mark.parametrize(
+        "graph",
+        [
+            build_graph([], {0: DataFlowGraph.NodeType.SOURCE}, {0: None}),
+            build_graph(
+                [(0, 1)],
+                {0: DataFlowGraph.NodeType.SOURCE, 1: DataFlowGraph.NodeType.DATA_PROCESSOR},
+                {0: None, 1: MagicMock(__spec__=BaseDataProcessor)},
+            ),
+            build_graph(
+                [(0, 1)],
+                {0: DataFlowGraph.NodeType.SOURCE, 1: DataFlowGraph.NodeType.CAST},
+                {0: None, 1: None},
+            ),
+        ],
+    )
+    def test_dict_serialization(self, graph: DataFlowGraph) -> None:
+        mock_node_from_config_dict = {
+            node.config.to_dict.return_value: node
+            for _, node in graph.nodes(data=DataFlowGraph.NodeAttribute.NODE_OBJ)
+            if isinstance(node, MagicMock)
+        }.get
+
+        with patch(
+            "hyped.core.graph.AutoConfigurable.from_config_dict", mock_node_from_config_dict
+        ):
+            reconstructed_graph = DataFlowGraph.from_dict(graph.to_dict())
+
+        assert nx.utils.misc.graphs_equal(reconstructed_graph, graph)

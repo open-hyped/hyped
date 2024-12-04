@@ -51,6 +51,24 @@ class TestCollectNode:
                 {"a": [0, 0], "b": 1},
                 {},
             ),
+            # nested sequence of mappings with casting required
+            (
+                [{"b": "x"}, {"b": "y"}],
+                {"x": Int32Type, "y": Int64Type},
+                {"x": 0, "y": 1},
+                SequenceType(MappingType.construct({"b": Int64Type}), 2),
+                [{"b": 0}, {"b": 1}],
+                {"x": Int64Type},
+            ),
+            # nested sequence of sequences with casting required
+            (
+                [["x", "x"], ["y", "y"]],
+                {"x": Int32Type, "y": Int64Type},
+                {"x": 0, "y": 1},
+                SequenceType(SequenceType(Int64Type, 2), 2),
+                [[0, 0], [1, 1]],
+                {"x": Int64Type},
+            ),
         ],
     )
     def test_collect_node(

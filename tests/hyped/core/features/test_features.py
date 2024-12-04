@@ -26,7 +26,14 @@ from hyped.core.features.features import (
 from hyped.core.features.features import _MappingFeature as MappingFeature
 from hyped.core.features.features import build_feature_from_annotation, build_feature_from_dtype
 from hyped.core.features.reference import FeatureKey, Reference
-from hyped.core.features.types import BoolType, MappingType, SequenceType, StringType, Type
+from hyped.core.features.types import (
+    UNDEFINED_SEQUENCE_LENGTH,
+    BoolType,
+    MappingType,
+    SequenceType,
+    StringType,
+    Type,
+)
 from hyped.core.graph import DataFlowGraph
 
 
@@ -1753,6 +1760,8 @@ class TestPrimitiveFeatures:
             (Float32Feature, Float32Feature.__floordiv__, "__floordiv__", (1.2,), Int64Feature),
             (Float32Feature, Float32Feature.__floordiv__, "__floordiv__", (1,), Int64Feature),
             (Float32Feature, Float32Feature.__floordiv__, "__floordiv__", (1.2,), Int64Feature),
+            (Float32Feature, Float32Feature.__rfloordiv__, "__floordiv__", (1,), Int64Feature),
+            (Float32Feature, Float32Feature.__rfloordiv__, "__floordiv__", (1.2,), Int64Feature),
             # float64 methods
             (Float64Feature, Float64Feature.__abs__, "__abs__", tuple(), Float64Feature),
             (Float64Feature, Float64Feature.__neg__, "__neg__", tuple(), Float64Feature),
@@ -1961,6 +1970,8 @@ class TestPrimitiveFeatures:
             (Float64Feature, Float64Feature.__floordiv__, "__floordiv__", (1.2,), Int64Feature),
             (Float64Feature, Float64Feature.__floordiv__, "__floordiv__", (1,), Int64Feature),
             (Float64Feature, Float64Feature.__floordiv__, "__floordiv__", (1.2,), Int64Feature),
+            (Float64Feature, Float64Feature.__rfloordiv__, "__floordiv__", (1,), Int64Feature),
+            (Float64Feature, Float64Feature.__rfloordiv__, "__floordiv__", (1.2,), Int64Feature),
         ],
     )
     def test_primitive_feature_method(
@@ -2050,6 +2061,45 @@ class TestSequenceFeature:
 
             class MySequence(SequenceFeature):
                 ...
+
+    def test_length(self) -> None:
+        # create a mock sequence with fixed length
+        dtype = MagicMock(spec=SequenceType, __len__=lambda _: 5)
+        sequence = SequenceFeature[BoolFeature](MagicMock(), dtype)
+        # check return value of length method is length as integer
+        assert isinstance(sequence.length(), int) and (sequence.length() == 5)
+
+        # create a mock sequence with undefined length
+        dtype = MagicMock(spec=SequenceType, __len__=lambda _: UNDEFINED_SEQUENCE_LENGTH)
+        sequence = SequenceFeature[BoolFeature](MagicMock(), dtype)
+
+        sequence.execute_method = MagicMock()
+        # check return value of length method is length as integer
+        assert sequence.length() == sequence.execute_method.return_value
+        sequence.execute_method.assert_called_once_with("length")
+
+        # use .length() instead
+        with pytest.raises(EnvironmentError):
+            len(sequence)
+
+    @pytest.mark.parametrize(
+        "fn, registered_fn_name",
+        [
+            (SequenceFeature.min, "min"),
+            (SequenceFeature.max, "max"),
+            (SequenceFeature.sum, "sum"),
+        ],
+    )
+    def test_methods(self, fn: Callable, registered_fn_name: str) -> None:
+        # create a mock sequence with fixed length
+        dtype = MagicMock(spec=SequenceType)
+        sequence = SequenceFeature[BoolFeature](MagicMock(), dtype)
+        # mock execute method function
+        sequence.execute_method = MagicMock()
+        # call function
+        fn(sequence)
+        # check registered function call
+        sequence.execute_method.assert_called_once_with(registered_fn_name)
 
     def test_get_item(self) -> None:
         ref = Reference()

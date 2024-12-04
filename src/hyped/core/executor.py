@@ -20,12 +20,13 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from .features.reference import FeatureKey, Reference
-from .features.types import MappingType, Type
+from .features.types import MappingType
 from .graph import DataFlowGraph
 from .nodes.aggregator import BaseDataAggregator, DataAggregationManager
 from .nodes.augmenter import BaseDataAugmenter
 from .nodes.base import RunContext
 from .nodes.collect import CollectNode
+from .nodes.const import ConstNode
 from .nodes.processor import BaseDataProcessor
 from .typing import IndexList, NodeId, Rank, TraceIndexList
 
@@ -318,15 +319,14 @@ class DataFlowExecutor(object):
         )
 
         if node_type == DataFlowGraph.NodeType.CONST:
-            assert isinstance(node_obj, pa.Array)
+            assert isinstance(node_obj, ConstNode)
             # for constant nodes the node object is a pyarrow array
             # of a single entry holding the value
-            state.capture_output(node_id, node_obj)
+            state.capture_output(node_id, node_obj.config.value)
 
         elif node_type == DataFlowGraph.NodeType.CAST:
-            assert isinstance(node_obj, Type)
             # cast the value to the expected data type
-            cast_value = pc.cast(inputs["value"], node_obj.arrow_type)
+            cast_value = pc.cast(inputs["value"], ctx.output_type.arrow_type)
             state.capture_output(node_id, cast_value)
 
         elif node_type == DataFlowGraph.NodeType.COLLECT:

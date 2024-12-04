@@ -113,7 +113,7 @@ class PrimitiveType(Type):
         Returns:
             str: A string representation of the :class:`PrimitiveType` instance.
         """
-        return str(self._arrow_type).capitalize()
+        return str(self._arrow_type).capitalize()  # pragma: not covered
 
     def to_dict(self) -> dict:
         """Converts the :class:`PrimitiveType` instance to a dictionary representation.
@@ -143,7 +143,7 @@ class PrimitiveType(Type):
         Raises:
             ValueError: If the :code:`type` field is not "PrimitiveType".
         """
-        if data["type"] != "PrimitiveType":
+        if data["type"] != "PrimitiveType":  # pragma: not covered
             raise ValueError("Invalid type for deserialization")
         return ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING[data["arrow_type"]]
 
@@ -324,7 +324,7 @@ class SequenceType(Type, typing.Sequence):
         Returns:
             str: A string representation of the sequence instance including the value type.
         """
-        return f"SequenceType[{str(self.value_type)}]"
+        return f"SequenceType[{str(self.value_type)}]"  # pragma: not covered
 
     def to_dict(self) -> dict:
         """Serializes the sequence type to a dictionary representation.
@@ -351,7 +351,7 @@ class SequenceType(Type, typing.Sequence):
         Raises:
             ValueError: If the dictionary does not represent a SequenceType.
         """
-        if data["type"] != "SequenceType":
+        if data["type"] != "SequenceType":  # pragma: not covered
             raise ValueError("Invalid type for deserialization")
         return SequenceType(
             value_type=build_type_from_dict(data["value_type"]), length=data["length"]
@@ -449,7 +449,7 @@ class MappingType(Type, typing.Mapping[str, Type]):
         Returns:
             str: The name of the class (`MappingType`).
         """
-        return type(self).__name__
+        return type(self).__name__  # pragma: not covered
 
     def to_dict(self) -> dict:
         """Serializes the :class:`MappingType` instance to a dictionary.
@@ -478,7 +478,7 @@ class MappingType(Type, typing.Mapping[str, Type]):
         Raises:
             ValueError: If the "type" field in the dictionary is not "MappingType".
         """
-        if data["type"] != "MappingType":
+        if data["type"] != "MappingType":  # pragma: not covered
             raise ValueError("Invalid type for deserialization")
         return MappingType.construct(
             {key: build_type_from_dict(field) for key, field in data["fields"].items()}
@@ -508,11 +508,17 @@ def build_type_from_dict(data: dict) -> Type:
     elif data["type"] == "MappingType":
         return MappingType.from_dict(data)
 
-    raise ValueError(f"Unknown type for deserialization: {data['type']}")
+    raise ValueError(f"Unknown type for deserialization: {data['type']}")  # pragma: not covered
 
 
 def cast_dtype(src_dtype: Type, tgt_dtype: Type) -> Type:
-    """Perform type casting between two data types.
+    """Perform type casting of a source to a target data type.
+
+    This function attempts to cast a source data type (:code:`src_dtype`) to a target data type
+    (:code:`tgt_dtype`). It supports casting between various data types such as sequences,
+    mappings, and primitive types. If the casting is not feasible due to type mismatches
+    or constraints (e.g., incompatible lengths for sequences or mismatched keys for
+    mappings), an exception is raised.
 
     Args:
         src_dtype (Type): The source data type.
@@ -551,7 +557,7 @@ def cast_dtype(src_dtype: Type, tgt_dtype: Type) -> Type:
 
         # make sure both mappings contain all keys and the fields
         # are castable
-        fields = {k: cast_dtype[src_dtype[k], tgt_dtype[k]] for k in src_dtype.keys()}
+        fields = {k: cast_dtype(src_dtype[k], tgt_dtype[k]) for k in src_dtype.keys()}
         return MappingType.construct(fields)
 
     elif isinstance(src_dtype, PrimitiveType) and isinstance(tgt_dtype, PrimitiveType):
@@ -578,7 +584,7 @@ def common_dtype(*dtypes: Type) -> Type:
         Type: The common dtype that can represent all input dtypes.
 
     Raises:
-        ValueError: If no dtypes are provided or the dtypes cannot be combined.
+        AssertionError: If no dtypes are provided or the dtypes cannot be combined.
         RuntimeError: If dtypes are incompatible or cannot be resolved to a common dtype.
     """
     # Ensure at least one dtype is provided
@@ -625,11 +631,9 @@ def common_dtype(*dtypes: Type) -> Type:
 
     # Handle primitive types
     elif all(isinstance(dtype, PrimitiveType) for dtype in dtypes):
-        try:
-            # get the data type with the highest priority
-            dtype = max(dtypes, key=PRIORITY.__getitem__)
-        except KeyError as e:
-            raise ValueError(f"Unsupported dtype encountered: {e.args[0]}") from e
+        # get the data type with the highest priority
+        assert all(dtype in PRIORITY for dtype in dtypes), "Unsupported dtype encountered"
+        dtype = max(dtypes, key=PRIORITY.__getitem__)
 
         int_types = [Int8Type, Int16Type, Int32Type, Int64Type]
         # promote data type if required

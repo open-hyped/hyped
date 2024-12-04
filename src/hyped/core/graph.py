@@ -28,6 +28,7 @@ from .nodes.aggregator import BaseDataAggregator
 from .nodes.augmenter import BaseDataAugmenter
 from .nodes.base import BaseNode
 from .nodes.collect import CollectNode
+from .nodes.const import ConstNode
 from .nodes.processor import BaseDataProcessor
 from .registry.config import AutoConfigurable
 from .typing import NodeId, PartitionId
@@ -578,12 +579,12 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         super(DataFlowGraph, self).add_node(
             node_id,
             **{
-                DataFlowGraph.NodeAttribute.NODE_OBJ: node_obj,
-                DataFlowGraph.NodeAttribute.NODE_TYPE: node_type,
-                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE: input_type,
-                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: output_type,
-                DataFlowGraph.NodeAttribute.PARTITION: partition,
-                DataFlowGraph.NodeAttribute.DEPTH: depth,
+                DataFlowGraph.NodeAttribute.NODE_OBJ.value: node_obj,
+                DataFlowGraph.NodeAttribute.NODE_TYPE.value: node_type,
+                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE.value: input_type,
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE.value: output_type,
+                DataFlowGraph.NodeAttribute.PARTITION.value: partition,
+                DataFlowGraph.NodeAttribute.DEPTH.value: depth,
             },
         )
 
@@ -595,8 +596,8 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 node_id,
                 key=name,
                 **{
-                    DataFlowGraph.EdgeAttribute.NAME: name,
-                    DataFlowGraph.EdgeAttribute.KEY: ref._key,
+                    DataFlowGraph.EdgeAttribute.NAME.value: name,
+                    DataFlowGraph.EdgeAttribute.KEY.value: ref._key,
                 },
             )
 
@@ -660,7 +661,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
 
         # add the node to the graph
         return self.add_node(
-            node_obj=array,
+            node_obj=ConstNode(value=array),
             node_type=DataFlowGraph.NodeType.CONST,
             inputs={},
             output_type=dtype,
@@ -832,7 +833,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         node_id = node_id if node_id is not None else str(random_uuid())
         # add the node to the graph
         return self.add_node(
-            node_obj=dtype,
+            node_obj=None,
             node_type=DataFlowGraph.NodeType.CAST,
             inputs={"value": ref},
             output_type=dtype,
@@ -1229,24 +1230,12 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         # get dictionary representation of data flow graph
         data = nx.node_link_data(self, edges="edges")
 
-        for node in data["nodes"]:
-            obj = node[DataFlowGraph.NodeAttribute.NODE_OBJ]
-            typ = node[DataFlowGraph.NodeAttribute.NODE_TYPE]
+        for _i, node in enumerate(data["nodes"]):
             # serialize node object
-            if typ == DataFlowGraph.NodeType.CONST:
-                obj = obj.to_pylist()[0]
-            elif typ == DataFlowGraph.NodeType.CAST:
-                obj = obj.to_dict()
-            elif typ in {
-                DataFlowGraph.NodeType.DATA_PROCESSOR,
-                DataFlowGraph.NodeType.DATA_AUGMENTER,
-                DataFlowGraph.NodeType.DATA_AGGREGATOR,
-                DataFlowGraph.NodeType.COLLECT,
-            }:
-                assert isinstance(obj, BaseNode)
-                obj = obj.config.to_dict()
-            # write serialized node object to data
-            node[DataFlowGraph.NodeAttribute.NODE_OBJ] = obj
+            obj = node[DataFlowGraph.NodeAttribute.NODE_OBJ]
+            node[DataFlowGraph.NodeAttribute.NODE_OBJ] = (
+                None if obj is None else obj.config.to_dict()
+            )
             # serialize feature types
             node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] = node[
                 DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE
@@ -1284,7 +1273,6 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 node[DataFlowGraph.NodeAttribute.PARTITION] = DataFlowGraph.Partition(
                     node[DataFlowGraph.NodeAttribute.PARTITION]
                 )
-
             # deserialize feature types
             node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] = build_type_from_dict(
                 node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE]
@@ -1292,27 +1280,14 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] = build_type_from_dict(
                 node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
             )
-
+            # deserialize node objects
             obj = node[DataFlowGraph.NodeAttribute.NODE_OBJ]
-            typ = node[DataFlowGraph.NodeAttribute.NODE_TYPE]
-            # deserialize node object
-            if typ == DataFlowGraph.NodeType.CONST:
-                obj = pa.array(
-                    [obj], type=node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE].arrow_type
-                )
-            elif typ == DataFlowGraph.NodeType.CAST:
-                obj = build_type_from_dict(obj)
-            elif typ in {
-                DataFlowGraph.NodeType.DATA_PROCESSOR,
-                DataFlowGraph.NodeType.DATA_AUGMENTER,
-                DataFlowGraph.NodeType.DATA_AGGREGATOR,
-                DataFlowGraph.NodeType.COLLECT,
-            }:
-                obj = AutoConfigurable.from_config_dict(obj)
-            # set deserialized node object
-            node[DataFlowGraph.NodeAttribute.NODE_OBJ] = obj
+            node[DataFlowGraph.NodeAttribute.NODE_OBJ] = (
+                None if obj is None else AutoConfigurable.from_config_dict(obj)
+            )
 
-        for edge in data["links"]:
+        for edge in data["edges"]:
+            # deserialize feature keys
             edge[DataFlowGraph.EdgeAttribute.KEY] = FeatureKey(
                 *edge[DataFlowGraph.EdgeAttribute.KEY]
             )

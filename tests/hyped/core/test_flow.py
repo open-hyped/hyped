@@ -449,3 +449,22 @@ class TestExecutableDataFlow:
             drop_last_batch=ANY,
             remove_columns=ANY,
         )
+
+    def test_serialization(self) -> None:
+        # create a simple data flow graph containing only a source node
+        graph = DataFlowGraph()
+        graph.add_source_node(MappingType.construct({"x": BoolType}))
+        # create the collect reference
+        collect = Reference(_node_id=graph.src_node_id, _graph=graph)
+        # create the executable data flow instance
+        flow = ExecutableDataFlow(graph, collect, None)
+
+        serialized = flow.serialize()
+        flow = DataFlow.deserialize(serialized)
+
+        assert collect._key == flow._instance_executor.collect._key
+        assert collect._node_id == flow._instance_executor.collect._node_id
+
+        with pytest.raises(ValueError):
+            # deserialize from invalid string
+            DataFlow.deserialize("{}")

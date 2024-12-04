@@ -4403,4 +4403,7 @@ def build_feature_from_annotation(
         builder = builder.__class_getitem__(*features)
 
     # build the output feature
-    return builder.model_validate({"field": ref}, context=context).field
+    feature = builder.model_validate({"field": ref}, context=context).field
+    assert isinstance(feature, Feature)
+
+    return feature

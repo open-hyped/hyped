@@ -1,7 +1,7 @@
 import asyncio
 from types import MappingProxyType
 from typing import Generator, Hashable
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import networkx as nx
 import numpy as np
@@ -10,11 +10,12 @@ import pytest
 
 from hyped.core.executor import DataFlowExecutor, ExecutionState, LazyDataFlowExecutor
 from hyped.core.features.reference import Reference
-from hyped.core.features.types import BoolType, MappingType
+from hyped.core.features.types import BoolType, MappingType, Type
 from hyped.core.graph import DataFlowGraph
 from hyped.core.nodes.aggregator import BaseDataAggregator
 from hyped.core.nodes.augmenter import BaseDataAugmenter
 from hyped.core.nodes.collect import CollectNode
+from hyped.core.nodes.const import ConstNode
 from hyped.core.nodes.processor import BaseDataProcessor
 from hyped.core.typing import PartitionId
 
@@ -26,7 +27,9 @@ def build_mock_node(node_type: DataFlowGraph.NodeType) -> MagicMock:
     if node_type == DataFlowGraph.NodeType.SOURCE:
         return MagicMock()
     if node_type == DataFlowGraph.NodeType.CONST:
-        return MagicMock(spec=pa.Array)
+        return MagicMock(spec=ConstNode)
+    if node_type == DataFlowGraph.NodeType.CAST:
+        return MagicMock(spec=Type)
     if node_type == DataFlowGraph.NodeType.COLLECT:
         return MagicMock(spec=CollectNode, collect=MagicMock())
     if node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
@@ -298,9 +301,19 @@ class TestDataFlowExecutor:
                 0,
                 [],
             ),
-            # Collect node with single input
+            # Cast node
             (
                 [(0, 1, "x")],
+                {
+                    0: DataFlowGraph.NodeType.SOURCE,
+                    1: DataFlowGraph.NodeType.CAST,
+                },
+                1,
+                [0],
+            ),
+            # Collect node with single input
+            (
+                [(0, 1, "value")],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
                     1: DataFlowGraph.NodeType.COLLECT,
@@ -370,8 +383,11 @@ class TestDataFlowExecutor:
         )
         manager = MagicMock(aggregate=AsyncMock())
 
+        mock_pyarrow_cast = MagicMock()
         # Patch RunContext and initialize executor
-        with patch("hyped.core.executor.RunContext", lambda *_, **__: mock_run_context):
+        with patch("hyped.core.executor.RunContext", lambda *_, **__: mock_run_context), patch(
+            "hyped.core.executor.pc.cast", mock_pyarrow_cast
+        ):
             executor = DataFlowExecutor(graph, Reference(), manager)
             await executor.execute_node(node, state)
 
@@ -383,15 +399,20 @@ class TestDataFlowExecutor:
 
         # Assertions based on node type
         if node_types[node] == DataFlowGraph.NodeType.CONST:
-            state.capture_output.assert_called_once_with(node, node_obj)
+            state.capture_output.assert_called_once_with(node, node_obj.config.value)
+
+        elif node_types[node] == DataFlowGraph.NodeType.CAST:
+            mock_value = mock_inputs.__getitem__.return_value
+            mock_pyarrow_cast.assert_called_once_with(mock_value, ANY)
+            state.capture_output.assert_called_once_with(node, mock_pyarrow_cast.return_value)
 
         elif node_types[node] == DataFlowGraph.NodeType.COLLECT:
             node_obj.collect.assert_called_once_with(mock_run_context, mock_inputs)
-            state.capture_output.assert_called_once_with(node, node_obj.collect())
+            state.capture_output.assert_called_once_with(node, node_obj.collect.return_value)
 
         elif node_types[node] == DataFlowGraph.NodeType.DATA_PROCESSOR:
             node_obj.run.assert_called_once_with(mock_run_context, mock_inputs)
-            state.capture_output.assert_called_once_with(node, await node_obj.run())
+            state.capture_output.assert_called_once_with(node, node_obj.run.return_value)
 
         elif node_types[node] == DataFlowGraph.NodeType.DATA_AUGMENTER:
             node_obj.run.assert_called_once_with(mock_run_context, mock_inputs)
