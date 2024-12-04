@@ -1233,7 +1233,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         # get dictionary representation of data flow graph
         data = nx.node_link_data(self, edges="edges")
 
-        for _i, node in enumerate(data["nodes"]):
+        for node in data["nodes"]:
             # serialize node object
             obj = node[DataFlowGraph.NodeAttribute.NODE_OBJ]
             node[DataFlowGraph.NodeAttribute.NODE_OBJ] = (
@@ -1246,6 +1246,10 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] = node[
                 DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
             ].to_dict()
+
+        # serialize feature keys
+        for edge in data["edges"]:
+            edge[DataFlowGraph.EdgeAttribute.KEY] = edge[DataFlowGraph.EdgeAttribute.KEY].to_dict()
 
         return data
 
@@ -1289,10 +1293,10 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 None if obj is None else AutoConfigurable.from_config_dict(obj)
             )
 
+        # deserialize feature keys
         for edge in data["edges"]:
-            # deserialize feature keys
-            edge[DataFlowGraph.EdgeAttribute.KEY] = FeatureKey(
-                *edge[DataFlowGraph.EdgeAttribute.KEY]
+            edge[DataFlowGraph.EdgeAttribute.KEY] = FeatureKey.from_dict(
+                edge[DataFlowGraph.EdgeAttribute.KEY]
             )
 
         return DataFlowGraph(nx.node_link_graph(data, edges="edges"))

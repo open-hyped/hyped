@@ -26,6 +26,31 @@ class TestFeatureKey:
             FeatureKey(1.4)
 
     @pytest.mark.parametrize(
+        "feature_key",
+        [
+            # Case 1: FeatureKey with only strings and integers
+            FeatureKey("feature1", 42),
+            # Case 2: FeatureKey with strings, integers, and a slice
+            FeatureKey("feature1", 42, slice(0, 10, 2)),
+            # Case 3: FeatureKey with multiple slices
+            FeatureKey(slice(1, 5), slice(10, 20, 3)),
+            # Case 4: FeatureKey with an empty list (edge case)
+            FeatureKey(),
+            # Case 5: FeatureKey with mixed types (slice and integers)
+            FeatureKey(42, slice(0, 10)),
+        ],
+    )
+    def test_serialization(self, feature_key: FeatureKey) -> None:
+        # Serialize the feature_key to a dictionary
+        serialized = feature_key.to_dict()
+
+        # Deserialize the dictionary back to a FeatureKey
+        deserialized = FeatureKey.from_dict(serialized)
+
+        # Check that the original and deserialized FeatureKey are equal
+        assert feature_key == deserialized
+
+    @pytest.mark.parametrize(
         "dtype,key,expected_dtype",
         [
             (BoolType, FeatureKey(), BoolType),

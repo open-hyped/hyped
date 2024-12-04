@@ -43,6 +43,47 @@ class FeatureKey(tuple[int | str | slice]):
 
     __slots__ = ()
 
+    def to_dict(self) -> dict:
+        """Convert the FeatureKey instance into a dictionary representation.
+
+        Returns:
+            dict: A dictionary representation of the FeatureKey instance.
+        """
+        return {
+            "type": "FeatureKey",
+            "key": [
+                {
+                    "start": key_entry.start,
+                    "stop": key_entry.stop,
+                    "step": key_entry.step,
+                }
+                if isinstance(key_entry, slice)
+                else key_entry
+                for key_entry in self
+            ],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> FeatureKey:
+        """Reconstruct a FeatureKey object from its dictionary representation.
+
+        Args:
+            data (dict): The dictionary representation of a :class:`FeatureKey`
+
+        Returns:
+            FeatureKey: A new instance of the :class:`FeatureKey` class initialized
+                from the provided dictionary data.
+        """
+        if data.get("type") != "FeatureKey":
+            raise ValueError("Invalid type for FeatureKey reconstruction.")
+
+        key_entries = (
+            slice(item["start"], item["stop"], item["step"]) if isinstance(item, dict) else item
+            for item in data["key"]
+        )
+
+        return cls(*key_entries)
+
     @classmethod
     def from_tuple(cls, key: tuple[int | str | slice]) -> FeatureKey:
         """Generate a FeatureKey from a tuple.
