@@ -14,7 +14,9 @@ data structure.
 from __future__ import annotations
 
 import typing
+import warnings
 from dataclasses import dataclass, replace
+from enum import IntEnum
 from functools import partial
 from types import GenericAlias
 from typing import Any, Callable, ClassVar, Final, TypeVar, overload
@@ -3881,16 +3883,126 @@ class Float64Feature(PrimitiveFeature):
         return type(self).get_method("__floordiv__")(other, self)
 
 
+@dataclass(eq=True, frozen=False)
 class ClassLabelFeature(Int64Feature):
-    """A feature type representing class labels, typically used for categorical label data.
+    """A base class for defining strongly-typed categorical class labels.
 
-    Class labels are typically used to represent categorical labels in datasets. The labels are
-    mapped to :class:`Int64Feature` instances.
+    This class provides a mechanism for defining and validating class labels, typically used to
+    represent categorical data in datasets. Each class label corresponds to an integer ID and is
+    mapped to an :class:`Int64Feature` instance. Subclasses of :class:`ClassLabelFeature` are
+    intended to define the set of class labels in a similar way to an :class:`IntEnum`.
+
+    Subclasses automatically inherit functionality for validation and schema generation, ensuring
+    that the defined labels are consistent and complete. Missing label IDs are identified and
+    handled during validation.
+
+    Defining Class Labels
+    ~~~~~~~~~~~~~~~~~~~~~
+
+    Subclassing :class:`ClassLabelFeature` allows users to define class labels as attributes,
+    similar to defining members in an `Enum`:
+
+    Example:
+    .. code-block:: python
+
+        class Labels(ClassLabelFeature):
+            FIRST = 0
+            SECOND = 1
+
+        # This defines a feature with two class labels:
+        # - Label `FIRST` corresponds to ID 0.
+        # - Label `SECOND` corresponds to ID 1.
     """
 
     def __post_init__(self) -> None:
-        """Validate the underlying data type to be a class label type."""
+        """Validates the class label data type and ensures label definitions are consistent."""
         assert isinstance(self.dtype, types.ClassLabelType)
+
+        # make sure that the members that are specified in the class label enum
+        # are valid in the class label data type
+        for member in self._build_class_label_enum():
+            if (member.value >= len(self.dtype)) or (self.dtype.names[member.value] != member.name):
+                raise RuntimeError(
+                    f"Label mismatch detected in {self.__class__.__qualname__}: "
+                    f"The label '{member.name}' (ID {member.value}) is invalid. "
+                    + (
+                        "The ID exceeds the number of labels defined in the data type."
+                        if member.value >= len(self.dtype)
+                        else f"Expected label name: {self.dtype.names[member.value]}"
+                    )
+                )
+
+    @classmethod
+    def _build_class_label_enum(cls) -> IntEnum:
+        """Constructs an enum of class labels defined in this class.
+
+        Returns:
+            IntEnum: An enumeration of the class labels.
+        """
+        # TODO: this only captures the values defined in this class
+        #       but not those inherited from base types
+        values = {
+            k: v for k, v in vars(cls).items() if isinstance(v, int) and not k.startswith("__")
+        }
+        return IntEnum("ClassLabelEnum", values)
+
+    @classmethod
+    def _build_class_label_dtype(cls) -> types.ClassLabelType:
+        """Constructs the class label data type based on the defined labels.
+
+        Returns:
+            types.ClassLabelType: The constructed class label data type.
+        """
+        names = []
+        enum = cls._build_class_label_enum()
+        for i in range(0, max(enum, default=-1) + 1):
+            if i not in enum:
+                warnings.warn(
+                    f"Detected missing label ID {i} in {cls.__qualname__}, filling with 'UNDEF'."
+                )
+            names.append(enum(i).name if i in enum else "UNDEF")
+        return types.ClassLabelType(names=tuple(names))
+
+    @classmethod
+    def from_names(cls, names: list[str]) -> type[ClassLabelFeature]:
+        """Dynamically creates class label type from a list of class label names.
+
+        This method dynamically defines a custom :class:`ClassLabelFeature` subclass by providing
+        a list of class label names. Each label is automatically assigned a unique integer ID
+        starting from 0, based on its position in the list.
+
+        This is particularly useful when the class labels are dynamically generated or need
+        to be defined programmatically, instead of being hardcoded as class-level attributes.
+
+        Args:
+            names (list[str]): A list of class label names. Each name in the list represents
+                a unique label, and the index of the name determines its corresponding integer ID.
+
+        Returns:
+            type[ClassLabelFeature]: A dynamically created subclass of :class:`ClassLabelFeature`,
+            where each label name in the input list is assigned as a class-level attribute with its
+            corresponding integer ID as the value.
+
+        Example:
+        --------
+        .. code-block:: python
+
+            from my_module import ClassLabelFeature
+
+            # Define class labels programmatically
+            label_names = ["NEGATIVE", "NEUTRAL", "POSITIVE"]
+            CustomLabels = ClassLabelFeature.from_names(label_names)
+
+            # Access the dynamically created class labels
+            print(CustomLabels.NEGATIVE)  # Output: 0
+            print(CustomLabels.NEUTRAL)  # Output: 1
+            print(CustomLabels.POSITIVE)  # Output: 2
+        """
+        return type(
+            f"ClassLabelFeature[{','.join(names)}]",
+            (cls,),
+            {name: i for i, name in enumerate(names)},
+        )
 
     @classmethod
     def __get_pydantic_core_schema__(
@@ -3912,14 +4024,30 @@ class ClassLabelFeature(Int64Feature):
         """
 
         def validator_fn(inst: Feature | Reference, validator: Callable[[Any], Any]) -> Feature:
-            if isinstance(inst, Reference):
-                # cannot infer the class labels from just a reference
-                raise RuntimeError("Cannot infer class labels from reference.")
-            # run the primitive feature core validator
+            if isinstance(inst, ClassLabelFeature) and (cls != ClassLabelFeature):
+                # convert the class label feature to the specific
+                # class label feature instance
+                inst = cls(inst.ref, inst.dtype)
+
+            elif isinstance(inst, Reference):
+                # create a class label feature instance from the reference
+                # with the data type inferred from the specific subclass
+                inst = cls(inst, cls._build_class_label_dtype())
+                if len(inst.dtype) == 0:
+                    raise PydanticCustomError(
+                        "Invalid Class Labels",
+                        (
+                            "No class labels defined in '{class_name}'. Ensure that the class "
+                            "defines at least one label as a class-level attribute."
+                        ),
+                        {"class_name": cls.__qualname__},
+                    )
+
+            # run base validator
             return validator(inst)
 
         return core_schema.no_info_wrap_validator_function(
-            validator_fn, schema=handler(source_type)
+            validator_fn, schema=core_schema.is_instance_schema(cls)
         )
 
 

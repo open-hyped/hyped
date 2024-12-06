@@ -2289,6 +2289,118 @@ class TestPrimitiveFeatures:
         )
 
 
+class TestClassLabelFeature:
+    def test_post_init(self) -> None:
+        ref = Reference()
+        dtype = ClassLabelType(names=("labelA", "labelB"))
+
+        # base class label feature allows arbitrary label names
+        ClassLabelFeature(ref, dtype=dtype)
+
+        class CustomClassLabel(ClassLabelFeature):
+            labelA = 0
+            labelB = 1
+
+        # labels in dtype match expectation
+        CustomClassLabel(ref, dtype=dtype)
+
+        class CustomClassLabel(ClassLabelFeature):
+            labelA = 0
+
+        # labels in dtype are contained in dtype
+        CustomClassLabel(ref, dtype=dtype)
+
+        class CustomClassLabel(ClassLabelFeature):
+            labelB = 1
+
+        # labels in dtype are contained in dtype
+        CustomClassLabel(ref, dtype=dtype)
+
+        class CustomClassLabel(ClassLabelFeature):
+            labelA = 0
+            labelB = 1
+            invalid_label = 2
+
+        # custom class label contains invalid label not contained in dtype
+        with pytest.raises(RuntimeError):
+            CustomClassLabel(ref, dtype=dtype)
+
+        class CustomClassLabel(ClassLabelFeature):
+            invalid_label = 0
+            labelB = 1
+
+        # custom class label contains invalid label not contained in dtype
+        with pytest.raises(RuntimeError):
+            CustomClassLabel(ref, dtype=dtype)
+
+    def test_from_names(self) -> None:
+        ref = Reference()
+        dtype = ClassLabelType(names=("labelA", "labelB"))
+
+        CustomClassLabel = ClassLabelFeature.from_names(["labelA", "labelB"])
+        CustomClassLabel(ref, dtype)
+
+        inst = pydantic.TypeAdapter(CustomClassLabel).validate_python(ref)
+        assert isinstance(inst, CustomClassLabel)
+        assert inst.dtype.names == dtype.names
+
+        CustomClassLabel = ClassLabelFeature.from_names(["invalid_label"])
+        with pytest.raises(RuntimeError):
+            CustomClassLabel(ref, dtype)
+
+    def test_build_class_label_dtype(self) -> None:
+        dtype = ClassLabelFeature._build_class_label_dtype()
+        assert len(dtype) == 0
+
+        class CustomClassLabel(ClassLabelFeature):
+            labelA = 0
+            labelB = 1
+
+        dtype = CustomClassLabel._build_class_label_dtype()
+        assert dtype.names == ("labelA", "labelB")
+
+        class CustomClassLabel(ClassLabelFeature):
+            labelA = 1
+            labelB = 0
+
+        dtype = CustomClassLabel._build_class_label_dtype()
+        assert dtype.names == ("labelB", "labelA")
+
+        class CustomClassLabel(ClassLabelFeature):
+            labelA = 0
+            labelB = 2
+
+        with pytest.warns(UserWarning):
+            dtype = CustomClassLabel._build_class_label_dtype()
+            assert dtype.names == ("labelA", "UNDEF", "labelB")
+
+    def test_pydantic_core_schema(self) -> None:
+        ref = Reference()
+        dtype = ClassLabelType(names=("labelA", "labelB"))
+        inst = ClassLabelFeature(ref, dtype)
+
+        class CustomClassLabel(ClassLabelFeature):
+            labelA = 0
+            labelB = 1
+
+        # base type supports arbitrary label names
+        adapter = pydantic.TypeAdapter(ClassLabelFeature)
+        assert adapter.validate_python(inst) == inst
+
+        # cast to custom type
+        adapter = pydantic.TypeAdapter(CustomClassLabel)
+        assert isinstance(adapter.validate_python(inst), CustomClassLabel)
+
+        # cast to custom type
+        adapter = pydantic.TypeAdapter(CustomClassLabel)
+        inferred_dtype = adapter.validate_python(ref).dtype
+        assert inferred_dtype.names == dtype.names
+
+        with pytest.raises(pydantic.ValidationError):
+            # unable to infer labels
+            pydantic.TypeAdapter(ClassLabelFeature).validate_python(ref)
+
+
 class TestSequenceFeature:
     def test_subclassing(self) -> None:
         with pytest.raises(EnvironmentError):
@@ -2540,40 +2652,32 @@ def test_build_feature_from_dtype(dtype: Type, expected_feature_type: type[Featu
 
 
 @pytest.mark.parametrize(
-    "annotation, expected_dtype, raises_error",
+    "annotation, expected_dtype",
     [
         # trivial cases
-        (BoolFeature, BoolType, False),
-        (StringFeature, StringType, False),
-        (Int8Feature, Int8Type, False),
-        (Int16Feature, Int16Type, False),
-        (Int32Feature, Int32Type, False),
-        (Int64Feature, Int64Type, False),
-        (UInt8Feature, UInt8Type, False),
-        (UInt16Feature, UInt16Type, False),
-        (UInt32Feature, UInt32Type, False),
-        (UInt64Feature, UInt64Type, False),
-        (Float32Feature, Float32Type, False),
-        (Float64Feature, Float64Type, False),
-        # cannot build class label feature from just annotation
-        (ClassLabelFeature, None, True),
+        (BoolFeature, BoolType),
+        (StringFeature, StringType),
+        (Int8Feature, Int8Type),
+        (Int16Feature, Int16Type),
+        (Int32Feature, Int32Type),
+        (Int64Feature, Int64Type),
+        (UInt8Feature, UInt8Type),
+        (UInt16Feature, UInt16Type),
+        (UInt32Feature, UInt32Type),
+        (UInt64Feature, UInt64Type),
+        (Float32Feature, Float32Type),
+        (Float64Feature, Float64Type),
+        (type("CustomLabel", (ClassLabelFeature,), {"A": 0}), ClassLabelType(names=("A",))),
         # union cases, always selects first fitting type
-        (BoolFeature | Int8Feature, BoolType, False),
-        (Int8Feature | BoolFeature, Int8Type, False),
-        (int | Int32Feature, Int32Type, False),
+        (BoolFeature | Int8Feature, BoolType),
+        (Int8Feature | BoolFeature, Int8Type),
+        (int | Int32Feature, Int32Type),
     ],
 )
-def test_build_feature_from_annotation(
-    annotation: Any, expected_dtype: Type, raises_error: bool
-) -> None:
-    if raises_error:
-        with pytest.raises(RuntimeError):
-            build_feature_from_annotation(Reference(), annotation)
-
-    else:
-        feature = build_feature_from_annotation(Reference(), annotation)
-        assert isinstance(feature, Feature)
-        assert feature.dtype == expected_dtype
+def test_build_feature_from_annotation(annotation: Any, expected_dtype: Type) -> None:
+    feature = build_feature_from_annotation(Reference(), annotation)
+    assert isinstance(feature, Feature)
+    assert feature.dtype == expected_dtype
 
 
 def test_build_feature_from_generic_annotation() -> None:

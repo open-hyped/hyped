@@ -329,17 +329,6 @@ Supported types include:
 - PyArrow array types: :class:`pyarrow.FloatArray`, :class:`pyarrow.DoubleArray`
 """
 
-ClassLabel: TypeAlias = Union[ClassLabelFeature, int, list[int], pa.Int64Scalar, pa.Int64Array]
-"""
-ClassLabel: Type alias for a class label.
-
-Supported types include:
-- Feature Types: :class:`ClassLabelFeature`
-- Built-in types: :class:`int`, :code:`list[int]`
-- PyArrow scalar types: :class:`pyarrow.Int64Scalar`
-- PyArrow array types: :class:`pyarrow.Int64Array`
-"""
-
 T = TypeVar("T")
 
 Sequence: TypeAlias = Union[SequenceFeature[T], list[T], list[list[T]], pa.ListScalar, pa.ListArray]
@@ -353,6 +342,9 @@ Supported types include:
 - PyArrow array types: :class:`pyarrow.ListArray`
 """
 
+# TODO: class label and mapping type need to be subclassable
+#       which is why we cannot build unions for them
+ClassLabel: TypeAlias = ClassLabelFeature
 Mapping: TypeAlias = MappingFeature
 
 

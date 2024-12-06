@@ -273,6 +273,14 @@ class ClassLabelType(PrimitiveType):
         """
         return datasets.ClassLabel(names=list(self.names))
 
+    def __len__(self) -> int:
+        """Returns the number of class labels.
+
+        Returns:
+            int: The number of class labels.
+        """
+        return len(self.names)
+
     def to_dict(self) -> dict:
         """Converts the :class:`PrimitiveType` instance to a dictionary representation.
 
@@ -682,11 +690,11 @@ def cast_dtype(src_dtype: Type, tgt_dtype: Type) -> Type:
 
         elif (
             isinstance(src_dtype, ClassLabelType) and isinstance(tgt_dtype, ClassLabelType)
-        ) and len(src_dtype.names) != len(tgt_dtype.names):
+        ) and len(src_dtype) != len(tgt_dtype):
             # TODO: should we allow target labels to be a subset of the source labels
             raise RuntimeError(
-                f"Cannot cast ClassLabelType with {len(src_dtype.names)} labels to "
-                f"ClassLabelType with {len(tgt_dtype.names)} labels. Both label sets must have the "
+                f"Cannot cast ClassLabelType with {len(src_dtype)} labels to "
+                f"ClassLabelType with {len(tgt_dtype)} labels. Both label sets must have the "
                 f"same number of labels."
             )
 
