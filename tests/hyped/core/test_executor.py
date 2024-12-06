@@ -508,7 +508,6 @@ class TestLazyDataFlowExecutor:
     ) -> None:
         with pytest.raises(KeyError):
             # request invalid key not contained in output mapping type
-            print(lazy_executor.keys())
             lazy_executor["invalid_key"]
 
         with patch("hyped.core.executor.DataFlowExecutor.execute", AsyncMock()) as mock_execute:

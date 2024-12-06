@@ -11,7 +11,7 @@ implemented. These mixins allow for customizable behavior and ensure that operat
 modulus, floor division, and negation can be consistently implemented.
 """
 
-
+import inspect
 from typing import Any, Callable, ClassVar, TypeVar
 
 from hyped.common.logging import get_logger
@@ -86,12 +86,14 @@ class MethodRegistryMixin:
             NotImplementedError: If no method with the given name is registered
                 for the current class.
         """
-        key = (cls.__qualname__, name)
-        if key not in cls._methods:
+        for base in inspect.getmro(cls):
+            key = (base.__qualname__, name)
+            if issubclass(base, MethodRegistryMixin) and key in MethodRegistryMixin._methods:
+                return MethodRegistryMixin._methods[key]
+        else:
             raise NotImplementedError(
                 f"Method '{name}' not registered for class '{cls.__qualname__}'."
             )
-        return cls._methods[key]
 
     def execute_method(self, name: str, *args: Any, **kwargs: Any) -> Any:
         """Executes a registered method by its name with the provided arguments.

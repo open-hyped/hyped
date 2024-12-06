@@ -15,6 +15,7 @@ from .features.types import (
     ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING,
     UNDEFINED_SEQUENCE_LENGTH,
     BoolType,
+    ClassLabelType,
     Float64Type,
     Int32Type,
     MappingType,
@@ -119,6 +120,9 @@ def build_dtype_from_hf_feature(feature: FeatureType) -> Type:
         packed = datasets.Features({"field": feature})
         arrow_type = packed.arrow_schema.field("field").type
         return ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING[str(arrow_type)]
+
+    elif isinstance(feature, datasets.ClassLabel):
+        return ClassLabelType(names=tuple(feature.names))
 
     raise TypeError(f"Unsupported feature: {feature}")
 

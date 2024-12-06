@@ -136,6 +136,10 @@ class PrimitiveFeature(Feature):
 
             # make sure the data type matches the expectation
             if inst.dtype is not cls._expected_dtype:
+                # convert class label feature to underlying integer feature
+                if isinstance(inst, ClassLabelFeature) and (cls._expected_dtype is types.Int64Type):
+                    return Int64Feature(inst.ref, dtype=types.Int64Type)
+
                 raise PydanticCustomError(
                     "Type Mismatch",
                     "Data type '{actual}' doesn't match expected data type '{expected}'",
@@ -3877,6 +3881,48 @@ class Float64Feature(PrimitiveFeature):
         return type(self).get_method("__floordiv__")(other, self)
 
 
+class ClassLabelFeature(Int64Feature):
+    """A feature type representing class labels, typically used for categorical label data.
+
+    Class labels are typically used to represent categorical labels in datasets. The labels are
+    mapped to :class:`Int64Feature` instances.
+    """
+
+    def __post_init__(self) -> None:
+        """Validate the underlying data type to be a class label type."""
+        assert isinstance(self.dtype, types.ClassLabelType)
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: pydantic.GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        """Builds the Pydantic core schema for the class label feature.
+
+        Args:
+            source_type (Any): The type being validated.
+            handler (pydantic.GetCoreSchemaHandler): A handler function used to the core schema.
+
+        Returns:
+            core_schema.CoreSchema: The Pydantic core schema for the mapping feature,
+                which is used to validate instances of the mapping.
+
+        Raises:
+            PydanticCustomError: If the data type of the instance does not match
+                the expected :code:`dtype`.
+        """
+
+        def validator_fn(inst: Feature | Reference, validator: Callable[[Any], Any]) -> Feature:
+            if isinstance(inst, Reference):
+                # cannot infer the class labels from just a reference
+                raise RuntimeError("Cannot infer class labels from reference.")
+            # run the primitive feature core validator
+            return validator(inst)
+
+        return core_schema.no_info_wrap_validator_function(
+            validator_fn, schema=handler(source_type)
+        )
+
+
 T = TypeVar("T")
 
 
@@ -4381,7 +4427,10 @@ def build_feature_from_dtype(ref: Reference, dtype: types.Type) -> Feature:
     Raises:
         TypeError: If the :code:`dtype` is not recognized.
     """
-    if isinstance(dtype, types.PrimitiveType):
+    if isinstance(dtype, types.ClassLabelType):
+        return ClassLabelFeature(ref, dtype)
+
+    elif isinstance(dtype, types.PrimitiveType):
         return PRIMITIVE_FEATURE_MAPPING[dtype](ref, dtype)
 
     elif isinstance(dtype, types.SequenceType):

@@ -15,6 +15,7 @@ from typing import Any
 import datasets
 import pyarrow as pa
 import pydantic
+from datasets.features.features import generate_from_arrow_type
 from pydantic_core import core_schema
 
 
@@ -37,6 +38,19 @@ class Type(ABC):
 
         Returns:
             pa.DataType: The PyArrow data type representation of the type.
+        """
+        ...
+
+    @property
+    @abstractmethod
+    def hf_feature(self) -> datasets.Features:
+        """Abstract property that returns the corresponding HuggingFace Feature.
+
+        This property must be implemented by subclasses to provide the HuggingFace
+        Feature representation for the specific type.
+
+        Returns:
+            datasets.Features: The Hugging Face Feature representation of the type.
         """
         ...
 
@@ -107,6 +121,15 @@ class PrimitiveType(Type):
             pa.DataType: The :code:`PyArrow` data type representation.
         """
         return self._arrow_type
+
+    @property
+    def hf_feature(self) -> datasets.Features:
+        """Returns the corresponding HuggingFace Feature for this primitive type.
+
+        Returns:
+            datasets.Features: The Hugging Face Feature representation of the type.
+        """
+        return generate_from_arrow_type(self._arrow_type)
 
     def __str__(self) -> str:
         """Returns the string representation.
@@ -218,6 +241,69 @@ This value is used when the length of a sequence is unknown or unspecified.
 
 
 @dataclass(eq=True, frozen=True)
+class ClassLabelType(PrimitiveType):
+    """Represents a class label type, typically used for categorical labels in datasets."""
+
+    names: None | tuple[str] = None
+    """A tuple of class label names, which must be provided during initialization."""
+
+    # hf datasets maps class label features to int64
+    _arrow_type: typing.Final[pa.DataType] = Int64Type.arrow_type
+    """The underlying :code:`PyArrow` data type."""
+
+    def __post_init__(self) -> None:
+        """Validate the class label type."""
+        assert self.names is not None
+        assert isinstance(self.names, tuple)
+
+    def __str__(self) -> str:
+        """Returns the string representation.
+
+        Returns:
+            str: A string representation of the :class:`PrimitiveType` instance.
+        """
+        return f"ClassLabel(labels={self.names})"  # pragma: not covered
+
+    @property
+    def hf_feature(self) -> datasets.Features:
+        """Returns the corresponding HuggingFace Feature for this class label type.
+
+        Returns:
+            datasets.Features: The Hugging Face Feature representation of the type.
+        """
+        return datasets.ClassLabel(names=list(self.names))
+
+    def to_dict(self) -> dict:
+        """Converts the :class:`PrimitiveType` instance to a dictionary representation.
+
+        Returns:
+            dict: A dictionary with the following keys:
+                - :code:`type` (str): The type identifier ("PrimitiveType").
+                - :code:`arrow_type` (str): The string representation of the PyArrow type.
+        """
+        return {"type": "ClassLabelType", "labels": self.names}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "PrimitiveType":
+        """Constructs a PrimitiveType instance from a dictionary representation.
+
+        Args:
+            data (dict): A dictionary with the following keys:
+                - :code:`type` (str): Must be "PrimitiveType".
+                - :code:`arrow_type` (str): The string representation of the PyArrow type.
+
+        Returns:
+            PrimitiveType: An instance of the PrimitiveType class.
+
+        Raises:
+            ValueError: If the :code:`type` field is not "PrimitiveType".
+        """
+        if data["type"] != "ClassLabelType":  # pragma: not covered
+            raise ValueError("Invalid type for deserialization")
+        return ClassLabelType(names=tuple(data["labels"]))
+
+
+@dataclass(eq=True, frozen=True)
 class SequenceType(Type, typing.Sequence):
     """Represents a sequence type in the typing system."""
 
@@ -239,6 +325,18 @@ class SequenceType(Type, typing.Sequence):
         """
         length = -1 if self.length == UNDEFINED_SEQUENCE_LENGTH else self.length
         return pa.list_(self.value_type.arrow_type, list_size=length)
+
+    @property
+    def hf_feature(self) -> datasets.Features:
+        """Returns the corresponding HuggingFace Feature for this sequence type.
+
+        Returns:
+            datasets.Features: The Hugging Face Feature representation of the type.
+        """
+        return datasets.Sequence(
+            self.value_type.hf_feature,
+            length=-1 if self.length == UNDEFINED_SEQUENCE_LENGTH else self.length,
+        )
 
     def _slice_length(self, index: slice) -> int:
         """Calculates the length of the sequence resulting from slicing.
@@ -388,7 +486,7 @@ class MappingType(Type, typing.Mapping[str, Type]):
         return pa.schema(self.arrow_type)
 
     @property
-    def hf_features(self) -> datasets.Features:
+    def hf_feature(self) -> datasets.Features:
         """Returns the corresponding HuggingFace dataset features for this mapping.
 
         This property converts the PyArrow schema associated with the mapping type into a
@@ -398,7 +496,7 @@ class MappingType(Type, typing.Mapping[str, Type]):
             datasets.Features: The Hugging Face :class:`Features` object representing
             the mapping type.
         """
-        return datasets.Features.from_arrow_schema(self.arrow_schema)
+        return datasets.Features({key: field.hf_feature for key, field in self.fields})
 
     def __len__(self) -> int:
         """Returns the number of fields in the mapping.
@@ -515,7 +613,9 @@ def build_type_from_dict(data: dict) -> Type:
     Raises:
         ValueError: If the "type" field does not correspond to a recognized Type subclass.
     """
-    if data["type"] == "PrimitiveType":
+    if data["type"] == "ClassLabelType":
+        return ClassLabelType.from_dict(data)
+    elif data["type"] == "PrimitiveType":
         return PrimitiveType.from_dict(data)
     elif data["type"] == "SequenceType":
         return SequenceType.from_dict(data)
@@ -547,18 +647,16 @@ def cast_dtype(src_dtype: Type, tgt_dtype: Type) -> Type:
     """
     if isinstance(src_dtype, SequenceType) and isinstance(tgt_dtype, SequenceType):
         if (
-            src_dtype.length != UNDEFINED_SEQUENCE_LENGTH
-            and tgt_dtype.length != UNDEFINED_SEQUENCE_LENGTH
-            and src_dtype.length != tgt_dtype.length
+            len(src_dtype) != UNDEFINED_SEQUENCE_LENGTH
+            and len(tgt_dtype) != UNDEFINED_SEQUENCE_LENGTH
+            and len(src_dtype) != len(tgt_dtype)
         ):
             raise RuntimeError(
-                f"Cannot cast sequence of length {src_dtype.length} to a "
-                f"sequence of length {tgt_dtype.length}."
+                f"Cannot cast sequence of length {len(src_dtype)} to a "
+                f"sequence of length {len(tgt_dtype)}."
             )
 
-        length = (
-            src_dtype.length if src_dtype.length != UNDEFINED_SEQUENCE_LENGTH else tgt_dtype.length
-        )
+        length = len(src_dtype) if len(src_dtype) != UNDEFINED_SEQUENCE_LENGTH else len(tgt_dtype)
 
         return SequenceType(cast_dtype(src_dtype.value_type, tgt_dtype.value_type), length=length)
 
@@ -575,7 +673,24 @@ def cast_dtype(src_dtype: Type, tgt_dtype: Type) -> Type:
         return MappingType.construct(fields)
 
     elif isinstance(src_dtype, PrimitiveType) and isinstance(tgt_dtype, PrimitiveType):
-        # can cast all primitive types to all other primitive types
+        if not isinstance(src_dtype, ClassLabelType) and isinstance(tgt_dtype, ClassLabelType):
+            # cannot cast non-class-label type to class-label type
+            raise RuntimeError(
+                f"Cannot cast type {src_dtype} to ClassLabelType. "
+                "Only other ClassLabelTypes can be cast to ClassLabelType."
+            )
+
+        elif (
+            isinstance(src_dtype, ClassLabelType) and isinstance(tgt_dtype, ClassLabelType)
+        ) and len(src_dtype.names) != len(tgt_dtype.names):
+            # TODO: should we allow target labels to be a subset of the source labels
+            raise RuntimeError(
+                f"Cannot cast ClassLabelType with {len(src_dtype.names)} labels to "
+                f"ClassLabelType with {len(tgt_dtype.names)} labels. Both label sets must have the "
+                f"same number of labels."
+            )
+
+        # can cast all primitive types to all other primitive type
         return tgt_dtype
 
     raise RuntimeError(
@@ -604,6 +719,12 @@ def common_dtype(*dtypes: Type) -> Type:
     # Ensure at least one dtype is provided
     assert len(dtypes) > 0, "At least one dtype must be provided to determine a common dtype."
 
+    if len(dtypes) == 1:
+        return dtypes[0]
+
+    # convert all class label types to integer types first
+    dtypes = tuple(Int64Type if isinstance(dtype, ClassLabelType) else dtype for dtype in dtypes)
+
     PRIORITY = {  # noqa: N806
         BoolType: 0,
         Int8Type: 1,
@@ -623,7 +744,7 @@ def common_dtype(*dtypes: Type) -> Type:
     # Handle sequence types
     if all(isinstance(dtype, SequenceType) for dtype in dtypes):
         # Check for common sequence length
-        unique_lengths = set(dtype.length for dtype in dtypes)
+        unique_lengths = set(map(len, dtypes))
         length = (
             UNDEFINED_SEQUENCE_LENGTH if len(unique_lengths) > 1 else next(iter(unique_lengths))
         )
@@ -649,7 +770,7 @@ def common_dtype(*dtypes: Type) -> Type:
         assert all(dtype in PRIORITY for dtype in dtypes), "Unsupported dtype encountered"
         dtype = max(dtypes, key=PRIORITY.__getitem__)
 
-        int_types = [Int8Type, Int16Type, Int32Type, Int64Type]
+        int_types = {Int8Type, Int16Type, Int32Type, Int64Type}
         # promote data type if required
         if (dtype == UInt8Type) and any(typ in dtypes for typ in int_types):
             return Int16Type

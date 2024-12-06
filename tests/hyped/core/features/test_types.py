@@ -1,11 +1,14 @@
 from typing import Callable
 
+import datasets
 import pyarrow as pa
 import pytest
+from datasets.features.features import FeatureType
 
 from hyped.core.features.types import (
     UNDEFINED_SEQUENCE_LENGTH,
     BoolType,
+    ClassLabelType,
     Float16Type,
     Float32Type,
     Float64Type,
@@ -44,12 +47,41 @@ from hyped.core.features.types import (
         (Float16Type, pa.types.is_float16),
         (Float32Type, pa.types.is_float32),
         (Float64Type, pa.types.is_float64),
+        (ClassLabelType(names=tuple()), pa.types.is_int64),
     ],
 )
 def test_primitive_arrow_type(
     dtype: PrimitiveType, arrow_type_checker: Callable[[pa.DataType], bool]
 ) -> None:
     assert arrow_type_checker(dtype.arrow_type)
+
+
+@pytest.mark.parametrize(
+    "dtype, hf_feature",
+    [
+        (BoolType, datasets.Value("bool")),
+        (Int8Type, datasets.Value("int8")),
+        (Int16Type, datasets.Value("int16")),
+        (Int32Type, datasets.Value("int32")),
+        (Int64Type, datasets.Value("int64")),
+        (UInt8Type, datasets.Value("uint8")),
+        (UInt16Type, datasets.Value("uint16")),
+        (UInt32Type, datasets.Value("uint32")),
+        (UInt64Type, datasets.Value("uint64")),
+        (Float16Type, datasets.Value("float16")),
+        (Float32Type, datasets.Value("float32")),
+        (Float64Type, datasets.Value("float64")),
+        (ClassLabelType(names=("A", "B")), datasets.ClassLabel(names=["A", "B"])),
+        (SequenceType(BoolType), datasets.Sequence(datasets.Value("bool"))),
+        (SequenceType(BoolType, 10), datasets.Sequence(datasets.Value("bool"), length=10)),
+        (
+            MappingType.construct({"field": BoolType}),
+            datasets.Features({"field": datasets.Value("bool")}),
+        ),
+    ],
+)
+def test_hf_feature(dtype: Type, hf_feature: FeatureType) -> None:
+    assert dtype.hf_feature == hf_feature
 
 
 class TestSequenceType:
@@ -187,6 +219,7 @@ class TestMappingType:
         Float16Type,
         Float32Type,
         Float64Type,
+        ClassLabelType(names=("A", "B")),
         SequenceType(BoolType),
         SequenceType(BoolType, length=10),
         MappingType.construct({"field": BoolType}),
@@ -205,6 +238,15 @@ def test_type_serialization(dtype: Type) -> None:
         (Int32Type, Int32Type, Int32Type, False),
         (Int32Type, Float32Type, Float32Type, False),
         (Float32Type, Int32Type, Int32Type, False),
+        (ClassLabelType(names=tuple()), Int32Type, Int32Type, False),
+        (Int32Type, ClassLabelType(names=tuple()), None, True),
+        (ClassLabelType(names=("A", "B")), ClassLabelType(names=("A", "B", "C")), None, True),
+        (
+            ClassLabelType(names=("A", "B")),
+            ClassLabelType(names=("X", "Y")),
+            ClassLabelType(names=("X", "Y")),
+            False,
+        ),
         (SequenceType(BoolType), SequenceType(BoolType), SequenceType(BoolType), False),
         (SequenceType(BoolType, 5), SequenceType(BoolType), SequenceType(BoolType, 5), False),
         (SequenceType(BoolType), SequenceType(BoolType, 5), SequenceType(BoolType, 5), False),
@@ -239,6 +281,9 @@ def test_cast_dtype(
 @pytest.mark.parametrize(
     "dtypes, result_dtype, raises_error",
     [
+        # trivial case
+        ((BoolType,), BoolType, False),
+        # combining primitives
         ((BoolType, BoolType), BoolType, False),
         ((BoolType, Int8Type), Int8Type, False),
         ((BoolType, UInt8Type), UInt8Type, False),
@@ -408,6 +453,10 @@ def test_cast_dtype(
         ((StringType, Float32Type), StringType, False),
         ((StringType, Float64Type), StringType, False),
         ((StringType, StringType), StringType, False),
+        ((ClassLabelType(names=tuple()), Int64Type), Int64Type, False),
+        ((ClassLabelType(names=tuple()), Int32Type), Int64Type, False),
+        ((ClassLabelType(names=tuple()), StringType), StringType, False),
+        # nested types
         (
             (
                 SequenceType(BoolType, 5),

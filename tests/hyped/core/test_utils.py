@@ -7,6 +7,7 @@ import pytest
 from hyped.core.features.types import (
     UNDEFINED_SEQUENCE_LENGTH,
     BoolType,
+    ClassLabelType,
     Float64Type,
     Int32Type,
     MappingType,
@@ -57,6 +58,8 @@ def test_build_dtype_from_arrow_type(arrow_type, expected_output, expect_excepti
     [
         # Value type conversion
         (datasets.Value("int32"), Int32Type, False),
+        # Class label conversion
+        (datasets.ClassLabel(names=("A", "B")), ClassLabelType(names=("A", "B")), False),
         # Unsupported feature type
         (object(), None, True),
         # Features type conversion

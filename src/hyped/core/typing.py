@@ -10,7 +10,7 @@ import pyarrow as pa
 
 from hyped.common._worker import Rank
 
-from .features.features import BoolFeature
+from .features.features import BoolFeature, ClassLabelFeature
 from .features.features import Feature as _Feature
 from .features.features import (
     Float32Feature,
@@ -58,6 +58,7 @@ __all__ = [
     "Float64",
     "Sequence",
     "Mapping",
+    "ClassLabel",
     "Len",
     "cast",
 ]
@@ -326,6 +327,17 @@ Supported types include:
 - Built-in types: :class:`float`, :code:`list[float]`
 - PyArrow scalar types: :class:`pyarrow.FloatScalar`, :class:`pyarrow.DoubleScalar`
 - PyArrow array types: :class:`pyarrow.FloatArray`, :class:`pyarrow.DoubleArray`
+"""
+
+ClassLabel: TypeAlias = Union[ClassLabelFeature, int, list[int], pa.Int64Scalar, pa.Int64Array]
+"""
+ClassLabel: Type alias for a class label.
+
+Supported types include:
+- Feature Types: :class:`ClassLabelFeature`
+- Built-in types: :class:`int`, :code:`list[int]`
+- PyArrow scalar types: :class:`pyarrow.Int64Scalar`
+- PyArrow array types: :class:`pyarrow.Int64Array`
 """
 
 T = TypeVar("T")

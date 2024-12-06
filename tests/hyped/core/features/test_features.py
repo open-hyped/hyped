@@ -8,6 +8,7 @@ import pytest
 
 from hyped.core.features.features import (
     BoolFeature,
+    ClassLabelFeature,
     Feature,
     Float32Feature,
     Float64Feature,
@@ -29,12 +30,67 @@ from hyped.core.features.reference import FeatureKey, Reference
 from hyped.core.features.types import (
     UNDEFINED_SEQUENCE_LENGTH,
     BoolType,
+    ClassLabelType,
+    Float32Type,
+    Float64Type,
+    Int8Type,
+    Int16Type,
+    Int32Type,
+    Int64Type,
     MappingType,
     SequenceType,
     StringType,
     Type,
+    UInt8Type,
+    UInt16Type,
+    UInt32Type,
+    UInt64Type,
 )
 from hyped.core.graph import DataFlowGraph
+
+
+def _test_call_to_registered_method(
+    feature: Feature,
+    fn: Callable,
+    registered_fn_name: str,
+    args: tuple[Any | Feature],
+    expected_return_feature_type: None | type[Feature],
+) -> None:
+    # create a data flow graph
+    graph = DataFlowGraph()
+    # add all feature arguments to the source node
+    source = graph.add_source_node(
+        MappingType.construct(
+            {"feature": feature.dtype}
+            | {str(i): f.dtype for i, f in enumerate(args) if isinstance(f, Feature)}
+        )
+    )
+
+    # get the feature and mock the get method function to check execution later
+    feature = type(feature)(
+        Reference(FeatureKey("feature"), source._node_id, source._graph), feature.dtype
+    )
+    type(feature).get_method = MagicMock(side_effect=type(feature).get_method)
+
+    # collect all arguments
+    args = tuple(
+        f
+        if not isinstance(f, Feature)
+        else type(f)(Reference(FeatureKey(str(i)), source._node_id, source._graph), f.dtype)
+        for i, f in enumerate(args)
+    )
+
+    out_feature = fn(feature, *args)
+
+    if expected_return_feature_type is not None:
+        # make sure the return value matches the expected type
+        assert isinstance(out_feature, expected_return_feature_type)
+    else:
+        # no output expected
+        assert out_feature is None
+
+    # make sure the call was forwarded to the right registered method
+    type(feature).get_method.assert_called_once_with(registered_fn_name)
 
 
 class TestPrimitiveFeatures:
@@ -753,7 +809,6 @@ class TestPrimitiveFeatures:
             ),
             (Int64Feature, Int64Feature.__floordiv__, "__floordiv__", (1,), Int64Feature),
             (Int64Feature, Int64Feature.__floordiv__, "__floordiv__", (1.2,), Int64Feature),
-            # TODO: output type is not clear
             (Int64Feature, Int64Feature.__rfloordiv__, "__floordiv__", (1,), Int64Feature),
             (Int64Feature, Int64Feature.__rfloordiv__, "__floordiv__", (1.2,), Int64Feature),
             # UInt8 methods
@@ -1980,50 +2035,24 @@ class TestPrimitiveFeatures:
         fn: Callable,
         registered_fn_name: str,
         args: tuple[Any | type[PrimitiveFeature]],
-        expected_return_feature_type: None | type[PrimitiveFeature],
+        expected_return_feature_type: type[PrimitiveFeature],
     ) -> None:
-        # create a data flow graph
-        graph = DataFlowGraph()
-        # add all feature arguments to the source node
-        source = graph.add_source_node(
-            MappingType.construct(
-                {"feature": feature_type._expected_dtype}
-                | {
-                    str(i): ftype._expected_dtype
-                    for i, ftype in enumerate(args)
-                    if isinstance(ftype, type) and issubclass(ftype, PrimitiveFeature)
-                }
-            )
-        )
-
-        # get the feature and mock the get method function to check execution later
-        feature = feature_type(
-            Reference(FeatureKey("feature"), source._node_id, source._graph),
-            feature_type._expected_dtype,
-        )
-        type(feature).get_method = MagicMock(side_effect=type(feature).get_method)
-
-        # collect all arguments
+        # create mock instances of the feature types
+        feature = feature_type(Reference(), feature_type._expected_dtype)
         args = tuple(
-            ftype
-            if not (isinstance(ftype, type) and issubclass(ftype, PrimitiveFeature))
-            else ftype(
-                Reference(FeatureKey(str(i)), source._node_id, source._graph), ftype._expected_dtype
-            )
-            for i, ftype in enumerate(args)
+            val(Reference(), val._expected_dtype)
+            if isinstance(val, type) and issubclass(val, PrimitiveFeature)
+            else val
+            for val in args
         )
 
-        out_feature = fn(feature, *args)
-
-        if expected_return_feature_type is not None:
-            # make sure the return value matches the expected type
-            assert isinstance(out_feature, expected_return_feature_type)
-        else:
-            # no output expected
-            assert out_feature is None
-
-        # make sure the call was forwarded to the right registered method
-        type(feature).get_method.assert_called_once_with(registered_fn_name)
+        _test_call_to_registered_method(
+            feature=feature,
+            fn=fn,
+            registered_fn_name=registered_fn_name,
+            args=args,
+            expected_return_feature_type=expected_return_feature_type,
+        )
 
         # find a candidate function that matches the inputs
         for candidate_fn in chain(get_overloads(fn), [fn]):
@@ -2053,6 +2082,211 @@ class TestPrimitiveFeatures:
                     pass
 
                 break
+
+    @pytest.mark.parametrize(
+        "fn, registered_fn_name, args, expected_return_feature_type",
+        [
+            # ClassLabel
+            (ClassLabelFeature.__abs__, "__abs__", tuple(), Int64Feature),
+            (ClassLabelFeature.__neg__, "__neg__", tuple(), Int64Feature),
+            # addition
+            (ClassLabelFeature.__add__, "__add__", (ClassLabelFeature,), Int64Feature),
+            (ClassLabelFeature.__add__, "__add__", (Int8Feature,), Int64Feature),
+            (ClassLabelFeature.__add__, "__add__", (Int16Feature,), Int64Feature),
+            (ClassLabelFeature.__add__, "__add__", (Int32Feature,), Int64Feature),
+            (ClassLabelFeature.__add__, "__add__", (Int64Feature,), Int64Feature),
+            (ClassLabelFeature.__add__, "__add__", (UInt8Feature,), Int64Feature),
+            (ClassLabelFeature.__add__, "__add__", (UInt16Feature,), Int64Feature),
+            (ClassLabelFeature.__add__, "__add__", (UInt32Feature,), Int64Feature),
+            (ClassLabelFeature.__add__, "__add__", (UInt64Feature,), Int64Feature),
+            (ClassLabelFeature.__add__, "__add__", (Float32Feature,), Float32Feature),
+            (ClassLabelFeature.__add__, "__add__", (Float64Feature,), Float64Feature),
+            (ClassLabelFeature.__add__, "__add__", (1,), Int64Feature),
+            (ClassLabelFeature.__add__, "__add__", (1.2,), Float64Feature),
+            (ClassLabelFeature.__radd__, "__add__", (1,), Int64Feature),
+            (ClassLabelFeature.__radd__, "__add__", (1.2,), Float64Feature),
+            # subtraction
+            (ClassLabelFeature.__sub__, "__sub__", (ClassLabelFeature,), Int64Feature),
+            (ClassLabelFeature.__sub__, "__sub__", (Int8Feature,), Int64Feature),
+            (ClassLabelFeature.__sub__, "__sub__", (Int16Feature,), Int64Feature),
+            (ClassLabelFeature.__sub__, "__sub__", (Int32Feature,), Int64Feature),
+            (ClassLabelFeature.__sub__, "__sub__", (Int64Feature,), Int64Feature),
+            (ClassLabelFeature.__sub__, "__sub__", (UInt8Feature,), Int64Feature),
+            (ClassLabelFeature.__sub__, "__sub__", (UInt16Feature,), Int64Feature),
+            (ClassLabelFeature.__sub__, "__sub__", (UInt32Feature,), Int64Feature),
+            (ClassLabelFeature.__sub__, "__sub__", (UInt64Feature,), Int64Feature),
+            (ClassLabelFeature.__sub__, "__sub__", (Float32Feature,), Float32Feature),
+            (ClassLabelFeature.__sub__, "__sub__", (Float64Feature,), Float64Feature),
+            (ClassLabelFeature.__sub__, "__sub__", (1,), Int64Feature),
+            (ClassLabelFeature.__sub__, "__sub__", (1.2,), Float64Feature),
+            (ClassLabelFeature.__rsub__, "__sub__", (1,), Int64Feature),
+            (ClassLabelFeature.__rsub__, "__sub__", (1.2,), Float64Feature),
+            # multiplication
+            (ClassLabelFeature.__mul__, "__mul__", (ClassLabelFeature,), Int64Feature),
+            (ClassLabelFeature.__mul__, "__mul__", (Int8Feature,), Int64Feature),
+            (ClassLabelFeature.__mul__, "__mul__", (Int16Feature,), Int64Feature),
+            (ClassLabelFeature.__mul__, "__mul__", (Int32Feature,), Int64Feature),
+            (ClassLabelFeature.__mul__, "__mul__", (Int64Feature,), Int64Feature),
+            (ClassLabelFeature.__mul__, "__mul__", (UInt8Feature,), Int64Feature),
+            (ClassLabelFeature.__mul__, "__mul__", (UInt16Feature,), Int64Feature),
+            (ClassLabelFeature.__mul__, "__mul__", (UInt32Feature,), Int64Feature),
+            (ClassLabelFeature.__mul__, "__mul__", (UInt64Feature,), Int64Feature),
+            (ClassLabelFeature.__mul__, "__mul__", (Float32Feature,), Float32Feature),
+            (ClassLabelFeature.__mul__, "__mul__", (Float64Feature,), Float64Feature),
+            (ClassLabelFeature.__mul__, "__mul__", (1,), Int64Feature),
+            (ClassLabelFeature.__mul__, "__mul__", (1.2,), Float64Feature),
+            (ClassLabelFeature.__rmul__, "__mul__", (1,), Int64Feature),
+            (ClassLabelFeature.__rmul__, "__mul__", (1.2,), Float64Feature),
+            # true division
+            (ClassLabelFeature.__truediv__, "__truediv__", (ClassLabelFeature,), Float64Feature),
+            (ClassLabelFeature.__truediv__, "__truediv__", (Int8Feature,), Float64Feature),
+            (
+                ClassLabelFeature.__truediv__,
+                "__truediv__",
+                (Int16Feature,),
+                Float64Feature,
+            ),
+            (
+                ClassLabelFeature.__truediv__,
+                "__truediv__",
+                (Int32Feature,),
+                Float64Feature,
+            ),
+            (
+                ClassLabelFeature.__truediv__,
+                "__truediv__",
+                (Int64Feature,),
+                Float64Feature,
+            ),
+            (
+                ClassLabelFeature.__truediv__,
+                "__truediv__",
+                (UInt8Feature,),
+                Float64Feature,
+            ),
+            (
+                ClassLabelFeature.__truediv__,
+                "__truediv__",
+                (UInt16Feature,),
+                Float64Feature,
+            ),
+            (
+                ClassLabelFeature.__truediv__,
+                "__truediv__",
+                (UInt32Feature,),
+                Float64Feature,
+            ),
+            (
+                ClassLabelFeature.__truediv__,
+                "__truediv__",
+                (UInt64Feature,),
+                Float64Feature,
+            ),
+            (
+                ClassLabelFeature.__truediv__,
+                "__truediv__",
+                (Float32Feature,),
+                Float32Feature,
+            ),
+            (
+                ClassLabelFeature.__truediv__,
+                "__truediv__",
+                (Float64Feature,),
+                Float64Feature,
+            ),
+            (ClassLabelFeature.__truediv__, "__truediv__", (1,), Float64Feature),
+            (ClassLabelFeature.__truediv__, "__truediv__", (1.2,), Float64Feature),
+            (ClassLabelFeature.__rtruediv__, "__truediv__", (1,), Float64Feature),
+            (ClassLabelFeature.__rtruediv__, "__truediv__", (1.2,), Float64Feature),
+            # floor division
+            (ClassLabelFeature.__floordiv__, "__floordiv__", (ClassLabelFeature,), Int64Feature),
+            (ClassLabelFeature.__floordiv__, "__floordiv__", (Int8Feature,), Int64Feature),
+            (
+                ClassLabelFeature.__floordiv__,
+                "__floordiv__",
+                (Int16Feature,),
+                Int64Feature,
+            ),
+            (
+                ClassLabelFeature.__floordiv__,
+                "__floordiv__",
+                (Int32Feature,),
+                Int64Feature,
+            ),
+            (
+                ClassLabelFeature.__floordiv__,
+                "__floordiv__",
+                (Int64Feature,),
+                Int64Feature,
+            ),
+            (
+                ClassLabelFeature.__floordiv__,
+                "__floordiv__",
+                (UInt8Feature,),
+                Int64Feature,
+            ),
+            (
+                ClassLabelFeature.__floordiv__,
+                "__floordiv__",
+                (UInt16Feature,),
+                Int64Feature,
+            ),
+            (
+                ClassLabelFeature.__floordiv__,
+                "__floordiv__",
+                (UInt32Feature,),
+                Int64Feature,
+            ),
+            (
+                ClassLabelFeature.__floordiv__,
+                "__floordiv__",
+                (UInt64Feature,),
+                Int64Feature,
+            ),
+            (
+                ClassLabelFeature.__floordiv__,
+                "__floordiv__",
+                (Float32Feature,),
+                Int64Feature,
+            ),
+            (
+                ClassLabelFeature.__floordiv__,
+                "__floordiv__",
+                (Float64Feature,),
+                Int64Feature,
+            ),
+            (ClassLabelFeature.__floordiv__, "__floordiv__", (1,), Int64Feature),
+            (ClassLabelFeature.__floordiv__, "__floordiv__", (1.2,), Int64Feature),
+            (ClassLabelFeature.__rfloordiv__, "__floordiv__", (1,), Int64Feature),
+            (ClassLabelFeature.__rfloordiv__, "__floordiv__", (1.2,), Int64Feature),
+        ],
+    )
+    def test_class_label_feature_method(
+        self,
+        fn: Callable,
+        registered_fn_name: str,
+        args: tuple[Any | type[PrimitiveFeature]],
+        expected_return_feature_type: type[PrimitiveFeature],
+    ) -> None:
+        dtype = ClassLabelType(names=("A", "B"))
+        # create mock instances of the feature types
+        feature = ClassLabelFeature(Reference(), dtype)
+        args = tuple(
+            ClassLabelFeature(Reference(), dtype)
+            if isinstance(val, type) and issubclass(val, ClassLabelFeature)
+            else val(Reference(), val._expected_dtype)
+            if isinstance(val, type) and issubclass(val, PrimitiveFeature)
+            else val
+            for val in args
+        )
+
+        _test_call_to_registered_method(
+            feature=feature,
+            fn=fn,
+            registered_fn_name=registered_fn_name,
+            args=args,
+            expected_return_feature_type=expected_return_feature_type,
+        )
 
 
 class TestSequenceFeature:
@@ -2283,6 +2517,17 @@ class TestMappingFeature:
     [
         (BoolType, PrimitiveFeature),
         (StringType, PrimitiveFeature),
+        (UInt8Type, PrimitiveFeature),
+        (UInt16Type, PrimitiveFeature),
+        (UInt32Type, PrimitiveFeature),
+        (UInt64Type, PrimitiveFeature),
+        (Int8Type, PrimitiveFeature),
+        (Int16Type, PrimitiveFeature),
+        (Int32Type, PrimitiveFeature),
+        (Int64Type, PrimitiveFeature),
+        (Float32Type, PrimitiveFeature),
+        (Float64Type, PrimitiveFeature),
+        (ClassLabelType(names=("A", "B")), ClassLabelFeature),
         (SequenceType(BoolType), SequenceFeature),
         (MappingType(tuple()), MappingFeature),
     ],
@@ -2294,14 +2539,49 @@ def test_build_feature_from_dtype(dtype: Type, expected_feature_type: type[Featu
         build_feature_from_dtype(Reference(), object())
 
 
-def test_build_feature_from_annotation() -> None:
-    T = TypeVar("T")
+@pytest.mark.parametrize(
+    "annotation, expected_dtype, raises_error",
+    [
+        # trivial cases
+        (BoolFeature, BoolType, False),
+        (StringFeature, StringType, False),
+        (Int8Feature, Int8Type, False),
+        (Int16Feature, Int16Type, False),
+        (Int32Feature, Int32Type, False),
+        (Int64Feature, Int64Type, False),
+        (UInt8Feature, UInt8Type, False),
+        (UInt16Feature, UInt16Type, False),
+        (UInt32Feature, UInt32Type, False),
+        (UInt64Feature, UInt64Type, False),
+        (Float32Feature, Float32Type, False),
+        (Float64Feature, Float64Type, False),
+        # cannot build class label feature from just annotation
+        (ClassLabelFeature, None, True),
+        # union cases, always selects first fitting type
+        (BoolFeature | Int8Feature, BoolType, False),
+        (Int8Feature | BoolFeature, Int8Type, False),
+        (int | Int32Feature, Int32Type, False),
+    ],
+)
+def test_build_feature_from_annotation(
+    annotation: Any, expected_dtype: Type, raises_error: bool
+) -> None:
+    if raises_error:
+        with pytest.raises(RuntimeError):
+            build_feature_from_annotation(Reference(), annotation)
 
+    else:
+        feature = build_feature_from_annotation(Reference(), annotation)
+        assert isinstance(feature, Feature)
+        assert feature.dtype == expected_dtype
+
+
+def test_build_feature_from_generic_annotation() -> None:
+    T = TypeVar("T")
     # annotation is only typevar
     feature = build_feature_from_annotation(Reference(), T, typevar_mapping={T: BoolType})
     assert isinstance(feature, PrimitiveFeature)
     assert feature.dtype == BoolType
-
     # generic annotation
     feature = build_feature_from_annotation(
         Reference(), SequenceFeature[T], typevar_mapping={T: BoolType}
