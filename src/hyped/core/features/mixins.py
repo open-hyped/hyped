@@ -1,15 +1,4 @@
-"""Module for implementing common arithmetic and binary operations via mixins.
-
-This module provides mixin classes that implement common arithmetic and binary operations
-such as addition, subtraction, multiplication, division, and others. These mixins enable
-objects to support operations like '+', '+=', '-', '-=', '*', '*=', '/', '/=', and their
-reverse counterparts (e.g., '__radd__', '__rsub__', etc.) through method delegation.
-
-Each mixin uses the :code:`execute_method` function to dynamically dispatch the operation to
-the appropriate method, falling back to the base method if the specific operation is not
-implemented. These mixins allow for customizable behavior and ensure that operations like
-modulus, floor division, and negation can be consistently implemented.
-"""
+"""Type Mixins."""
 
 import inspect
 from typing import Any, Callable, ClassVar, TypeVar
