@@ -31,9 +31,10 @@ from typing import Any
 import pyarrow as pa
 
 from .executor import DataFlowExecutor
-from .features.reference import FeatureKey, Reference
-from .features.types import BoolType, MappingType
+from .features.reference import Reference
+from .features.types import BoolType, MappingType, Type
 from .graph import DataFlowGraph
+from .ops.mapping import MappingGetItem
 from .typing import NodeId
 
 
@@ -96,31 +97,27 @@ class DataFlowGraphOptimizer(object):
 
             node_type: DataFlowGraph.NodeType
             node_config: Any
-            in_edge_identifiers: list[tuple[int, str, FeatureKey]]
+            in_edge_identifiers: list[tuple[NodeId, str]]
             node_id: NodeId = field(default=None, compare=False)
 
         cse_graph = DataFlowGraph()
         # maps nodes of the original graph to the nodes in the cse-graph
         # this is a non-injective function as multiple nodes in the original
         # graph can be mapped to the same target node during optimization
-        node_mapping = {}
+        node_mapping: dict[NodeId, NodeId] = {}
 
         def key(n):
             return graph.nodes[n][DataFlowGraph.NodeAttribute.DEPTH]
 
         for _, layer in groupby(sorted(graph, key=key), key=key):
-            cse_layer = []
+            cse_layer: list[NodeIdentifier] = []
 
             for node_id in layer:
                 # build identifiers for incoming edges with
                 # source nodes mapped to nodes in optimized graph
                 in_edge_identifiers = [
-                    (
-                        node_mapping[src_node_id],
-                        edge_data[DataFlowGraph.EdgeAttribute.NAME],
-                        edge_data[DataFlowGraph.EdgeAttribute.KEY],
-                    )
-                    for src_node_id, _, edge_data in graph.in_edges(node_id, data=True)
+                    (node_mapping[src_node_id], key)
+                    for src_node_id, _, key in graph.in_edges(node_id, keys=True)
                 ]
 
                 node_data = graph.nodes[node_id]
@@ -147,8 +144,8 @@ class DataFlowGraphOptimizer(object):
 
                     # build input references object from in-edge identifiers
                     inputs: dict[str, Reference] = {
-                        name: Reference(key, node_mapping[src_node_id], cse_graph)
-                        for src_node_id, name, key in in_edge_identifiers
+                        name: Reference(node_mapping[src_node_id], cse_graph)
+                        for src_node_id, name in in_edge_identifiers
                     }
 
                     if identifier.node_type == DataFlowGraph.NodeType.SOURCE:
@@ -261,49 +258,36 @@ class DataFlowGraphOptimizer(object):
             loop.close()
 
             # get usage of constants in the graph
-            const_edges = graph.subgraph_out_edges(const_graph, data=True)
+            const_edges = graph.subgraph_out_edges(const_graph)
 
             # drop the constant partition in the original graph
             graph = graph.drop_partition(DataFlowGraph.Partition.CONST)
             graph = DataFlowGraph(graph)
 
-            const_lookup = {}
+            const_lookup: dict[NodeId, Reference] = {}
             # add constant leaf nodes
             for node_id in filter(const_graph.__contains__, leaf_nodes):
                 # get the expected data type of the constant value
                 dtype = const_graph.nodes[node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
                 # add the constant node and track it
                 ref = graph.add_const_node(out.field(node_id)[0], dtype, node_id)
-                const_lookup[(node_id, FeatureKey())] = ref
+                const_lookup[node_id] = ref
 
             # add all required constants
-            for const_node_id, tgt_node_id, key, data in const_edges:
-                key: FeatureKey = data.pop(DataFlowGraph.EdgeAttribute.KEY)
-
-                if (const_node_id, key) not in const_lookup:
-                    # get the expected data type of the constant value
+            for const_node_id, tgt_node_id, key in const_edges:
+                if const_node_id not in const_lookup:
+                    # get the data type of the constant
                     dtype = const_graph.nodes[const_node_id][
                         DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
                     ]
-                    # get the referenced sub-feature of the constant value
-                    dtype = key.index_dtype(dtype)
-                    array = key.index_array(out.field(const_node_id))
                     # add the constant node to the graph
-                    ref = graph.add_const_node(array[0], dtype, const_node_id)
-                    const_lookup[(const_node_id, key)] = ref
+                    ref = graph.add_const_node(out.field(const_node_id)[0], dtype, const_node_id)
+                    const_lookup[const_node_id] = ref
 
                 # get the reference object from the lookup
-                ref = const_lookup[(const_node_id, key)]
+                ref = const_lookup[const_node_id]
                 # add the edge to the graph
-                graph.add_edge(
-                    ref._node_id,
-                    tgt_node_id,
-                    key=key,
-                    **{
-                        DataFlowGraph.EdgeAttribute.NAME: data[DataFlowGraph.EdgeAttribute.NAME],
-                        DataFlowGraph.EdgeAttribute.KEY: ref._key,
-                    },
-                )
+                graph.add_edge(ref._node_id, tgt_node_id, key=key)
 
         return graph
 
@@ -336,6 +320,49 @@ class DataFlowGraphOptimizer(object):
         """
         return graph
 
+    def apply_accessed_fields(self, graph: DataFlowGraph) -> None:
+        """Restrict the source feature type to only the accessed fields.
+
+        This function retrieves the portion of the source node's data type that is
+        explicitly accessed or utilized within the data flow graph. It represents
+        the subset of features or fields from the source data type that are directly
+        referenced by downstream nodes in the graph. Any features in the source data
+        type that are not accessed remain excluded from this subset.
+
+        The source feature of the data flow graph is updated to the accessed sub-feature.
+
+        Args:
+            graph (DataFlowGraph): The data flow graph to be optimized.
+        """
+
+        def get_accessed_dtype(node_id: NodeId) -> Type:
+            source_dtype = graph.nodes[node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
+            # only apply to non-leaf nodes and to mapping types
+            if (graph.out_degree(node_id) == 0) or (not isinstance(source_dtype, MappingType)):
+                return source_dtype
+
+            accessed_fields = {}
+
+            for _, v in graph.out_edges(node_id):
+                node = graph.nodes[v][DataFlowGraph.NodeAttribute.NODE_OBJ]
+                node_type = graph.nodes[v][DataFlowGraph.NodeAttribute.NODE_TYPE]
+
+                if node_type != DataFlowGraph.NodeType.DATA_PROCESSOR:
+                    return graph.nodes[node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
+
+                if isinstance(node, MappingGetItem):
+                    # only a sub-feature of the mapping is accessed
+                    accessed_fields[node.config.key] = get_accessed_dtype(v)
+                else:
+                    # the feature is used as a whole
+                    return source_dtype
+
+            return MappingType.construct(accessed_fields)
+
+        graph.nodes[graph.src_node_id][
+            DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
+        ] = get_accessed_dtype(graph.src_node_id)
+
     def optimize(self, graph: DataFlowGraph, leaf_nodes: set[NodeId]) -> DataFlowGraph:
         """Optimizes the data flow graph for a specified set of leaf nodes.
 
@@ -366,7 +393,7 @@ class DataFlowGraphOptimizer(object):
         graph.recompute_depths()
 
         # limit the source features to only the accessed source features
-        graph.apply_accessed_fields()
+        self.apply_accessed_fields(graph)
 
         # make sure all leaf nodes are present in the optimized graph
         assert all(node_id in graph for node_id in leaf_nodes)

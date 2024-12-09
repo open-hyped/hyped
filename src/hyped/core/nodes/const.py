@@ -10,8 +10,7 @@ from typing import Annotated, Any
 import pyarrow as pa
 import pydantic
 
-from ..features.types import build_type_from_dict
-from ..utils import build_dtype_from_arrow_type
+from ..features.types import build_dtype_from_arrow_type, build_type_from_dict
 from .base import BaseNode, BaseNodeConfig
 
 

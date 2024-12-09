@@ -18,16 +18,7 @@ from hyped.core.typing import Bool, Mapping
 from .utils import build_graph
 
 
-@pytest.mark.parametrize(
-    "with_edge_labels, edge_label_format",
-    [
-        (False, "{name}={key}"),
-        (True, "{name}={key}"),
-        (True, "{name}"),
-        (True, "{key}"),
-    ],
-)
-def test_plot_data_flow(with_edge_labels, edge_label_format):
+def test_plot_data_flow():
     # build a graph
     flow = DataFlow({"field": datasets.Value("bool")})
     flow._graph = build_graph(
@@ -49,7 +40,6 @@ def test_plot_data_flow(with_edge_labels, edge_label_format):
         ax = plot_data_flow(
             flow,
             src_node_label="[ROOT]",
-            with_edge_labels=with_edge_labels,
             node_font_size=1e-5,
         )
         assert isinstance(ax, plt.Axes)
@@ -66,21 +56,13 @@ def test_plot_data_flow(with_edge_labels, edge_label_format):
         ), f"Node label {node_label} is missing in the plot."
 
     # Check if edge labels are correct
-    for edge in flow._graph.edges(data=True):
-        _, _, data = edge
-        edge_label = edge_label_format.format(
-            name=data[DataFlowGraph.EdgeAttribute.NAME],
-            key=data[DataFlowGraph.EdgeAttribute.KEY],
-        )
+    for edge in flow._graph.edges(keys=True):
+        _, _, key = edge
+        edge_label = "{name}".format(name=key)
 
-        if with_edge_labels:
-            assert any(
-                edge_label in text.get_text() for text in ax.texts
-            ), f"Edge label {edge_label} is missing in the plot."
-        else:
-            assert all(
-                edge_label not in text.get_text() for text in ax.texts
-            ), f"Edge label {edge_label} in the plot but shouldn't be included."
+        assert any(
+            edge_label in text.get_text() for text in ax.texts
+        ), f"Edge label {edge_label} is missing in the plot."
 
 
 class TestDataFlow:
@@ -158,9 +140,9 @@ class TestDataFlow:
 
         # create valid and invalid features
         valid = MagicMock(
-            spec=Feature, ref=MagicMock(spec=Reference, _graph=mock_graph.return_value)
+            spec=Feature, ref=Reference(_node_id=MagicMock(), _graph=mock_graph.return_value)
         )
-        invalid = MagicMock(spec=Feature, ref=MagicMock(spec=Reference, _graph=MagicMock()))
+        invalid = MagicMock(spec=Feature, ref=Reference(_node_id=MagicMock(), _graph=MagicMock()))
 
         # invalid collect feature, not belonging to the graph
         with pytest.raises(RuntimeError):
@@ -177,8 +159,8 @@ class TestDataFlow:
 
             mock_executable_flow.assert_called_once_with(
                 mock_restricted_view.return_value,
-                Reference(valid.ref._key, valid.ref._node_id, mock_restricted_view.return_value),
-                Reference(valid.ref._key, valid.ref._node_id, mock_restricted_view.return_value),
+                Reference(valid.ref._node_id, mock_restricted_view.return_value),
+                Reference(valid.ref._node_id, mock_restricted_view.return_value),
             )
 
     @patch("hyped.core.flow.DataFlow.build")
@@ -267,7 +249,7 @@ class TestExecutableDataFlow:
                 0,
                 2,
                 build_graph([(0, 1)]),  # aggregator is contained in instance graph
-                build_graph([(0, 1)]),
+                build_graph([(0, 1), (1, 2)]),  # 1 is getitem operator
             ),
         ],
     )
@@ -372,7 +354,7 @@ class TestExecutableDataFlow:
         # apply the flow to the mock dataset
         flow.apply(ds)
         # make sure the map function was called correctly
-        ds.with_format.assert_called_once_with(type="arrow", columns=[])
+        ds.with_format.assert_called_once_with(type="arrow", columns=["x"])
         ds.with_format.return_value.map.assert_called_once_with(
             flow.pyarrow_process,
             with_indices=True,
@@ -401,7 +383,7 @@ class TestExecutableDataFlow:
         # apply the flow to the mock dataset
         flow.apply(ds_dict)
         # make sure the map function was called correctly
-        ds.with_format.assert_called_once_with(type="arrow", columns=[])
+        ds.with_format.assert_called_once_with(type="arrow", columns=["x"])
         ds.with_format.return_value.map.assert_called_once_with(
             flow.pyarrow_process,
             with_indices=True,
@@ -462,7 +444,6 @@ class TestExecutableDataFlow:
         serialized = flow.serialize()
         flow = DataFlow.deserialize(serialized)
 
-        assert collect._key == flow._instance_executor.collect._key
         assert collect._node_id == flow._instance_executor.collect._node_id
 
         with pytest.raises(ValueError):

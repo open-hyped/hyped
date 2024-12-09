@@ -19,7 +19,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 
-from .features.reference import FeatureKey, Reference
+from .features.reference import Reference
 from .features.types import MappingType
 from .graph import DataFlowGraph
 from .nodes.aggregator import BaseDataAggregator, DataAggregationManager
@@ -177,7 +177,7 @@ class ExecutionState(object):
             AssertionError: If the feature reference does not contain
                 expected feature types.
         """
-        return ref._key.index_array(self.outputs[ref._node_id])
+        return self.outputs[ref._node_id]
 
     def collect_inputs(self, node_id: NodeId) -> tuple[dict[str, pa.Array], IndexList]:
         """Collect inputs for a given node.
@@ -197,17 +197,14 @@ class ExecutionState(object):
         src_partitions = defaultdict(list)
         # TODO: first group edges by reference to the same feature
         #       then collect the feature only once
-        for u, _, name, data in self.graph.in_edges(node_id, keys=True, data=True):
+        for u, _, name in self.graph.in_edges(node_id, keys=True):
             assert (u == self.graph.src_node_id) or self.ready[
                 u
             ].is_set(), f"Node {u} is not ready."
-            # get the values requested from the batch
-            key: FeatureKey = data[DataFlowGraph.EdgeAttribute.KEY]
-            values = key.index_array(self.outputs[u])
-
+            # get the requestest values
+            inputs[name] = self.outputs[u]
+            # keep track of the source partition
             partition = self.graph.get_node_output_partition(u)
-            # store the values in inputs and keep track of the source partition
-            inputs[name] = values
             src_partitions[partition].append(name)
 
         # get the node partition and the partition info

@@ -6,7 +6,7 @@ import networkx as nx
 import pyarrow as pa
 import pytest
 
-from hyped.core.features.reference import FeatureKey, Reference
+from hyped.core.features.reference import Reference
 from hyped.core.features.types import BoolType as MockType
 from hyped.core.features.types import MappingType, SequenceType, Type
 from hyped.core.graph import (
@@ -110,53 +110,6 @@ def test_build_dependency_graph(
 
 
 class TestDataFlowGraph:
-    @pytest.mark.parametrize(
-        "edges_with_keys, src_dtype, accessed_src_dtype",
-        [
-            (
-                [(0, 1, ("x")), (0, 2, ("y"))],
-                MappingType.construct({"x": MockType, "y": MockType}),
-                MappingType.construct({"x": MockType, "y": MockType}),
-            ),
-            (
-                [(0, 1, ("x")), (0, 2, ("x"))],
-                MappingType.construct({"x": MockType, "y": MockType}),
-                MappingType.construct({"x": MockType}),
-            ),
-            (
-                [(0, 1, ("y")), (0, 2, ("x", "a"))],
-                MappingType.construct(
-                    {"x": MappingType.construct({"a": MockType, "b": MockType}), "y": MockType}
-                ),
-                MappingType.construct({"x": MappingType.construct({"a": MockType}), "y": MockType}),
-            ),
-            (
-                [(0, 1, ("x", 0, "a"))],
-                MappingType.construct(
-                    {"x": SequenceType(MappingType.construct({"a": MockType, "b": MockType}))}
-                ),
-                MappingType.construct({"x": SequenceType(MappingType.construct({"a": MockType}))}),
-            ),
-        ],
-    )
-    def test_accessed_src_dtype_property(
-        self,
-        edges_with_keys: list[tuple[Hashable, Hashable, str]],
-        src_dtype: Type,
-        accessed_src_dtype: Type,
-    ) -> None:
-        # build the graph from the edges
-        graph = build_graph([(u, v) for u, v, k in edges_with_keys], output_type=src_dtype)
-        # update the keys stored in the edges
-        keys = {(u, v, str(u)): FeatureKey(k) for u, v, k in edges_with_keys}
-        nx.set_edge_attributes(graph, keys, DataFlowGraph.EdgeAttribute.KEY)
-        # check the accessed source data type
-        assert graph.accessed_src_dtype == accessed_src_dtype
-
-        # make sure the accessed fields are applied correctly
-        graph.apply_accessed_fields()
-        assert graph.src_dtype == accessed_src_dtype
-
     @pytest.mark.parametrize(
         "edges, expected_depth, raises_error",
         [

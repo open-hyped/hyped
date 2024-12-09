@@ -4,7 +4,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import networkx as nx
 import pytest
 
+from hyped.core.features.reference import Reference
+from hyped.core.features.types import BoolType as MockType
+from hyped.core.features.types import MappingType, Type
 from hyped.core.graph import DataFlowGraph
+from hyped.core.ops.mapping import MappingGetItem
 from hyped.core.optim import DataFlowGraphOptimizer
 
 from .utils import build_graph
@@ -245,6 +249,45 @@ class TestDataFlowGraphOptimizer:
             # apply constant evaluation to the graph and compare to the target graph
             optim_graph = DataFlowGraphOptimizer().constant_evaluation(graph, leaf_nodes)
             assert nx.is_isomorphic(optim_graph, target_graph, node_match=node_match)
+
+    @pytest.mark.parametrize(
+        "edges_with_keys, src_dtype, accessed_src_dtype",
+        [
+            (
+                [(0, 1, "x"), (0, 2, "y")],
+                MappingType.construct({"x": MockType, "y": MockType}),
+                MappingType.construct({"x": MockType, "y": MockType}),
+            ),
+            (
+                [(0, 1, "x"), (0, 2, "x")],
+                MappingType.construct({"x": MockType, "y": MockType}),
+                MappingType.construct({"x": MockType}),
+            ),
+            (
+                [(0, 1, "y"), (0, 2, "x"), (2, 3, "a")],
+                MappingType.construct(
+                    {"x": MappingType.construct({"a": MockType, "b": MockType}), "y": MockType}
+                ),
+                MappingType.construct({"x": MappingType.construct({"a": MockType}), "y": MockType}),
+            ),
+        ],
+    )
+    def test_accessed_src_dtype_property(
+        self,
+        edges_with_keys: list[tuple[Hashable, Hashable, str]],
+        src_dtype: Type,
+        accessed_src_dtype: Type,
+    ) -> None:
+        graph = DataFlowGraph()
+        graph.add_source_node(src_dtype, 0)
+        # add all edges assuming that all non-source nodes
+        # are get-item nodes
+        for u, v, k in edges_with_keys:
+            graph.add_compute_node(MappingGetItem(key=k), {"mapping": Reference(u, graph)}, v)
+        # apply accessed fields
+        DataFlowGraphOptimizer().apply_accessed_fields(graph)
+        # check the accessed source data type
+        assert graph.src_dtype == accessed_src_dtype
 
     @pytest.mark.parametrize(
         "graph, target_graph, leaf_nodes",

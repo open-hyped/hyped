@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import typing
 import warnings
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from enum import IntEnum
 from functools import partial
 from types import GenericAlias
@@ -30,7 +30,7 @@ from hyped.common.utils import is_python_version_less_than
 
 from . import types
 from .mixins import MethodRegistryMixin
-from .reference import FeatureKey, Reference
+from .reference import Reference
 
 if is_python_version_less_than(3, 11):  # pragma: not covered
 
@@ -4091,11 +4091,7 @@ class SequenceFeature(typing.Sequence[T], Feature):
         Returns:
             T | SequenceFeature[T]: The element or the sliced sequence feature.
         """
-        # build the reference to the indexed value
-        ref = Reference(FeatureKey(self.ref._key + (index,)), self.ref._node_id, self.ref._graph)
-        # get the output data type of the indexing operation
-        # and infer build the corrsponding feature
-        return build_feature_from_dtype(ref, self.dtype[index])
+        return self.execute_method("__getitem__", index)
 
     def __len__(self) -> int:
         """Raises :class:`EnvironmentError` to avoid confusion with the :code:`length` method.
@@ -4265,7 +4261,7 @@ class SequenceFeature(typing.Sequence[T], Feature):
                 # create a copy of the instance but with length 1
                 # and validate the value feature at position 0 as a representative
                 # of all the sequence values
-                value_feature = replace(inst, dtype=replace(inst.dtype, length=1))[0]
+                value_feature = build_feature_from_dtype(inst.ref, inst.dtype.value_type)
                 adapter.validate_python(value_feature, context=info.context, strict=True)
 
             return inst
@@ -4366,11 +4362,7 @@ class _MappingFeature(typing.Mapping, Feature):
         Returns:
             _Feature: The feature associated with the key.
         """
-        # build the reference to the indexed value
-        ref = Reference(FeatureKey(self.ref._key + (key,)), self.ref._node_id, self.ref._graph)
-        # get the output data type of the indexing operation
-        # and infer build the corrsponding feature
-        return build_feature_from_dtype(ref, self.dtype[key])
+        return self.execute_method("__getitem__", key)
 
     @classmethod
     def __get_pydantic_core_schema__(
@@ -4472,7 +4464,10 @@ class _MappingFeature(typing.Mapping, Feature):
 
             if model is not None:
                 # validate the field types
-                model.model_validate(dict(inst), context=info.context, strict=True)
+                fields = {
+                    key: build_feature_from_dtype(inst.ref, inst.dtype[key]) for key in inst.keys()
+                }
+                model.model_validate(fields, context=info.context, strict=True)
 
             strict = (info.context or {}).get("strict", False)
             # convert the instance to the actual class type in case of

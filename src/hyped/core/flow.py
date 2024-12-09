@@ -38,20 +38,20 @@ from .features.features import (
     build_feature_from_annotation,
     build_feature_from_dtype,
 )
-from .features.reference import FeatureKey, Reference
-from .features.types import MappingType, Type
+from .features.reference import Reference
+from .features.types import (
+    MappingType,
+    Type,
+    build_dtype_from_hf_feature,
+    build_dtype_from_python_object,
+    is_dtype_subset,
+)
 from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
 from .optim import DataFlowGraphOptimizer
 from .typing import IndexList, NodeId, Rank
-from .utils import (
-    NestedType,
-    build_dtype_from_hf_feature,
-    build_dtype_from_python_object,
-    is_dtype_subset,
-    map_recursive,
-)
+from .utils import NestedType, map_recursive
 
 # patch asyncio if running in an async environment, such as jupyter notebook
 # this fixes #26
@@ -73,7 +73,7 @@ T = TypeVar("T", bound=MappingFeature)
 def plot_data_flow(
     flow: DataFlow,
     with_edge_labels: bool = True,
-    edge_label_format: str = "{name}={key}",
+    edge_label_format: str = "{name}",
     src_node_label: str = "[ROOT]",
     edge_font_size: int = 6,
     node_font_size: int = 6,
@@ -95,7 +95,7 @@ def plot_data_flow(
     Args:
         flow (DataFlow): The data flow to plot.
         with_edge_labels (bool): Whether to include labels on the edges. Defaults to True.
-        edge_label_format (str): Format string for edge labels. Defaults to "{name}={key}".
+        edge_label_format (str): Format string for edge labels. Defaults to "{name}".
         src_node_label (str): Label for the source node. Defaults to "[ROOT]".
         edge_font_size (int): The font size for edge labels. Defaults to 6.
         node_font_size (int): The font size for node labels. Defaults to 6.
@@ -186,7 +186,7 @@ def plot_data_flow(
     if with_edge_labels:
         # group multi-edges by their source and target nodes
         grouped_edges = groupby(
-            sorted(flow._graph.edges(data=True), key=lambda e: (e[0], e[1])),
+            sorted(flow._graph.edges(keys=True), key=lambda e: (e[0], e[1])),
             key=lambda e: (e[0], e[1]),
         )
 
@@ -194,13 +194,7 @@ def plot_data_flow(
         # build edge labels
         for edge, group in grouped_edges:
             edge_labels[edge] = "\n".join(
-                [
-                    edge_label_format.format(
-                        name=data[DataFlowGraph.EdgeAttribute.NAME],
-                        key=str(data[DataFlowGraph.EdgeAttribute.KEY]),
-                    )
-                    for _, _, data in group
-                ]
+                [edge_label_format.format(name=key) for _, _, key in group]
             )
 
         # draw the edge labels
@@ -500,12 +494,8 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         # create a read-only view of the data flow graph
         graph = nx.restricted_view(self._graph, [], [])
         # build the reference instances to the graph view
-        collect = Reference(collect.ref._key, collect.ref._node_id, graph)
-        aggregate = (
-            None
-            if aggregate is None
-            else Reference(aggregate.ref._key, aggregate.ref._node_id, graph)
-        )
+        collect = replace(collect.ref, _graph=graph)
+        aggregate = None if aggregate is None else replace(aggregate.ref, _graph=graph)
         # build executable data flow
         return ExecutableDataFlow(graph, collect, aggregate)
 
@@ -830,18 +820,15 @@ class ExecutableDataFlow(AbstractDataFlow):
             }
         )
         source_ref = h.add_source_node(source_type)
+        source = build_feature_from_dtype(source_ref, source_type)
 
         # rebuild the aggregates graph
         for node_id in nx.topological_sort(g):
             # collect all the inputs to the node
-            edges = self._graph.in_edges(node_id, data=DataFlowGraph.EdgeAttribute.KEY, keys=True)
+            edges = self._graph.in_edges(node_id, keys=True)
             inputs = {
-                name: (
-                    replace(source_ref, _key=FeatureKey(str(u), *key))
-                    if u in aggregator_nodes
-                    else Reference(key, u, h)
-                )
-                for u, _, name, key in edges
+                key: source[key].ref if u in aggregator_nodes else Reference(u, h)
+                for u, _, key in edges
             }
             # add the node to the graph
             data = self._graph.nodes[node_id]

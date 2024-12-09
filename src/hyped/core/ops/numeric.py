@@ -38,12 +38,12 @@ from ..features.types import (
     UInt16Type,
     UInt32Type,
     UInt64Type,
+    build_dtype_from_python_object,
 )
 from ..features.validators import TypeResolver
 from ..nodes.base import RunContext, process_mode
 from ..nodes.processor import BaseDataProcessor, BaseDataProcessorConfig
 from ..typing import Float, Int, UInt
-from ..utils import build_dtype_from_python_object
 
 ScalarType = TypeVar("ScalarType", bound=Float | Int | UInt)
 

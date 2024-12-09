@@ -15,7 +15,7 @@ from typing import Any
 import datasets
 import pyarrow as pa
 import pydantic
-from datasets.features.features import generate_from_arrow_type
+from datasets.features.features import FeatureType, generate_from_arrow_type
 from pydantic_core import core_schema
 
 
@@ -631,6 +631,139 @@ def build_type_from_dict(data: dict) -> Type:
         return MappingType.from_dict(data)
 
     raise ValueError(f"Unknown type for deserialization: {data['type']}")  # pragma: not covered
+
+
+def build_dtype_from_arrow_type(arrow_type: pa.DataType) -> Type:
+    """Build a data type from a given Arrow type.
+
+    Arguments:
+        arrow_type (pa.DataType): The Arrow type to convert.
+
+    Returns:
+        Type: The corresponding data type.
+
+    Raises:
+        TypeError: If the Arrow type is unsupported.
+    """
+    if pa.types.is_struct(arrow_type):
+        fields = map(arrow_type.field, range(arrow_type.num_fields))
+        fields = {field.name: build_dtype_from_arrow_type(field.type) for field in fields}
+        return MappingType.construct(fields)
+
+    elif pa.types.is_list(arrow_type):
+        return SequenceType(
+            value_type=build_dtype_from_arrow_type(arrow_type.value_type),
+        )
+
+    if (
+        isinstance(arrow_type, pa.DataType)
+        and str(arrow_type) in ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING
+    ):
+        return ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING[str(arrow_type)]
+
+    raise TypeError(f"Unsupported type: {arrow_type}")
+
+
+def build_dtype_from_hf_feature(feature: FeatureType) -> Type:
+    """Build a data type from a given Hugging Face feature.
+
+    Arguments:
+        feature (FeatureType): The Hugging Face feature to convert.
+
+    Returns:
+        Type: The corresponding data type.
+
+    Raises:
+        TypeError: If the feature type is unsupported.
+    """
+    if isinstance(feature, datasets.Features):
+        fields = {key: build_dtype_from_hf_feature(field) for key, field in feature.items()}
+        return MappingType.construct(fields)
+
+    if isinstance(feature, datasets.Sequence):
+        value_type = feature.feature if isinstance(feature, datasets.Sequence) else feature[0]
+        length = feature.length if isinstance(feature, datasets.Sequence) else -1
+        return SequenceType(
+            value_type=build_dtype_from_hf_feature(value_type),
+            length=UNDEFINED_SEQUENCE_LENGTH if length == -1 else length,
+        )
+
+    elif isinstance(feature, datasets.Value):
+        packed = datasets.Features({"field": feature})
+        arrow_type = packed.arrow_schema.field("field").type
+        return ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING[str(arrow_type)]
+
+    elif isinstance(feature, datasets.ClassLabel):
+        return ClassLabelType(names=tuple(feature.names))
+
+    raise TypeError(f"Unsupported feature: {feature}")
+
+
+PYTHON_PRIMITIVE_TO_DTYPE_MAPPING: dict[type, Type] = {
+    bool: BoolType,
+    str: StringType,
+    int: Int32Type,
+    float: Float64Type,
+}
+
+
+def build_dtype_from_python_object(obj: Any) -> Type:
+    """Build a data type from a Python object.
+
+    Arguments:
+        obj (Any): The object to derive the data type from.
+
+    Returns:
+        Type: The corresponding data type.
+
+    Raises:
+        TypeError: If the object type is unsupported.
+        RuntimeError: If there are inconsistencies in list item types.
+    """
+    if isinstance(obj, dict):
+        return MappingType.construct(
+            {key: build_dtype_from_python_object(val) for key, val in obj.items()}
+        )
+
+    elif isinstance(obj, (list, tuple)):
+        if len(obj) > 0:
+            dtype, *others = list(map(build_dtype_from_python_object, obj))
+            if any(dtype != other for other in others):
+                raise RuntimeError()  # TODO: error message
+
+        else:
+            dtype = BoolType
+
+        return SequenceType(value_type=dtype, length=len(obj))
+
+    elif isinstance(obj, tuple(PYTHON_PRIMITIVE_TO_DTYPE_MAPPING.keys())):
+        return PYTHON_PRIMITIVE_TO_DTYPE_MAPPING[type(obj)]
+
+    raise TypeError(f"Unsupported object: {obj}")
+
+
+def is_dtype_subset(dtype_a: Type, dtype_b: Type) -> bool:
+    """Recursively checks if dtype_a is a subset of dtype_b.
+
+    Arguments:
+        dtype_a (Type): The type that should be a subset.
+        dtype_b (Type): The type that should be a superset.
+
+    Returns:
+        bool: True if dtype_a is a subset of dtype_b, False otherwise.
+    """
+    if isinstance(dtype_a, MappingType) and isinstance(dtype_b, MappingType):
+        return all(
+            (key in dtype_b) and is_dtype_subset(dtype, dtype_b[key])
+            for key, dtype in dtype_a.items()
+        )
+
+    elif isinstance(dtype_a, SequenceType) and isinstance(dtype_b, SequenceType):
+        return (dtype_a.length == dtype_b.length) and is_dtype_subset(
+            dtype_a.arrow_type, dtype_b.arrow_type
+        )
+
+    return dtype_a == dtype_b
 
 
 def cast_dtype(src_dtype: Type, tgt_dtype: Type) -> Type:

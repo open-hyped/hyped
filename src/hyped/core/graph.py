@@ -22,8 +22,15 @@ import pyarrow as pa
 from .abstract import AbstractDataFlowGraph
 from .features.engine import FeatureEngine
 from .features.features import Feature, build_feature_from_dtype
-from .features.reference import FeatureKey, Reference
-from .features.types import MappingType, SequenceType, Type, build_type_from_dict, cast_dtype
+from .features.reference import Reference
+from .features.types import (
+    MappingType,
+    SequenceType,
+    Type,
+    build_dtype_from_python_object,
+    build_type_from_dict,
+    cast_dtype,
+)
 from .nodes.aggregator import BaseDataAggregator
 from .nodes.augmenter import BaseDataAugmenter
 from .nodes.base import BaseNode, RunContext
@@ -32,7 +39,7 @@ from .nodes.const import ConstNode
 from .nodes.processor import BaseDataProcessor
 from .registry.config import AutoConfigurable
 from .typing import NodeId, PartitionId
-from .utils import NestedType, build_dtype_from_python_object, map_recursive
+from .utils import NestedType, map_recursive
 
 rng = np.random.Generator(np.random.PCG64(42))
 
@@ -300,33 +307,6 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         of the node relative to other nodes in the data flow.
         """
 
-    class EdgeAttribute(str, Enum):
-        """Enum representing properties of an edge in the data flow graph."""
-
-        NAME = "name"
-        """
-        Represents the name of the edge.
-
-        Type: :class:`str`
-
-        This property corresponds to the keyword of the argument used as an input
-        to the processor, linking the edge to a specific input parameter.
-
-        The name is also used by NetworkX as an identifier to distinguish multiedges
-        between a pair of nodes. It serves as a unique identifier for the edge.
-        """
-
-        KEY = "feature_key"
-        """
-        Represents the key of the feature associated with the edge.
-
-        Type: :class:`FeatureKey`
-
-        This property specifies which subfeature of the output of the source node
-        is flowing through the edge. It defines the particular feature that is being
-        transmitted from one node to another in the data flow graph.
-        """
-
     @wraps(nx.MultiDiGraph)
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize the DataFlowGraph.
@@ -369,57 +349,6 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             MappingType: The data type of the source node.
         """
         return self.nodes[self.src_node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
-
-    @property
-    def accessed_src_dtype(self) -> MappingType:
-        """Get the accessed subset of the source data type.
-
-        This property retrieves the portion of the source node's data type that is
-        explicitly accessed or utilized within the data flow graph. It represents
-        the subset of features or fields from the source data type that are directly
-        referenced by downstream nodes in the graph. Any features in the source data
-        type that are not accessed remain excluded from this subset.
-
-        This selection applies exclusively to mapping features. Sequence features
-        remain unchanged and are returned as-is. However, for nested mapping features,
-        the property recursively determines and includes only the accessed subfields.
-
-        Returns:
-            MappingType: A mapping that defines the structure and types of features
-            from the source node that are accessed in the graph.
-        """
-
-        def get_accessed_subtype(dtype: Type, keys: list[FeatureKey]) -> Type:
-            # check if the dtype is accessed as a whole
-            if any(len(k) == 0 for k in keys):
-                return dtype
-
-            # check if the dtype is a sequence type
-            if isinstance(dtype, SequenceType):
-                return SequenceType(
-                    get_accessed_subtype(dtype.value_type, [key[1:] for key in keys]),
-                    length=dtype.length,
-                )
-
-            # if the dtype is a primitive type then all the keys
-            # must be of length zero, meaning the primitive type
-            # is accessed which is handled above
-            assert isinstance(dtype, MappingType), f"Unexpected type {dtype}"
-
-            # group keys by the field they access
-            grouped_keys = {field: [] for field, *_ in keys}
-            for field, *key in keys:
-                grouped_keys[field].append(FeatureKey(*key))
-
-            return MappingType.construct(
-                {
-                    field: get_accessed_subtype(dtype[field], keys)
-                    for field, keys in grouped_keys.items()
-                }
-            )
-
-        edges = self.out_edges(self.src_node_id, data=DataFlowGraph.EdgeAttribute.KEY)
-        return get_accessed_subtype(self.src_dtype, [k for _, _, k in edges])
 
     @property
     def depth(self) -> int:
@@ -592,16 +521,12 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 ref._node_id,
                 node_id,
                 key=name,
-                **{
-                    DataFlowGraph.EdgeAttribute.NAME.value: name,
-                    DataFlowGraph.EdgeAttribute.KEY.value: ref._key,
-                },
             )
 
         # make sure the graph is a DAG
         assert nx.is_directed_acyclic_graph(self)
 
-        return Reference(FeatureKey(), node_id, self)
+        return Reference(node_id, self)
 
     def add_source_node(self, data_type: Type, node_id: None | NodeId = None) -> Reference:
         """Add a the source node to the graph.
@@ -1074,8 +999,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             raise RuntimeError(f"Node with ID '{ref._node_id}' is not contained in the graph.")
 
         # get the output type of the referenced node
-        dtype = self.nodes[ref._node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
-        return ref._key.index_dtype(dtype)
+        return self.nodes[ref._node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
 
     def get_feature_from_reference(self, ref: Reference) -> Feature:
         """Helper function to get a feature instance of some node output.
@@ -1159,9 +1083,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         # build the sub-graph of only the provided partition
         return self.subgraph(remainder)
 
-    def subgraph_in_edges(
-        self, subgraph: DataFlowGraph, data: bool | EdgeAttribute = False
-    ) -> list[tuple[int, int, str] | tuple[int, int, str, Any]]:
+    def subgraph_in_edges(self, subgraph: DataFlowGraph) -> list[tuple[int, int, str]]:
         """Get incoming edges to a subgraph from nodes outside the subgraph.
 
         This method returns a list of edges that point to nodes within the
@@ -1169,18 +1091,13 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
 
         Args:
             subgraph (DataFlowGraph): The subgraph of interest.
-            data (bool | EdgeAttribute): Whether to include edge data. If set to
-                :code:`True` or an :class:`EdgeAttribute`, the method returns edges with data.
 
         Returns:
-            list[tuple[int, int, str] | tuple[int, int, str, Any]]: The incoming edges
-            to the subgraph.
+            list[tuple[int, int, str]]: The incoming edges to the subgraph.
         """
-        return [e for e in self.in_edges(subgraph, keys=True, data=data) if e[0] not in subgraph]
+        return [e for e in self.in_edges(subgraph, keys=True) if e[0] not in subgraph]
 
-    def subgraph_out_edges(
-        self, subgraph: DataFlowGraph, data: bool | EdgeAttribute = False
-    ) -> list[tuple[int, int, str] | tuple[int, int, str, Any]]:
+    def subgraph_out_edges(self, subgraph: DataFlowGraph) -> list[tuple[int, int, str]]:
         """Get outgoing edges from a subgraph to nodes outside the subgraph.
 
         This method returns a list of edges that point from nodes within the
@@ -1188,14 +1105,11 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
 
         Args:
             subgraph (DataFlowGraph): The subgraph of interest.
-            data (bool | EdgeAttribute): Whether to include edge data. If set to
-                :code:`True` or an :class:`EdgeAttribute`, the method returns edges with data.
 
         Returns:
-            list[tuple[int, int, str] | tuple[int, int, str, Any]]: The outgoing edges
-            from the subgraph.
+            list[tuple[int, int, str]]: The outgoing edges from the subgraph.
         """
-        return [e for e in self.out_edges(subgraph, keys=True, data=data) if e[1] not in subgraph]
+        return [e for e in self.out_edges(subgraph, keys=True) if e[1] not in subgraph]
 
     def recompute_depths(self) -> None:
         """Recompute the depth of all nodes in the data flow graph.
@@ -1206,17 +1120,6 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         """
         node_depths = _compute_node_depth(self)
         nx.set_node_attributes(self, node_depths, DataFlowGraph.NodeAttribute.DEPTH)
-
-    def apply_accessed_fields(self) -> None:
-        """Restrict the source feature type to only the accessed fields.
-
-        This method updates the source node in the data flow graph to only the accessed fields
-        computed by the :class:`accessed_src_dtype` property. The :class:`accessed_src_dtype`
-        property represents the subset of the original :code:`src_dtype` that includes only
-        the fields accessed during processing.
-        """
-        src_node = self.nodes[self.src_node_id]
-        src_node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] = self.accessed_src_dtype
 
     def to_dict(self) -> dict:
         """Serializes the data flow graph into a dictionary representation.
@@ -1246,10 +1149,6 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] = node[
                 DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
             ].to_dict()
-
-        # serialize feature keys
-        for edge in data["edges"]:
-            edge[DataFlowGraph.EdgeAttribute.KEY] = edge[DataFlowGraph.EdgeAttribute.KEY].to_dict()
 
         return data
 
@@ -1291,12 +1190,6 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             obj = node[DataFlowGraph.NodeAttribute.NODE_OBJ]
             node[DataFlowGraph.NodeAttribute.NODE_OBJ] = (
                 None if obj is None else AutoConfigurable.from_config_dict(obj)
-            )
-
-        # deserialize feature keys
-        for edge in data["edges"]:
-            edge[DataFlowGraph.EdgeAttribute.KEY] = FeatureKey.from_dict(
-                edge[DataFlowGraph.EdgeAttribute.KEY]
             )
 
         return DataFlowGraph(nx.node_link_graph(data, edges="edges"))

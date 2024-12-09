@@ -25,9 +25,13 @@ from hyped.core.features.types import (
     UInt16Type,
     UInt32Type,
     UInt64Type,
+    build_dtype_from_arrow_type,
+    build_dtype_from_hf_feature,
+    build_dtype_from_python_object,
     build_type_from_dict,
     cast_dtype,
     common_dtype,
+    is_dtype_subset,
 )
 
 
@@ -508,3 +512,185 @@ def test_common_dtype(dtypes: tuple[Type], result_dtype: None | Type, raises_err
     else:
         # cast output should be target data type
         assert common_dtype(*dtypes) == result_dtype
+
+
+@pytest.mark.parametrize(
+    "arrow_type, expected_output, expect_exception",
+    [
+        # Scalar type conversion
+        (pa.int32(), Int32Type, False),
+        # Unsupported type
+        (pa.null(), None, True),
+        # Struct type conversion
+        (
+            pa.struct([("field1", pa.int32()), ("field2", pa.float64())]),
+            MappingType.construct({"field1": Int32Type, "field2": Float64Type}),
+            False,
+        ),
+        # List type conversion
+        (
+            pa.list_(pa.int32()),
+            SequenceType(value_type=Int32Type),
+            False,
+        ),
+    ],
+)
+def test_build_dtype_from_arrow_type(arrow_type, expected_output, expect_exception):
+    if expect_exception:
+        with pytest.raises(TypeError):
+            build_dtype_from_arrow_type(arrow_type)
+    else:
+        result = build_dtype_from_arrow_type(arrow_type)
+        assert result == expected_output
+
+
+@pytest.mark.parametrize(
+    "hf_feature, expected_output, expect_exception",
+    [
+        # Value type conversion
+        (datasets.Value("int32"), Int32Type, False),
+        # Class label conversion
+        (datasets.ClassLabel(names=("A", "B")), ClassLabelType(names=("A", "B")), False),
+        # Unsupported feature type
+        (object(), None, True),
+        # Features type conversion
+        (
+            datasets.Features(
+                {"field1": datasets.Value("int32"), "field2": datasets.Value("float64")}
+            ),
+            MappingType.construct({"field1": Int32Type, "field2": Float64Type}),
+            False,
+        ),
+        # Sequence type conversion (fixed length)
+        (
+            datasets.Sequence(feature=datasets.Value("int32"), length=10),
+            SequenceType(value_type=Int32Type, length=10),
+            False,
+        ),
+        # Sequence type conversion (undefined length)
+        (
+            datasets.Sequence(feature=datasets.Value("float64")),
+            SequenceType(value_type=Float64Type, length=UNDEFINED_SEQUENCE_LENGTH),
+            False,
+        ),
+    ],
+)
+def test_build_dtype_from_hf_feature(hf_feature, expected_output, expect_exception):
+    if expect_exception:
+        with pytest.raises(TypeError):
+            build_dtype_from_hf_feature(hf_feature)
+    else:
+        result = build_dtype_from_hf_feature(hf_feature)
+        assert result == expected_output
+
+
+@pytest.mark.parametrize(
+    "obj, expected_output, expect_exception, exception_type",
+    [
+        # Mapping type conversion
+        (
+            {"field1": 1, "field2": 3.14},
+            MappingType.construct({"field1": Int32Type, "field2": Float64Type}),
+            False,
+            None,
+        ),
+        # Sequence type conversion (homogeneous list)
+        ([1, 2, 3], SequenceType(value_type=Int32Type, length=3), False, None),
+        # Sequence type conversion (heterogeneous list)
+        ([1, 2.0, 3], None, True, RuntimeError),
+        # Empty list
+        ([], SequenceType(value_type=BoolType, length=0), False, None),
+        # Primitive type conversion
+        (42, Int32Type, False, None),
+        (3.14, Float64Type, False, None),
+        ("hello", StringType, False, None),
+        (True, BoolType, False, None),
+        # Unsupported type
+        (object(), None, True, TypeError),
+    ],
+)
+def test_build_dtype_from_python_object(obj, expected_output, expect_exception, exception_type):
+    if expect_exception:
+        with pytest.raises(exception_type):
+            build_dtype_from_python_object(obj)
+    else:
+        result = build_dtype_from_python_object(obj)
+        assert result == expected_output
+
+
+@pytest.mark.parametrize(
+    "dtype_a, dtype_b, expected_output",
+    [
+        # Scalar types (equal)
+        (Int32Type, Int32Type, True),
+        # Scalar types (not equal)
+        (Int32Type, Float64Type, False),
+        # Mapping types (subset)
+        (
+            MappingType.construct({"field1": Int32Type}),
+            MappingType.construct({"field1": Int32Type, "field2": Float64Type}),
+            True,
+        ),
+        # Mapping types (not a subset)
+        (
+            MappingType.construct({"field1": Int32Type, "field3": BoolType}),
+            MappingType.construct({"field1": Int32Type, "field2": Float64Type}),
+            False,
+        ),
+        # Sequence types (subset)
+        (
+            SequenceType(value_type=Int32Type, length=3),
+            SequenceType(value_type=Int32Type, length=3),
+            True,
+        ),
+        # Sequence types (length mismatch)
+        (
+            SequenceType(value_type=Int32Type, length=3),
+            SequenceType(value_type=Int32Type, length=5),
+            False,
+        ),
+        # Sequence types (value type mismatch)
+        (
+            SequenceType(value_type=Int32Type, length=3),
+            SequenceType(value_type=Float64Type, length=3),
+            False,
+        ),
+        # Complex nested types (subset)
+        (
+            MappingType.construct(
+                {
+                    "field1": Int32Type,
+                    "field2": SequenceType(value_type=Float64Type, length=2),
+                }
+            ),
+            MappingType.construct(
+                {
+                    "field1": Int32Type,
+                    "field2": SequenceType(value_type=Float64Type, length=2),
+                    "field3": BoolType,
+                }
+            ),
+            True,
+        ),
+        # Complex nested types (not a subset)
+        (
+            MappingType.construct(
+                {
+                    "field1": Int32Type,
+                    "field2": SequenceType(value_type=BoolType, length=2),
+                }
+            ),
+            MappingType.construct(
+                {
+                    "field1": Int32Type,
+                    "field2": SequenceType(value_type=Float64Type, length=2),
+                    "field3": BoolType,
+                }
+            ),
+            False,
+        ),
+    ],
+)
+def test_is_dtype_subset(dtype_a, dtype_b, expected_output):
+    result = is_dtype_subset(dtype_a, dtype_b)
+    assert result == expected_output

@@ -219,11 +219,6 @@ class TestExecutionState:
             },
         )
 
-        # mock the feature keys in the graph
-        keys = nx.get_edge_attributes(graph, DataFlowGraph.EdgeAttribute.KEY)
-        keys = {k: MagicMock() for k in keys}
-        nx.set_edge_attributes(graph, keys, DataFlowGraph.EdgeAttribute.KEY)
-
         # create a mock index of length 5
         mock_index = MagicMock(__len__=lambda _: 5)
         # create execution state
@@ -241,28 +236,19 @@ class TestExecutionState:
         # collect input for node
         inputs, index = state.collect_inputs(4)
 
-        # check that feature keys of the corresponding edges
-        # where applied to the captured outputs
-        keys[(1, 4, "1")].index_array.assert_called_once_with(mock_outputs[1])
-        keys[(2, 4, "2")].index_array.assert_called_once_with(mock_outputs[2])
-        keys[(3, 4, "3")].index_array.assert_called_once_with(mock_outputs[3])
-
         # the inputs from the data processor must be passed through
         # the partition graph
         mock_trace_trough_partition_graph.assert_called_once_with(
-            [keys[(1, 4, "1")].index_array.return_value], src=DataFlowGraph.Partition.DEFAULT, tgt=2
+            [mock_outputs[1]], src=DataFlowGraph.Partition.DEFAULT, tgt=2
         )
         assert inputs["1"] == mock_trace_trough_partition_graph.return_value[0]
 
         # the output of the data augmenter introducing the partition
-        # is not traced through the graph, so the input is the return value
-        # of the index_array operation of the feature key
-        assert inputs["2"] == keys[(2, 4, "2")].index_array.return_value
+        # is not traced through the graph
+        assert inputs["2"] == mock_outputs[2]
 
         # make sure the constant input is a chunked array
-        mock_arrow_chunked_array.assert_called_once_with(
-            [keys[(3, 4, "3")].index_array.return_value] * 5
-        )
+        mock_arrow_chunked_array.assert_called_once_with([mock_outputs[3]] * 5)
         assert inputs["3"] == mock_arrow_chunked_array.return_value
 
 

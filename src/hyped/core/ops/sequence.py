@@ -19,6 +19,7 @@ from hyped.core.typing import PartitionId
 
 from ..features.features import Int32Feature, SequenceFeature
 from ..features.reference import Reference
+from ..features.types import UNDEFINED_SEQUENCE_LENGTH
 from ..graph import DataFlowGraph
 from ..nodes.augmenter import BaseDataAugmenter, BaseDataAugmenterConfig
 from ..nodes.base import RunContext, process_mode
@@ -122,13 +123,75 @@ class SequenceSum(BaseDataProcessor[SequenceSumConfig]):
         return sum(x)
 
 
-T = TypeVar("T")
+ItemType = TypeVar("T")
 
 
-class ValuesWithIndex(Mapping, Generic[T]):
+class SequenceGetItemConfig(BaseDataAugmenterConfig):
+    """Configuration class for the :class:`SequenceGetItem` processor."""
+
+    index: int
+    """The index of the item to retrieve from the sequence."""
+
+
+class SequenceGetItem(BaseDataProcessor[SequenceGetItemConfig]):
+    """Processor to retrieve an item from a sequence based on a specific index.
+
+    This processor extracts a single element from a sequence at the position specified
+    by the :code:`index` attribute in its configuration.
+    """
+
+    @process_mode(batched=True, backend="arrow")
+    def process(self, ctx: RunContext, sequence: Sequence[ItemType]) -> ItemType:
+        """Retrieve an item from a sequence.
+
+        Args:
+            ctx (RunContext): Context object containing runtime information.
+            sequence (Sequence[ItemType]): Input sequence from which to extract the item.
+
+        Returns:
+            ItemType: The item at the specified index in the sequence.
+        """
+        return pc.list_element(sequence, self.config.index)
+
+
+class SequenceGetSliceConfig(BaseDataAugmenterConfig):
+    """Configuration class for the :class:`SequenceGetSlice` processor."""
+
+    start: int
+    """The starting index of the slice (inclusive)."""
+
+    stop: None | int
+    """The ending index of the slice (exclusive)."""
+
+    step: int
+    """The step size for the slice."""
+
+
+class SequenceGetSlice(BaseDataProcessor[SequenceGetSliceConfig]):
+    """Processor to extract a slice from a sequence.
+
+    This processor extracts a sub-sequence from a given sequence using
+    slicing parameters defined in its configuration.
+    """
+
+    @process_mode(batched=True, backend="arrow")
+    def process(self, ctx: RunContext, sequence: Sequence[ItemType]) -> Sequence[ItemType]:
+        """Extract a slice from a sequence.
+
+        Args:
+            ctx (RunContext): Context object containing runtime information.
+            sequence (Sequence[ItemType]): Input sequence from which to extract the slice.
+
+        Returns:
+            Sequence[ItemType]: The sub-sequence defined by the start, stop, and step indices.
+        """
+        return pc.list_slice(sequence, self.config.start, self.config.stop, self.config.step)
+
+
+class ValuesWithIndex(Mapping, Generic[ItemType]):
     """Represents a flat sequence values with associated index mapping."""
 
-    value: T
+    value: ItemType
     """The values of the flattened sequence."""
 
     index: Int32Feature
@@ -143,7 +206,7 @@ class SequenceUnpack(BaseDataAugmenter[SequenceUnpackConfig]):
     """Augmenter to unpack a sequence."""
 
     @process_mode(batched=True, backend="arrow")
-    def process(self, ctx: RunContext, seq: Sequence[T]) -> tuple[T, TraceIndexList]:
+    def process(self, ctx: RunContext, seq: Sequence[ItemType]) -> tuple[ItemType, TraceIndexList]:
         """Unpack the sequence.
 
         Args:
@@ -169,8 +232,8 @@ class SequenceUnpackWithIndex(BaseDataAugmenter[SequenceUnpackWithIndexConfig]):
 
     @process_mode(batched=True, backend="arrow")
     def process(
-        self, ctx: RunContext, seq: Sequence[T]
-    ) -> tuple[ValuesWithIndex[T], TraceIndexList]:
+        self, ctx: RunContext, seq: Sequence[ItemType]
+    ) -> tuple[ValuesWithIndex[ItemType], TraceIndexList]:
         """Unpack a sequence and compute trace indices.
 
         Args:
@@ -227,8 +290,8 @@ class SequencePack(BaseDataAugmenter[SequencePackConfig]):
 
     @process_mode(batched=True, backend="arrow")
     def process(
-        self, ctx: RunContext, values: T, trace_index: Int32
-    ) -> tuple[Sequence[T], TraceIndexList]:
+        self, ctx: RunContext, values: ItemType, trace_index: Int32
+    ) -> tuple[Sequence[ItemType], TraceIndexList]:
         """Reconstruct a sequence from flattened elements and trace indices.
 
         Args:
@@ -288,8 +351,63 @@ def sequence_max(seq: Sequence[NumericType], default: Any = None) -> NumericType
     return SequenceMax(default=default).call(seq)
 
 
+@SequenceFeature.register_method("__getitem__")
+def sequence_get_item(sequence: Sequence[ItemType], index: int | slice) -> ItemType:
+    """Retrieve an item or a subsequence from a sequence using an integer index or a slice.
+
+    This method uses the :class:`SequenceGetItem` and :class:`SequenceGetSlice` processors
+    to handle both single-item retrieval and slicing. It supports sequences with defined
+    or undefined lengths, but imposes restrictions for negative indices or slices when the
+    sequence length is unknown.
+
+    Args:
+        sequence (Sequence[ItemType]): The input sequence feature.
+        index (int | slice): The index or slice used for retrieval. Negative indices
+            are supported only for sequences with defined lengths.
+
+    Returns:
+        ItemType: The retrieved item or subsequence, based on the provided index.
+
+    Raises:
+        RuntimeError: If negative indices or slices are used with sequences of
+            undefined length.
+    """
+    if isinstance(index, int):
+        if (index < 0) and len(sequence.dtype) != UNDEFINED_SEQUENCE_LENGTH:
+            index = len(sequence.dtype) + index
+
+        elif index < 0:
+            raise RuntimeError(
+                "Negative indices are not allowed for lists with unknown lengths, "
+                f"got index {index}."
+            )
+
+        return SequenceGetItem(index=index).call(sequence)
+
+    if isinstance(index, slice):
+        if len(sequence.dtype) != UNDEFINED_SEQUENCE_LENGTH:
+            start, stop, step = index.indices(len(sequence.dtype))
+
+        else:
+            # prepare the slice, cannot use .indices here because we don't know the length
+            stop = index.stop
+            start = index.start if index.start is not None else 0
+            step = index.step if index.step is not None else 1
+
+            if (start < 0) or ((stop is not None) and (stop < 0)):
+                # not supported for lists of unkown length
+                raise RuntimeError(
+                    "Negative stop values are not allowed for lists with "
+                    f"unknown lengths, got slice ({start}, {stop}, {step})."
+                )
+
+        return SequenceGetSlice(start=start, stop=stop, step=step).call(sequence)
+
+
 @SequenceFeature.register_method("pack")
-def pack_sequence(values: T, trace_index: Int32, node: None | Reference = None) -> Sequence[T]:
+def pack_sequence(
+    values: ItemType, trace_index: Int32, node: None | Reference = None
+) -> Sequence[ItemType]:
     """Reconstruct a sequence from values and trace indices.
 
     This method leverages the :class:`SequencePack` augmenter to rebuild a sequence from its

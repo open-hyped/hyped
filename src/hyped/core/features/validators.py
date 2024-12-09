@@ -27,11 +27,12 @@ class TypeValidator(AfterValidator):
         :code:`'session_id'`.
     """
 
-    def __init__(self, validator: Callable[[Any, BaseConfig], Any]) -> None:
+    def __init__(self, validator: Callable[[Any, BaseConfig, UUID], Any]) -> None:
         """Initializes the :class:`TypeValidator` with a custom validation function.
 
         Args:
-            validator (Callable[[Any, BaseConfig], Any]): The custom validation function to use.
+            validator (Callable[[Any, BaseConfig, UUID], Any]): The custom validation function
+                to use.
         """
 
         def wrapped_validator(val: Any, info: ValidationInfo) -> Any:
@@ -57,12 +58,14 @@ class TypeResolver(BeforeValidator):
             :code:`'inputs'`, or :code:`'session_id'`.
     """
 
-    def __init__(self, resolver: Callable[[BaseConfig, dict[str, Feature]], Any]) -> None:
+    def __init__(self, resolver: Callable[[BaseConfig, dict[str, Feature], UUID], Any]) -> None:
         """Initializes the :class:`TypeResolver` with a custom resolver function.
 
         Args:
-            resolver (Callable[[BaseConfig, dict[str, _Feature]], Any]): The custom resolver
-                function to use.
+            resolver (Callable[[BaseConfig, dict[str, Feature], UUID], Any]): The custom resolver
+                function to use. The function receives the node configuration, the input features
+                and the session id and returns the resolved feature type. The resolved feature type
+                can be a feature class or annotation, a typevar or an instance of a :class:`Type`.
         """
 
         def wrapped_resolver(val: Any, info: ValidationInfo) -> Any:
@@ -91,11 +94,13 @@ class TypeResolver(BeforeValidator):
                 if str(target_type) not in typevars.keys():
                     raise RuntimeError(f"Invalid TypeVar {target_type}")
 
-                target_dtype = typevars[str(target_type)]
-                assert isinstance(target_dtype, Type)
+                target_type = typevars[str(target_type)]
+                assert isinstance(target_type, Type)
 
+            # create feature from dtype
+            if isinstance(target_type, Type):
                 target_type = Annotated[
-                    Feature, BeforeValidator(partial(build_feature_from_dtype, dtype=target_dtype))
+                    Feature, BeforeValidator(partial(build_feature_from_dtype, dtype=target_type))
                 ]
 
             return TypeAdapter(target_type).validate_python(val, context=info.context)
