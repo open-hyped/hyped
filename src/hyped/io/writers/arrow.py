@@ -8,7 +8,6 @@ import pyarrow as pa
 from datasets import DatasetInfo
 
 from hyped.common._worker import get_worker_info
-from hyped.core.utils import build_dtype_from_hf_feature
 
 from .base import BaseDatasetWriter
 from .base.utils import Sample
@@ -54,7 +53,7 @@ class ArrowDatasetWriter(BaseDatasetWriter):
         worker_info.ctx.file = open(worker_info.ctx.file_path, "wb", buffering=0)
         # build arrow schema from dataset features
         assert info.features is not None
-        worker_info.ctx.schema = build_dtype_from_hf_feature(info.features).arrow_schema
+        worker_info.ctx.schema = info.features.arrow_schema
         # create arrow writer
         worker_info.ctx.writer = pa.ipc.new_stream(
             sink=worker_info.ctx.file, schema=worker_info.ctx.schema

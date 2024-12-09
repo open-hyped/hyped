@@ -13,7 +13,6 @@ from typing import Any, Callable
 
 from hyped.common._worker import manager as _manager  # noqa: F401
 from hyped.common.logging import get_logger
-from hyped.core.features.reference import FeatureKey
 
 from .utils import Sample
 
@@ -102,7 +101,7 @@ class ShardingController(object):
         is_multi_processed: bool,
         sharding_strategy: ShardingStrategy,
         max_shard_size: None | int | str,
-        sample_size_key: None | FeatureKey,
+        sample_size_key: None | str,
         initialize_shard: Callable[[int], Any],
         finalize_shard: Callable[[int], Any],
     ) -> None:
@@ -116,8 +115,8 @@ class ShardingController(object):
             max_shard_size (None | int | str): The maximum size of a shard. The format
                 depends on the sharding strategy (e.g., integer for sample counts or byte sizes,
                 or a string for file size such as "5GB").
-            sample_size_key (None | FeatureKey): The key to measure sample size, only
-                used with the SAMPLE_ITEM strategy.
+            sample_size_key (None | str): The key to measure sample size, only used with the
+                :class:`SAMPLE_ITEM` strategy.
             initialize_shard (Callable[[int], Any]): A function to initialize a new shard.
             finalize_shard (Callable[[int], Any]): A function to finalize the current shard.
         """
@@ -149,9 +148,6 @@ class ShardingController(object):
         if isinstance(max_shard_size, str):
             # parse the size string to an integer
             max_shard_size = _parse_size(max_shard_size)
-
-        if (sample_size_key is not None) and not isinstance(sample_size_key, FeatureKey):
-            sample_size_key = FeatureKey(sample_size_key)
 
         self._is_multi_processed = is_multi_processed
         # sharding strategy
@@ -214,7 +210,7 @@ class ShardingController(object):
         """
         if self._sharding_strategy is ShardingStrategy.SAMPLE_ITEM:
             # cache the size of the sample to be used later in the shard size update
-            self._sample_size = sum(map(self._sample_size_key.index_example, batch))
+            self._sample_size = sum(sample[self._sample_size_key] for sample in batch)
 
         # check if shard is full
         if self._shard_size >= self._max_shard_size:

@@ -19,7 +19,6 @@ import datasets
 
 from hyped.common.logging import get_logger
 from hyped.common.utils import chdir
-from hyped.core.features.reference import FeatureKey
 from hyped.io.writers.base.utils import BatchBuffer
 
 from .callbacks.base import Callback
@@ -74,7 +73,7 @@ class BaseDatasetWriter(ABC):
         disable_tqdm: bool = False,
         sharding_strategy: ShardingStrategy = ShardingStrategy.FILE_SIZE,
         max_shard_size: None | int | str = "5GB",
-        sample_size_key: None | FeatureKey = None,
+        sample_size_key: None | str = None,
         callbacks: list[Callback] = [],
     ) -> None:
         """Initialize the :class:`BaseDatasetWriter`.
@@ -98,7 +97,7 @@ class BaseDatasetWriter(ABC):
             max_shard_size (None | int | str): Maximum size for each shard according to the
                 sharding strategy. If specified, the sharding strategy will consider this limit.
                 Defaults to '5GB' matching the default sharding strategy.
-            sample_size_key (str, optional): The key in the dataset sample to measure size if using
+            sample_size_key (None | str): The key in the dataset sample to measure size if using
                 the :class:`SAMPLE_ITEM` sharding strategy.
             callbacks (list[Callback]): List of callbacks.
         """

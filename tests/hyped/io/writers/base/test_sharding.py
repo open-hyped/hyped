@@ -175,19 +175,15 @@ class TestShardingController:
         initialize_shard = MagicMock()
         finalize_shard = MagicMock()
 
-        key = MagicMock()
-        key.index_example = MagicMock(return_value=42)
-
         max_shard_size = 153
         controller = ShardingController(
             is_multi_processed=False,
             sharding_strategy=ShardingStrategy.SAMPLE_ITEM,
             max_shard_size=max_shard_size,
-            sample_size_key="mock",
+            sample_size_key="key",
             initialize_shard=initialize_shard,
             finalize_shard=finalize_shard,
         )
-        controller._sample_size_key = key
         # initialize the controller
         controller.initialize()
         # reset the mocks
@@ -195,14 +191,14 @@ class TestShardingController:
         finalize_shard.reset_mock()
 
         for _ in range(max_shard_size // 42 + 1):
-            controller.callback([{}])
+            controller.callback([{"key": 42}])
             controller.update(1)
             # no new shard needed to be generated yet
             assert not finalize_shard.called
             assert not initialize_shard.called
 
         # this update should kick of a new shard
-        controller.callback([{}])
+        controller.callback([{"key": 42}])
         controller.update(1)
 
         finalize_shard.assert_called_once()
