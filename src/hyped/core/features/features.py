@@ -1054,7 +1054,6 @@ class Int16Feature(PrimitiveFeature):
 
     @overload
     def __mul__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __mul__(self, other: Any) -> Feature:
@@ -2594,7 +2593,6 @@ class UInt16Feature(PrimitiveFeature):
 
     @overload
     def __truediv__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted
         ...
 
     def __truediv__(self, other: Any) -> Feature:
@@ -2763,7 +2761,6 @@ class UInt32Feature(PrimitiveFeature):
 
     @overload
     def __add__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __add__(self, other: Any) -> Feature:
@@ -2966,7 +2963,6 @@ class UInt32Feature(PrimitiveFeature):
 
     @overload
     def __truediv__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted
         ...
 
     def __truediv__(self, other: Any) -> Feature:
@@ -2983,7 +2979,6 @@ class UInt32Feature(PrimitiveFeature):
 
     @overload
     def __rtruediv__(self, other: float) -> Float64Feature:
-        # TODO: currently float is casted to integer
         ...
 
     def __rtruediv__(self, other: Any) -> Feature:

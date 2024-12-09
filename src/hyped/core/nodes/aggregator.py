@@ -262,7 +262,6 @@ class BaseDataAggregator(BaseNode[C], ABC):
         ProcessMode(batched=False, backend="python").validate().set_default(cls.update)
 
         if not cls._check_signature():
-            # TODO: error message, signature doesn't match expectation
             raise TypeError(
                 f"The class '{cls.__name__}' must implement valid 'extract' and 'update' "
                 "methods conforming to the '_AggregatorProtocol'. Ensure that 'extract' "
