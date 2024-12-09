@@ -151,17 +151,19 @@ class ExecutionState(object):
         """
         u = self.graph.nodes[node_id][DataFlowGraph.NodeAttribute.PARTITION]
         v = self.graph.get_node_output_partition(node_id)
-        # must be an edge in the partition graph
-        assert self.p_graph.has_edge(
-            u, v
-        ), f"No edge between partitions '{u}' and '{v}' in the partition graph."
-        # register the trace
-        self.traces[(u, v)] = np.asarray(trace_index)
-        # get the index of the source partition and transform it
-        assert u in self.index, f"Partition {u} not registered yet!"
-        self.index[v] = self.trace_through_partition_path([pa.array(self.index[u])], src=u, tgt=v)[
-            0
-        ].to_pylist()
+
+        if u != v:
+            # must be an edge in the partition graph
+            assert self.p_graph.has_edge(
+                u, v
+            ), f"No edge between partitions '{u}' and '{v}' in the partition graph."
+            # register the trace
+            self.traces[(u, v)] = np.asarray(trace_index)
+            # get the index of the source partition and transform it
+            assert u in self.index, f"Partition {u} not registered yet!"
+            self.index[v] = self.trace_through_partition_path(
+                [pa.array(self.index[u])], src=u, tgt=v
+            )[0].to_pylist()
 
     def collect_value(self, ref: Reference) -> pa.Array:
         """Collect the values requested by the feature reference.
