@@ -37,11 +37,6 @@ def setup_logging() -> None:
                 "class": "logging.StreamHandler",
                 "formatter": "custom",
             },
-            "file": {
-                "class": "logging.FileHandler",
-                "formatter": "custom",
-                "filename": "app.log",
-            },
         },
         "loggers": {
             "": {  # Root logger
