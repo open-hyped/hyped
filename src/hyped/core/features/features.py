@@ -32,7 +32,7 @@ from . import types
 from .mixins import MethodRegistryMixin
 from .reference import Reference
 
-if is_python_version_less_than(3, 11):  # pragma: not covered
+if is_python_version_less_than(3, 12):  # pragma: not covered
 
     def get_original_bases(cls: type) -> type:
         """Return the class's "original" bases prior to modification by :code:`__mro_entries__`."""
