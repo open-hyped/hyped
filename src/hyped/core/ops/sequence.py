@@ -403,6 +403,8 @@ def sequence_get_item(sequence: Sequence[ItemType], index: int | slice) -> ItemT
 
         return SequenceGetSlice(start=start, stop=stop, step=step).call(sequence)
 
+    raise NotImplementedError(f"Index type not supported, got {index}")
+
 
 @SequenceFeature.register_method("pack")
 def pack_sequence(
