@@ -773,6 +773,25 @@ class ExecutableDataFlow(AbstractDataFlow):
         return self._graph.width  # pragma: not covered
 
     @property
+    def collect_feature(self) -> MappingFeature:
+        """The collect feature of the executable data flow.
+
+        Returns:
+            MappingFeature: The output feature that is collected by the data flow when executed.
+        """
+        return self._collect_feature
+
+    @property
+    def aggregates_feature(self) -> None | MappingFeature:
+        """The aggregates feature of the executable data flow.
+
+        Returns:
+            None | MappingFeature: The aggregates feature that is computed when the data flow is
+                executed. :code:`None` in case no aggregates were specified when building the flow.
+        """
+        return None if self._aggregates_executor is None else self._aggregates_executor.collect
+
+    @property
     def aggregates(self) -> Mapping[str, Any]:  # pragma: not covered
         """Read-only view of the aggregated values computed during execution.
 
@@ -972,7 +991,7 @@ class ExecutableDataFlow(AbstractDataFlow):
             desc=desc,
         )
 
-    def pyarrow_process(
+    def arrow_process(
         self, batch: pa.Table, index: IndexList, rank: None | Rank = None
     ) -> pa.Table:
         """Process a batch of data in the form of a pyarrow table.
@@ -1043,7 +1062,7 @@ class ExecutableDataFlow(AbstractDataFlow):
             # use pyarrow table as output format for in-memory
             # datasets that support caching
             transformed_ds = prepared_ds.map(
-                self.pyarrow_process,
+                self.arrow_process,
                 with_indices=True,
                 with_rank=True,
                 batched=True,
@@ -1092,7 +1111,7 @@ class ExecutableDataFlow(AbstractDataFlow):
             # outputs in map function, but it also doesn't cache
             # and thus doesn't need the features while processing
             transformed_ds = prepared_ds.map(
-                self.pyarrow_process,
+                self.arrow_process,
                 with_indices=True,
                 batched=True,
                 batch_size=batch_size,
@@ -1112,7 +1131,7 @@ class ExecutableDataFlow(AbstractDataFlow):
             # outputs in map function, but it also doesn't cache
             # and thus doesn't need the features while processing
             transformed_ds = prepared_ds.map(
-                self.pyarrow_process,
+                self.arrow_process,
                 with_indices=True,
                 batched=True,
                 batch_size=batch_size,

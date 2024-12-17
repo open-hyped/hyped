@@ -1,0 +1,356 @@
+{
+  "aggregate": null,
+  "collect": "233ea18b-ca97-8371-3a51-51731e512c3a",
+  "graph": {
+    "directed": true,
+    "edges": [
+      {
+        "key": "mapping",
+        "source": "8826d916-cdfb-21c6-c1ff-91a761565a70",
+        "target": "2416da6e-c212-cddb-8d88-00160eb686b2"
+      },
+      {
+        "key": "seq",
+        "source": "2416da6e-c212-cddb-8d88-00160eb686b2",
+        "target": "eb819333-b501-1c18-8c53-c786ed62c2f9"
+      },
+      {
+        "key": "mapping",
+        "source": "eb819333-b501-1c18-8c53-c786ed62c2f9",
+        "target": "71445abc-2f0d-dac2-4097-acb7a3823bc9"
+      },
+      {
+        "key": "mapping",
+        "source": "eb819333-b501-1c18-8c53-c786ed62c2f9",
+        "target": "13d16283-160e-cc20-6ebd-f9d6297e4c73"
+      },
+      {
+        "key": "x",
+        "source": "71445abc-2f0d-dac2-4097-acb7a3823bc9",
+        "target": "29101780-8b9e-ec5e-af92-bb2e667840ed"
+      },
+      {
+        "key": "trace_index",
+        "source": "13d16283-160e-cc20-6ebd-f9d6297e4c73",
+        "target": "06ce14c8-3158-d4a4-b6a0-04674d81a0d2"
+      },
+      {
+        "key": "values",
+        "source": "29101780-8b9e-ec5e-af92-bb2e667840ed",
+        "target": "06ce14c8-3158-d4a4-b6a0-04674d81a0d2"
+      },
+      {
+        "key": "out",
+        "source": "06ce14c8-3158-d4a4-b6a0-04674d81a0d2",
+        "target": "233ea18b-ca97-8371-3a51-51731e512c3a"
+      }
+    ],
+    "graph": {
+      "src_node_id": "8826d916-cdfb-21c6-c1ff-91a761565a70"
+    },
+    "multigraph": true,
+    "nodes": [
+      {
+        "depth": 0,
+        "id": "8826d916-cdfb-21c6-c1ff-91a761565a70",
+        "in_feature_type": {
+          "fields": {},
+          "type": "MappingType"
+        },
+        "node_object": null,
+        "node_type": "SOURCE_NODE",
+        "out_feature_type": {
+          "fields": {
+            "b": {
+              "length": 4294967295,
+              "type": "SequenceType",
+              "value_type": {
+                "length": 4294967295,
+                "type": "SequenceType",
+                "value_type": {
+                  "arrow_type": "int64",
+                  "type": "PrimitiveType"
+                }
+              }
+            }
+          },
+          "type": "MappingType"
+        },
+        "partition": "DEFAULT"
+      },
+      {
+        "depth": 1,
+        "id": "2416da6e-c212-cddb-8d88-00160eb686b2",
+        "in_feature_type": {
+          "fields": {
+            "mapping": {
+              "fields": {
+                "a": {
+                  "labels": [
+                    "FIRST",
+                    "SECOND"
+                  ],
+                  "type": "ClassLabelType"
+                },
+                "b": {
+                  "length": 4294967295,
+                  "type": "SequenceType",
+                  "value_type": {
+                    "length": 4294967295,
+                    "type": "SequenceType",
+                    "value_type": {
+                      "arrow_type": "int64",
+                      "type": "PrimitiveType"
+                    }
+                  }
+                }
+              },
+              "type": "MappingType"
+            }
+          },
+          "type": "MappingType"
+        },
+        "node_object": {
+          "__type_hash__": "f4d821acf47deb8811c63f42861ff1b233daacac06c2c05d7d84e7ff96645d57",
+          "key": "b",
+          "type_id": "hyped.core.ops.mapping.MappingGetItemConfig"
+        },
+        "node_type": "DATA_PROCESSOR_NODE",
+        "out_feature_type": {
+          "length": 4294967295,
+          "type": "SequenceType",
+          "value_type": {
+            "length": 4294967295,
+            "type": "SequenceType",
+            "value_type": {
+              "arrow_type": "int64",
+              "type": "PrimitiveType"
+            }
+          }
+        },
+        "partition": "DEFAULT"
+      },
+      {
+        "depth": 2,
+        "id": "eb819333-b501-1c18-8c53-c786ed62c2f9",
+        "in_feature_type": {
+          "fields": {
+            "seq": {
+              "length": 4294967295,
+              "type": "SequenceType",
+              "value_type": {
+                "length": 4294967295,
+                "type": "SequenceType",
+                "value_type": {
+                  "arrow_type": "int64",
+                  "type": "PrimitiveType"
+                }
+              }
+            }
+          },
+          "type": "MappingType"
+        },
+        "node_object": {
+          "__type_hash__": "f97e7a2835c22b5fa60cc3d7e3c9da57e9ef4366250179183c993672a1b8b8e1",
+          "type_id": "hyped.core.ops.sequence.SequenceUnpackWithIndexConfig"
+        },
+        "node_type": "DATA_AUGMENTER_NODE",
+        "out_feature_type": {
+          "fields": {
+            "index": {
+              "arrow_type": "int32",
+              "type": "PrimitiveType"
+            },
+            "value": {
+              "length": 4294967295,
+              "type": "SequenceType",
+              "value_type": {
+                "arrow_type": "int64",
+                "type": "PrimitiveType"
+              }
+            }
+          },
+          "type": "MappingType"
+        },
+        "partition": "DEFAULT"
+      },
+      {
+        "depth": 3,
+        "id": "71445abc-2f0d-dac2-4097-acb7a3823bc9",
+        "in_feature_type": {
+          "fields": {
+            "mapping": {
+              "fields": {
+                "index": {
+                  "arrow_type": "int32",
+                  "type": "PrimitiveType"
+                },
+                "value": {
+                  "length": 4294967295,
+                  "type": "SequenceType",
+                  "value_type": {
+                    "arrow_type": "int64",
+                    "type": "PrimitiveType"
+                  }
+                }
+              },
+              "type": "MappingType"
+            }
+          },
+          "type": "MappingType"
+        },
+        "node_object": {
+          "__type_hash__": "f4d821acf47deb8811c63f42861ff1b233daacac06c2c05d7d84e7ff96645d57",
+          "key": "value",
+          "type_id": "hyped.core.ops.mapping.MappingGetItemConfig"
+        },
+        "node_type": "DATA_PROCESSOR_NODE",
+        "out_feature_type": {
+          "length": 4294967295,
+          "type": "SequenceType",
+          "value_type": {
+            "arrow_type": "int64",
+            "type": "PrimitiveType"
+          }
+        },
+        "partition": "eb819333-b501-1c18-8c53-c786ed62c2f9"
+      },
+      {
+        "depth": 3,
+        "id": "13d16283-160e-cc20-6ebd-f9d6297e4c73",
+        "in_feature_type": {
+          "fields": {
+            "mapping": {
+              "fields": {
+                "index": {
+                  "arrow_type": "int32",
+                  "type": "PrimitiveType"
+                },
+                "value": {
+                  "length": 4294967295,
+                  "type": "SequenceType",
+                  "value_type": {
+                    "arrow_type": "int64",
+                    "type": "PrimitiveType"
+                  }
+                }
+              },
+              "type": "MappingType"
+            }
+          },
+          "type": "MappingType"
+        },
+        "node_object": {
+          "__type_hash__": "f4d821acf47deb8811c63f42861ff1b233daacac06c2c05d7d84e7ff96645d57",
+          "key": "index",
+          "type_id": "hyped.core.ops.mapping.MappingGetItemConfig"
+        },
+        "node_type": "DATA_PROCESSOR_NODE",
+        "out_feature_type": {
+          "arrow_type": "int32",
+          "type": "PrimitiveType"
+        },
+        "partition": "eb819333-b501-1c18-8c53-c786ed62c2f9"
+      },
+      {
+        "depth": 4,
+        "id": "29101780-8b9e-ec5e-af92-bb2e667840ed",
+        "in_feature_type": {
+          "fields": {
+            "x": {
+              "length": 4294967295,
+              "type": "SequenceType",
+              "value_type": {
+                "arrow_type": "int64",
+                "type": "PrimitiveType"
+              }
+            }
+          },
+          "type": "MappingType"
+        },
+        "node_object": {
+          "__type_hash__": "4627eb007920540adbd98a87c3c2805f29e10f318e40cb4233ccf209edd77c1a",
+          "default": null,
+          "type_id": "hyped.core.ops.sequence.SequenceMinConfig"
+        },
+        "node_type": "DATA_PROCESSOR_NODE",
+        "out_feature_type": {
+          "arrow_type": "int64",
+          "type": "PrimitiveType"
+        },
+        "partition": "eb819333-b501-1c18-8c53-c786ed62c2f9"
+      },
+      {
+        "depth": 5,
+        "id": "06ce14c8-3158-d4a4-b6a0-04674d81a0d2",
+        "in_feature_type": {
+          "fields": {
+            "trace_index": {
+              "arrow_type": "int32",
+              "type": "PrimitiveType"
+            },
+            "values": {
+              "arrow_type": "int64",
+              "type": "PrimitiveType"
+            }
+          },
+          "type": "MappingType"
+        },
+        "node_object": {
+          "__type_hash__": "a052c4dd0effd2b8d4e6092501c7760a3cd50cb76d09f51f53cc3bdd24e6088d",
+          "original_partition": "eb819333-b501-1c18-8c53-c786ed62c2f9",
+          "type_id": "hyped.core.ops.sequence.SequencePackConfig"
+        },
+        "node_type": "DATA_AUGMENTER_NODE",
+        "out_feature_type": {
+          "length": 4294967295,
+          "type": "SequenceType",
+          "value_type": {
+            "arrow_type": "int64",
+            "type": "PrimitiveType"
+          }
+        },
+        "partition": "eb819333-b501-1c18-8c53-c786ed62c2f9"
+      },
+      {
+        "depth": 6,
+        "id": "233ea18b-ca97-8371-3a51-51731e512c3a",
+        "in_feature_type": {
+          "fields": {
+            "out": {
+              "length": 4294967295,
+              "type": "SequenceType",
+              "value_type": {
+                "arrow_type": "int64",
+                "type": "PrimitiveType"
+              }
+            }
+          },
+          "type": "MappingType"
+        },
+        "node_object": {
+          "__type_hash__": "172a800f42e5afdb7fcfa05594ce7f79e0e1f0898a095349ec3a06f237d39a83",
+          "lookup": {
+            "out": "out"
+          },
+          "type_id": "hyped.core.nodes.collect.CollectNodeConfig"
+        },
+        "node_type": "COLLECT_NODE",
+        "out_feature_type": {
+          "fields": {
+            "out": {
+              "length": 4294967295,
+              "type": "SequenceType",
+              "value_type": {
+                "arrow_type": "int64",
+                "type": "PrimitiveType"
+              }
+            }
+          },
+          "type": "MappingType"
+        },
+        "partition": "eb819333-b501-1c18-8c53-c786ed62c2f9"
+      }
+    ]
+  }
+}
