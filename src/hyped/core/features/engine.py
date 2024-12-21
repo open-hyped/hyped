@@ -17,9 +17,9 @@ import pydantic.generics
 from hyped.common._pydantic import BaseModelWithArbitraryTypesAllowed
 
 from ..registry.config import BaseConfig
+from .dtypes import Type, build_dtype_from_python_object, common_dtype
 from .features import Feature, build_feature_from_annotation
 from .reference import Reference
-from .types import Type, build_dtype_from_python_object, common_dtype
 
 
 class TypeVarRegister(object):

@@ -31,8 +31,8 @@ from typing import Any
 import pyarrow as pa
 
 from .executor import DataFlowExecutor
+from .features.dtypes import BoolType, MappingType, Type
 from .features.reference import Reference
-from .features.types import BoolType, MappingType, Type
 from .graph import DataFlowGraph
 from .ops.mapping import MappingGetItem
 from .typing import NodeId

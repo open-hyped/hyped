@@ -28,7 +28,7 @@ from pydantic_core import PydanticCustomError, core_schema
 from hyped.common._pydantic import BaseModelWithArbitraryTypesAllowed
 from hyped.common.utils import is_python_version_less_than
 
-from . import types
+from . import dtypes
 from .mixins import MethodRegistryMixin
 from .reference import Reference
 
@@ -61,7 +61,7 @@ class Feature(MethodRegistryMixin):
     ref: Reference
     """The reference to the feature."""
 
-    dtype: types.Type
+    dtype: dtypes.Type
     """The data type of the feature."""
 
     @classmethod
@@ -91,7 +91,7 @@ class PrimitiveFeature(Feature):
     with primitive data types.
     """
 
-    _expected_dtype: ClassVar[types.Type]
+    _expected_dtype: ClassVar[dtypes.Type]
     """The expected data type for this feature.
 
     Subclasses should define this attribute to indicate the primitive data type
@@ -139,8 +139,10 @@ class PrimitiveFeature(Feature):
             # make sure the data type matches the expectation
             if inst.dtype is not cls._expected_dtype:
                 # convert class label feature to underlying integer feature
-                if isinstance(inst, ClassLabelFeature) and (cls._expected_dtype is types.Int64Type):
-                    return Int64Feature(inst.ref, dtype=types.Int64Type)
+                if isinstance(inst, ClassLabelFeature) and (
+                    cls._expected_dtype is dtypes.Int64Type
+                ):
+                    return Int64Feature(inst.ref, dtype=dtypes.Int64Type)
 
                 raise PydanticCustomError(
                     "Type Mismatch",
@@ -158,7 +160,7 @@ class PrimitiveFeature(Feature):
 class BoolFeature(PrimitiveFeature):
     """A primitive feature representing a boolean value."""
 
-    _expected_dtype: Final[types.Type] = types.BoolType
+    _expected_dtype: Final[dtypes.Type] = dtypes.BoolType
 
     def __invert__(self) -> BoolFeature:
         """Performs boolean negation ('~').
@@ -239,7 +241,7 @@ class BoolFeature(PrimitiveFeature):
 class StringFeature(PrimitiveFeature):
     """A primitive feature representing a string value."""
 
-    _expected_dtype: Final[types.Type] = types.StringType
+    _expected_dtype: Final[dtypes.Type] = dtypes.StringType
 
     def __add__(self, other: Any) -> StringFeature:
         """Performs string concatenation ('+').
@@ -475,7 +477,7 @@ class StringFeature(PrimitiveFeature):
 class Int8Feature(PrimitiveFeature):
     """A primitive feature representing a signed 8-bit integer."""
 
-    _expected_dtype: Final[types.Type] = types.Int8Type
+    _expected_dtype: Final[dtypes.Type] = dtypes.Int8Type
 
     def __abs__(self) -> Int8Feature:
         """Performs the absolute value operation ('abs').
@@ -845,7 +847,7 @@ class Int8Feature(PrimitiveFeature):
 class Int16Feature(PrimitiveFeature):
     """A primitive feature representing a signed 16-bit integer."""
 
-    _expected_dtype: Final[types.Type] = types.Int16Type
+    _expected_dtype: Final[dtypes.Type] = dtypes.Int16Type
 
     def __abs__(self) -> Int16Feature:
         """Performs the absolute value operation ('abs').
@@ -1215,7 +1217,7 @@ class Int16Feature(PrimitiveFeature):
 class Int32Feature(PrimitiveFeature):
     """A primitive feature representing a signed 32-bit integer."""
 
-    _expected_dtype: Final[types.Type] = types.Int32Type
+    _expected_dtype: Final[dtypes.Type] = dtypes.Int32Type
 
     def __abs__(self) -> Int32Feature:
         """Performs the absolute value operation ('abs').
@@ -1587,7 +1589,7 @@ class Int32Feature(PrimitiveFeature):
 class Int64Feature(PrimitiveFeature):
     """A primitive feature representing a signed 64-bit integer."""
 
-    _expected_dtype: Final[types.Type] = types.Int64Type
+    _expected_dtype: Final[dtypes.Type] = dtypes.Int64Type
 
     def __abs__(self) -> Int64Feature:
         """Performs the absolute value operation ('abs').
@@ -1957,7 +1959,7 @@ class Int64Feature(PrimitiveFeature):
 class UInt8Feature(PrimitiveFeature):
     """A primitive feature representing an unsigned 8-bit integer."""
 
-    _expected_dtype: Final[types.Type] = types.UInt8Type
+    _expected_dtype: Final[dtypes.Type] = dtypes.UInt8Type
 
     def __abs__(self) -> UInt8Feature:
         """Performs the absolute value operation ('abs').
@@ -2327,7 +2329,7 @@ class UInt8Feature(PrimitiveFeature):
 class UInt16Feature(PrimitiveFeature):
     """A primitive feature representing an unsigned 16-bit integer."""
 
-    _expected_dtype: Final[types.Type] = types.UInt16Type
+    _expected_dtype: Final[dtypes.Type] = dtypes.UInt16Type
 
     def __abs__(self) -> UInt16Feature:
         """Performs the absolute value operation ('abs').
@@ -2697,7 +2699,7 @@ class UInt16Feature(PrimitiveFeature):
 class UInt32Feature(PrimitiveFeature):
     """A primitive feature representing an unsigned 32-bit integer."""
 
-    _expected_dtype: Final[types.Type] = types.UInt32Type
+    _expected_dtype: Final[dtypes.Type] = dtypes.UInt32Type
 
     def __abs__(self) -> UInt32Feature:
         """Performs the absolute value operation ('abs').
@@ -3067,7 +3069,7 @@ class UInt32Feature(PrimitiveFeature):
 class UInt64Feature(PrimitiveFeature):
     """A primitive feature representing an unsigned 64-bit integer."""
 
-    _expected_dtype: Final[types.Type] = types.UInt64Type
+    _expected_dtype: Final[dtypes.Type] = dtypes.UInt64Type
 
     def __abs__(self) -> UInt64Feature:
         """Performs the absolute value operation ('abs').
@@ -3437,7 +3439,7 @@ class UInt64Feature(PrimitiveFeature):
 class Float32Feature(PrimitiveFeature):
     """A primitive feature representing a 32-bit floating-point number."""
 
-    _expected_dtype: Final[types.Type] = types.Float32Type
+    _expected_dtype: Final[dtypes.Type] = dtypes.Float32Type
 
     def __abs__(self) -> Float32Feature:
         """Performs the absolute value operation ('abs').
@@ -3659,7 +3661,7 @@ class Float32Feature(PrimitiveFeature):
 class Float64Feature(PrimitiveFeature):
     """A primitive feature representing a 64-bit floating-point number."""
 
-    _expected_dtype: Final[types.Type] = types.Float64Type
+    _expected_dtype: Final[dtypes.Type] = dtypes.Float64Type
 
     def __abs__(self) -> Float64Feature:
         """Performs the absolute value operation ('abs').
@@ -3911,7 +3913,7 @@ class ClassLabelFeature(Int64Feature):
 
     def __post_init__(self) -> None:
         """Validates the class label data type and ensures label definitions are consistent."""
-        assert isinstance(self.dtype, types.ClassLabelType)
+        assert isinstance(self.dtype, dtypes.ClassLabelType)
 
         # make sure that the members that are specified in the class label enum
         # are valid in the class label data type
@@ -3942,7 +3944,7 @@ class ClassLabelFeature(Int64Feature):
         return IntEnum("ClassLabelEnum", values)
 
     @classmethod
-    def _build_class_label_dtype(cls) -> types.ClassLabelType:
+    def _build_class_label_dtype(cls) -> dtypes.ClassLabelType:
         """Constructs the class label data type based on the defined labels.
 
         Returns:
@@ -3956,7 +3958,7 @@ class ClassLabelFeature(Int64Feature):
                     f"Detected missing label ID {i} in {cls.__qualname__}, filling with 'UNDEF'."
                 )
             names.append(enum(i).name if i in enum else "UNDEF")
-        return types.ClassLabelType(names=tuple(names))
+        return dtypes.ClassLabelType(names=tuple(names))
 
     @classmethod
     def from_names(cls, names: list[str]) -> type[ClassLabelFeature]:
@@ -4058,12 +4060,12 @@ class SequenceFeature(typing.Sequence[T], Feature):
     safety and feature reference consistency.
     """
 
-    dtype: types.SequenceType
+    dtype: dtypes.SequenceType
     """The data type of the sequence, must be an instance of :class:`types.SequenceType`."""
 
     def __post_init__(self) -> None:
         """Validates that the data type is a valid sequence type."""
-        assert isinstance(self.dtype, types.SequenceType)
+        assert isinstance(self.dtype, dtypes.SequenceType)
 
     @typing.overload
     def __getitem__(self, index: int) -> T:
@@ -4107,7 +4109,7 @@ class SequenceFeature(typing.Sequence[T], Feature):
         """
         return (
             len(self.dtype)
-            if len(self.dtype) != types.UNDEFINED_SEQUENCE_LENGTH
+            if len(self.dtype) != dtypes.UNDEFINED_SEQUENCE_LENGTH
             else self.execute_method("length")
         )
 
@@ -4246,7 +4248,7 @@ class SequenceFeature(typing.Sequence[T], Feature):
             elif isinstance(inst, Reference):
                 # create instance from reference
                 value_feature = adapter.validate_python(inst, context=info.context)
-                inst = SequenceFeature(inst, dtype=types.SequenceType(value_feature.dtype))
+                inst = SequenceFeature(inst, dtype=dtypes.SequenceType(value_feature.dtype))
 
             # run the core validator checking that the instance
             # is a valid sequence feature
@@ -4292,7 +4294,7 @@ class _MappingFeature(typing.Mapping, Feature):
         # and `key2` as an integer feature.
     """
 
-    dtype: types.MappingType
+    dtype: dtypes.MappingType
     """The data type for the mapping, which includes the types of keys and values."""
 
     def __post_init__(self) -> None:
@@ -4318,7 +4320,7 @@ class _MappingFeature(typing.Mapping, Feature):
             KeyError: If there are any invalid or missing keys in the
                       mapping feature.
         """
-        assert isinstance(self.dtype, types.MappingType)
+        assert isinstance(self.dtype, dtypes.MappingType)
 
         # base mapping type allows arbitrary keys
         if type(self) is _MappingFeature:
@@ -4451,7 +4453,7 @@ class _MappingFeature(typing.Mapping, Feature):
                 members = {key: inst for key in model.model_fields.keys()}
                 members = {key: field.dtype for key, field in model.model_validate(members)}
                 # create the mapping instance from the member types
-                inst = cls(inst, types.MappingType.construct(members))
+                inst = cls(inst, dtypes.MappingType.construct(members))
 
             # run the core validator checking that the instance
             # is a valid mapping
@@ -4512,22 +4514,22 @@ else:
     MappingFeature: typing.TypeAlias = _MappingFeature
 
 PRIMITIVE_FEATURE_MAPPING = {
-    types.BoolType: BoolFeature,
-    types.StringType: StringFeature,
-    types.UInt8Type: UInt8Feature,
-    types.UInt16Type: UInt16Feature,
-    types.UInt32Type: UInt32Feature,
-    types.UInt64Type: UInt64Feature,
-    types.Int8Type: Int8Feature,
-    types.Int16Type: Int16Feature,
-    types.Int32Type: Int32Feature,
-    types.Int64Type: Int64Feature,
-    types.Float32Type: Float32Feature,
-    types.Float64Type: Float64Feature,
+    dtypes.BoolType: BoolFeature,
+    dtypes.StringType: StringFeature,
+    dtypes.UInt8Type: UInt8Feature,
+    dtypes.UInt16Type: UInt16Feature,
+    dtypes.UInt32Type: UInt32Feature,
+    dtypes.UInt64Type: UInt64Feature,
+    dtypes.Int8Type: Int8Feature,
+    dtypes.Int16Type: Int16Feature,
+    dtypes.Int32Type: Int32Feature,
+    dtypes.Int64Type: Int64Feature,
+    dtypes.Float32Type: Float32Feature,
+    dtypes.Float64Type: Float64Feature,
 }
 
 
-def build_feature_from_dtype(ref: Reference, dtype: types.Type) -> Feature:
+def build_feature_from_dtype(ref: Reference, dtype: dtypes.Type) -> Feature:
     """Build a feature from a given data type and reference.
 
     This function takes a reference and a data type, and constructs the appropriate
@@ -4545,16 +4547,16 @@ def build_feature_from_dtype(ref: Reference, dtype: types.Type) -> Feature:
     Raises:
         TypeError: If the :code:`dtype` is not recognized.
     """
-    if isinstance(dtype, types.ClassLabelType):
+    if isinstance(dtype, dtypes.ClassLabelType):
         return ClassLabelFeature(ref, dtype)
 
-    elif isinstance(dtype, types.PrimitiveType):
+    elif isinstance(dtype, dtypes.PrimitiveType):
         return PRIMITIVE_FEATURE_MAPPING[dtype](ref, dtype)
 
-    elif isinstance(dtype, types.SequenceType):
+    elif isinstance(dtype, dtypes.SequenceType):
         return SequenceFeature(ref, dtype)
 
-    elif isinstance(dtype, types.MappingType):
+    elif isinstance(dtype, dtypes.MappingType):
         return MappingFeature(ref, dtype)
 
     raise TypeError(f"Unsupported data type, got {dtype}.")
@@ -4563,7 +4565,7 @@ def build_feature_from_dtype(ref: Reference, dtype: types.Type) -> Feature:
 def build_feature_from_annotation(
     ref: Reference,
     annotation: Any,
-    typevar_mapping: dict[TypeVar, types.Type] = {},
+    typevar_mapping: dict[TypeVar, dtypes.Type] = {},
     context: dict[str, Any] = {},
 ) -> Feature:
     """Build a feature from a given annotation.

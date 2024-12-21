@@ -4,10 +4,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from hyped.core.features.dtypes import BoolType, Int16Type
 from hyped.core.features.engine import FeatureEngine
 from hyped.core.features.features import BoolFeature, Int16Feature, PrimitiveFeature
 from hyped.core.features.reference import Reference
-from hyped.core.features.types import BoolType, Int16Type
 
 
 class TestFeatureEngine:

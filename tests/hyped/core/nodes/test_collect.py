@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pyarrow as pa
 import pytest
 
-from hyped.core.features.types import Int32Type, Int64Type, MappingType, SequenceType, Type
+from hyped.core.features.dtypes import Int32Type, Int64Type, MappingType, SequenceType, Type
 from hyped.core.nodes.base import RunContext
 from hyped.core.nodes.collect import CollectNode
 from hyped.core.utils import NestedType

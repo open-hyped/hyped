@@ -8,8 +8,8 @@ import numpy as np
 import pytest
 
 from hyped.core.executor import DataFlowExecutor, ExecutionState, LazyDataFlowExecutor
+from hyped.core.features.dtypes import BoolType, MappingType, Type
 from hyped.core.features.reference import Reference
-from hyped.core.features.types import BoolType, MappingType, Type
 from hyped.core.graph import DataFlowGraph
 from hyped.core.nodes.aggregator import BaseDataAggregator
 from hyped.core.nodes.augmenter import BaseDataAugmenter

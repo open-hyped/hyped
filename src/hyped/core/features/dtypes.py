@@ -1,4 +1,4 @@
-"""Type System Module.
+"""Data Type System Module.
 
 This module defines a comprehensive type system for representing data types used in a structured
 framework. It includes abstractions for primitive types as well as nested structures including

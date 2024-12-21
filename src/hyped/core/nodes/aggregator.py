@@ -34,7 +34,7 @@ from typing_extensions import Self
 
 from hyped.common._worker import manager as _manager  # noqa: F401
 
-from ..features.types import MappingType
+from ..features.dtypes import MappingType
 from ..typing import Feature
 from .base import BaseNode, BaseNodeConfig, NodeProtocol, ProcessMode, RunContext
 

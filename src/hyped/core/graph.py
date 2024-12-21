@@ -20,10 +20,7 @@ import numpy as np
 import pyarrow as pa
 
 from .abstract import AbstractDataFlowGraph
-from .features.engine import FeatureEngine
-from .features.features import Feature, build_feature_from_dtype
-from .features.reference import Reference
-from .features.types import (
+from .features.dtypes import (
     MappingType,
     SequenceType,
     Type,
@@ -31,6 +28,9 @@ from .features.types import (
     build_type_from_dict,
     cast_dtype,
 )
+from .features.engine import FeatureEngine
+from .features.features import Feature, build_feature_from_dtype
+from .features.reference import Reference
 from .nodes.aggregator import BaseDataAggregator
 from .nodes.augmenter import BaseDataAugmenter
 from .nodes.base import BaseNode, RunContext

@@ -13,20 +13,7 @@ from typing import Annotated, Any, Callable, TypeVar
 import pyarrow.compute as pc
 
 from ..abstract import AbstractDataFlowGraph
-from ..features.features import (
-    Feature,
-    Float32Feature,
-    Float64Feature,
-    Int8Feature,
-    Int16Feature,
-    Int32Feature,
-    Int64Feature,
-    UInt8Feature,
-    UInt16Feature,
-    UInt32Feature,
-    UInt64Feature,
-)
-from ..features.types import (
+from ..features.dtypes import (
     Float32Type,
     Float64Type,
     Int8Type,
@@ -39,6 +26,19 @@ from ..features.types import (
     UInt32Type,
     UInt64Type,
     build_dtype_from_python_object,
+)
+from ..features.features import (
+    Feature,
+    Float32Feature,
+    Float64Feature,
+    Int8Feature,
+    Int16Feature,
+    Int32Feature,
+    Int64Feature,
+    UInt8Feature,
+    UInt16Feature,
+    UInt32Feature,
+    UInt64Feature,
 )
 from ..features.validators import TypeResolver
 from ..nodes.base import RunContext, process_mode

@@ -13,9 +13,9 @@ from typing import Any, ClassVar
 import pyarrow as pa
 import pytest
 
+from hyped.core.features.dtypes import MappingType, Type
 from hyped.core.features.features import build_feature_from_annotation
 from hyped.core.features.reference import Reference
-from hyped.core.features.types import MappingType, Type
 from hyped.core.flow import DataFlow, ExecutableDataFlow
 from hyped.core.nodes.base import BaseNode
 from hyped.core.typing import Feature, IndexList, Rank

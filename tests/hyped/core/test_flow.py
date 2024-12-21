@@ -7,9 +7,9 @@ import networkx as nx
 import pytest
 
 from hyped.core.executor import DataFlowExecutor
+from hyped.core.features.dtypes import BoolType, MappingType
 from hyped.core.features.features import Feature, MappingFeature
 from hyped.core.features.reference import Reference
-from hyped.core.features.types import BoolType, MappingType
 from hyped.core.flow import DataFlow, ExecutableDataFlow, plot_data_flow
 from hyped.core.graph import DataFlowGraph
 from hyped.core.optim import DataFlowGraphOptimizer

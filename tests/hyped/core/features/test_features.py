@@ -7,6 +7,25 @@ from unittest.mock import MagicMock
 import pydantic
 import pytest
 
+from hyped.core.features.dtypes import (
+    UNDEFINED_SEQUENCE_LENGTH,
+    BoolType,
+    ClassLabelType,
+    Float32Type,
+    Float64Type,
+    Int8Type,
+    Int16Type,
+    Int32Type,
+    Int64Type,
+    MappingType,
+    SequenceType,
+    StringType,
+    Type,
+    UInt8Type,
+    UInt16Type,
+    UInt32Type,
+    UInt64Type,
+)
 from hyped.core.features.features import (
     BoolFeature,
     ClassLabelFeature,
@@ -28,25 +47,6 @@ from hyped.core.features.features import (
 from hyped.core.features.features import _MappingFeature as MappingFeature
 from hyped.core.features.features import build_feature_from_annotation, build_feature_from_dtype
 from hyped.core.features.reference import Reference
-from hyped.core.features.types import (
-    UNDEFINED_SEQUENCE_LENGTH,
-    BoolType,
-    ClassLabelType,
-    Float32Type,
-    Float64Type,
-    Int8Type,
-    Int16Type,
-    Int32Type,
-    Int64Type,
-    MappingType,
-    SequenceType,
-    StringType,
-    Type,
-    UInt8Type,
-    UInt16Type,
-    UInt32Type,
-    UInt64Type,
-)
 from hyped.core.graph import DataFlowGraph
 
 

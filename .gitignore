@@ -146,10 +146,6 @@ tags
 /src/hyped/__version__.py
 **/*.lock
 
-# explicitly unignore data directory
-!/src/hyped/data
-!/tests/hyped/data
-
 # ignore prototype scripts
 /proto*.py
 /proto*.ipynb

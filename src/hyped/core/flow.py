@@ -27,6 +27,13 @@ from hyped.common._worker import get_worker_info
 
 from .abstract import AbstractDataFlow
 from .executor import DataFlowExecutor, LazyDataFlowExecutor
+from .features.dtypes import (
+    MappingType,
+    Type,
+    build_dtype_from_hf_feature,
+    build_dtype_from_python_object,
+    is_dtype_subset,
+)
 from .features.features import (
     BoolFeature,
     Feature,
@@ -39,13 +46,6 @@ from .features.features import (
     build_feature_from_dtype,
 )
 from .features.reference import Reference
-from .features.types import (
-    MappingType,
-    Type,
-    build_dtype_from_hf_feature,
-    build_dtype_from_python_object,
-    is_dtype_subset,
-)
 from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext

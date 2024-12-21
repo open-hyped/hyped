@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import networkx as nx
 import pytest
 
+from hyped.core.features.dtypes import BoolType as MockType
+from hyped.core.features.dtypes import MappingType, Type
 from hyped.core.features.reference import Reference
-from hyped.core.features.types import BoolType as MockType
-from hyped.core.features.types import MappingType, Type
 from hyped.core.graph import DataFlowGraph
 from hyped.core.ops.mapping import MappingGetItem
 from hyped.core.optim import DataFlowGraphOptimizer

@@ -3,8 +3,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from hyped.core.features.dtypes import (
+    Float32Type,
+    Int32Type,
+    Int64Type,
+    StringType,
+    Type,
+    UInt8Type,
+)
 from hyped.core.features.features import Feature
-from hyped.core.features.types import Float32Type, Int32Type, Int64Type, StringType, Type, UInt8Type
 from hyped.core.ops.numeric import (
     Abs,
     Add,

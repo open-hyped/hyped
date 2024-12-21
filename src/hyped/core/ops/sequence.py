@@ -17,9 +17,9 @@ import pyarrow.compute as pc
 from hyped.common._pyarrow import flatten_list_array, unflatten_list_array
 from hyped.core.typing import PartitionId
 
+from ..features.dtypes import UNDEFINED_SEQUENCE_LENGTH
 from ..features.features import Int32Feature, SequenceFeature
 from ..features.reference import Reference
-from ..features.types import UNDEFINED_SEQUENCE_LENGTH
 from ..graph import DataFlowGraph
 from ..nodes.augmenter import BaseDataAugmenter, BaseDataAugmenterConfig
 from ..nodes.base import RunContext, process_mode

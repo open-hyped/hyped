@@ -5,7 +5,7 @@ import pyarrow as pa
 import pytest
 from datasets.features.features import FeatureType
 
-from hyped.core.features.types import (
+from hyped.core.features.dtypes import (
     UNDEFINED_SEQUENCE_LENGTH,
     BoolType,
     ClassLabelType,

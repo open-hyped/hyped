@@ -6,9 +6,9 @@ import networkx as nx
 import pyarrow as pa
 import pytest
 
+from hyped.core.features.dtypes import BoolType as MockType
+from hyped.core.features.dtypes import MappingType, SequenceType, Type
 from hyped.core.features.reference import Reference
-from hyped.core.features.types import BoolType as MockType
-from hyped.core.features.types import MappingType, SequenceType, Type
 from hyped.core.graph import (
     DataFlowGraph,
     _build_dependency_graph,

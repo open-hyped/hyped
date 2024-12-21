@@ -3,9 +3,9 @@ from unittest.mock import ANY, MagicMock, patch
 import pyarrow as pa
 import pytest
 
+from hyped.core.features.dtypes import Int32Type, MappingType
 from hyped.core.features.features import Feature
 from hyped.core.features.reference import Reference
-from hyped.core.features.types import Int32Type, MappingType
 from hyped.core.flow import DataFlow
 from hyped.core.graph import DataFlowGraph
 from hyped.core.nodes.base import BaseNode, BaseNodeConfig, ProcessMode, RunContext, process_mode

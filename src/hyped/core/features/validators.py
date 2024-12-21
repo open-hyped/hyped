@@ -14,8 +14,8 @@ from uuid import UUID
 from pydantic import AfterValidator, BeforeValidator, TypeAdapter, ValidationInfo
 
 from ..registry.config import BaseConfig
+from .dtypes import Type
 from .features import Feature, SequenceFeature, build_feature_from_dtype
-from .types import Type
 
 
 @dataclass(eq=True, frozen=True)

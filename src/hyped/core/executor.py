@@ -19,8 +19,8 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 
+from .features.dtypes import MappingType
 from .features.reference import Reference
-from .features.types import MappingType
 from .graph import DataFlowGraph
 from .nodes.aggregator import BaseDataAggregator, DataAggregationManager
 from .nodes.augmenter import BaseDataAugmenter

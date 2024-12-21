@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 import networkx as nx
 import numpy as np
 
-from hyped.core.features.types import BoolType as MockType
-from hyped.core.features.types import Type
+from hyped.core.features.dtypes import BoolType as MockType
+from hyped.core.features.dtypes import Type
 from hyped.core.graph import DataFlowGraph, _build_dependency_graph
 
 

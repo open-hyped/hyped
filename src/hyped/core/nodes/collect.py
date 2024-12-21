@@ -14,8 +14,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from ..abstract import AbstractDataFlowGraph
-from ..features.reference import Reference
-from ..features.types import (
+from ..features.dtypes import (
     UNDEFINED_SEQUENCE_LENGTH,
     MappingType,
     SequenceType,
@@ -23,6 +22,7 @@ from ..features.types import (
     cast_dtype,
     common_dtype,
 )
+from ..features.reference import Reference
 from ..utils import NestedType
 from .base import BaseNode, BaseNodeConfig, RunContext
 
