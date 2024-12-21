@@ -123,9 +123,9 @@ class TypeVarRegister(object):
 class FeatureEngine(object):
     """Feature Engine.
 
-    The `FeatureEngine` ensures that the input features conform to the expected types defined
-    in the function's signature and uses the type annotations to construct output features
-    dynamically.
+    The :class:`FeatureEngine` ensures that the input features conform to the expected types
+    defined in the function's signature and uses the type annotations to construct output
+    features dynamically.
     """
 
     def __init__(self, name: str, config: BaseConfig, signature: inspect.Signature) -> None:
