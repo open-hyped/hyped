@@ -39,6 +39,7 @@ from ..features.features import (
     UInt16Feature,
     UInt32Feature,
     UInt64Feature,
+    build_feature_from_reference,
 )
 from ..features.validators import TypeResolver
 from ..nodes.base import RunContext, process_mode
@@ -114,7 +115,7 @@ def add_constant(val: Any, candidate_dtype: Type, graph: AbstractDataFlowGraph) 
 
     # add the constant node to the graph
     ref = graph.add_const_node(val, dtype)
-    return graph.get_feature_from_reference(ref)
+    return build_feature_from_reference(ref)
 
 
 def handle_constant_for_binary_operation(

@@ -15,7 +15,6 @@ import pytest
 
 from hyped.core.features.dtypes import MappingType, Type
 from hyped.core.features.features import build_feature_from_annotation
-from hyped.core.features.reference import Reference
 from hyped.core.flow import DataFlow, ExecutableDataFlow
 from hyped.core.nodes.base import BaseNode
 from hyped.core.typing import Feature, IndexList, Rank
@@ -144,7 +143,7 @@ class BaseNodeTest(ABC):
         """
         return MappingType.construct(
             {
-                key: build_feature_from_annotation(Reference(), annotation).dtype
+                key: build_feature_from_annotation(annotation).dtype
                 for key, annotation in cls.input_features.items()
             }
         )
@@ -157,7 +156,7 @@ class BaseNodeTest(ABC):
             Type: The expected output type, or `None` if no expected output is specified.
         """
         return (
-            build_feature_from_annotation(Reference(), cls.expected_output_feature).dtype
+            build_feature_from_annotation(cls.expected_output_feature).dtype
             if cls.expected_output_feature is not None
             else None
         )

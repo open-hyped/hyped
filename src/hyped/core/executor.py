@@ -20,7 +20,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from .features.dtypes import MappingType
-from .features.reference import Reference
+from .features.reference import ConcreteReference
 from .graph import DataFlowGraph
 from .nodes.aggregator import BaseDataAggregator, DataAggregationManager
 from .nodes.augmenter import BaseDataAugmenter
@@ -165,11 +165,11 @@ class ExecutionState(object):
                 [pa.array(self.index[u])], src=u, tgt=v
             )[0].to_pylist()
 
-    def collect_value(self, ref: Reference) -> pa.Array:
+    def collect_value(self, ref: ConcreteReference) -> pa.Array:
         """Collect the values requested by the feature reference.
 
         Args:
-            ref (Reference): The feature reference indicating which
+            ref (ConcreteReference): The feature reference indicating which
                 values to collect.
 
         Returns:
@@ -255,14 +255,14 @@ class DataFlowExecutor(object):
     def __init__(
         self,
         graph: DataFlowGraph,
-        collect: Reference,
+        collect: ConcreteReference,
         aggregation_manager: None | DataAggregationManager,
     ) -> None:
         """Initialize the executor.
 
         Args:
             graph (DataFlowGraph): The data flow graph to execute.
-            collect (Reference): The feature reference to collect results.
+            collect (ConcreteReference): The feature reference to collect results.
             aggregation_manager (None | DataAggregationManager):
                 The manager responsible for handling data aggregation. Can be
                 None if the graph has no aggregator nodes.
@@ -400,14 +400,14 @@ class LazyDataFlowExecutor(typing.Mapping, DataFlowExecutor):
     def __init__(
         self,
         graph: DataFlowGraph,
-        collect: Reference,
+        collect: ConcreteReference,
         input_proxy: MappingProxyType[str, pa.Scalar],
     ) -> None:
         """Initialize the executor.
 
         Args:
             graph (DataFlowGraph): The data flow graph to execute.
-            collect (Reference): The feature reference to collect results.
+            collect (ConcreteReference): The feature reference to collect results.
             input_proxy (MappingProxyType[str, Any]): A read-only proxy for the input data.
         """
         DataFlowExecutor.__init__(self, graph, collect, None)

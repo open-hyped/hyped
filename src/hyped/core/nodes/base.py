@@ -31,6 +31,8 @@ from ..abstract import AbstractDataFlow, AbstractDataFlowGraph
 from ..features.dtypes import MappingType, Type
 from ..features.engine import FeatureEngine
 from ..features.features import Feature as _Feature
+from ..features.features import build_feature_from_reference
+from ..features.reference import ConcreteReference
 from ..registry.config import BaseConfig, BaseConfigurable
 from ..typing import Feature, Index, IndexList, NodeId, Rank
 
@@ -470,16 +472,16 @@ class BaseNode(BaseConfigurable[C], ABC):
 
         # try to infer the flow from any feature argument
         all_args = chain(args, kwargs.values())
-        references = filter(lambda f: isinstance(f, _Feature), all_args)
+        features = filter(lambda f: isinstance(f, _Feature), all_args)
 
         # try to get the first reference in the arguments
-        reference: _Feature = next(references, None)
-
-        if reference is None:
+        first: None | _Feature = next(features, None)
+        if first is None:
             raise RuntimeError("DataFlow instance cannot be inferred from arguments!")
 
         # get the flow from the reference
-        return reference.ref._graph, args, kwargs
+        assert isinstance(first.ref, ConcreteReference)
+        return first.ref._graph, args, kwargs
 
     @overload
     def call(self, *args: Feature, **kwargs: Feature) -> Feature:
@@ -529,4 +531,4 @@ class BaseNode(BaseConfigurable[C], ABC):
 
         # add the node and return the output feature
         ref = graph.add_compute_node(self, references)
-        return graph.get_feature_from_reference(ref)
+        return build_feature_from_reference(ref)

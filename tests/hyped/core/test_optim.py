@@ -6,7 +6,7 @@ import pytest
 
 from hyped.core.features.dtypes import BoolType as MockType
 from hyped.core.features.dtypes import MappingType, Type
-from hyped.core.features.reference import Reference
+from hyped.core.features.reference import ConcreteReference
 from hyped.core.graph import DataFlowGraph
 from hyped.core.ops.mapping import MappingGetItem
 from hyped.core.optim import DataFlowGraphOptimizer
@@ -283,7 +283,9 @@ class TestDataFlowGraphOptimizer:
         # add all edges assuming that all non-source nodes
         # are get-item nodes
         for u, v, k in edges_with_keys:
-            graph.add_compute_node(MappingGetItem(key=k), {"mapping": Reference(u, graph)}, v)
+            graph.add_compute_node(
+                MappingGetItem(key=k), {"mapping": ConcreteReference(u, graph)}, v
+            )
         # apply accessed fields
         DataFlowGraphOptimizer().apply_accessed_fields(graph)
         # check the accessed source data type

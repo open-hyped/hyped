@@ -19,7 +19,7 @@ from hyped.core.typing import PartitionId
 
 from ..features.dtypes import UNDEFINED_SEQUENCE_LENGTH
 from ..features.features import Int32Feature, SequenceFeature
-from ..features.reference import Reference
+from ..features.reference import ConcreteReference
 from ..graph import DataFlowGraph
 from ..nodes.augmenter import BaseDataAugmenter, BaseDataAugmenterConfig
 from ..nodes.base import RunContext, process_mode
@@ -408,7 +408,7 @@ def sequence_get_item(sequence: Sequence[ItemType], index: int | slice) -> ItemT
 
 @SequenceFeature.register_method("pack")
 def pack_sequence(
-    values: ItemType, trace_index: Int32, node: None | Reference = None
+    values: ItemType, trace_index: Int32, node: None | ConcreteReference = None
 ) -> Sequence[ItemType]:
     """Reconstruct a sequence from values and trace indices.
 
@@ -421,8 +421,8 @@ def pack_sequence(
         values (T): The flattened sequence values to be packed.
         trace_index (Int32): The trace indices associated with the values, mapping them to their
             original structure.
-        node (None | Reference): A reference to the node performing the flattening operation,
-            used to infer the partition for the packing operation.
+        node (None | ConcreteReference): A reference to the node performing the flattening
+            operation, used to infer the partition for the packing operation.
 
     Returns:
         Sequence[T]: The packed sequence, reconstructed from the flattened values and trace indices,

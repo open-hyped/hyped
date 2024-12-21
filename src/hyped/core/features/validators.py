@@ -15,7 +15,8 @@ from pydantic import AfterValidator, BeforeValidator, TypeAdapter, ValidationInf
 
 from ..registry.config import BaseConfig
 from .dtypes import Type
-from .features import Feature, SequenceFeature, build_feature_from_dtype
+from .features import Feature, SequenceFeature, build_feature_from_reference
+from .reference import BaseReference
 
 
 @dataclass(eq=True, frozen=True)
@@ -69,9 +70,11 @@ class TypeResolver(BeforeValidator):
         """
 
         def wrapped_resolver(val: Any, info: ValidationInfo) -> Any:
-            # type resolvers only apply when creating a type instance
             if isinstance(val, Feature):
                 return val
+
+            if isinstance(val, BaseReference) and val.get_dtype() is not None:
+                return build_feature_from_reference(val)
 
             # context is required
             if (
@@ -100,7 +103,10 @@ class TypeResolver(BeforeValidator):
             # create feature from dtype
             if isinstance(target_type, Type):
                 target_type = Annotated[
-                    Feature, BeforeValidator(partial(build_feature_from_dtype, dtype=target_type))
+                    Feature,
+                    BeforeValidator(
+                        partial(build_feature_from_reference, fallback_dtype=target_type)
+                    ),
                 ]
 
             return TypeAdapter(target_type).validate_python(val, context=info.context)

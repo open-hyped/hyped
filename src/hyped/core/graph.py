@@ -29,8 +29,8 @@ from .features.dtypes import (
     cast_dtype,
 )
 from .features.engine import FeatureEngine
-from .features.features import Feature, build_feature_from_dtype
-from .features.reference import Reference
+from .features.features import build_feature_from_reference
+from .features.reference import ConcreteReference
 from .nodes.aggregator import BaseDataAggregator
 from .nodes.augmenter import BaseDataAugmenter
 from .nodes.base import BaseNode, RunContext
@@ -445,10 +445,10 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         self,
         node_obj: Any,
         node_type: DataFlowGraph.NodeType,
-        inputs: dict[str, Reference],
+        inputs: dict[str, ConcreteReference],
         output_type: Type,
         node_id: None | NodeId = None,
-    ) -> Reference:
+    ) -> ConcreteReference:
         """Adds a new node to the data flow graph.
 
         This function creates a node in the graph with specified attributes such as
@@ -460,14 +460,15 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         Args:
             node_obj (Any): The object associated with the node.
             node_type (DataFlowGraph.NodeType): The type of the node.
-            inputs (dict[str, Reference]): A dictionary mapping input names to :class:`Reference`
-                instances that represent dependencies of this node on other nodes in the graph.
+            inputs (dict[str, ConcreteReference]): A dictionary mapping input names to
+                :class:`ConcreteReference` instances that represent dependencies of this
+                node on other nodes in the graph.
             output_type (Type): The output data type produced by this node.
             node_id (None | NodeId): The unique identifier for the node. If :code:`None`,
                 a random UUID will be generated. Defaults to :code:`None`.
 
         Returns:
-            Reference: A reference to the newly created node.
+            ConcreteReference: A reference to the newly created node.
 
         """
         # infer the output partition of the node from the node type and input references
@@ -526,9 +527,9 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         # make sure the graph is a DAG
         assert nx.is_directed_acyclic_graph(self)
 
-        return Reference(node_id, self)
+        return ConcreteReference(node_id, self)
 
-    def add_source_node(self, data_type: Type, node_id: None | NodeId = None) -> Reference:
+    def add_source_node(self, data_type: Type, node_id: None | NodeId = None) -> ConcreteReference:
         """Add a the source node to the graph.
 
         This method adds a source node to the graph, which acts as the initial
@@ -539,7 +540,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             node_id (None | NodeId): The id of the node, defaults to a random uuid.
 
         Returns:
-            Reference: A reference object to the source node.
+            ConcreteReference: A reference object to the source node.
 
         Raises:
             AssertionError: If the graph already contains a source node
@@ -561,7 +562,9 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         # return the reference to the source node
         return ref
 
-    def add_const_node(self, value: Any, dtype: Type, node_id: None | NodeId = None) -> Reference:
+    def add_const_node(
+        self, value: Any, dtype: Type, node_id: None | NodeId = None
+    ) -> ConcreteReference:
         """Adds a constant node to the data flow graph.
 
         This function creates a node representing a constant value in the graph. The
@@ -574,7 +577,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 a random UUID is generated. Defaults to :code:`None`.
 
         Returns:
-            Reference: A reference to the newly created constant node.
+            ConcreteReference: A reference to the newly created constant node.
         """
         # make sure the data type matches the value
         array = pa.array([value], type=dtype.arrow_type)
@@ -591,8 +594,8 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         )
 
     def add_collect_node(
-        self, collect: NestedType[Reference], node_id: None | NodeId = None
-    ) -> Reference:
+        self, collect: NestedType[ConcreteReference], node_id: None | NodeId = None
+    ) -> ConcreteReference:
         """Adds a collect node to the data flow graph.
 
         A collect node combines features from other nodes, organizing them into a nested
@@ -600,20 +603,20 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         from multiple nodes into a single, structured output.
 
         Args:
-            collect (NestedType[Reference]): A nested structure (e.g., lists, dictionaries)
-                containing :class:`Reference` objects that specify the features to collect.
+            collect (NestedType[ConcreteReference]): A nested structure (e.g., lists, dictionaries)
+                containing :class:`ConcreteReference` objects that specify the features to collect.
             node_id (None | NodeId): A unique identifier for the node.
                 If :code:`None`, a random UUID is generated. Defaults to :code:`None`.
 
         Returns:
-            Reference: A reference to the newly created collect node.
+            ConcreteReference: A reference to the newly created collect node.
         """
-        inputs: dict[str, Reference] = {}
+        inputs: dict[str, ConcreteReference] = {}
         # extract flat inputs to collect node from structure
         map_recursive(
             lambda p, r: (
                 None
-                if not isinstance(r, Reference)
+                if not isinstance(r, ConcreteReference)
                 else operator.setitem(inputs, ".".join(map(str, p)), r)
             ),
             collect,
@@ -621,7 +624,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
 
         # build the nested value lookup structure
         lookup: NestedType[str] = map_recursive(
-            lambda p, v: ".".join(map(str, p)) if isinstance(v, Reference) else v, collect
+            lambda p, v: ".".join(map(str, p)) if isinstance(v, ConcreteReference) else v, collect
         )
 
         # create the collect node object
@@ -644,10 +647,10 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
 
     def add_collect_node_with_constants(
         self,
-        collect: NestedType[Reference | Any],
+        collect: NestedType[ConcreteReference | Any],
         dtype: None | Type = None,
         node_id: None | NodeId = None,
-    ) -> Reference:
+    ) -> ConcreteReference:
         """Add a collect node and all contained constants to a data flow graph.
 
         This function processes a nested structure of references and constants,
@@ -657,7 +660,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
 
         Args:
             graph (DataFlowGraph): The data flow graph to which the nodes will be added.
-            collect (NestedType[Reference | Any]): A nested structure containing constants
+            collect (NestedType[ConcreteReference | Any]): A nested structure containing constants
                 (e.g., integers, floats, or strings) and/or references to existing nodes in
                 the graph.
             dtype (None | Type): The expected data type of the :code:`collect` structure. If
@@ -666,7 +669,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 UUID is generated. Defaults to :code:`None`.
 
         Returns:
-            Reference: A reference to the :code:`collect` node added to the graph.
+            ConcreteReference: A reference to the :code:`collect` node added to the graph.
 
         Raises:
             AssertionError: If the provided :code:`dtype` does not match the structure
@@ -675,8 +678,8 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         """
 
         def add_constants(
-            val: NestedType[Reference | str | int | float], dtype: None | Type = None
-        ) -> NestedType[Reference]:
+            val: NestedType[ConcreteReference | str | int | float], dtype: None | Type = None
+        ) -> NestedType[ConcreteReference]:
             if isinstance(val, dict):
                 assert (dtype is None) or isinstance(dtype, MappingType)
 
@@ -692,8 +695,8 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                     if len(val) == 0:
                         raise NotImplementedError()
                     # try to infer the dtype from the reference instances in the sequence
-                    if any(isinstance(r, Reference) for r in val):
-                        ref = next(r for r in val if isinstance(r, Reference))
+                    if any(isinstance(r, ConcreteReference) for r in val):
+                        ref = next(r for r in val if isinstance(r, ConcreteReference))
                         dtype = self.get_dtype_from_reference(ref)
 
                 else:
@@ -703,13 +706,13 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 # recurse on all items in the sequence
                 return type(val)([add_constants(item, dtype) for item in val])
 
-            elif not isinstance(val, Reference):
+            elif not isinstance(val, ConcreteReference):
                 # add the constant node
                 return self.add_const_node(
                     val, dtype=dtype if dtype is not None else build_dtype_from_python_object(val)
                 )
 
-            elif isinstance(val, Reference):
+            elif isinstance(val, ConcreteReference):
                 return val
 
             else:  # pragma: not covered
@@ -722,8 +725,8 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         return self.add_collect_node(collect, node_id)
 
     def add_cast_node(
-        self, ref: Reference, dtype: Type, node_id: None | NodeId = None
-    ) -> Reference:
+        self, ref: ConcreteReference, dtype: Type, node_id: None | NodeId = None
+    ) -> ConcreteReference:
         """Add a cast node to the data flow graph.
 
         This method adds a cast node, which transforms data from one type to another,
@@ -732,13 +735,13 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         type if the cast is feasible.
 
         Args:
-            ref (Reference): A reference to the input data to be cast.
+            ref (ConcreteReference): A reference to the input data to be cast.
             dtype (Type): The target type to which the input data should be cast.
             node_id (None | NodeId): An optional unique identifier for the node. If not
                 provided, a random UUID is generated. Defaults to :code:`None`.
 
         Returns:
-            Reference: A reference to the added cast node, allowing access to its output.
+            ConcreteReference: A reference to the added cast node, allowing access to its output.
 
         Raises:
             RuntimeError: If the source and target types are incompatible or if other
@@ -765,9 +768,9 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
     def add_compute_node(
         self,
         obj: BaseNode,
-        inputs: dict[str, Reference],
+        inputs: dict[str, ConcreteReference],
         node_id: None | NodeId = None,
-    ) -> Reference:
+    ) -> ConcreteReference:
         """Add a compute node to the data flow graph.
 
         This method adds a compute node, which performs a transformation or computation
@@ -779,13 +782,13 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             obj (BaseNode): The compute node object, which defines the transformation logic.
                 Supported subclasses include :class:`BaseDataProcessor`,
                 :class:`BaseDataAggregator`, and :class:`BaseDataAugmenter`.
-            inputs (dict[str, Reference]): A mapping of input names to references for input
+            inputs (dict[str, ConcreteReference]): A mapping of input names to references for input
                 features consumed by this compute node.
             node_id (None | NodeId): An optional unique identifier for the node. If not
                 provided, a random UUID is generated.
 
         Returns:
-            Reference: A reference instance to the added compute node, allowing access
+            ConcreteReference: A reference instance to the added compute node, allowing access
             to its output features.
 
         Raises:
@@ -808,7 +811,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         assert node_type is not None, f"Invalid node type {type(obj)}."
 
         # build the input features
-        input_features = {key: self.get_feature_from_reference(ref) for key, ref in inputs.items()}
+        input_features = {key: build_feature_from_reference(ref) for key, ref in inputs.items()}
         # create a type validation engine instance
         name = f"DataFlowGraph.add_node({type(obj).__qualname__})"
         engine = FeatureEngine(name, obj.config, obj.signature)
@@ -816,7 +819,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         engine.validate_signature()
         engine.validate_arguments(**input_features)
         # get the output feature type of the node for the given inputs
-        feature_type = engine.build_return_feature(Reference(), input_features).dtype
+        feature_type = engine.build_return_feature(input_features).dtype
 
         return self.add_node(
             node_obj=obj,
@@ -877,7 +880,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             return input_node[DataFlowGraph.NodeAttribute.PARTITION]
 
     def infer_node_partition(
-        self, node_type: DataFlowGraph.NodeType, refs: list[Reference]
+        self, node_type: DataFlowGraph.NodeType, refs: list[ConcreteReference]
     ) -> PartitionId:
         """Infer the appropriate partition for a given node.
 
@@ -907,7 +910,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         Args:
             node_type (DataFlowGraph.NodeType): The type of the node for which to infer
                 the partition.
-            refs (list[Reference]): A list of input references associated with the node.
+            refs (list[ConcreteReference]): A list of input references associated with the node.
 
         Returns:
             PartitionId: The inferred partition for the node.
@@ -979,11 +982,11 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
 
         return candidate
 
-    def get_dtype_from_reference(self, ref: Reference) -> Type:
+    def get_dtype_from_reference(self, ref: ConcreteReference) -> Type:
         """Helper function to get the data type of a referenced feature.
 
         Args:
-            ref (Reference): The reference for which to get the type.
+            ref (ConcreteReference): The reference for which to get the type.
 
         Returns:
             Type: The data type of the referenced feature.
@@ -993,30 +996,13 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             RuntimeError: If the reference's node ID is not contained in the graph.
         """
         if ref._graph is not self:
-            raise RuntimeError("Reference does not belong to this graph.")
+            raise RuntimeError("ConcreteReference does not belong to this graph.")
 
         if ref._node_id not in self.nodes:
             raise RuntimeError(f"Node with ID '{ref._node_id}' is not contained in the graph.")
 
         # get the output type of the referenced node
         return self.nodes[ref._node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
-
-    def get_feature_from_reference(self, ref: Reference) -> Feature:
-        """Helper function to get a feature instance of some node output.
-
-        Args:
-            ref (Reference): The reference instance indicating the node
-                generating the feature and the specific sub-feature.
-
-        Returns:
-            _Feature: The arrow type of the referenced feature.
-
-        Raises:
-            RuntimeError: If the reference's node ID is not contained in the graph.
-        """
-        # build the feature instance from the reference and data type
-        dtype = self.get_dtype_from_reference(ref)
-        return build_feature_from_dtype(ref, dtype)
 
     def dependency_graph(
         self, nodes: set[NodeId], stop_nodes: set[NodeId] = set()

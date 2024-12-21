@@ -7,7 +7,7 @@ import pytest
 from hyped.core.features.dtypes import BoolType, Int16Type
 from hyped.core.features.engine import FeatureEngine
 from hyped.core.features.features import BoolFeature, Int16Feature, PrimitiveFeature
-from hyped.core.features.reference import Reference
+from hyped.core.features.reference import ConcreteReference, ForwardReference
 
 
 class TestFeatureEngine:
@@ -34,8 +34,8 @@ class TestFeatureEngine:
             engine.validate_signature()
 
     def test_validate_arguments(self) -> None:
-        a = PrimitiveFeature(Reference(), BoolType)
-        b = PrimitiveFeature(Reference(), Int16Type)
+        a = PrimitiveFeature(ForwardReference(BoolType))
+        b = PrimitiveFeature(ForwardReference(Int16Type))
 
         def fn(a: BoolFeature, b: Int16Feature) -> Int16Feature:
             ...
@@ -51,8 +51,8 @@ class TestFeatureEngine:
             engine.validate_arguments(a)
 
     def test_validate_keyword_arguments(self) -> None:
-        a = PrimitiveFeature(Reference(), BoolType)
-        b = PrimitiveFeature(Reference(), Int16Type)
+        a = PrimitiveFeature(ForwardReference(BoolType))
+        b = PrimitiveFeature(ForwardReference(Int16Type))
 
         def fn(**kwargs: BoolFeature) -> Int16Feature:
             ...
@@ -64,8 +64,8 @@ class TestFeatureEngine:
             engine.validate_arguments(x=b, y=b, z=a)
 
     def test_validate_generic_arguments(self) -> None:
-        a = PrimitiveFeature(Reference(), BoolType)
-        b = PrimitiveFeature(Reference(), Int16Type)
+        a = PrimitiveFeature(ForwardReference(BoolType))
+        b = PrimitiveFeature(ForwardReference(Int16Type))
 
         T = TypeVar("T")
 
@@ -86,8 +86,8 @@ class TestFeatureEngine:
             assert set(mock_common_dtype.mock_calls[0].args) == {BoolType, Int16Type}
 
     def test_build_return_feature(self) -> None:
-        a = PrimitiveFeature(Reference(), BoolType)
-        b = PrimitiveFeature(Reference(), Int16Type)
+        a = PrimitiveFeature(ForwardReference(BoolType))
+        b = PrimitiveFeature(ForwardReference(Int16Type))
 
         def fn(a: BoolFeature, b: Int16Feature) -> Int16Feature:
             ...
@@ -95,12 +95,12 @@ class TestFeatureEngine:
         engine = FeatureEngine("name", MagicMock(), inspect.signature(fn))
         engine.validate_arguments(a, b)
 
-        return_feature = engine.build_return_feature(Reference(), MagicMock())
+        return_feature = engine.build_return_feature(MagicMock())
         assert return_feature.dtype == Int16Type
 
     def test_build_generic_return_feature(self) -> None:
-        a = PrimitiveFeature(Reference(), BoolType)
-        b = PrimitiveFeature(Reference(), Int16Type)
+        a = PrimitiveFeature(ForwardReference(BoolType))
+        b = PrimitiveFeature(ForwardReference(Int16Type))
 
         T = TypeVar("T")
 
@@ -110,11 +110,11 @@ class TestFeatureEngine:
         engine = FeatureEngine("name", MagicMock(), inspect.signature(fn))
 
         engine.validate_arguments(a, a)
-        return_feature = engine.build_return_feature(Reference(), MagicMock())
+        return_feature = engine.build_return_feature(MagicMock())
         assert return_feature.dtype == BoolType
 
         engine.validate_arguments(b, b)
-        return_feature = engine.build_return_feature(Reference(), MagicMock())
+        return_feature = engine.build_return_feature(MagicMock())
         assert return_feature.dtype == Int16Type
 
     def test_get_references_and_consts(self) -> None:
@@ -128,7 +128,7 @@ class TestFeatureEngine:
         assert vals == {"a": True, "b": False}
         assert dtypes == {"a": BoolType, "b": BoolType}
 
-        a = PrimitiveFeature(Reference(), BoolType)
+        a = PrimitiveFeature(ConcreteReference(MagicMock(), MagicMock()))
 
         engine = FeatureEngine("name", MagicMock(), inspect.signature(fn))
         refs, vals, dtypes = engine.get_references_and_objects(a=True, b=a)

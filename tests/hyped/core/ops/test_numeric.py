@@ -41,6 +41,7 @@ from hyped.core.typing import Float, Float64, Int, UInt
         ("string", StringType, StringType),
     ],
 )
+@patch("hyped.core.ops.numeric.build_feature_from_reference", MagicMock())
 def test_add_constant(val: Any, candidate_dtype: Type, expected_dtype: Type) -> None:
     graph = MagicMock()
     # Call the add_constant function
@@ -50,8 +51,8 @@ def test_add_constant(val: Any, candidate_dtype: Type, expected_dtype: Type) -> 
 
 @patch("hyped.core.ops.numeric.add_constant")
 def test_handle_constant_for_binary_operation(mock_add_constant: MagicMock) -> None:
-    a = Feature(MagicMock(), MagicMock())
-    b = Feature(MagicMock(), MagicMock())
+    a = Feature(MagicMock())
+    b = Feature(MagicMock())
     c = MagicMock()
     f = MagicMock()
     # apply decorator to mock function

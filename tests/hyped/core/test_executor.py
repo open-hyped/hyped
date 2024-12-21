@@ -9,7 +9,7 @@ import pytest
 
 from hyped.core.executor import DataFlowExecutor, ExecutionState, LazyDataFlowExecutor
 from hyped.core.features.dtypes import BoolType, MappingType, Type
-from hyped.core.features.reference import Reference
+from hyped.core.features.reference import ForwardReference
 from hyped.core.graph import DataFlowGraph
 from hyped.core.nodes.aggregator import BaseDataAggregator
 from hyped.core.nodes.augmenter import BaseDataAugmenter
@@ -260,7 +260,7 @@ class TestDataFlowExecutor:
             node_types={0: DataFlowGraph.NodeType.SOURCE, 1: DataFlowGraph.NodeType.DATA_PROCESSOR},
         )
         # initialize an executor for the graph without an aggregation manager
-        DataFlowExecutor(graph, Reference(), None)
+        DataFlowExecutor(graph, ForwardReference(), None)
 
         # create a simple data flow graph with a data aggregator
         graph = build_graph(
@@ -273,10 +273,10 @@ class TestDataFlowExecutor:
 
         with pytest.raises(RuntimeError):
             # cannot initialize an executor without an aggregation manager
-            DataFlowExecutor(graph, Reference(), None)
+            DataFlowExecutor(graph, ForwardReference(), None)
 
         # initialize the executor with a mock aggregation manager
-        DataFlowExecutor(graph, Reference(), MagicMock())
+        DataFlowExecutor(graph, ForwardReference(), MagicMock())
 
     @pytest.mark.parametrize(
         "edges, node_types, node, wait_for",
@@ -388,7 +388,7 @@ class TestDataFlowExecutor:
         with patch("hyped.core.executor.RunContext", lambda *_, **__: mock_run_context), patch(
             "hyped.core.executor.pc.cast", mock_pyarrow_cast
         ):
-            executor = DataFlowExecutor(graph, Reference(), manager)
+            executor = DataFlowExecutor(graph, ForwardReference(), manager)
             await executor.execute_node(node, state)
 
         # Verify awaited dependencies

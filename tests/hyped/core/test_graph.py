@@ -8,7 +8,7 @@ import pytest
 
 from hyped.core.features.dtypes import BoolType as MockType
 from hyped.core.features.dtypes import MappingType, SequenceType, Type
-from hyped.core.features.reference import Reference
+from hyped.core.features.reference import ConcreteReference
 from hyped.core.graph import (
     DataFlowGraph,
     _build_dependency_graph,
@@ -304,7 +304,7 @@ class TestDataFlowGraph:
         ref = graph.add_node(
             node_obj=node_obj,
             node_type=node_type,
-            inputs={str(u): Reference(_node_id=u, _graph=graph) for u in in_nodes},
+            inputs={str(u): ConcreteReference(_node_id=u, _graph=graph) for u in in_nodes},
             output_type=MockType,
         )
 
@@ -383,8 +383,8 @@ class TestDataFlowGraph:
 
         ref = graph.add_collect_node(
             {
-                "a": Reference(_node_id=0, _graph=graph),
-                "b": Reference(_node_id=1, _graph=graph),
+                "a": ConcreteReference(_node_id=0, _graph=graph),
+                "b": ConcreteReference(_node_id=1, _graph=graph),
             }
         )
         # check node attributes
@@ -408,8 +408,8 @@ class TestDataFlowGraph:
         ref = graph.add_collect_node(
             {
                 "a": {
-                    "b": Reference(_node_id=0, _graph=graph),
-                    "c": Reference(_node_id=1, _graph=graph),
+                    "b": ConcreteReference(_node_id=0, _graph=graph),
+                    "c": ConcreteReference(_node_id=1, _graph=graph),
                 },
             }
         )
@@ -440,7 +440,12 @@ class TestDataFlowGraph:
         assert (1, ref._node_id, "a.c") in graph.edges
 
         ref = graph.add_collect_node(
-            {"a": [Reference(_node_id=0, _graph=graph), Reference(_node_id=1, _graph=graph)]}
+            {
+                "a": [
+                    ConcreteReference(_node_id=0, _graph=graph),
+                    ConcreteReference(_node_id=1, _graph=graph),
+                ]
+            }
         )
         # check node attributes
         attrs = graph.nodes[ref._node_id]
@@ -706,7 +711,7 @@ class TestDataFlowGraph:
 
         # get the node type and build the reference instances
         node_type = node_types[node_id]
-        refs = [Reference(_node_id=u, _graph=graph) for u, v in edges if v == node_id]
+        refs = [ConcreteReference(_node_id=u, _graph=graph) for u, v in edges if v == node_id]
 
         if raises_error:
             with pytest.raises(RuntimeError):
@@ -719,25 +724,13 @@ class TestDataFlowGraph:
         graph = build_graph([(0, 1), (1, 2)])
 
         # works fine
-        graph.get_dtype_from_reference(Reference(_node_id=0, _graph=graph))
+        graph.get_dtype_from_reference(ConcreteReference(_node_id=0, _graph=graph))
         # wrong graph
         with pytest.raises(RuntimeError):
-            graph.get_dtype_from_reference(Reference(_node_id=0, _graph=MagicMock()))
+            graph.get_dtype_from_reference(ConcreteReference(_node_id=0, _graph=MagicMock()))
         # wrong node id
         with pytest.raises(RuntimeError):
-            graph.get_dtype_from_reference(Reference(_node_id="INVALID", _graph=graph))
-
-    def test_get_feature_from_reference(self) -> None:
-        graph = build_graph([(0, 1), (1, 2)])
-
-        # works fine
-        graph.get_feature_from_reference(Reference(_node_id=0, _graph=graph))
-        # wrong graph
-        with pytest.raises(RuntimeError):
-            graph.get_feature_from_reference(Reference(_node_id=0, _graph=MagicMock()))
-        # wrong node id
-        with pytest.raises(RuntimeError):
-            graph.get_feature_from_reference(Reference(_node_id="INVALID", _graph=graph))
+            graph.get_dtype_from_reference(ConcreteReference(_node_id="INVALID", _graph=graph))
 
     @pytest.mark.parametrize(
         "edges, subgraph_nodes, expected_edges",

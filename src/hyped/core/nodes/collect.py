@@ -22,7 +22,7 @@ from ..features.dtypes import (
     cast_dtype,
     common_dtype,
 )
-from ..features.reference import Reference
+from ..features.reference import ConcreteReference
 from ..utils import NestedType
 from .base import BaseNode, BaseNodeConfig, RunContext
 
@@ -47,7 +47,7 @@ class CollectNode(BaseNode[CollectNodeConfig]):
     """
 
     def build_output_type(
-        self, graph: AbstractDataFlowGraph, inputs: dict[str, Reference]
+        self, graph: AbstractDataFlowGraph, inputs: dict[str, ConcreteReference]
     ) -> tuple[Type, dict[str, Type]]:
         """Construct the output data type based on the input structure.
 
@@ -57,8 +57,8 @@ class CollectNode(BaseNode[CollectNodeConfig]):
 
         Args:
             graph (AbstractDataFlowGraph): The data flow graph containing the input references.
-            inputs (dict[str, Reference]): Dictionary mapping input names to references within the
-                graph.
+            inputs (dict[str, ConcreteReference]): Dictionary mapping input names to references
+                within the graph.
 
         Returns:
             tuple[Type, dict[str, Type]]: A tuple containing the constructed output type and a

@@ -32,7 +32,7 @@ import pyarrow as pa
 
 from .executor import DataFlowExecutor
 from .features.dtypes import BoolType, MappingType, Type
-from .features.reference import Reference
+from .features.reference import ConcreteReference
 from .graph import DataFlowGraph
 from .ops.mapping import MappingGetItem
 from .typing import NodeId
@@ -143,8 +143,8 @@ class DataFlowGraphOptimizer(object):
                     out_feature_type = node_data[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
 
                     # build input references object from in-edge identifiers
-                    inputs: dict[str, Reference] = {
-                        name: Reference(node_mapping[src_node_id], cse_graph)
+                    inputs: dict[str, ConcreteReference] = {
+                        name: ConcreteReference(node_mapping[src_node_id], cse_graph)
                         for src_node_id, name in in_edge_identifiers
                     }
 
@@ -240,7 +240,7 @@ class DataFlowGraphOptimizer(object):
             # collect all outputs of all constant nodes in the graph
             collect = const_graph.add_collect_node(
                 {
-                    node_id: Reference(_node_id=node_id, _graph=const_graph)
+                    node_id: ConcreteReference(_node_id=node_id, _graph=const_graph)
                     for node_id in const_node_ids
                 }
             )
@@ -264,7 +264,7 @@ class DataFlowGraphOptimizer(object):
             graph = graph.drop_partition(DataFlowGraph.Partition.CONST)
             graph = DataFlowGraph(graph)
 
-            const_lookup: dict[NodeId, Reference] = {}
+            const_lookup: dict[NodeId, ConcreteReference] = {}
             # add constant leaf nodes
             for node_id in filter(const_graph.__contains__, leaf_nodes):
                 # get the expected data type of the constant value

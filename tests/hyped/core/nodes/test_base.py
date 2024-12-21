@@ -5,7 +5,7 @@ import pytest
 
 from hyped.core.features.dtypes import Int32Type, MappingType
 from hyped.core.features.features import Feature
-from hyped.core.features.reference import Reference
+from hyped.core.features.reference import ConcreteReference
 from hyped.core.flow import DataFlow
 from hyped.core.graph import DataFlowGraph
 from hyped.core.nodes.base import BaseNode, BaseNodeConfig, ProcessMode, RunContext, process_mode
@@ -178,6 +178,7 @@ class MockNode(BaseNode[MockConfig]):
 
 class TestBaseNode:
     @patch("hyped.core.nodes.base.FeatureEngine")
+    @patch("hyped.core.nodes.base.build_feature_from_reference", MagicMock())
     def test_call(self, mock_feature_engine: MagicMock) -> None:
         obj = MagicMock()
         obj_dtype = MagicMock()
@@ -189,8 +190,8 @@ class TestBaseNode:
 
         # create mock graph and inputs
         flow = MagicMock(spec=DataFlow, _graph=MagicMock(spec=DataFlowGraph))
-        x = MagicMock(spec=Feature, ref=MagicMock(spec=Reference, _graph=flow._graph))
-        y = MagicMock(spec=Feature, ref=MagicMock(spec=Reference, _graph=flow._graph))
+        x = MagicMock(spec=Feature, ref=MagicMock(spec=ConcreteReference, _graph=flow._graph))
+        y = MagicMock(spec=Feature, ref=MagicMock(spec=ConcreteReference, _graph=flow._graph))
 
         # call the node with only positional arguments
         node = MockNode()

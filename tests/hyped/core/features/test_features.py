@@ -45,8 +45,8 @@ from hyped.core.features.features import (
     UInt64Feature,
 )
 from hyped.core.features.features import _MappingFeature as MappingFeature
-from hyped.core.features.features import build_feature_from_annotation, build_feature_from_dtype
-from hyped.core.features.reference import Reference
+from hyped.core.features.features import build_feature_from_annotation, build_feature_from_reference
+from hyped.core.features.reference import ForwardReference
 from hyped.core.graph import DataFlowGraph
 
 
@@ -65,7 +65,7 @@ def _test_call_to_registered_method(
         | {str(i): f.dtype for i, f in enumerate(args) if isinstance(f, Feature)}
     )
     source = graph.add_source_node(source_dtype)
-    source = MappingFeature(source, source_dtype)
+    source = MappingFeature(source)
 
     # get the feature and mock the get method function to check execution later
     feature = source["feature"]
@@ -2034,9 +2034,9 @@ class TestPrimitiveFeatures:
         expected_return_feature_type: type[PrimitiveFeature],
     ) -> None:
         # create mock instances of the feature types
-        feature = feature_type(Reference(), feature_type._expected_dtype)
+        feature = feature_type(ForwardReference(feature_type._expected_dtype))
         args = tuple(
-            val(Reference(), val._expected_dtype)
+            val(ForwardReference(val._expected_dtype))
             if isinstance(val, type) and issubclass(val, PrimitiveFeature)
             else val
             for val in args
@@ -2082,30 +2082,28 @@ class TestPrimitiveFeatures:
 
 class TestClassLabelFeature:
     def test_post_init(self) -> None:
-        ref = Reference()
-        dtype = ClassLabelType(names=("labelA", "labelB"))
-
         # base class label feature allows arbitrary label names
-        ClassLabelFeature(ref, dtype=dtype)
+        dtype = ClassLabelType(names=("labelA", "labelB"))
+        ClassLabelFeature(ForwardReference(dtype))
 
         class CustomClassLabel(ClassLabelFeature):
             labelA = 0
             labelB = 1
 
         # labels in dtype match expectation
-        CustomClassLabel(ref, dtype=dtype)
+        CustomClassLabel(ForwardReference(dtype))
 
         class CustomClassLabel(ClassLabelFeature):
             labelA = 0
 
         # labels in dtype are contained in dtype
-        CustomClassLabel(ref, dtype=dtype)
+        CustomClassLabel(ForwardReference(dtype))
 
         class CustomClassLabel(ClassLabelFeature):
             labelB = 1
 
         # labels in dtype are contained in dtype
-        CustomClassLabel(ref, dtype=dtype)
+        CustomClassLabel(ForwardReference(dtype))
 
         class CustomClassLabel(ClassLabelFeature):
             labelA = 0
@@ -2114,7 +2112,7 @@ class TestClassLabelFeature:
 
         # custom class label contains invalid label not contained in dtype
         with pytest.raises(RuntimeError):
-            CustomClassLabel(ref, dtype=dtype)
+            CustomClassLabel(ForwardReference(dtype))
 
         class CustomClassLabel(ClassLabelFeature):
             invalid_label = 0
@@ -2122,22 +2120,21 @@ class TestClassLabelFeature:
 
         # custom class label contains invalid label not contained in dtype
         with pytest.raises(RuntimeError):
-            CustomClassLabel(ref, dtype=dtype)
+            CustomClassLabel(ForwardReference(dtype))
 
     def test_from_names(self) -> None:
-        ref = Reference()
         dtype = ClassLabelType(names=("labelA", "labelB"))
 
         CustomClassLabel = ClassLabelFeature.from_names(["labelA", "labelB"])
-        CustomClassLabel(ref, dtype)
+        CustomClassLabel(ForwardReference(dtype))
 
-        inst = pydantic.TypeAdapter(CustomClassLabel).validate_python(ref)
+        inst = pydantic.TypeAdapter(CustomClassLabel).validate_python(ForwardReference())
         assert isinstance(inst, CustomClassLabel)
         assert inst.dtype.names == dtype.names
 
         CustomClassLabel = ClassLabelFeature.from_names(["invalid_label"])
         with pytest.raises(RuntimeError):
-            CustomClassLabel(ref, dtype)
+            CustomClassLabel(ForwardReference(dtype))
 
     def test_build_class_label_dtype(self) -> None:
         dtype = ClassLabelFeature._build_class_label_dtype()
@@ -2166,9 +2163,8 @@ class TestClassLabelFeature:
             assert dtype.names == ("labelA", "UNDEF", "labelB")
 
     def test_pydantic_core_schema(self) -> None:
-        ref = Reference()
         dtype = ClassLabelType(names=("labelA", "labelB"))
-        inst = ClassLabelFeature(ref, dtype)
+        inst = ClassLabelFeature(ForwardReference(dtype))
 
         class CustomClassLabel(ClassLabelFeature):
             labelA = 0
@@ -2184,12 +2180,12 @@ class TestClassLabelFeature:
 
         # cast to custom type
         adapter = pydantic.TypeAdapter(CustomClassLabel)
-        inferred_dtype = adapter.validate_python(ref).dtype
+        inferred_dtype = adapter.validate_python(ForwardReference()).dtype
         assert inferred_dtype.names == dtype.names
 
         with pytest.raises(pydantic.ValidationError):
             # unable to infer labels
-            pydantic.TypeAdapter(ClassLabelFeature).validate_python(ref)
+            pydantic.TypeAdapter(ClassLabelFeature).validate_python(ForwardReference())
 
     @pytest.mark.parametrize(
         "fn, registered_fn_name, args, expected_return_feature_type",
@@ -2378,11 +2374,11 @@ class TestClassLabelFeature:
     ) -> None:
         dtype = ClassLabelType(names=("A", "B"))
         # create mock instances of the feature types
-        feature = ClassLabelFeature(Reference(), dtype)
+        feature = ClassLabelFeature(ForwardReference(dtype))
         args = tuple(
-            ClassLabelFeature(Reference(), dtype)
+            ClassLabelFeature(ForwardReference(dtype))
             if isinstance(val, type) and issubclass(val, ClassLabelFeature)
-            else val(Reference(), val._expected_dtype)
+            else val(ForwardReference(val._expected_dtype))
             if isinstance(val, type) and issubclass(val, PrimitiveFeature)
             else val
             for val in args
@@ -2407,13 +2403,13 @@ class TestSequenceFeature:
     def test_length(self) -> None:
         # create a mock sequence with fixed length
         dtype = MagicMock(spec=SequenceType, __len__=lambda _: 5)
-        sequence = SequenceFeature[BoolFeature](MagicMock(), dtype)
+        sequence = SequenceFeature[BoolFeature](ForwardReference(dtype))
         # check return value of length method is length as integer
         assert isinstance(sequence.length(), int) and (sequence.length() == 5)
 
         # create a mock sequence with undefined length
         dtype = MagicMock(spec=SequenceType, __len__=lambda _: UNDEFINED_SEQUENCE_LENGTH)
-        sequence = SequenceFeature[BoolFeature](MagicMock(), dtype)
+        sequence = SequenceFeature[BoolFeature](ForwardReference(dtype))
 
         sequence.execute_method = MagicMock()
         # check return value of length method is length as integer
@@ -2428,7 +2424,7 @@ class TestSequenceFeature:
         "feature, fn, registered_fn_name, args, expected_return_feature, raises_error",
         [
             (
-                SequenceFeature(Reference(), SequenceType(Int64Type)),
+                SequenceFeature(ForwardReference(SequenceType(Int64Type))),
                 SequenceFeature.min,
                 "min",
                 tuple(),
@@ -2436,7 +2432,7 @@ class TestSequenceFeature:
                 False,
             ),
             (
-                SequenceFeature(Reference(), SequenceType(Int64Type)),
+                SequenceFeature(ForwardReference(SequenceType(Int64Type))),
                 SequenceFeature.max,
                 "max",
                 tuple(),
@@ -2444,7 +2440,7 @@ class TestSequenceFeature:
                 False,
             ),
             (
-                SequenceFeature(Reference(), SequenceType(Int64Type)),
+                SequenceFeature(ForwardReference(SequenceType(Int64Type))),
                 SequenceFeature.sum,
                 "sum",
                 tuple(),
@@ -2452,7 +2448,7 @@ class TestSequenceFeature:
                 False,
             ),
             (
-                SequenceFeature(Reference(), SequenceType(Int64Type)),
+                SequenceFeature(ForwardReference(SequenceType(Int64Type))),
                 SequenceFeature.__getitem__,
                 "__getitem__",
                 (0,),
@@ -2460,7 +2456,7 @@ class TestSequenceFeature:
                 False,
             ),
             (
-                SequenceFeature(Reference(), SequenceType(Int64Type)),
+                SequenceFeature(ForwardReference(SequenceType(Int64Type))),
                 SequenceFeature.__getitem__,
                 "__getitem__",
                 (slice(0, 3),),
@@ -2468,7 +2464,7 @@ class TestSequenceFeature:
                 False,
             ),
             (
-                SequenceFeature(Reference(), SequenceType(Int64Type)),
+                SequenceFeature(ForwardReference(SequenceType(Int64Type))),
                 SequenceFeature.__getitem__,
                 "__getitem__",
                 (-1,),
@@ -2476,7 +2472,7 @@ class TestSequenceFeature:
                 True,
             ),
             (
-                SequenceFeature(Reference(), SequenceType(Int64Type)),
+                SequenceFeature(ForwardReference(SequenceType(Int64Type))),
                 SequenceFeature.__getitem__,
                 "__getitem__",
                 (slice(0, -1),),
@@ -2484,7 +2480,7 @@ class TestSequenceFeature:
                 True,
             ),
             (
-                SequenceFeature(Reference(), SequenceType(Int64Type, 5)),
+                SequenceFeature(ForwardReference(SequenceType(Int64Type, 5))),
                 SequenceFeature.__getitem__,
                 "__getitem__",
                 (-1,),
@@ -2492,7 +2488,7 @@ class TestSequenceFeature:
                 False,
             ),
             (
-                SequenceFeature(Reference(), SequenceType(Int64Type, 5)),
+                SequenceFeature(ForwardReference(SequenceType(Int64Type, 5))),
                 SequenceFeature.__getitem__,
                 "__getitem__",
                 (slice(0, -1),),
@@ -2527,46 +2523,44 @@ class TestSequenceFeature:
 
     def test_pydantic_core_schema(self) -> None:
         # test validation of sequence feature
-        seq = SequenceFeature(Reference(), SequenceType(BoolType))
+        seq = SequenceFeature(ForwardReference(SequenceType(BoolType)))
         adapter = pydantic.TypeAdapter(SequenceFeature)
         assert seq == adapter.validate_python(seq)
 
         # test validation of strongly-typed sequence feature
-        seq = SequenceFeature(Reference(), SequenceType(BoolType))
+        seq = SequenceFeature(ForwardReference(SequenceType(BoolType)))
         adapter = pydantic.TypeAdapter(SequenceFeature[BoolFeature])
         assert seq == adapter.validate_python(seq)
 
         # test validation error on value type mismatch
-        seq = SequenceFeature(Reference(), SequenceType(BoolType))
+        seq = SequenceFeature(ForwardReference(SequenceType(BoolType)))
         with pytest.raises(pydantic.ValidationError):
             adapter = pydantic.TypeAdapter(SequenceFeature[StringType])
             adapter.validate_python(seq)
 
         # test create sequence feature from reference
-        seq = SequenceFeature(Reference(), SequenceType(BoolType))
+        seq = SequenceFeature(ForwardReference(SequenceType(BoolType)))
         adapter = pydantic.TypeAdapter(SequenceFeature[BoolFeature])
-        assert adapter.validate_python(Reference()) == seq
+        assert adapter.validate_python(ForwardReference()) == seq
 
         # cannot infer sequence feature type from annotation
         with pytest.raises(RuntimeError):
             adapter = pydantic.TypeAdapter(SequenceFeature)
-            adapter.validate_python(Reference())
+            adapter.validate_python(ForwardReference())
 
 
 class TestMappingFeature:
     def test_post_init(self) -> None:
-        ref = Reference()
-        dtype = MappingType.construct({"fieldA": BoolType, "fieldB": StringType})
-
         # base mapping feature allows arbitrary fields
-        MappingFeature(ref, dtype=dtype)
+        dtype = MappingType.construct({"fieldA": BoolType, "fieldB": StringType})
+        MappingFeature(ForwardReference(dtype))
 
         class CustomMappingFeature(MappingFeature):
             fieldA: BoolFeature
             fieldB: StringFeature
 
         # fields in dtype match expectation
-        CustomMappingFeature(ref, dtype)
+        CustomMappingFeature(ForwardReference(dtype))
 
         class CustomMappingFeature(MappingFeature):
             invalid_fieldA: BoolFeature
@@ -2574,7 +2568,7 @@ class TestMappingFeature:
 
         with pytest.raises(KeyError):
             # fields in dtype don't match expectation
-            CustomMappingFeature(ref, dtype)
+            CustomMappingFeature(ForwardReference(dtype))
 
         class CustomMappingFeature(MappingFeature):
             fieldA: BoolFeature
@@ -2583,13 +2577,13 @@ class TestMappingFeature:
 
         with pytest.raises(KeyError):
             # fields in dtype don't match expectation
-            CustomMappingFeature(ref, dtype)
+            CustomMappingFeature(ForwardReference(dtype))
 
     @pytest.mark.parametrize(
         "feature, fn, registered_fn_name, args, expected_return_feature, raises_error",
         [
             (
-                MappingFeature(Reference(), MappingType.construct({"field": Int64Type})),
+                MappingFeature(ForwardReference(MappingType.construct({"field": Int64Type}))),
                 MappingFeature.__getitem__,
                 "__getitem__",
                 ("field",),
@@ -2597,7 +2591,7 @@ class TestMappingFeature:
                 False,
             ),
             (
-                MappingFeature(Reference(), MappingType.construct({"field": Int64Type})),
+                MappingFeature(ForwardReference(MappingType.construct({"field": Int64Type}))),
                 MappingFeature.__getitem__,
                 "__getitem__",
                 ("invalid_field",),
@@ -2632,9 +2626,8 @@ class TestMappingFeature:
 
     def test_pydantic_core_schema(self) -> None:
         # create mapping feature instance
-        ref = Reference()
         dtype = MappingType.construct({"fieldA": BoolType, "fieldB": StringType})
-        mapping = MappingFeature(ref, dtype=dtype)
+        mapping = MappingFeature(ForwardReference(dtype))
 
         class CustomMappingFeature(MappingFeature):
             fieldA: BoolFeature
@@ -2655,31 +2648,30 @@ class TestMappingFeature:
         assert adapter.validate_python(mapping) == mapping
 
         # validate mapping matches fields
-        mapping = MappingFeature(ref, dtype=dtype)
+        mapping = MappingFeature(ForwardReference(dtype))
         adapter = pydantic.TypeAdapter(CustomMappingFeature)
         assert adapter.validate_python(mapping) == mapping
 
         # validate and convert to specific mapping type
-        mapping = MappingFeature(ref, dtype=dtype)
+        mapping = MappingFeature(ForwardReference(dtype))
         adapter = pydantic.TypeAdapter(CustomMappingFeature)
         validated_mapping = adapter.validate_python(mapping, context={"strict": True})
         assert isinstance(validated_mapping, CustomMappingFeature)
 
         # create mapping feature instance from reference
         adapter = pydantic.TypeAdapter(CustomMappingFeature)
-        validated_mapping = adapter.validate_python(ref)
-        assert validated_mapping.ref == ref
+        validated_mapping = adapter.validate_python(ForwardReference())
         assert validated_mapping.dtype == dtype
 
         # validate generic mapping type
-        mapping = MappingFeature(ref, dtype=dtype)
+        mapping = MappingFeature(ForwardReference(dtype))
         adapter = pydantic.TypeAdapter(GenericMappingFeature[StringFeature])
         assert adapter.validate_python(mapping) == mapping
 
         # cannot infer mapping fields
         adapter = pydantic.TypeAdapter(MappingFeature)
         with pytest.raises(RuntimeError):
-            adapter.validate_python(ref)
+            adapter.validate_python(ForwardReference())
 
         adapter = pydantic.TypeAdapter(InvalidCustomMappingFeature)
         with pytest.raises(pydantic.ValidationError):
@@ -2711,11 +2703,11 @@ class TestMappingFeature:
         (MappingType(tuple()), MappingFeature),
     ],
 )
-def test_build_feature_from_dtype(dtype: Type, expected_feature_type: type[Feature]) -> None:
-    assert isinstance(build_feature_from_dtype(Reference(), dtype), expected_feature_type)
+def test_build_feature_from_reference(dtype: Type, expected_feature_type: type[Feature]) -> None:
+    assert isinstance(build_feature_from_reference(ForwardReference(dtype)), expected_feature_type)
     # type error on invalid data type
     with pytest.raises(TypeError):
-        build_feature_from_dtype(Reference(), object())
+        build_feature_from_reference(ForwardReference(), object())
 
 
 @pytest.mark.parametrize(
@@ -2742,7 +2734,7 @@ def test_build_feature_from_dtype(dtype: Type, expected_feature_type: type[Featu
     ],
 )
 def test_build_feature_from_annotation(annotation: Any, expected_dtype: Type) -> None:
-    feature = build_feature_from_annotation(Reference(), annotation)
+    feature = build_feature_from_annotation(annotation)
     assert isinstance(feature, Feature)
     assert feature.dtype == expected_dtype
 
@@ -2750,12 +2742,10 @@ def test_build_feature_from_annotation(annotation: Any, expected_dtype: Type) ->
 def test_build_feature_from_generic_annotation() -> None:
     T = TypeVar("T")
     # annotation is only typevar
-    feature = build_feature_from_annotation(Reference(), T, typevar_mapping={T: BoolType})
+    feature = build_feature_from_annotation(T, typevar_mapping={T: BoolType})
     assert isinstance(feature, PrimitiveFeature)
     assert feature.dtype == BoolType
     # generic annotation
-    feature = build_feature_from_annotation(
-        Reference(), SequenceFeature[T], typevar_mapping={T: BoolType}
-    )
+    feature = build_feature_from_annotation(SequenceFeature[T], typevar_mapping={T: BoolType})
     assert isinstance(feature, SequenceFeature)
     assert feature.dtype.value_type == BoolType

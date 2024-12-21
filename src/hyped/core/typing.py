@@ -27,6 +27,7 @@ from .features.features import (
     UInt32Feature,
     UInt64Feature,
     build_feature_from_annotation,
+    build_feature_from_reference,
 )
 from .features.reference import NodeId
 from .features.validators import Len
@@ -376,7 +377,7 @@ def _cast(typ: Any, val: Any) -> Any:
     dtype = build_feature_from_annotation(val.ref, typ).dtype
     ref = val.ref._graph.add_cast_node(val.ref, dtype)
     # return the output feature of the cast operation
-    return val.ref._graph.get_feature_from_reference(ref)
+    return build_feature_from_reference(ref)
 
 
 cast = typing_cast if TYPE_CHECKING else _cast

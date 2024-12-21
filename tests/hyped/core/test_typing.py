@@ -10,14 +10,15 @@ def test_cast() -> None:
     assert cast(int, 8) == 8
 
     # create a mock graph with the required functions
-    graph = MagicMock(
-        spec=DataFlowGraph, add_cast_node=MagicMock(), get_feature_from_reference=MagicMock()
-    )
+    graph = MagicMock(spec=DataFlowGraph, add_cast_node=MagicMock())
     # create a mock feature to cast
     feature = MagicMock(spec=Feature, ref=MagicMock(_graph=graph))
 
     # patch the function that retrieves the concrete data type to cast to
-    with patch("hyped.core.typing.build_feature_from_annotation"):
+    with (
+        patch("hyped.core.typing.build_feature_from_annotation"),
+        patch("hyped.core.typing.build_feature_from_reference") as mock_build_feature_from_ref,
+    ):
         # cast the feature to an integer and check the output and internals
-        assert cast(Int, feature) == graph.get_feature_from_reference.return_value
+        assert cast(Int, feature) == mock_build_feature_from_ref.return_value
         graph.add_cast_node.assert_called_once_with(feature.ref, ANY)

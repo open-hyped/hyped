@@ -1,14 +1,25 @@
 """Features Module.
 
 This module defines the core classes and utilities for managing and validating different types of
-features. Features represent various data types and their structure, and they are validated using
-Pydantic schemas. This module includes classes for defining and working with primitive features,
-sequence features, and mapping features, along with supporting functionality for building and
-validating these features.
+features. Features represent various data types and their structure, validated and resolved using
+Pydantic schemas. This allows users to define flexible and complex data structures while ensuring
+type safety and compatibility with the data flow system.
 
-Features are the high-level components of the type system that are presented to the user.
-They combine a :class:`Reference` to a feature with a :class:`Type` that describes the feature's
-data structure.
+Features act as the high-level interface for describing data in a structured and extensible manner.
+Each feature is associated with a reference (:class:`BaseReference`) that links it to a specific
+node or placeholder in the graph, providing precise context and origin information. These
+references can point to concrete nodes or act as forward declarations for features yet to be
+defined.
+
+A core functionality of features is their ability to resolve complex type annotations, such as
+unions or nested structures, into concrete feature instances. Pydantic handles this resolution
+during validation, ensuring that users can define dynamic or multi-type features with confidence.
+This capability is particularly valuable when dealing with nested schemas or type unions, as it
+ensures the correct feature type is inferred and instantiated.
+
+Additionally, the module includes utilities for registering and executing feature-specific methods
+dynamically, allowing for extensible functionality without introducing tight coupling or circular
+dependencies.
 """
 
 from __future__ import annotations
@@ -19,7 +30,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from functools import partial
 from types import GenericAlias
-from typing import Any, Callable, ClassVar, Final, TypeVar, overload
+from typing import Any, Callable, ClassVar, Final, Generic, TypeVar, overload
 
 import pydantic
 from pydantic.type_adapter import _type_has_config
@@ -30,7 +41,7 @@ from hyped.common.utils import is_python_version_less_than
 
 from . import dtypes
 from .mixins import MethodRegistryMixin
-from .reference import Reference
+from .reference import BaseReference, ForwardReference
 
 if is_python_version_less_than(3, 12):  # pragma: not covered
 
@@ -45,24 +56,43 @@ else:
     from types import get_original_bases  # noqa: E402
 
 
+DataType = TypeVar("DataType", bound=dtypes.Type)
+
+
 @dataclass(eq=True, frozen=False)
-class Feature(MethodRegistryMixin):
-    """Base class for defining features in the system.
+class Feature(MethodRegistryMixin, Generic[DataType]):
+    """Base class for defining features in a data flow graph.
 
-    The :class:`Feature` class serves as a descriptor for a feature, combining a
-    :class:`Reference` with the associated :class:`Type`. It includes a mechanism for
-    registering and executing methods dynamically, allowing subclasses to define
-    custom behavior without directly coupling their implementation to other modules.
+    A feature serves as the primary user interface for defining and working with structured data
+    in a data flow system. It wraps a reference instance (:class:`BaseReference`) that describes
+    its origin in the graph, enabling precise modeling of the flow of data between nodes. The
+    data type (`dtype`) is inferred directly from the reference.
 
-    This design helps avoid circular imports, as method implementations can be registered
-    externally in sub-modules rather than being defined within the class itself.
+    Features are responsible for:
+
+    1. **Validation:** Features use Pydantic schemas to validate the data structure and type,
+       ensuring compatibility with the defined feature.
+
+    2. **Resolution:** Features can be resolved to concrete instances using Pydantic's
+       validation mechanism. This resolution process is critical when users define
+       complex data structures, such as unions of features or nested structures.
+       Pydantic ensures that these annotations are validated and resolved to the
+       appropriate concrete feature type.
+
+    3. **Extensibility:** Through the dynamic method registry, features support the
+       addition of custom methods for extended functionality. This decouples
+       feature definitions from specific implementation details, avoiding circular dependencies.
     """
 
-    ref: Reference
+    ref: BaseReference
     """The reference to the feature."""
 
-    dtype: dtypes.Type
-    """The data type of the feature."""
+    @property
+    def dtype(self) -> DataType:
+        """The data type of the feature inferred from the reference."""
+        dtype = self.ref.get_dtype()
+        assert dtype is not None
+        return dtype
 
     @classmethod
     def __get_pydantic_core_schema__(
@@ -84,7 +114,7 @@ class Feature(MethodRegistryMixin):
 
 
 @dataclass(eq=True, frozen=False)
-class PrimitiveFeature(Feature):
+class PrimitiveFeature(Feature[DataType]):
     """Base class for primitive feature types.
 
     The :class:`PrimitiveFeature` class extends :class:`Feature` to represent features
@@ -105,9 +135,7 @@ class PrimitiveFeature(Feature):
         """Builds the Pydantic core schema for primitive feature types.
 
         Validates and enforces the expected data type for a feature. If the input
-        is a :class:`Reference`, it is converted to the corresponding feature type
-        using the :func:`build_feature_from_dtype` method. The core validator is
-        then applied to the instance, and the data type is checked for a match.
+        is a :class:`BaseReference`, it is converted to the corresponding feature type.
 
         Args:
             source_type (Any): The type being validated.
@@ -122,16 +150,20 @@ class PrimitiveFeature(Feature):
                 the expected :code:`dtype`.
         """
 
-        def validator_fn(inst: Feature | Reference, validator: Callable[[Any], Any]) -> Feature:
+        def validator_fn(inst: Feature | BaseReference, validator: Callable[[Any], Any]) -> Feature:
             if isinstance(inst, PrimitiveFeature):
                 # convert the generic primitive instance to a
                 # specific feature type matching the provided data type
-                inst = build_feature_from_dtype(inst.ref, inst.dtype)
+                inst = build_feature_from_reference(inst.ref)
 
-            elif isinstance(inst, Reference):
-                # create primitve feature with expected data type
-                # from reference instance
-                inst = build_feature_from_dtype(inst, cls._expected_dtype)
+            elif isinstance(inst, BaseReference):
+                if inst.get_dtype() is None:
+                    # reference doesn't specify a data type
+                    assert isinstance(inst, ForwardReference)
+                    inst = ForwardReference(cls._expected_dtype)
+
+                # create primitve feature with expected data type from reference instance
+                inst = build_feature_from_reference(inst)
 
             # run core validator
             inst = validator(inst)
@@ -142,7 +174,7 @@ class PrimitiveFeature(Feature):
                 if isinstance(inst, ClassLabelFeature) and (
                     cls._expected_dtype is dtypes.Int64Type
                 ):
-                    return Int64Feature(inst.ref, dtype=dtypes.Int64Type)
+                    return Int64Feature(inst.ref)
 
                 raise PydanticCustomError(
                     "Type Mismatch",
@@ -157,7 +189,7 @@ class PrimitiveFeature(Feature):
         )
 
 
-class BoolFeature(PrimitiveFeature):
+class BoolFeature(PrimitiveFeature[dtypes.BoolType]):
     """A primitive feature representing a boolean value."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.BoolType
@@ -238,7 +270,7 @@ class BoolFeature(PrimitiveFeature):
         return self.execute_method("__rxor__", other)
 
 
-class StringFeature(PrimitiveFeature):
+class StringFeature(PrimitiveFeature[dtypes.StringType]):
     """A primitive feature representing a string value."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.StringType
@@ -474,7 +506,7 @@ class StringFeature(PrimitiveFeature):
         return self.execute_method("format", *args, **kwargs)
 
 
-class Int8Feature(PrimitiveFeature):
+class Int8Feature(PrimitiveFeature[dtypes.Int8Type]):
     """A primitive feature representing a signed 8-bit integer."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.Int8Type
@@ -844,7 +876,7 @@ class Int8Feature(PrimitiveFeature):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class Int16Feature(PrimitiveFeature):
+class Int16Feature(PrimitiveFeature[dtypes.Int16Type]):
     """A primitive feature representing a signed 16-bit integer."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.Int16Type
@@ -1214,7 +1246,7 @@ class Int16Feature(PrimitiveFeature):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class Int32Feature(PrimitiveFeature):
+class Int32Feature(PrimitiveFeature[dtypes.Int32Type]):
     """A primitive feature representing a signed 32-bit integer."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.Int32Type
@@ -1586,7 +1618,7 @@ class Int32Feature(PrimitiveFeature):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class Int64Feature(PrimitiveFeature):
+class Int64Feature(PrimitiveFeature[dtypes.Int64Type]):
     """A primitive feature representing a signed 64-bit integer."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.Int64Type
@@ -1956,7 +1988,7 @@ class Int64Feature(PrimitiveFeature):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class UInt8Feature(PrimitiveFeature):
+class UInt8Feature(PrimitiveFeature[dtypes.UInt8Type]):
     """A primitive feature representing an unsigned 8-bit integer."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.UInt8Type
@@ -2326,7 +2358,7 @@ class UInt8Feature(PrimitiveFeature):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class UInt16Feature(PrimitiveFeature):
+class UInt16Feature(PrimitiveFeature[dtypes.UInt16Type]):
     """A primitive feature representing an unsigned 16-bit integer."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.UInt16Type
@@ -2696,7 +2728,7 @@ class UInt16Feature(PrimitiveFeature):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class UInt32Feature(PrimitiveFeature):
+class UInt32Feature(PrimitiveFeature[dtypes.UInt32Type]):
     """A primitive feature representing an unsigned 32-bit integer."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.UInt32Type
@@ -3066,7 +3098,7 @@ class UInt32Feature(PrimitiveFeature):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class UInt64Feature(PrimitiveFeature):
+class UInt64Feature(PrimitiveFeature[dtypes.UInt64Type]):
     """A primitive feature representing an unsigned 64-bit integer."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.UInt64Type
@@ -3436,7 +3468,7 @@ class UInt64Feature(PrimitiveFeature):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class Float32Feature(PrimitiveFeature):
+class Float32Feature(PrimitiveFeature[dtypes.Float32Type]):
     """A primitive feature representing a 32-bit floating-point number."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.Float32Type
@@ -3658,7 +3690,7 @@ class Float32Feature(PrimitiveFeature):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class Float64Feature(PrimitiveFeature):
+class Float64Feature(PrimitiveFeature[dtypes.Float64Type]):
     """A primitive feature representing a 64-bit floating-point number."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.Float64Type
@@ -4020,16 +4052,23 @@ class ClassLabelFeature(Int64Feature):
                 the expected :code:`dtype`.
         """
 
-        def validator_fn(inst: Feature | Reference, validator: Callable[[Any], Any]) -> Feature:
+        def validator_fn(inst: Feature | BaseReference, validator: Callable[[Any], Any]) -> Feature:
+            # TODO: only convert in strict mode, see mapping feature
             if isinstance(inst, ClassLabelFeature) and (cls != ClassLabelFeature):
                 # convert the class label feature to the specific
                 # class label feature instance
-                inst = cls(inst.ref, inst.dtype)
+                inst = cls(inst.ref)
 
-            elif isinstance(inst, Reference):
+            elif isinstance(inst, BaseReference):
+                if inst.get_dtype() is None:
+                    # fallback to the data type inferred from the specific subclass
+                    # in case the reference does not specify a dtype
+                    assert isinstance(inst, ForwardReference)
+                    inst = ForwardReference(cls._build_class_label_dtype())
+
                 # create a class label feature instance from the reference
-                # with the data type inferred from the specific subclass
-                inst = cls(inst, cls._build_class_label_dtype())
+                inst = cls(inst)
+
                 if len(inst.dtype) == 0:
                     raise PydanticCustomError(
                         "Invalid Class Labels",
@@ -4052,16 +4091,13 @@ T = TypeVar("T")
 
 
 @dataclass(eq=True, frozen=False)
-class SequenceFeature(typing.Sequence[T], Feature):
+class SequenceFeature(typing.Sequence[T], Feature[dtypes.SequenceType]):
     """A feature representing a sequence of items.
 
     The :class:`SequenceFeature` class models a feature where the data type is a sequence,
     supporting indexing, slicing, and length operations while maintaining type
     safety and feature reference consistency.
     """
-
-    dtype: dtypes.SequenceType
-    """The data type of the sequence, must be an instance of :class:`types.SequenceType`."""
 
     def __post_init__(self) -> None:
         """Validates that the data type is a valid sequence type."""
@@ -4201,7 +4237,7 @@ class SequenceFeature(typing.Sequence[T], Feature):
 
         This method creates a schema that performs two key operations:
 
-        1. If the input is a :class:`Reference` object, this method constructs a
+        1. If the input is a :class:`BaseReference` object, this method constructs a
            corresponding :class:`SequenceFeature` feature.
 
         2. Ensures that the value type of the :class:`SequenceFeature` instance matches
@@ -4237,18 +4273,23 @@ class SequenceFeature(typing.Sequence[T], Feature):
             adapter = pydantic.TypeAdapter(expected_item_type, config=config)
 
         def validator_fn(inst, validator, info):
-            if isinstance(inst, Reference) and (adapter is None):
-                # no value type specified
-                raise RuntimeError(
-                    "Cannot validate a Sequence feature from a Reference without specifying the "
-                    "value type. Ensure that the generic type alias (e.g., Sequence[Int]) is "
-                    "provided to define the expected value type."
-                )
+            if isinstance(inst, BaseReference):
+                if inst.get_dtype() is not None:
+                    return SequenceFeature(inst)
 
-            elif isinstance(inst, Reference):
+                if adapter is None:
+                    # no value type specified
+                    raise RuntimeError(
+                        "Cannot validate a Sequence feature from a Reference without specifying "
+                        "the value type. Ensure that the generic type alias (e.g., Sequence[Int]) "
+                        "is provided to define the expected value type."
+                    )
+
+                assert isinstance(inst, ForwardReference)
                 # create instance from reference
-                value_feature = adapter.validate_python(inst, context=info.context)
-                inst = SequenceFeature(inst, dtype=dtypes.SequenceType(value_feature.dtype))
+                value_feature: Feature = adapter.validate_python(inst, context=info.context)
+                dtype = dtypes.SequenceType(value_feature.dtype)
+                inst = build_feature_from_reference(ForwardReference(dtype))
 
             # run the core validator checking that the instance
             # is a valid sequence feature
@@ -4258,7 +4299,9 @@ class SequenceFeature(typing.Sequence[T], Feature):
                 # create a copy of the instance but with length 1
                 # and validate the value feature at position 0 as a representative
                 # of all the sequence values
-                value_feature = build_feature_from_dtype(inst.ref, inst.dtype.value_type)
+                value_feature = build_feature_from_reference(
+                    ForwardReference(inst.dtype.value_type)
+                )
                 adapter.validate_python(value_feature, context=info.context, strict=True)
 
             return inst
@@ -4269,7 +4312,7 @@ class SequenceFeature(typing.Sequence[T], Feature):
 
 
 @dataclass(eq=True, frozen=False)
-class _MappingFeature(typing.Mapping, Feature):
+class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
     """A base class for defining strongly-typed mappings.
 
     Represents a strongly-typed mapping feature, which can be used to define fields
@@ -4293,9 +4336,6 @@ class _MappingFeature(typing.Mapping, Feature):
         # This subclass defines a mapping with `key1` as a string feature
         # and `key2` as an integer feature.
     """
-
-    dtype: dtypes.MappingType
-    """The data type for the mapping, which includes the types of keys and values."""
 
     def __post_init__(self) -> None:
         """Post initialization validation.
@@ -4373,7 +4413,7 @@ class _MappingFeature(typing.Mapping, Feature):
 
         The validation process includes two main tasks:
 
-        1. If the input is a :class:`Reference` object, the method constructs a corresponding
+        1. If the input is a :class:`BaseReference` object, the method constructs a corresponding
         :class:`_MappingFeature` instance.
         2. It ensures that the fields of the :class:`_MappingFeature` instance match the expected
         fields and data types as defined by the Pydantic model.
@@ -4389,7 +4429,7 @@ class _MappingFeature(typing.Mapping, Feature):
                 which is used to validate instances of the mapping.
 
         Raises:
-            RuntimeError: If a :class:`Reference` is provided, but no corresponding
+            RuntimeError: If a :class:`BaseReference` is provided, but no corresponding
                 Pydantic model can be created for validation.
         """
         ignore_keys = set(typing.get_type_hints(_MappingFeature).keys())
@@ -4443,17 +4483,23 @@ class _MappingFeature(typing.Mapping, Feature):
         model = model if model is not _MappingFeature else None
 
         def validator_fn(inst, validator, info):
-            if isinstance(inst, Reference) and model is None:
-                raise RuntimeError(
-                    "Cannot validate a Mapping feature from a Reference without specifying fields."
-                )
+            if isinstance(inst, BaseReference):
+                if inst.get_dtype() is not None:
+                    return _MappingFeature(inst)
 
-            elif isinstance(inst, Reference):
+                if model is None:
+                    raise RuntimeError(
+                        "Cannot validate a Mapping feature from a Reference without "
+                        "specifying fields."
+                    )
+
+                assert isinstance(inst, ForwardReference)
                 # infer member types from annotations using the validation model
-                members = {key: inst for key in model.model_fields.keys()}
+                members = {key: ForwardReference() for key in model.model_fields.keys()}
                 members = {key: field.dtype for key, field in model.model_validate(members)}
                 # create the mapping instance from the member types
-                inst = cls(inst, dtypes.MappingType.construct(members))
+                dtype = dtypes.MappingType.construct(members)
+                inst = build_feature_from_reference(ForwardReference(dtype))
 
             # run the core validator checking that the instance
             # is a valid mapping
@@ -4462,14 +4508,15 @@ class _MappingFeature(typing.Mapping, Feature):
             if model is not None:
                 # validate the field types
                 fields = {
-                    key: build_feature_from_dtype(inst.ref, inst.dtype[key]) for key in inst.keys()
+                    key: build_feature_from_reference(ForwardReference(inst.dtype[key]))
+                    for key in inst.keys()
                 }
                 model.model_validate(fields, context=info.context, strict=True)
 
             strict = (info.context or {}).get("strict", False)
             # convert the instance to the actual class type in case of
             # strict validation
-            return inst if isinstance(inst, cls) or not strict else cls(inst.ref, inst.dtype)
+            return inst if isinstance(inst, cls) or not strict else cls(inst.ref)
 
         return core_schema.with_info_wrap_validator_function(
             validator_fn, schema=core_schema.is_instance_schema(_MappingFeature)
@@ -4529,17 +4576,18 @@ PRIMITIVE_FEATURE_MAPPING = {
 }
 
 
-def build_feature_from_dtype(ref: Reference, dtype: dtypes.Type) -> Feature:
-    """Build a feature from a given data type and reference.
+def build_feature_from_reference(
+    ref: BaseReference, fallback_dtype: None | dtypes.Type = None
+) -> Feature:
+    """Build a feature from a given reference.
 
     This function takes a reference and a data type, and constructs the appropriate
-    feature based on the type of the data. It supports different types of data,
-    including primitive types, sequences, and mappings.
+    feature based on the type of the data.
 
     Args:
-        ref (Reference): The reference to the feature being created.
-        dtype (types.Type): The data type to associate with the feature. Can be a
-            primitive type, sequence type, or mapping type.
+        ref (BaseReference): The reference to the feature being created.
+        fallback_dtype (None | dtypes.Type): The fallback dtype used in case the dtype
+            cannot be inferred from the reference.
 
     Returns:
         Feature: The corresponding feature based on the type of :code:`dtype`.
@@ -4547,23 +4595,29 @@ def build_feature_from_dtype(ref: Reference, dtype: dtypes.Type) -> Feature:
     Raises:
         TypeError: If the :code:`dtype` is not recognized.
     """
+    # infer the dtype of the feature from the reference or the fallback
+    ref = ref if ref.get_dtype() is not None else ForwardReference(fallback_dtype)
+    dtype = ref.get_dtype()
+
+    if dtype is None:
+        raise RuntimeError()  # TODO: error message, dtype not defined
+
     if isinstance(dtype, dtypes.ClassLabelType):
-        return ClassLabelFeature(ref, dtype)
+        return ClassLabelFeature(ref)
 
     elif isinstance(dtype, dtypes.PrimitiveType):
-        return PRIMITIVE_FEATURE_MAPPING[dtype](ref, dtype)
+        return PRIMITIVE_FEATURE_MAPPING[dtype](ref)
 
     elif isinstance(dtype, dtypes.SequenceType):
-        return SequenceFeature(ref, dtype)
+        return SequenceFeature(ref)
 
     elif isinstance(dtype, dtypes.MappingType):
-        return MappingFeature(ref, dtype)
+        return MappingFeature(ref)
 
     raise TypeError(f"Unsupported data type, got {dtype}.")
 
 
 def build_feature_from_annotation(
-    ref: Reference,
     annotation: Any,
     typevar_mapping: dict[TypeVar, dtypes.Type] = {},
     context: dict[str, Any] = {},
@@ -4577,7 +4631,6 @@ def build_feature_from_annotation(
     and resolves them to concrete feature types.
 
     Args:
-        ref (Reference): The reference to the feature being created.
         annotation (Any): The annotation that describes the feature's type, which can
             include type parameters or type variables.
         typevar_mapping (dict[TypeVar, types.Type]): A mapping that associates
@@ -4590,6 +4643,16 @@ def build_feature_from_annotation(
             the structure defined by the annotation and resolves any type parameters.
 
     """
+
+    def maybe_build_feature_from_reference(
+        inst: Feature | BaseReference, dtype: dtypes.Type
+    ) -> Feature:
+        return (
+            inst
+            if isinstance(inst, Feature)
+            else build_feature_from_reference(inst, fallback_dtype=dtype)
+        )
+
     # get the return annotation
     has_parameters = hasattr(annotation, "__parameters__") and len(annotation.__parameters__) > 0
 
@@ -4615,7 +4678,8 @@ def build_feature_from_annotation(
         # which resolves to the corresponding feature type
         features = [
             typing.Annotated[
-                Feature, pydantic.BeforeValidator(partial(build_feature_from_dtype, dtype=dtype))
+                Feature,
+                pydantic.BeforeValidator(partial(maybe_build_feature_from_reference, dtype=dtype)),
             ]
             for dtype in dtypes
         ]
@@ -4623,7 +4687,7 @@ def build_feature_from_annotation(
         builder = builder.__class_getitem__(*features)
 
     # build the output feature
-    feature = builder.model_validate({"field": ref}, context=context).field
+    feature = builder.model_validate({"field": ForwardReference()}, context=context).field
     assert isinstance(feature, Feature)
 
     return feature

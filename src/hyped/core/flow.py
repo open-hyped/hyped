@@ -43,9 +43,9 @@ from .features.features import (
     SequenceFeature,
     StringFeature,
     build_feature_from_annotation,
-    build_feature_from_dtype,
+    build_feature_from_reference,
 )
-from .features.reference import Reference
+from .features.reference import ConcreteReference, ForwardReference
 from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
@@ -269,10 +269,9 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         src_dtype: Type
 
         if (src_type_annotation is not None) and (self._hf_source_features is not None):
-            ref = Reference(_graph=self._graph)
             # create a dummy feature instance according to the huggingface features
             hf_dtype = build_dtype_from_hf_feature(self._hf_source_features)
-            instance = build_feature_from_dtype(ref, hf_dtype)
+            instance = build_feature_from_reference(ForwardReference(hf_dtype))
             # validate the feature instance with respect to the type annotation
             try:
                 adapter = pydantic.TypeAdapter(src_type_annotation)
@@ -287,10 +286,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
 
         elif src_type_annotation is not None:
             # infer the source dtype from the type annotation
-            src_dtype = build_feature_from_annotation(
-                Reference(_graph=self._graph),
-                src_type_annotation,
-            ).dtype
+            src_dtype = build_feature_from_annotation(src_type_annotation).dtype
 
         elif self._hf_source_features is not None:
             # build the source dtype from the huggingface features
@@ -305,7 +301,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
 
         # add the source node to the graph with the node id
         src_ref = self._graph.add_source_node(src_dtype)
-        self._source_feature = build_feature_from_dtype(src_ref, src_dtype)
+        self._source_feature = build_feature_from_reference(src_ref)
 
     @property
     def depth(self) -> int:
@@ -399,13 +395,13 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             # create a dummy feature to infer the data type
             # from the given feature type
             adapter = pydantic.TypeAdapter(feature_type)
-            dtype = adapter.validate_python(Reference()).dtype
+            dtype = adapter.validate_python(ForwardReference()).dtype
         else:
             # build the data type matching the object in case no data type was provided
             dtype = build_dtype_from_python_object(value)
         # add the constant node to the graph
         ref = self._graph.add_const_node(value, dtype)
-        return self._graph.get_feature_from_reference(ref)
+        return build_feature_from_reference(ref)
 
     @overload
     def collect(self, collect: dict[NestedType[Any]]) -> MappingFeature:
@@ -448,7 +444,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         collect = map_recursive(lambda _, x: x.ref if isinstance(x, Feature) else x, collect)
         ref = self._graph.add_collect_node_with_constants(collect)
         # return the collect feature
-        return self._graph.get_feature_from_reference(ref)
+        return build_feature_from_reference(ref)
 
     def build(
         self,
@@ -640,14 +636,15 @@ class ExecutableDataFlow(AbstractDataFlow):
     """
 
     def __init__(
-        self, graph: DataFlowGraph, collect: Reference, aggregate: Reference | None
+        self, graph: DataFlowGraph, collect: ConcreteReference, aggregate: ConcreteReference | None
     ) -> None:
         """Initialize a :class:`ExecutableDataFlow`.
 
         Args:
             graph (DataFlowGraph): The data flow graph describing the pipeline.
-            collect (Reference): A reference to the "collect" node in the graph.
-            aggregate (Reference | None): A reference to the "aggregate" node, if applicable.
+            collect (ConcreteReference): A reference to the "collect" node in the graph.
+            aggregate (ConcreteReference | None): A reference to the "aggregate" node,
+                if applicable.
 
         Raises:
             RuntimeError: If the collect node is not part of the graph.
@@ -681,7 +678,7 @@ class ExecutableDataFlow(AbstractDataFlow):
                 raise RuntimeError("The aggregate node must belong to the aggregated partition.")
 
             # make sure the collect feature is a mapping
-            if not isinstance(graph.get_feature_from_reference(aggregate), MappingFeature):
+            if not isinstance(build_feature_from_reference(aggregate), MappingFeature):
                 raise RuntimeError("The aggregate feature must be a mapping.")
 
         # optimize data flow
@@ -698,9 +695,9 @@ class ExecutableDataFlow(AbstractDataFlow):
         collect = replace(collect, _graph=self._graph)
         aggregate = None if aggregate is None else replace(aggregate, _graph=self._graph)
         # get the source feature instance from the graph
-        ref = Reference(_node_id=graph.src_node_id, _graph=self._graph)
-        self._source_feature: MappingFeature = self._graph.get_feature_from_reference(ref)
-        self._collect_feature: MappingFeature = self._graph.get_feature_from_reference(
+        ref = ConcreteReference(_node_id=graph.src_node_id, _graph=self._graph)
+        self._source_feature: MappingFeature = build_feature_from_reference(ref)
+        self._collect_feature: MappingFeature = build_feature_from_reference(
             replace(collect, _graph=self._graph)
         )
 
@@ -801,7 +798,7 @@ class ExecutableDataFlow(AbstractDataFlow):
         return self._aggregates_executor  # pragma: not covered
 
     def _build_aggregates_graph(
-        self, aggregate: Reference, aggregator_nodes: set[NodeId]
+        self, aggregate: ConcreteReference, aggregator_nodes: set[NodeId]
     ) -> DataFlowGraph:
         """Build the aggregates graph.
 
@@ -814,7 +811,7 @@ class ExecutableDataFlow(AbstractDataFlow):
         aggregation manager.
 
         Args:
-            aggregate (Reference): The aggregate reference for which the dependency graph
+            aggregate (ConcreteReference): The aggregate reference for which the dependency graph
                 will be built.
             aggregator_nodes (set[NodeId]): A set of node IDs representing the aggregator nodes
                 that act as stopping points in the dependency graph.
@@ -839,14 +836,14 @@ class ExecutableDataFlow(AbstractDataFlow):
             }
         )
         source_ref = h.add_source_node(source_type)
-        source = build_feature_from_dtype(source_ref, source_type)
+        source = build_feature_from_reference(source_ref)
 
         # rebuild the aggregates graph
         for node_id in nx.topological_sort(g):
             # collect all the inputs to the node
             edges = self._graph.in_edges(node_id, keys=True)
             inputs = {
-                key: source[key].ref if u in aggregator_nodes else Reference(u, h)
+                key: source[key].ref if u in aggregator_nodes else ConcreteReference(u, h)
                 for u, _, key in edges
             }
             # add the node to the graph
@@ -1206,11 +1203,11 @@ class ExecutableDataFlow(AbstractDataFlow):
         graph = DataFlowGraph.from_dict(data["graph"])
 
         # build collect and aggregate references
-        collect = Reference(_node_id=data["collect"], _graph=graph)
+        collect = ConcreteReference(_node_id=data["collect"], _graph=graph)
         aggregate = (
             None
             if data["aggregate"] is None
-            else Reference(_node_id=data["aggregate"], _graph=graph)
+            else ConcreteReference(_node_id=data["aggregate"], _graph=graph)
         )
 
         # construct executable data flow

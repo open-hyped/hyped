@@ -19,7 +19,7 @@ from hyped.common._pydantic import BaseModelWithArbitraryTypesAllowed
 from ..registry.config import BaseConfig
 from .dtypes import Type, build_dtype_from_python_object, common_dtype
 from .features import Feature, build_feature_from_annotation
-from .reference import Reference
+from .reference import ConcreteReference
 
 
 class TypeVarRegister(object):
@@ -263,7 +263,7 @@ class FeatureEngine(object):
 
     def get_references_and_objects(
         self, *args: Any, **kwargs: Any
-    ) -> tuple[dict[str, Reference], dict[str, Any], dict[str, Type]]:
+    ) -> tuple[dict[str, ConcreteReference], dict[str, Any], dict[str, Type]]:
         """Separate input feature references and constants from the arguments.
 
         Args:
@@ -271,7 +271,7 @@ class FeatureEngine(object):
             **kwargs (Any): Keyword arguments.
 
         Returns:
-            tuple[dict[str, _Feature], dict[str, Any], dict[str, TypeFactory]]: Tuple containing
+            tuple[dict[str, ConcreteReference], dict[str, Any], dict[str, Type]]: Tuple containing
             input features and objects.
         """
         # bind inputs to signature and extract the keyword arguments
@@ -283,6 +283,8 @@ class FeatureEngine(object):
         # separate all feature and constant inputs
         inputs = {key: val.ref for key, val in arguments.items() if isinstance(val, Feature)}
         consts = {key: val for key, val in arguments.items() if not isinstance(val, Feature)}
+        # make sure all references are concrete references
+        assert all(isinstance(val, ConcreteReference) for val in inputs.values())
 
         # infer the data types of the constant inputs from the signature
         const_dtypes = {
@@ -290,7 +292,6 @@ class FeatureEngine(object):
                 annotation=self.signature.parameters[
                     key if key not in kwargs else self.kwargs_param.name
                 ].annotation,
-                ref=Reference(),
                 inputs=None,
             ).dtype
             for key in consts.keys()
@@ -299,13 +300,12 @@ class FeatureEngine(object):
         return inputs, consts, const_dtypes
 
     def build_feature_with_context(
-        self, annotation: Any, ref: Reference, inputs: None | dict[str, Feature]
+        self, annotation: Any, inputs: None | dict[str, Feature]
     ) -> Feature:
         """Create a feature based on type annotation and inputs in a specific context.
 
         Args:
             annotation (Any): Type annotation for the feature.
-            ref (Reference): Reference to the feature being created.
             inputs (None | dict[str, Feature]): Input features to build the feature, if any.
 
         Returns:
@@ -324,9 +324,9 @@ class FeatureEngine(object):
         if inputs is not None:
             context["inputs"] = inputs
 
-        return build_feature_from_annotation(ref, annotation, typevar_mapping, context)
+        return build_feature_from_annotation(annotation, typevar_mapping, context)
 
-    def build_return_feature(self, ref: Reference, inputs: dict[str, Feature]) -> Feature:
+    def build_return_feature(self, inputs: dict[str, Feature]) -> Feature:
         """Build the return feature based on the function's return type annotation.
 
         Args:
@@ -336,4 +336,4 @@ class FeatureEngine(object):
         Returns:
             Feature: The constructed return feature.
         """
-        return self.build_feature_with_context(self.signature.return_annotation, ref, inputs)
+        return self.build_feature_with_context(self.signature.return_annotation, inputs)
