@@ -37,10 +37,7 @@ tests = [
     "pytest-integration",
     "sharedmock@git+https://github.com/ScriptingSquirrel/python-sharedmock.git"
 ]
-docs = ["sphinx", "sphinx_rtd_theme"]
-cas = ["dkpro-cassis>=0.8.0"]
-llm = ["openai>=1.23.6"]
-torch = ["torch>=2.2.1"]
+docs = ["sphinx", "furo"]
 
 [build-system]
 requires = ["setuptools >= 61.0.0", "setuptools_scm>=8.0.0"]

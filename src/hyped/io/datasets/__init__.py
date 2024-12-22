@@ -29,6 +29,6 @@ def _register_from_file_name(dataset_id: str, file_name: str) -> None:
         )
 
 
-# register datasets
-_register_from_file_name("hyped.io.datasets.cas", "cas.py")
-_register_from_file_name("hyped.io.datasets.typed_json", "typed_json.py")
+# TODO: register datasets
+# _register_from_file_name("hyped.io.datasets.cas", "cas.py")
+# _register_from_file_name("hyped.io.datasets.typed_json", "typed_json.py")

@@ -114,10 +114,10 @@ Feature: TypeAlias = Union[_Feature, Any, list[Any], pa.Scalar, pa.Array]
 Feature: Type alias for a feature.
 
 Supported types include:
-- Feature Types: :class:`Feature`
-- Built-in types: :class:`Any`, :class:`list[Any]`
-- PyArrow scalar types: :class:`pyarrow.Scalar`
-- PyArrow array types: :class:`pyarrow.Array`
+ - Feature Types: :class:`hyped.core.features.features.Feature`
+ - Built-in types: :class:`Any`, :class:`list[Any]`
+ - PyArrow scalar types: :class:`pyarrow.Scalar`
+ - PyArrow array types: :class:`pyarrow.Array`
 """
 
 String: TypeAlias = Union[StringFeature, str, list[str], pa.StringScalar, pa.StringArray]

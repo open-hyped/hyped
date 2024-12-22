@@ -54,7 +54,7 @@ Below is a list of key sections in this documentation, guiding you through insta
    add_ons
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: API References
 
    api/hyped
