@@ -4622,13 +4622,16 @@ def build_feature_from_annotation(
     typevar_mapping: dict[TypeVar, dtypes.Type] = {},
     context: dict[str, Any] = {},
 ) -> Feature:
-    """Build a feature from a given annotation.
+    """Build a feature from a given annotation using a forward reference.
 
     This function inspects the provided annotation and resolves any type parameters
     or type variables, then constructs a feature accordingly. If the annotation
     includes type parameters, it creates a generic validation model and resolves
     the correct feature types. This function supports features with generic annotations
     and resolves them to concrete feature types.
+
+    The underlying reference is a :class:`ForwardReference` instance with a data type
+    corresponding to the resolved feature type.
 
     Args:
         annotation (Any): The annotation that describes the feature's type, which can

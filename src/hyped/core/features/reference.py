@@ -45,11 +45,11 @@ class BaseReference(ABC):
 
 @dataclass(eq=True, frozen=True)
 class ForwardReference(BaseReference):
-    """Represents a forward reference within a data flow graph.
+    """Represents a forward reference.
 
-    A forward reference serves as a placeholder for a node or feature that is not yet resolved.
-    This is often used in cases where the node or feature will be defined or linked at a later
-    stage in the graph construction process.
+    A forward reference serves as a placeholder for a node that is not yet resolved.
+    This is often used in cases where the node or feature will be defined or linked
+    at a later stage in the graph construction process.
     """
 
     dtype: Type | None = None
