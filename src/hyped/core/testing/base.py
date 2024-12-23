@@ -15,7 +15,7 @@ import pydantic
 import pytest
 
 from hyped.core.features.dtypes import MappingType
-from hyped.core.features.features import build_feature_from_annotation
+from hyped.core.features.features import MappingFeature, build_feature_from_annotation
 from hyped.core.flow import DataFlow, ExecutableDataFlow
 from hyped.core.nodes.base import BaseNode
 from hyped.core.typing import Feature, IndexList, Rank
@@ -200,6 +200,32 @@ class BaseNodeTest(ABC):
             )
         return list(range(len(cls.input_data)))
 
+    def setup_data_flow(self, flow: DataFlow) -> MappingFeature:
+        """Hook to setup of the data flow graph before adding the node.
+
+        This method can be overridden to implement custom logic for configuring
+        the data flow. It is called before the node to be tested is added, allowing
+        the setup of additional processing steps, transformations, or configurations
+        within the data flow.
+
+        By default, this method returns the source features of the data flow,
+        which serve as inputs to the node being tested. Override this method to
+        modify the inputs or structure of the data flow as needed.
+
+        The return value of this method is used as the input to the :code:`call`
+        method of the node being tested. By default, this method returns the source
+        features of the data flow (:code:`flow.source`). Override this method to modify
+        the inputs or structure of the data flow as needed for your testing scenario.
+
+        Args:
+            flow (DataFlow): The data flow graph to be set up.
+
+        Returns:
+            MappingFeature: The inputs to the node, by default derived from
+            :code:`flow.source`.
+        """
+        return flow.source
+
     def call_node(self, node: BaseNode) -> tuple[DataFlow, Feature]:
         """Calls the node in a new data flow graph.
 
@@ -217,6 +243,7 @@ class BaseNodeTest(ABC):
         """
         cls = type(self)
         flow = DataFlow(cls.build_input_dtype().hf_feature)
+        source = self.setup_data_flow(flow)
 
         with (
             pytest.raises(cls.expected_verification_error)
@@ -224,7 +251,7 @@ class BaseNodeTest(ABC):
             else nullcontext()
         ):
             # call the node while catching potential verification error
-            output = node.call(**flow.source)
+            output = node.call(**source)
 
         if cls.expected_verification_error is not None:
             # successfully catched verification error

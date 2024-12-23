@@ -125,10 +125,10 @@ String: TypeAlias = Union[StringFeature, str, list[str], pa.StringScalar, pa.Str
 String: Type alias for a string.
 
 Supported types include:
-- Feature Types: :class:`StringFeature`
-- Built-in types: :class:`str`, :class:`list[str]`
-- PyArrow scalar types: :class:`pyarrow.StringScalar`
-- PyArrow array types: :class:`pyarrow.StringArray`
+ - Feature Types: :class:`StringFeature`
+ - Built-in types: :class:`str`, :class:`list[str]`
+ - PyArrow scalar types: :class:`pyarrow.StringScalar`
+ - PyArrow array types: :class:`pyarrow.StringArray`
 """
 
 Bool: TypeAlias = Union[BoolFeature, bool, list[bool], pa.BooleanScalar, pa.BooleanArray]
@@ -136,10 +136,10 @@ Bool: TypeAlias = Union[BoolFeature, bool, list[bool], pa.BooleanScalar, pa.Bool
 Bool: Type alias for a boolean.
 
 Supported types include:
-- Feature Types: :class:`BoolFeature`
-- Built-in types: :class:`bool`, :class:`list[bool]`
-- PyArrow scalar types: :class:`pyarrow.BooleanScalar`
-- PyArrow array types: :class:`pyarrow.BooleanArray`
+ - Feature Types: :class:`BoolFeature`
+ - Built-in types: :class:`bool`, :class:`list[bool]`
+ - PyArrow scalar types: :class:`pyarrow.BooleanScalar`
+ - PyArrow array types: :class:`pyarrow.BooleanArray`
 """
 
 UInt8: TypeAlias = Union[UInt8Feature, int, list[int], pa.UInt8Scalar, pa.UInt8Array]
@@ -147,10 +147,10 @@ UInt8: TypeAlias = Union[UInt8Feature, int, list[int], pa.UInt8Scalar, pa.UInt8A
 UInt8: Type alias for an 8-bit unsigned integer.
 
 Supported types include:
-- Feature Types: :class:`UInt8Feature`
-- Built-in types: :class:`int`, :class:`list[int]`
-- PyArrow scalar types: :class:`pyarrow.UInt8Scalar`
-- PyArrow array types: :class:`pyarrow.UInt8Array`
+ - Feature Types: :class:`UInt8Feature`
+ - Built-in types: :class:`int`, :class:`list[int]`
+ - PyArrow scalar types: :class:`pyarrow.UInt8Scalar`
+ - PyArrow array types: :class:`pyarrow.UInt8Array`
 """
 
 UInt16: TypeAlias = Union[UInt16Feature, int, list[int], pa.UInt16Scalar, pa.UInt16Array]
@@ -158,10 +158,10 @@ UInt16: TypeAlias = Union[UInt16Feature, int, list[int], pa.UInt16Scalar, pa.UIn
 UInt16: Type alias for a 16-bit unsigned integer.
 
 Supported types include:
-- Feature Types: :class:`UInt16Feature`
-- Built-in types: :class:`int`, :class:`list[int]`
-- PyArrow scalar types: :class:`pyarrow.UInt16Scalar`
-- PyArrow array types: :class:`pyarrow.UInt16Array`
+ - Feature Types: :class:`UInt16Feature`
+ - Built-in types: :class:`int`, :class:`list[int]`
+ - PyArrow scalar types: :class:`pyarrow.UInt16Scalar`
+ - PyArrow array types: :class:`pyarrow.UInt16Array`
 """
 
 UInt32: TypeAlias = Union[UInt32Feature, int, list[int], pa.UInt32Scalar, pa.UInt32Array]
@@ -169,10 +169,10 @@ UInt32: TypeAlias = Union[UInt32Feature, int, list[int], pa.UInt32Scalar, pa.UIn
 UInt32: Type alias for a 32-bit unsigned integer.
 
 Supported types include:
-- Feature Types: :class:`UInt32Feature`
-- Built-in types: :class:`int`, :class:`list[int]`
-- PyArrow scalar types: :class:`pyarrow.UInt32Scalar`
-- PyArrow array types: :class:`pyarrow.UInt32Array`
+ - Feature Types: :class:`UInt32Feature`
+ - Built-in types: :class:`int`, :class:`list[int]`
+ - PyArrow scalar types: :class:`pyarrow.UInt32Scalar`
+ - PyArrow array types: :class:`pyarrow.UInt32Array`
 """
 
 UInt64: TypeAlias = Union[UInt64Feature, int, list[int], pa.UInt64Scalar, pa.UInt64Array]
@@ -180,10 +180,10 @@ UInt64: TypeAlias = Union[UInt64Feature, int, list[int], pa.UInt64Scalar, pa.UIn
 UInt64: Type alias for a 64-bit unsigned integer.
 
 Supported types include:
-- Feature Types: :class:`UInt64Feature`
-- Built-in types: :class:`int`, :class:`list[int]`
-- PyArrow scalar types: :class:`pyarrow.UInt64Scalar`
-- PyArrow array types: :class:`pyarrow.UInt64Array`
+ - Feature Types: :class:`UInt64Feature`
+ - Built-in types: :class:`int`, :class:`list[int]`
+ - PyArrow scalar types: :class:`pyarrow.UInt64Scalar`
+ - PyArrow array types: :class:`pyarrow.UInt64Array`
 """
 
 UInt: TypeAlias = Union[
@@ -206,13 +206,13 @@ UInt: TypeAlias = Union[
 UInt: Type alias for an unsigned integer of varying bit length.
 
 Supported types include:
-- Feature Types: :class:`UInt8Feature`, :class:`UInt16Feature`, :class:`UInt32Feature`,
-  :class:`UInt64Feature`
-- Built-in types: :class:`int`, :class:`list[int]`
-- PyArrow scalar types: :class:`pyarrow.UInt8Scalar`, :class:`pyarrow.UInt16Scalar`,
-  :class:`pyarrow.UInt32Scalar`, :class:`pyarrow.UInt64Scalar`
-- PyArrow array types: :class:`pyarrow.UInt8Array`, :class:`pyarrow.UInt16Array`,
-  :class:`pyarrow.UInt32Array`, :class:`pyarrow.UInt64Array`
+ - Feature Types: :class:`UInt8Feature`, :class:`UInt16Feature`, :class:`UInt32Feature`,
+   :class:`UInt64Feature`
+ - Built-in types: :class:`int`, :class:`list[int]`
+ - PyArrow scalar types: :class:`pyarrow.UInt8Scalar`, :class:`pyarrow.UInt16Scalar`,
+   :class:`pyarrow.UInt32Scalar`, :class:`pyarrow.UInt64Scalar`
+ - PyArrow array types: :class:`pyarrow.UInt8Array`, :class:`pyarrow.UInt16Array`,
+   :class:`pyarrow.UInt32Array`, :class:`pyarrow.UInt64Array`
 """
 
 Int8: TypeAlias = Union[Int8Feature, int, list[int], pa.Int8Scalar, pa.Int8Array]
@@ -220,10 +220,10 @@ Int8: TypeAlias = Union[Int8Feature, int, list[int], pa.Int8Scalar, pa.Int8Array
 Int8: Type alias for an 8-bit signed integer.
 
 Supported types include:
-- Feature Types: :class:`Int8Feature`
-- Built-in types: :class:`int`, :class:`list[int]`
-- PyArrow scalar types: :class:`pyarrow.Int8Scalar`
-- PyArrow array types: :class:`pyarrow.Int8Array`
+ - Feature Types: :class:`Int8Feature`
+ - Built-in types: :class:`int`, :class:`list[int]`
+ - PyArrow scalar types: :class:`pyarrow.Int8Scalar`
+ - PyArrow array types: :class:`pyarrow.Int8Array`
 """
 
 Int16: TypeAlias = Union[Int16Feature, int, list[int], pa.Int16Scalar, pa.Int16Array]
@@ -231,10 +231,10 @@ Int16: TypeAlias = Union[Int16Feature, int, list[int], pa.Int16Scalar, pa.Int16A
 Int16: Type alias for a 16-bit signed integer.
 
 Supported types include:
-- Feature Types: :class:`Int16Feature`
-- Built-in types: :class:`int`, :code:`list[int]`
-- PyArrow scalar types: :class:`pyarrow.Int16Scalar`
-- PyArrow array types: :class:`pyarrow.Int16Array`
+ - Feature Types: :class:`Int16Feature`
+ - Built-in types: :class:`int`, :code:`list[int]`
+ - PyArrow scalar types: :class:`pyarrow.Int16Scalar`
+ - PyArrow array types: :class:`pyarrow.Int16Array`
 """
 
 Int32: TypeAlias = Union[Int32Feature, int, list[int], pa.Int32Scalar, pa.Int32Array]
@@ -242,10 +242,10 @@ Int32: TypeAlias = Union[Int32Feature, int, list[int], pa.Int32Scalar, pa.Int32A
 Int32: Type alias for a 32-bit signed integer.
 
 Supported types include:
-- Feature Types: :class:`Int32Feature`
-- Built-in types: :class:`int`, :code:`list[int]`
-- PyArrow scalar types: :class:`pyarrow.Int32Scalar`
-- PyArrow array types: :class:`pyarrow.Int32Array`
+ - Feature Types: :class:`Int32Feature`
+ - Built-in types: :class:`int`, :code:`list[int]`
+ - PyArrow scalar types: :class:`pyarrow.Int32Scalar`
+ - PyArrow array types: :class:`pyarrow.Int32Array`
 """
 
 Int64: TypeAlias = Union[Int64Feature, int, list[int], pa.Int64Scalar, pa.Int64Array]
@@ -253,10 +253,10 @@ Int64: TypeAlias = Union[Int64Feature, int, list[int], pa.Int64Scalar, pa.Int64A
 Int64: Type alias for a 64-bit signed integer.
 
 Supported types include:
-- Feature Types: :class:`Int64Feature`
-- Built-in types: :class:`int`, :code:`list[int]`
-- PyArrow scalar types: :class:`pyarrow.Int64Scalar`
-- PyArrow array types: :class:`pyarrow.Int64Array`
+ - Feature Types: :class:`Int64Feature`
+ - Built-in types: :class:`int`, :code:`list[int]`
+ - PyArrow scalar types: :class:`pyarrow.Int64Scalar`
+ - PyArrow array types: :class:`pyarrow.Int64Array`
 """
 
 Int: TypeAlias = Union[
@@ -279,13 +279,13 @@ Int: TypeAlias = Union[
 Int: Type alias for a signed integer of varying bit length.
 
 Supported types include:
-- Feature Types: :class:`Int8Feature`, :class:`Int16Feature`, :class:`Int32Feature`,
-  :class:`Int64Feature`
-- Built-in types: :class:`int`, :code:`list[int]`
-- PyArrow scalar types: :class:`pyarrow.Int8Scalar`, :class:`pyarrow.Int16Scalar`,
-  :class:`pyarrow.Int32Scalar`, :class:`pyarrow.Int64Scalar`
-- PyArrow array types: :class:`pyarrow.Int8Array`, :class:`pyarrow.Int16Array`,
-  :class:`pyarrow.Int32Array`, :class:`pyarrow.Int64Array`
+ - Feature Types: :class:`Int8Feature`, :class:`Int16Feature`, :class:`Int32Feature`,
+   :class:`Int64Feature`
+ - Built-in types: :class:`int`, :code:`list[int]`
+ - PyArrow scalar types: :class:`pyarrow.Int8Scalar`, :class:`pyarrow.Int16Scalar`,
+   :class:`pyarrow.Int32Scalar`, :class:`pyarrow.Int64Scalar`
+ - PyArrow array types: :class:`pyarrow.Int8Array`, :class:`pyarrow.Int16Array`,
+   :class:`pyarrow.Int32Array`, :class:`pyarrow.Int64Array`
 """
 
 Float32: TypeAlias = Union[Float32Feature, float, list[float], pa.FloatScalar, pa.FloatArray]
@@ -293,10 +293,10 @@ Float32: TypeAlias = Union[Float32Feature, float, list[float], pa.FloatScalar, p
 Float32: Type alias for a 32-bit floating-point number.
 
 Supported types include:
-- Feature Types: :class:`Float32Feature`
-- Built-in types: :class:`float`, :code:`list[float]`
-- PyArrow scalar types: :class:`pyarrow.FloatScalar`
-- PyArrow array types: :class:`pyarrow.FloatArray`
+ - Feature Types: :class:`Float32Feature`
+ - Built-in types: :class:`float`, :code:`list[float]`
+ - PyArrow scalar types: :class:`pyarrow.FloatScalar`
+ - PyArrow array types: :class:`pyarrow.FloatArray`
 """
 
 Float64: TypeAlias = Union[Float64Feature, float, list[float], pa.DoubleScalar, pa.DoubleArray]
@@ -304,10 +304,10 @@ Float64: TypeAlias = Union[Float64Feature, float, list[float], pa.DoubleScalar, 
 Float64: Type alias for a 64-bit floating-point number.
 
 Supported types include:
-- Feature Types: :class:`Float64Feature`
-- Built-in types: :class:`float`, :code:`list[float]`
-- PyArrow scalar types: :class:`pyarrow.DoubleScalar`
-- PyArrow array types: :class:`pyarrow.DoubleArray`
+ - Feature Types: :class:`Float64Feature`
+ - Built-in types: :class:`float`, :code:`list[float]`
+ - PyArrow scalar types: :class:`pyarrow.DoubleScalar`
+ - PyArrow array types: :class:`pyarrow.DoubleArray`
 """
 
 Float: TypeAlias = Union[
@@ -324,10 +324,10 @@ Float: TypeAlias = Union[
 Float: Type alias for a floating-point number of varying precision.
 
 Supported types include:
-- Feature Types: :class:`Float32Feature`, :class:`Float64Feature`
-- Built-in types: :class:`float`, :code:`list[float]`
-- PyArrow scalar types: :class:`pyarrow.FloatScalar`, :class:`pyarrow.DoubleScalar`
-- PyArrow array types: :class:`pyarrow.FloatArray`, :class:`pyarrow.DoubleArray`
+ - Feature Types: :class:`Float32Feature`, :class:`Float64Feature`
+ - Built-in types: :class:`float`, :code:`list[float]`
+ - PyArrow scalar types: :class:`pyarrow.FloatScalar`, :class:`pyarrow.DoubleScalar`
+ - PyArrow array types: :class:`pyarrow.FloatArray`, :class:`pyarrow.DoubleArray`
 """
 
 T = TypeVar("T")
@@ -337,10 +337,10 @@ Sequence: TypeAlias = Union[SequenceFeature[T], list[T], list[list[T]], pa.ListS
 Sequence: Type alias for a sequence of items of a specified type.
 
 Supported types include:
-- Feature Types: :code:`SequenceFeature[T]`
-- Built-in types: :code:`list[T]`, :code:`list[list[T]]`
-- PyArrow scalar types: :class:`pyarrow.ListScalar`
-- PyArrow array types: :class:`pyarrow.ListArray`
+ - Feature Types: :code:`SequenceFeature[T]`
+ - Built-in types: :code:`list[T]`, :code:`list[list[T]]`
+ - PyArrow scalar types: :class:`pyarrow.ListScalar`
+ - PyArrow array types: :class:`pyarrow.ListArray`
 """
 
 # TODO: class label and mapping type need to be subclassable

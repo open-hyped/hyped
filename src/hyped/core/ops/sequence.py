@@ -35,17 +35,17 @@ class SequenceLength(BaseDataProcessor[SequenceLengthConfig]):
     """Data processor for computing the length of sequences."""
 
     @process_mode(batched=True, backend="arrow")
-    def process(self, ctx: RunContext, x: Sequence) -> Int32Feature:
+    def process(self, ctx: RunContext, seq: Sequence) -> Int32Feature:
         """Computes the length of an input sequence.
 
         Args:
             ctx (RunContext): The execution context.
-            x (Sequence): The sequence to compute the length for.
+            seq (Sequence): The sequence to compute the length for.
 
         Returns:
             IntFeature: The lengths of the input sequences.
         """
-        return pc.list_value_length(x)
+        return pc.list_value_length(seq)
 
 
 NumericType = TypeVar("T", bound=Int | Float | UInt)
@@ -62,18 +62,18 @@ class SequenceMin(BaseDataProcessor[SequenceMinConfig]):
     """Processor to compute the minimum value of a numeric sequence."""
 
     @process_mode(batched=False, backend="python")
-    def process(self, ctx: RunContext, x: Sequence[NumericType]) -> NumericType:
+    def process(self, ctx: RunContext, seq: Sequence[NumericType]) -> NumericType:
         """Compute the minimum value of a sequence.
 
         Args:
             ctx (RunContext): Context object containing runtime information.
-            x (Sequence[NumericType]): Input sequence of numeric values.
+            seq (Sequence[NumericType]): Input sequence of numeric values.
 
         Returns:
             NumericType: The minimum value in the sequence, or the default value
             specified in the configuration if the sequence is empty.
         """
-        return min(x, default=self.config.default)
+        return min(seq, default=self.config.default)
 
 
 class SequenceMaxConfig(BaseDataProcessorConfig):
@@ -87,18 +87,18 @@ class SequenceMax(BaseDataProcessor[SequenceMaxConfig]):
     """Processor to compute the maximum value of a numeric sequence."""
 
     @process_mode(batched=False, backend="python")
-    def process(self, ctx: RunContext, x: Sequence[NumericType]) -> NumericType:
+    def process(self, ctx: RunContext, seq: Sequence[NumericType]) -> NumericType:
         """Compute the maximum value of a sequence.
 
         Args:
             ctx (RunContext): Context object containing runtime information.
-            x (Sequence[NumericType]): Input sequence of numeric values.
+            seq (Sequence[NumericType]): Input sequence of numeric values.
 
         Returns:
             NumericType: The maximum value in the sequence, or the default value
             specified in the configuration if the sequence is empty.
         """
-        return max(x, default=self.config.default)
+        return max(seq, default=self.config.default)
 
 
 class SequenceSumConfig(BaseDataProcessorConfig):
@@ -109,18 +109,18 @@ class SequenceSum(BaseDataProcessor[SequenceSumConfig]):
     """Processor to compute the sum of numeric values in a sequence."""
 
     @process_mode(batched=False, backend="python")
-    def process(self, ctx: RunContext, x: Sequence[NumericType]) -> NumericType:
+    def process(self, ctx: RunContext, seq: Sequence[NumericType]) -> NumericType:
         """Compute the sum of a sequence.
 
         Args:
             ctx (RunContext): Context object containing runtime information.
-            x (Sequence[NumericType]): Input sequence of numeric values.
+            seq (Sequence[NumericType]): Input sequence of numeric values.
 
         Returns:
             NumericType: The sum of the values in the sequence, or the default value
             specified in the configuration if the sequence is empty.
         """
-        return sum(x)
+        return sum(seq)
 
 
 ItemType = TypeVar("T")
@@ -141,17 +141,17 @@ class SequenceGetItem(BaseDataProcessor[SequenceGetItemConfig]):
     """
 
     @process_mode(batched=True, backend="arrow")
-    def process(self, ctx: RunContext, sequence: Sequence[ItemType]) -> ItemType:
+    def process(self, ctx: RunContext, seq: Sequence[ItemType]) -> ItemType:
         """Retrieve an item from a sequence.
 
         Args:
             ctx (RunContext): Context object containing runtime information.
-            sequence (Sequence[ItemType]): Input sequence from which to extract the item.
+            seq (Sequence[ItemType]): Input sequence from which to extract the item.
 
         Returns:
             ItemType: The item at the specified index in the sequence.
         """
-        return pc.list_element(sequence, self.config.index)
+        return pc.list_element(seq, self.config.index)
 
 
 class SequenceGetSliceConfig(BaseDataAugmenterConfig):
@@ -175,27 +175,27 @@ class SequenceGetSlice(BaseDataProcessor[SequenceGetSliceConfig]):
     """
 
     @process_mode(batched=True, backend="arrow")
-    def process(self, ctx: RunContext, sequence: Sequence[ItemType]) -> Sequence[ItemType]:
+    def process(self, ctx: RunContext, seq: Sequence[ItemType]) -> Sequence[ItemType]:
         """Extract a slice from a sequence.
 
         Args:
             ctx (RunContext): Context object containing runtime information.
-            sequence (Sequence[ItemType]): Input sequence from which to extract the slice.
+            seq (Sequence[ItemType]): Input sequence from which to extract the slice.
 
         Returns:
             Sequence[ItemType]: The sub-sequence defined by the start, stop, and step indices.
         """
-        return pc.list_slice(sequence, self.config.start, self.config.stop, self.config.step)
+        return pc.list_slice(seq, self.config.start, self.config.stop, self.config.step)
 
 
-class ValuesWithIndex(Mapping, Generic[ItemType]):
-    """Represents a flat sequence values with associated index mapping."""
+class SequenceValueWithIndex(Mapping, Generic[ItemType]):
+    """Represents a sequence value and the origin batch index."""
 
     value: ItemType
-    """The values of the flattened sequence."""
+    """The sequence value."""
 
     index: Int32Feature
-    """The index mapping of the original sequence elements."""
+    """The index of the batch containing the sequence that the value originates from."""
 
 
 class SequenceUnpackConfig(BaseDataAugmenterConfig):
@@ -220,7 +220,7 @@ class SequenceUnpack(BaseDataAugmenter[SequenceUnpackConfig]):
         # flatten the sequence and compute the trace indices
         flattened, _ = flatten_list_array(seq)
         trace_indices = pc.list_parent_indices(seq)
-        return flattened, trace_indices
+        return flattened, trace_indices.to_pylist()
 
 
 class SequenceUnpackWithIndexConfig(BaseDataAugmenterConfig):
@@ -233,7 +233,7 @@ class SequenceUnpackWithIndex(BaseDataAugmenter[SequenceUnpackWithIndexConfig]):
     @process_mode(batched=True, backend="arrow")
     def process(
         self, ctx: RunContext, seq: Sequence[ItemType]
-    ) -> tuple[ValuesWithIndex[ItemType], TraceIndexList]:
+    ) -> tuple[SequenceValueWithIndex[ItemType], TraceIndexList]:
         """Unpack a sequence and compute trace indices.
 
         Args:
@@ -254,7 +254,7 @@ class SequenceUnpackWithIndex(BaseDataAugmenter[SequenceUnpackWithIndexConfig]):
             {"value": flattened, "index": trace_indices}, schema=ctx.output_type.arrow_schema
         ).to_struct_array()
 
-        return output, trace_indices.to_numpy()
+        return output, trace_indices.to_pylist()
 
 
 class SequencePackConfig(BaseDataAugmenterConfig):
@@ -318,7 +318,7 @@ class SequencePack(BaseDataAugmenter[SequencePackConfig]):
             ]
         )
         # unflatten the sequence
-        return unflatten_list_array(values, offsets), offsets[:-1].to_numpy()
+        return unflatten_list_array(values, offsets), offsets[:-1].to_pylist()
 
 
 @SequenceFeature.register_method("min")
