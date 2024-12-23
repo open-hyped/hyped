@@ -843,7 +843,7 @@ class ExecutableDataFlow(AbstractDataFlow):
             # collect all the inputs to the node
             edges = self._graph.in_edges(node_id, keys=True)
             inputs = {
-                key: source[key].ref if u in aggregator_nodes else ConcreteReference(u, h)
+                key: source[u].ref if u in aggregator_nodes else ConcreteReference(u, h)
                 for u, _, key in edges
             }
             # add the node to the graph

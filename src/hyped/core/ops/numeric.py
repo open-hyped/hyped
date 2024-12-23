@@ -8,7 +8,7 @@ These processors are registered as methods on the respective numeric feature cla
 :class:`IntFeature` and :class:`FloatFeature`, allowing them to be applied directly to numeric
 features.
 """
-from typing import Annotated, Any, Callable, TypeVar
+from typing import Annotated, Any, Callable, TypeAlias, TypeVar
 
 import pyarrow.compute as pc
 
@@ -42,6 +42,7 @@ from ..features.features import (
     build_feature_from_reference,
 )
 from ..features.validators import TypeResolver
+from ..nodes.aggregator import BaseDataAggregator, BaseDataAggregatorConfig
 from ..nodes.base import RunContext, process_mode
 from ..nodes.processor import BaseDataProcessor, BaseDataProcessorConfig
 from ..typing import Float, Int, UInt
@@ -397,6 +398,240 @@ class FloorDiv(BaseDataProcessor[FloorDivConfig]):
         return pc.cast(pc.floor(pc.divide(x, y)), ctx.output_type.arrow_type)
 
 
+class MinConfig(BaseDataAggregatorConfig):
+    """Configuration for the Min aggregator."""
+
+    default: int | float = 0
+    """The default initial value for the minimum."""
+
+
+class Min(BaseDataAggregator[MinConfig]):
+    """Data Aggregator implementing minimum value computation."""
+
+    def initialize(self, ctx: RunContext) -> tuple[ScalarType, bool]:
+        """Initialize the aggregator's state.
+
+        Args:
+            ctx (RunContext): The execution context for the aggregator.
+
+        Returns:
+            tuple[ScalarType, bool]: A tuple containing the initial state value
+            (default minimum) and a boolean indicating whether the state is initialized.
+        """
+        return self.config.default, False
+
+    @process_mode(batched=True, backend="arrow")
+    async def extract(self, ctx: RunContext, val: ScalarType) -> ScalarType:
+        """Extract the minimum value from a batch of inputs.
+
+        Args:
+            ctx (RunContext): The execution context for the aggregator.
+            val (ScalarType): A batch of numeric values.
+
+        Returns:
+            ScalarType: The minimum value from the input batch.
+        """
+        return pc.min(val).as_py()
+
+    @process_mode(batched=False, backend="python")
+    async def update(
+        self, ctx: RunContext, val: ScalarType, state: bool, extracted: ScalarType
+    ) -> tuple[ScalarType, bool]:
+        """Update the aggregator's state with a new value.
+
+        Args:
+            ctx (RunContext): The execution context for the aggregator.
+            val (ScalarType): The current state value.
+            state (bool): A boolean indicating whether the state is initialized.
+            extracted (ScalarType): The extracted value from the input.
+
+        Returns:
+            tuple[ScalarType, bool]: A tuple containing the updated state value
+            (minimum) and a boolean indicating whether the state is initialized.
+        """
+        return min(extracted, val) if not state else extracted, True
+
+
+class MaxConfig(BaseDataAggregatorConfig):
+    """Configuration for the Max aggregator."""
+
+    default: int | float = 0
+    """The default initial value for the maximum."""
+
+
+class Max(BaseDataAggregator[MaxConfig]):
+    """Data Aggregator implementing maximum value computation."""
+
+    def initialize(self, ctx: RunContext) -> tuple[ScalarType, bool]:
+        """Initialize the aggregator's state.
+
+        Args:
+            ctx (RunContext): The execution context for the aggregator.
+
+        Returns:
+            tuple[ScalarType, bool]: A tuple containing the initial state value
+            (default maximum) and a boolean indicating whether the state is initialized.
+        """
+        return self.config.default, False
+
+    @process_mode(batched=True, backend="arrow")
+    async def extract(self, ctx: RunContext, val: ScalarType) -> ScalarType:
+        """Extract the maximum value from a batch of inputs.
+
+        Args:
+            ctx (RunContext): The execution context for the aggregator.
+            val (ScalarType): A batch of numeric values.
+
+        Returns:
+            ScalarType: The maximum value from the input batch.
+        """
+        return pc.max(val).as_py()
+
+    @process_mode(batched=False, backend="python")
+    async def update(
+        self, ctx: RunContext, val: ScalarType, state: bool, extracted: ScalarType
+    ) -> tuple[ScalarType, bool]:
+        """Update the aggregator's state with a new value.
+
+        Args:
+            ctx (RunContext): The execution context for the aggregator.
+            val (ScalarType): The current state value.
+            state (bool): A boolean indicating whether the state is initialized.
+            extracted (ScalarType): The extracted value from the input.
+
+        Returns:
+            tuple[ScalarType, bool]: A tuple containing the updated state value
+            (maximum) and a boolean indicating whether the state is initialized.
+        """
+        return max(extracted, val) if not state else extracted, True
+
+
+class SumConfig(BaseDataAggregatorConfig):
+    """Configuration for the Sum aggregator."""
+
+    start: int | float = 0
+    """The default initial value for the sum."""
+
+
+class Sum(BaseDataAggregator[SumConfig]):
+    """Data Aggregator implementing sum value computation."""
+
+    def initialize(self, ctx: RunContext) -> tuple[ScalarType, None]:
+        """Initialize the aggregator's state.
+
+        Args:
+            ctx (RunContext): The execution context for the aggregator.
+
+        Returns:
+            tuple[ScalarType, None]: A tuple containing the initial state value
+            (default sum) and the unused aggregation state.
+        """
+        return self.config.start, None
+
+    @process_mode(batched=True, backend="arrow")
+    async def extract(self, ctx: RunContext, val: ScalarType) -> ScalarType:
+        """Extract the sum value from a batch of inputs.
+
+        Args:
+            ctx (RunContext): The execution context for the aggregator.
+            val (ScalarType): A batch of numeric values.
+
+        Returns:
+            ScalarType: The sum of the values in the input batch.
+        """
+        return pc.sum(val).as_py()
+
+    @process_mode(batched=False, backend="python")
+    async def update(
+        self, ctx: RunContext, val: ScalarType, state: None, extracted: ScalarType
+    ) -> tuple[ScalarType, bool]:
+        """Update the aggregator's state with a new value.
+
+        Args:
+            ctx (RunContext): The execution context for the aggregator.
+            val (ScalarType): The current state value.
+            state (None): Aggregation state, unused for summation.
+            extracted (ScalarType): The extracted value from the input.
+
+        Returns:
+            tuple[ScalarType, bool]: A tuple containing the updated state value
+            (sum) and a boolean indicating whether the state is initialized.
+        """
+        return extracted + val, None
+
+
+class MeanConfig(BaseDataAggregatorConfig):
+    """Configuration for the Mean aggregator."""
+
+    start: int | float = 0
+    """The default initial value for the mean calculation."""
+
+    start_count: int = 0
+    """The initial count of values processed, used for mean calculation."""
+
+
+class Mean(BaseDataAggregator[MeanConfig]):
+    """Data Aggregator implementing the mean (average) calculation."""
+
+    StateType: TypeAlias = tuple[ScalarType, int]
+
+    def initialize(self, ctx: RunContext) -> tuple[ScalarType, StateType]:
+        """Initializes the state for the mean calculation.
+
+        Args:
+            ctx (RunContext): The execution context for the aggregator.
+
+        Returns:
+            tuple[ScalarType, StateType]: The initial state, which includes the
+            starting sum and count of values.
+        """
+        return self.config.start / max(1, self.config.start_count), (
+            self.config.start,
+            self.config.start_count,
+        )
+
+    @process_mode(batched=True, backend="arrow")
+    async def extract(self, ctx: RunContext, val: ScalarType) -> StateType:
+        """Extracts the values to be aggregated.
+
+        Args:
+            ctx (RunContext): The execution context for the aggregator.
+            val (ScalarType): The current value to be processed.
+
+        Returns:
+            StateType: The current sum and count for aggregation.
+        """
+        return pc.sum(val).as_py(), len(ctx.index)
+
+    @process_mode(batched=False, backend="python")
+    async def update(
+        self, ctx: RunContext, val: ScalarType, state: StateType, extracted: ScalarType
+    ) -> tuple[
+        Annotated[
+            Float,
+            TypeResolver(
+                lambda _, inputs, session: Float32Feature
+                if isinstance(inputs["val"], Float32Feature)
+                else Float64Feature
+            ),
+        ],
+        StateType,
+    ]:
+        """Updates the state by computing the mean after processing a new value.
+
+        Args:
+            ctx (RunContext): The execution context for the aggregator.
+            val (ScalarType): The current value to be processed.
+            state (StateType): The current state (sum and count).
+            extracted (ScalarType): The extracted sum and count from the previous step.
+
+        Returns:
+            tuple[Float, StateType]: The updated mean and the new state (sum and count).
+        """
+        state = (state[0] + extracted[0], state[1] + extracted[1])
+        return state[0] / max(1, state[1]), state
+
+
 register_all(
     "__abs__",
     [
@@ -517,3 +752,67 @@ register_all(
         Float64Feature,
     ],
 )(handle_constant_for_binary_operation(FloorDiv().call))
+
+register_all(
+    "min",
+    [
+        Int8Feature,
+        Int16Feature,
+        Int32Feature,
+        Int64Feature,
+        UInt8Feature,
+        UInt16Feature,
+        UInt32Feature,
+        UInt64Feature,
+        Float32Feature,
+        Float64Feature,
+    ],
+)(Min().call)
+
+register_all(
+    "max",
+    [
+        Int8Feature,
+        Int16Feature,
+        Int32Feature,
+        Int64Feature,
+        UInt8Feature,
+        UInt16Feature,
+        UInt32Feature,
+        UInt64Feature,
+        Float32Feature,
+        Float64Feature,
+    ],
+)(Max().call)
+
+register_all(
+    "sum",
+    [
+        Int8Feature,
+        Int16Feature,
+        Int32Feature,
+        Int64Feature,
+        UInt8Feature,
+        UInt16Feature,
+        UInt32Feature,
+        UInt64Feature,
+        Float32Feature,
+        Float64Feature,
+    ],
+)(Sum().call)
+
+register_all(
+    "mean",
+    [
+        Int8Feature,
+        Int16Feature,
+        Int32Feature,
+        Int64Feature,
+        UInt8Feature,
+        UInt16Feature,
+        UInt32Feature,
+        UInt64Feature,
+        Float32Feature,
+        Float64Feature,
+    ],
+)(Mean().call)

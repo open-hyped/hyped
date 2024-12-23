@@ -35,6 +35,7 @@ from typing import Any, Callable, ClassVar, Final, Generic, TypeVar, overload
 import pydantic
 from pydantic.type_adapter import _type_has_config
 from pydantic_core import PydanticCustomError, core_schema
+from typing_extensions import Self
 
 from hyped.common._pydantic import BaseModelWithArbitraryTypesAllowed
 from hyped.common.utils import is_python_version_less_than
@@ -506,7 +507,136 @@ class StringFeature(PrimitiveFeature[dtypes.StringType]):
         return self.execute_method("format", *args, **kwargs)
 
 
-class Int8Feature(PrimitiveFeature[dtypes.Int8Type]):
+class StatisticalFeatureMixin:
+    """Mixin class that adds statistical operations for features.
+
+    This mixin provides common statistical operations that can be applied
+    to primitive features, such as :code:`sum` and :code:`mean`. These
+    operations calculate aggregate values for the feature, helping to
+    analyze and summarize the data.
+    """
+
+    def sum(self: PrimitiveFeature) -> Self:
+        """Calculates the sum of the feature's values.
+
+        This method computes the total sum of the values associated with
+        the feature. It is intended for use with numerical data types.
+
+        Returns:
+            Self: A new feature representing the sum of the original feature's values.
+        """
+        return self.execute_method("sum")
+
+    def mean(self: PrimitiveFeature) -> Float64Feature:
+        """Calculates the mean (average) of the feature's values.
+
+        This method computes the average of the values associated with the
+        feature. It is intended for use with numerical data types.
+
+        Returns:
+            Float64Feature: A new feature representing the mean of the original feature's values.
+        """
+        return self.execute_method("mean")
+
+
+class ComparableFeatureMixin:
+    """Mixin providing comparison operations for primitive features.
+
+    This mixin defines methods for comparing primitive features and for obtaining
+    minimum and maximum values. Subclasses implementing primitive features can
+    extend their functionality by inheriting from this mixin.
+    """
+
+    def min(self: PrimitiveFeature) -> Self:
+        """Returns the minimum value of the feature.
+
+        Returns:
+            Self: A new feature instance representing the minimum value.
+        """
+        return self.execute_method("min")
+
+    def max(self: PrimitiveFeature) -> Self:
+        """Returns the maximum value of the feature.
+
+        Returns:
+            Self: A new feature instance representing the maximum value.
+        """
+        return self.execute_method("max")
+
+    def __eq__(self: PrimitiveFeature, other: Any) -> BoolFeature:
+        """Compares if the feature is equal to another value.
+
+        Args:
+            other (Any): The value to compare with.
+
+        Returns:
+            BoolFeature: A boolean feature indicating whether the values are equal.
+        """
+        return self.execute_method("__eq__")
+
+    def __ne__(self: PrimitiveFeature, other: Any) -> BoolFeature:
+        """Compares if the feature is not equal to another value.
+
+        Args:
+            other (Any): The value to compare with.
+
+        Returns:
+            BoolFeature: A boolean feature indicating whether the values are not equal.
+        """
+        return self.execute_method("__ne__")
+
+    def __lt__(self: PrimitiveFeature, other: Any) -> BoolFeature:
+        """Compares if the feature is less than another value.
+
+        Args:
+            other (Any): The value to compare with.
+
+        Returns:
+            BoolFeature: A boolean feature indicating whether the feature is less than the given
+            value.
+        """
+        return self.execute_method("__lt__")
+
+    def __le__(self: PrimitiveFeature, other: Any) -> BoolFeature:
+        """Compares if the feature is less than or equal to another value.
+
+        Args:
+            other (Any): The value to compare with.
+
+        Returns:
+            BoolFeature: A boolean feature indicating whether the feature is less than or equal
+            to the given value.
+        """
+        return self.execute_method("__le__")
+
+    def __gt__(self: PrimitiveFeature, other: Any) -> BoolFeature:
+        """Compares if the feature is greater than another value.
+
+        Args:
+            other (Any): The value to compare with.
+
+        Returns:
+            BoolFeature: A boolean feature indicating whether the feature is greater than the
+            given value.
+        """
+        return self.execute_method("__gt__")
+
+    def __ge__(self: PrimitiveFeature, other: Any) -> BoolFeature:
+        """Compares if the feature is greater than or equal to another value.
+
+        Args:
+            other (Any): The value to compare with.
+
+        Returns:
+            BoolFeature: A boolean feature indicating whether the feature is greater than or equal
+            to the given value.
+        """
+        return self.execute_method("__ge__")
+
+
+class Int8Feature(
+    PrimitiveFeature[dtypes.Int8Type], ComparableFeatureMixin, StatisticalFeatureMixin
+):
     """A primitive feature representing a signed 8-bit integer."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.Int8Type
@@ -876,7 +1006,9 @@ class Int8Feature(PrimitiveFeature[dtypes.Int8Type]):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class Int16Feature(PrimitiveFeature[dtypes.Int16Type]):
+class Int16Feature(
+    PrimitiveFeature[dtypes.Int16Type], ComparableFeatureMixin, StatisticalFeatureMixin
+):
     """A primitive feature representing a signed 16-bit integer."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.Int16Type
@@ -1246,7 +1378,9 @@ class Int16Feature(PrimitiveFeature[dtypes.Int16Type]):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class Int32Feature(PrimitiveFeature[dtypes.Int32Type]):
+class Int32Feature(
+    PrimitiveFeature[dtypes.Int32Type], ComparableFeatureMixin, StatisticalFeatureMixin
+):
     """A primitive feature representing a signed 32-bit integer."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.Int32Type
@@ -1618,7 +1752,9 @@ class Int32Feature(PrimitiveFeature[dtypes.Int32Type]):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class Int64Feature(PrimitiveFeature[dtypes.Int64Type]):
+class Int64Feature(
+    PrimitiveFeature[dtypes.Int64Type], ComparableFeatureMixin, StatisticalFeatureMixin
+):
     """A primitive feature representing a signed 64-bit integer."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.Int64Type
@@ -1988,7 +2124,9 @@ class Int64Feature(PrimitiveFeature[dtypes.Int64Type]):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class UInt8Feature(PrimitiveFeature[dtypes.UInt8Type]):
+class UInt8Feature(
+    PrimitiveFeature[dtypes.UInt8Type], ComparableFeatureMixin, StatisticalFeatureMixin
+):
     """A primitive feature representing an unsigned 8-bit integer."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.UInt8Type
@@ -2358,7 +2496,9 @@ class UInt8Feature(PrimitiveFeature[dtypes.UInt8Type]):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class UInt16Feature(PrimitiveFeature[dtypes.UInt16Type]):
+class UInt16Feature(
+    PrimitiveFeature[dtypes.UInt16Type], ComparableFeatureMixin, StatisticalFeatureMixin
+):
     """A primitive feature representing an unsigned 16-bit integer."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.UInt16Type
@@ -2728,7 +2868,9 @@ class UInt16Feature(PrimitiveFeature[dtypes.UInt16Type]):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class UInt32Feature(PrimitiveFeature[dtypes.UInt32Type]):
+class UInt32Feature(
+    PrimitiveFeature[dtypes.UInt32Type], ComparableFeatureMixin, StatisticalFeatureMixin
+):
     """A primitive feature representing an unsigned 32-bit integer."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.UInt32Type
@@ -3098,7 +3240,9 @@ class UInt32Feature(PrimitiveFeature[dtypes.UInt32Type]):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class UInt64Feature(PrimitiveFeature[dtypes.UInt64Type]):
+class UInt64Feature(
+    PrimitiveFeature[dtypes.UInt64Type], ComparableFeatureMixin, StatisticalFeatureMixin
+):
     """A primitive feature representing an unsigned 64-bit integer."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.UInt64Type
@@ -3468,10 +3612,23 @@ class UInt64Feature(PrimitiveFeature[dtypes.UInt64Type]):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class Float32Feature(PrimitiveFeature[dtypes.Float32Type]):
+class Float32Feature(
+    PrimitiveFeature[dtypes.Float32Type], ComparableFeatureMixin, StatisticalFeatureMixin
+):
     """A primitive feature representing a 32-bit floating-point number."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.Float32Type
+
+    def mean(self) -> Float32Feature:
+        """Calculates the mean (average) of the feature's values.
+
+        This method computes the average of the values associated with the
+        feature.
+
+        Returns:
+            Float32Feature: A new feature representing the mean of the original feature's values.
+        """
+        return super(Float32Feature, self).mean()
 
     def __abs__(self) -> Float32Feature:
         """Performs the absolute value operation ('abs').
@@ -3690,7 +3847,9 @@ class Float32Feature(PrimitiveFeature[dtypes.Float32Type]):
         return type(self).get_method("__floordiv__")(other, self)
 
 
-class Float64Feature(PrimitiveFeature[dtypes.Float64Type]):
+class Float64Feature(
+    PrimitiveFeature[dtypes.Float64Type], ComparableFeatureMixin, StatisticalFeatureMixin
+):
     """A primitive feature representing a 64-bit floating-point number."""
 
     _expected_dtype: Final[dtypes.Type] = dtypes.Float64Type
