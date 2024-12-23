@@ -27,11 +27,11 @@ from ..nodes.processor import BaseDataProcessor, BaseDataProcessorConfig
 from ..typing import Float, Int, Int32, Mapping, Sequence, TraceIndexList, UInt
 
 
-class LengthConfig(BaseDataProcessorConfig):
-    """Configuration for the :class:`Length` processor."""
+class SequenceLengthConfig(BaseDataProcessorConfig):
+    """Configuration for the :class:`SequenceLength` processor."""
 
 
-class Length(BaseDataProcessor[LengthConfig]):
+class SequenceLength(BaseDataProcessor[SequenceLengthConfig]):
     """Data processor for computing the length of sequences."""
 
     @process_mode(batched=True, backend="arrow")
@@ -439,6 +439,6 @@ def pack_sequence(
 
 
 SequenceFeature.register_method("sum")(SequenceSum().call)
-SequenceFeature.register_method("length")(Length().call)
+SequenceFeature.register_method("length")(SequenceLength().call)
 SequenceFeature.register_method("unpack")(SequenceUnpack().call)
 SequenceFeature.register_method("unpack_with_index")(SequenceUnpackWithIndex().call)

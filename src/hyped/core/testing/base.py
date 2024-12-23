@@ -11,9 +11,10 @@ from contextlib import nullcontext
 from typing import Any, ClassVar
 
 import pyarrow as pa
+import pydantic
 import pytest
 
-from hyped.core.features.dtypes import MappingType, Type
+from hyped.core.features.dtypes import MappingType
 from hyped.core.features.features import build_feature_from_annotation
 from hyped.core.flow import DataFlow, ExecutableDataFlow
 from hyped.core.nodes.base import BaseNode
@@ -81,9 +82,9 @@ class BaseNodeTest(ABC):
     expected_output_feature: ClassVar[None | Feature] = None
     """The expected output feature of the node.
 
-    This defines the structure and data type of the output that the node is expected
-    to produce. If :code:`None`, it indicates that no specific output feature is expected
-    by default, meaning no test for the output feature is conducted.
+    This defines the structure of the output that the node is expected to produce.
+    If :code:`None`, it indicates that no specific output feature is expected by
+    default, meaning no test for the output feature is conducted.
     """
 
     expected_output_data: ClassVar[None | list[Any]] = None
@@ -146,19 +147,6 @@ class BaseNodeTest(ABC):
                 key: build_feature_from_annotation(annotation).dtype
                 for key, annotation in cls.input_features.items()
             }
-        )
-
-    @classmethod
-    def build_expected_output_type(cls) -> Type:
-        """Builds the expected output data type based on the :code:`expected_output_feature`.
-
-        Returns:
-            Type: The expected output type, or `None` if no expected output is specified.
-        """
-        return (
-            build_feature_from_annotation(cls.expected_output_feature).dtype
-            if cls.expected_output_feature is not None
-            else None
         )
 
     @classmethod
@@ -242,12 +230,18 @@ class BaseNodeTest(ABC):
             # successfully catched verification error
             raise TestSuccessful()
 
-        # check output type matches expectation
-        if (expected_output_type := cls.build_expected_output_type()) is not None:
-            assert output.dtype == expected_output_type, (
-                f"Output type mismatch: Expected {expected_output_type}, but got {output.dtype}. "
-                "Please ensure that the node produces the expected output type."
-            )
+        if cls.expected_output_feature is not None:
+            try:
+                adapter = pydantic.TypeAdapter(
+                    cls.expected_output_feature,
+                    config=pydantic.ConfigDict(arbitrary_types_allowed=True),
+                )
+                adapter.validate_python(output)
+            except pydantic.ValidationError as e:
+                raise AssertionError(
+                    f"Output feature mismatch: Expected output feature to conform to "
+                    f"{cls.expected_output_feature}, but got {output} of type {type(output)}."
+                ) from e
 
         return flow, output
 
