@@ -16,13 +16,18 @@ from hyped.core.ops.numeric import (
     Abs,
     Add,
     FloorDiv,
+    Max,
+    Mean,
+    Min,
     Multiply,
     Negate,
     Subtract,
+    Sum,
     TrueDiv,
     add_constant,
     handle_constant_for_binary_operation,
 )
+from hyped.core.testing.aggregator import BaseDataAggregatorTest
 from hyped.core.testing.processor import BaseDataProcessorTest
 from hyped.core.typing import Float, Float64, Int, UInt
 
@@ -140,3 +145,55 @@ class TestFloorDiv(BaseDataProcessorTest):
     input_data = [{"x": 10, "y": 3}, {"x": -10, "y": 4}]
     expected_output_feature = Int
     expected_output_data = [3, -2]
+
+
+class TestMin(BaseDataAggregatorTest):
+    aggregator = Min()
+    input_features = {"val": Float}
+    input_data = [
+        {"val": 1.0},
+        {"val": 2.0},
+        {"val": 3.0},
+        {"val": 4.0},
+    ]
+    expected_output_feature = Float
+    expected_output_data = 1.0
+
+
+class TestMax(BaseDataAggregatorTest):
+    aggregator = Max()
+    input_features = {"val": Float}
+    input_data = [
+        {"val": 1.0},
+        {"val": 2.0},
+        {"val": 3.0},
+        {"val": 4.0},
+    ]
+    expected_output_feature = Float
+    expected_output_data = 4.0
+
+
+class TestSum(BaseDataAggregatorTest):
+    aggregator = Sum()
+    input_features = {"val": Float}
+    input_data = [
+        {"val": 1.0},
+        {"val": 2.0},
+        {"val": 3.0},
+        {"val": 4.0},
+    ]
+    expected_output_feature = Float
+    expected_output_data = 10.0
+
+
+class TestMean(BaseDataAggregatorTest):
+    aggregator = Mean()
+    input_features = {"val": Float}
+    input_data = [
+        {"val": 1.0},
+        {"val": 2.0},
+        {"val": 3.0},
+        {"val": 4.0},
+    ]
+    expected_output_feature = Float
+    expected_output_data = 2.5

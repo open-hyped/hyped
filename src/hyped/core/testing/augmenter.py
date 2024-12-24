@@ -77,4 +77,4 @@ class BaseDataAugmenterTest(BaseNodeTest):
             )
         # execute the flow and check the output data
         output_data = self.execute_flow(flow)
-        cls.check_output_data_matches_expectation(output_data["output"])
+        cls.check_output_data_matches_expectation(output_data["output"].to_pylist())

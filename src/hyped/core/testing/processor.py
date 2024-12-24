@@ -57,4 +57,4 @@ class BaseDataProcessorTest(BaseNodeTest):
         flow = flow.build(collect={"output": output})
         # execute the flow and check the output data
         output_data = self.execute_flow(flow)
-        type(self).check_output_data_matches_expectation(output_data["output"])
+        type(self).check_output_data_matches_expectation(output_data["output"].to_pylist())

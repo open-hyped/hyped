@@ -418,7 +418,7 @@ class Min(BaseDataAggregator[MinConfig]):
             tuple[ScalarType, bool]: A tuple containing the initial state value
             (default minimum) and a boolean indicating whether the state is initialized.
         """
-        return self.config.default, False
+        return self.config.default, True
 
     @process_mode(batched=True, backend="arrow")
     async def extract(self, ctx: RunContext, val: ScalarType) -> ScalarType:
@@ -449,7 +449,7 @@ class Min(BaseDataAggregator[MinConfig]):
             tuple[ScalarType, bool]: A tuple containing the updated state value
             (minimum) and a boolean indicating whether the state is initialized.
         """
-        return min(extracted, val) if not state else extracted, True
+        return extracted if state else min(extracted, val), False
 
 
 class MaxConfig(BaseDataAggregatorConfig):
@@ -472,7 +472,7 @@ class Max(BaseDataAggregator[MaxConfig]):
             tuple[ScalarType, bool]: A tuple containing the initial state value
             (default maximum) and a boolean indicating whether the state is initialized.
         """
-        return self.config.default, False
+        return self.config.default, True
 
     @process_mode(batched=True, backend="arrow")
     async def extract(self, ctx: RunContext, val: ScalarType) -> ScalarType:
@@ -503,7 +503,7 @@ class Max(BaseDataAggregator[MaxConfig]):
             tuple[ScalarType, bool]: A tuple containing the updated state value
             (maximum) and a boolean indicating whether the state is initialized.
         """
-        return max(extracted, val) if not state else extracted, True
+        return extracted if state else max(extracted, val), False
 
 
 class SumConfig(BaseDataAggregatorConfig):
@@ -753,7 +753,8 @@ register_all(
     ],
 )(handle_constant_for_binary_operation(FloorDiv().call))
 
-register_all(
+
+@register_all(
     "min",
     [
         Int8Feature,
@@ -767,9 +768,22 @@ register_all(
         Float32Feature,
         Float64Feature,
     ],
-)(Min().call)
+)
+def _min(feature: Feature, default: int | float = 0) -> Feature:
+    """Computes the minimum value of a feature.
 
-register_all(
+    Args:
+        feature (Feature): The feature whose minimum value is to be computed.
+        default (int | float, optional): The default value to return if the
+            feature is empty. Defaults to 0.
+
+    Returns:
+        Feature: A new feature representing the minimum value.
+    """
+    return Min(default=default).call(feature)
+
+
+@register_all(
     "max",
     [
         Int8Feature,
@@ -783,9 +797,22 @@ register_all(
         Float32Feature,
         Float64Feature,
     ],
-)(Max().call)
+)
+def _max(feature: Feature, default: int | float = 0) -> Feature:
+    """Computes the maximum value of a feature.
 
-register_all(
+    Args:
+        feature (Feature): The feature whose maximum value is to be computed.
+        default (int | float, optional): The default value to return if the
+            feature is empty. Defaults to 0.
+
+    Returns:
+        Feature: A new feature representing the maximum value.
+    """
+    return Max(default=default).call(feature)
+
+
+@register_all(
     "sum",
     [
         Int8Feature,
@@ -799,9 +826,22 @@ register_all(
         Float32Feature,
         Float64Feature,
     ],
-)(Sum().call)
+)
+def _sum(feature: Feature, start: int | float = 0) -> Feature:
+    """Computes the sum of a feature.
 
-register_all(
+    Args:
+        feature (Feature): The feature whose values are to be summed.
+        start (int | float, optional): The initial value to start the
+            summation. Defaults to 0.
+
+    Returns:
+        Feature: A new feature representing the sum of the values.
+    """
+    return Sum(start=start).call(feature)
+
+
+@register_all(
     "mean",
     [
         Int8Feature,
@@ -815,4 +855,18 @@ register_all(
         Float32Feature,
         Float64Feature,
     ],
-)(Mean().call)
+)
+def mean(feature: Feature, start: int | float = 0, start_count: int = 0) -> Feature:
+    """Computes the mean (average) value of a feature.
+
+    Args:
+        feature (Feature): The feature whose mean value is to be computed.
+        start (int | float, optional): The initial sum value to include in the
+            computation. Defaults to 0.
+        start_count (int, optional): The initial count of values to include in
+            the computation. Defaults to 0.
+
+    Returns:
+        Feature: A new feature representing the mean value.
+    """
+    return Mean(start=start, start_count=start_count).call(feature)

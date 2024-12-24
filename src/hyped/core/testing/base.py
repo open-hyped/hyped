@@ -308,20 +308,17 @@ class BaseNodeTest(ABC):
             return output_data
 
     @classmethod
-    def check_output_data_matches_expectation(cls, actual_data: pa.Array) -> None:
+    def check_output_data_matches_expectation(cls, actual_data: Any) -> None:
         """Checks if the output data matches the expected output.
 
         Args:
             actual_data (pa.Array): The actual output data to be validated.
 
-        Returns:
-            None
-
         Raises:
             AssertionError: If the output data does not match the expected output.
         """
         if cls.expected_output_data is not None:
-            assert cls.expected_output_data == actual_data.to_pylist(), (
+            assert cls.expected_output_data == actual_data, (
                 f"Output data mismatch:\n"
                 f"Expected: {cls.expected_output_data}\n"
                 f"Actual: {actual_data}"

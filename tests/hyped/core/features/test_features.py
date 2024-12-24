@@ -434,6 +434,10 @@ class TestPrimitiveFeatures:
                 Int8Feature,
                 numeric.NegateConfig(),
             ),
+            (Int8Feature, Int8Feature.min, "min", tuple(), Int8Feature, numeric.MinConfig()),
+            (Int8Feature, Int8Feature.max, "max", tuple(), Int8Feature, numeric.MaxConfig()),
+            (Int8Feature, Int8Feature.sum, "sum", tuple(), Int8Feature, numeric.SumConfig()),
+            (Int8Feature, Int8Feature.mean, "mean", tuple(), Float64Feature, numeric.MeanConfig()),
             # addition
             (
                 Int8Feature,
@@ -1002,6 +1006,10 @@ class TestPrimitiveFeatures:
                 Int16Feature,
                 numeric.NegateConfig(),
             ),
+            (Int8Feature, Int8Feature.min, "min", tuple(), Int8Feature, numeric.MinConfig()),
+            (Int8Feature, Int8Feature.max, "max", tuple(), Int8Feature, numeric.MaxConfig()),
+            (Int8Feature, Int8Feature.sum, "sum", tuple(), Int8Feature, numeric.SumConfig()),
+            (Int8Feature, Int8Feature.mean, "mean", tuple(), Float64Feature, numeric.MeanConfig()),
             # addition
             (
                 Int16Feature,
@@ -1583,6 +1591,17 @@ class TestPrimitiveFeatures:
                 tuple(),
                 Int32Feature,
                 numeric.NegateConfig(),
+            ),
+            (Int32Feature, Int32Feature.min, "min", tuple(), Int32Feature, numeric.MinConfig()),
+            (Int32Feature, Int32Feature.max, "max", tuple(), Int32Feature, numeric.MaxConfig()),
+            (Int32Feature, Int32Feature.sum, "sum", tuple(), Int32Feature, numeric.SumConfig()),
+            (
+                Int32Feature,
+                Int32Feature.mean,
+                "mean",
+                tuple(),
+                Float64Feature,
+                numeric.MeanConfig(),
             ),
             # addition
             (
@@ -2166,6 +2185,17 @@ class TestPrimitiveFeatures:
                 Int64Feature,
                 numeric.NegateConfig(),
             ),
+            (Int64Feature, Int64Feature.min, "min", tuple(), Int64Feature, numeric.MinConfig()),
+            (Int64Feature, Int64Feature.max, "max", tuple(), Int64Feature, numeric.MaxConfig()),
+            (Int64Feature, Int64Feature.sum, "sum", tuple(), Int64Feature, numeric.SumConfig()),
+            (
+                Int64Feature,
+                Int64Feature.mean,
+                "mean",
+                tuple(),
+                Float64Feature,
+                numeric.MeanConfig(),
+            ),
             # addition
             (
                 Int64Feature,
@@ -2740,6 +2770,17 @@ class TestPrimitiveFeatures:
                 tuple(),
                 Int16Feature,
                 numeric.NegateConfig(),
+            ),
+            (UInt8Feature, UInt8Feature.min, "min", tuple(), UInt8Feature, numeric.MinConfig()),
+            (UInt8Feature, UInt8Feature.max, "max", tuple(), UInt8Feature, numeric.MaxConfig()),
+            (UInt8Feature, UInt8Feature.sum, "sum", tuple(), UInt8Feature, numeric.SumConfig()),
+            (
+                UInt8Feature,
+                UInt8Feature.mean,
+                "mean",
+                tuple(),
+                Float64Feature,
+                numeric.MeanConfig(),
             ),
             # addition
             (
@@ -3348,6 +3389,17 @@ class TestPrimitiveFeatures:
                 Int32Feature,
                 numeric.NegateConfig(),
             ),
+            (UInt16Feature, UInt16Feature.min, "min", tuple(), UInt16Feature, numeric.MinConfig()),
+            (UInt16Feature, UInt16Feature.max, "max", tuple(), UInt16Feature, numeric.MaxConfig()),
+            (UInt16Feature, UInt16Feature.sum, "sum", tuple(), UInt16Feature, numeric.SumConfig()),
+            (
+                UInt16Feature,
+                UInt16Feature.mean,
+                "mean",
+                tuple(),
+                Float64Feature,
+                numeric.MeanConfig(),
+            ),
             # addition
             (
                 UInt16Feature,
@@ -3955,6 +4007,17 @@ class TestPrimitiveFeatures:
                 Int64Feature,
                 numeric.NegateConfig(),
             ),
+            (UInt32Feature, UInt32Feature.min, "min", tuple(), UInt32Feature, numeric.MinConfig()),
+            (UInt32Feature, UInt32Feature.max, "max", tuple(), UInt32Feature, numeric.MaxConfig()),
+            (UInt32Feature, UInt32Feature.sum, "sum", tuple(), UInt32Feature, numeric.SumConfig()),
+            (
+                UInt32Feature,
+                UInt32Feature.mean,
+                "mean",
+                tuple(),
+                Float64Feature,
+                numeric.MeanConfig(),
+            ),
             # addition
             (
                 UInt32Feature,
@@ -4561,6 +4624,17 @@ class TestPrimitiveFeatures:
                 tuple(),
                 Int64Feature,
                 numeric.NegateConfig(),
+            ),
+            (UInt64Feature, UInt64Feature.min, "min", tuple(), UInt64Feature, numeric.MinConfig()),
+            (Int8Feature, Int8Feature.max, "max", tuple(), Int8Feature, numeric.MaxConfig()),
+            (UInt64Feature, UInt64Feature.sum, "sum", tuple(), UInt64Feature, numeric.SumConfig()),
+            (
+                UInt64Feature,
+                UInt64Feature.mean,
+                "mean",
+                tuple(),
+                Float64Feature,
+                numeric.MeanConfig(),
             ),
             # addition
             (
@@ -5175,6 +5249,38 @@ class TestPrimitiveFeatures:
                 tuple(),
                 Float32Feature,
                 numeric.NegateConfig(),
+            ),
+            (
+                Float32Feature,
+                Float32Feature.min,
+                "min",
+                tuple(),
+                Float32Feature,
+                numeric.MinConfig(),
+            ),
+            (
+                Float32Feature,
+                Float32Feature.max,
+                "max",
+                tuple(),
+                Float32Feature,
+                numeric.MaxConfig(),
+            ),
+            (
+                Float32Feature,
+                Float32Feature.sum,
+                "sum",
+                tuple(),
+                Float32Feature,
+                numeric.SumConfig(),
+            ),
+            (
+                Float32Feature,
+                Float32Feature.mean,
+                "mean",
+                tuple(),
+                Float32Feature,
+                numeric.MeanConfig(),
             ),
             # addition
             (
@@ -5805,6 +5911,38 @@ class TestPrimitiveFeatures:
                 tuple(),
                 Float64Feature,
                 numeric.NegateConfig(),
+            ),
+            (
+                Float64Feature,
+                Float64Feature.min,
+                "min",
+                tuple(),
+                Float64Feature,
+                numeric.MinConfig(),
+            ),
+            (
+                Float64Feature,
+                Float64Feature.max,
+                "max",
+                tuple(),
+                Float64Feature,
+                numeric.MaxConfig(),
+            ),
+            (
+                Float64Feature,
+                Float64Feature.sum,
+                "sum",
+                tuple(),
+                Float64Feature,
+                numeric.SumConfig(),
+            ),
+            (
+                Float64Feature,
+                Float64Feature.mean,
+                "mean",
+                tuple(),
+                Float64Feature,
+                numeric.MeanConfig(),
             ),
             # addition
             (
