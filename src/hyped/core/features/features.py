@@ -4558,7 +4558,7 @@ class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
         Returns:
             _Feature: The feature associated with the key.
         """
-        return self.execute_method("__getitem__", key)
+        return self.execute_method("__getitem__", str(key))
 
     @classmethod
     def __get_pydantic_core_schema__(
