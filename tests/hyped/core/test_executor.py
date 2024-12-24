@@ -60,7 +60,7 @@ class TestExecutionState:
         wait_task = asyncio.create_task(state.wait_for(1))
 
         # make sure the task doesn't complete
-        with pytest.raises(TimeoutError):
+        with pytest.raises((TimeoutError, asyncio.TimeoutError)):
             await asyncio.wait_for(asyncio.shield(wait_task), timeout=0.1)
 
         async def simulate_ready():

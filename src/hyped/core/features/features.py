@@ -4596,13 +4596,13 @@ class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
         def build_validator_model(cls) -> pydantic.BaseModel:
             if not (
                 (
+                    isinstance(cls, GenericAlias)
+                    and issubclass(typing.get_origin(cls), _MappingFeature)
+                )
+                or (
                     isinstance(cls, type)
                     and issubclass(cls, _MappingFeature)
                     and (cls is not _MappingFeature)
-                )
-                or (
-                    isinstance(cls, GenericAlias)
-                    and issubclass(typing.get_origin(cls), _MappingFeature)
                 )
             ):
                 # trivial case: the class is not a subclass

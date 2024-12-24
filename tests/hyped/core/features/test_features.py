@@ -1,12 +1,13 @@
 import inspect
 from functools import partial
 from itertools import chain
-from typing import Any, Callable, Generic, TypeVar, get_overloads, get_type_hints
+from typing import Any, Callable, Generic, TypeVar, get_type_hints
 from unittest.mock import MagicMock
 
 import pydantic
 import pytest
 
+from hyped.common.utils import is_python_version_less_than
 from hyped.core.features.dtypes import (
     UNDEFINED_SEQUENCE_LENGTH,
     BoolType,
@@ -50,6 +51,9 @@ from hyped.core.features.reference import ForwardReference
 from hyped.core.graph import DataFlowGraph
 from hyped.core.nodes.base import BaseNode, BaseNodeConfig
 from hyped.core.ops import boolean, mapping, numeric, sequence, string
+
+if not is_python_version_less_than(3, 11):
+    from typing import get_overloads
 
 
 def _test_call_to_registered_method(
@@ -6577,6 +6581,9 @@ class TestPrimitiveFeatures:
             expected_return_feature_type=expected_return_feature_type,
             expected_node_config=expected_node_config,
         )
+
+        if is_python_version_less_than(3, 11):
+            return
 
         # find a candidate function that matches the inputs
         for candidate_fn in chain(get_overloads(fn), [fn]):
