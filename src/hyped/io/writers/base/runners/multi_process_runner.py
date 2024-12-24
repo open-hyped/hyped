@@ -1145,7 +1145,7 @@ class DynamicMultiprocessingRunner(BaseRunner):
                     # Stage 1
                     shard_id = monitor.pending_shards.pop()
                     # get shard and send processor context to worker
-                    shard = src_ds.shard_data_sources(shard_id, monitor.num_shards)
+                    shard = src_ds.shard_data_sources(monitor.num_shards, shard_id)
                     controller.create_processor(rank, shard, transform, fn)
                     # run callback
                     self._callback.on_shard_in_progress(monitor, shard_id)
@@ -1180,9 +1180,10 @@ class DynamicMultiprocessingRunner(BaseRunner):
         """
         self._logger.info("Starting data processing.")
 
+        num_shards = ds.n_shards
         # prepare the dataset
         src_ds, transform = self._prepare_dataset(ds)
-        self._logger.info(f"Dataset prepared with {src_ds.n_shards} shards.")
+        self._logger.info(f"Dataset prepared with {num_shards} shards.")
 
         # create connection for workers to request new context
         recv_msg_conn, worker_msg_conn = mp.Pipe(duplex=False)
@@ -1209,7 +1210,7 @@ class DynamicMultiprocessingRunner(BaseRunner):
         # create the progress monitor, note that the serializer dumps a batch of samples
         # into a single queue element with a batch size set to the prefetch factor
         monitor = ProgressMonitor(
-            src_ds.n_shards, self._num_workers, controller.queue, controller.serializer.batch_size
+            num_shards, self._num_workers, controller.queue, controller.serializer.batch_size
         )
 
         # create the consumer producer balancer

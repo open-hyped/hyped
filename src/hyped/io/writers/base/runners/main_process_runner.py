@@ -75,12 +75,13 @@ class MainProcessRunner(BaseRunner):
         # set the worker info
         set_worker_info(rank=0, num_workers=1, seed=None)
 
+        num_shards = ds.n_shards
         # prepare the dataset
         ds = ds._prepare_ex_iterable_for_iteration(batch_size=self._batch_size)
-        logger.info(f"Dataset prepared with {ds.n_shards} shards.")
+        logger.info(f"Dataset prepared with {num_shards} shards.")
 
         # create the progress monitor
-        monitor = ProgressMonitor(ds.n_shards, 1, None, 0)
+        monitor = ProgressMonitor(num_shards, 1, None, 0)
 
         try:
             # call start callback
@@ -96,14 +97,14 @@ class MainProcessRunner(BaseRunner):
             num_samples = 0
             last_report = clock()
 
-            for shard_id in range(ds.n_shards):
+            for shard_id in range(num_shards):
                 try:
                     monitor._mark_shard_in_progress(0, shard_id)
                     monitor._mark_worker_busy(0, WorkerRole.STANDALONE)
                     self._callback.on_shard_in_progress(monitor, shard_id)
 
                     # get the dataset shard and time it
-                    shard = ds.shard_data_sources(shard_id, ds.n_shards)
+                    shard = ds.shard_data_sources(num_shards, shard_id)
                     stream = TimedIterator(iter(shard), smoothing=0.1)
 
                     # apply the function

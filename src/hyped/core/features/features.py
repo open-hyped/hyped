@@ -4144,11 +4144,11 @@ class ClassLabelFeature(Int64Feature):
         names = []
         enum = cls._build_class_label_enum()
         for i in range(0, max(enum, default=-1) + 1):
-            if i not in enum:
+            if i not in set(enum):
                 warnings.warn(
                     f"Detected missing label ID {i} in {cls.__qualname__}, filling with 'UNDEF'."
                 )
-            names.append(enum(i).name if i in enum else "UNDEF")
+            names.append(enum(i).name if i in set(enum) else "UNDEF")
         return dtypes.ClassLabelType(names=tuple(names))
 
     @classmethod

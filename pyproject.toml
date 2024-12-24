@@ -19,13 +19,10 @@ dependencies = [
     "dill>=0.3.8",
     "datasets>=3.0.0",
     "fsspec<=2023.9.2",
-    "transformers>=4.36.2",
-    "networkx>=3.1",
+    "networkx>=3.4.2",
     "matplotlib>=3.8.2",
-    "pydantic>=2.6.4",
+    "pydantic>=2.10.4",
     "nest-asyncio>=1.6.0",
-    "scikit-learn>=1.5.1",
-    "aiofiles>=24.1.0"
 ]
 
 [project.optional-dependencies]

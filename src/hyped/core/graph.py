@@ -1161,7 +1161,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 node[DataFlowGraph.NodeAttribute.NODE_TYPE]
             )
             # deserialize partition
-            if node[DataFlowGraph.NodeAttribute.PARTITION] in DataFlowGraph.Partition:
+            if node[DataFlowGraph.NodeAttribute.PARTITION] in set(DataFlowGraph.Partition):
                 node[DataFlowGraph.NodeAttribute.PARTITION] = DataFlowGraph.Partition(
                     node[DataFlowGraph.NodeAttribute.PARTITION]
                 )
