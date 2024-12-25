@@ -10,7 +10,6 @@ from .__version__ import __version__, __version_tuple__  # noqa: F401
 
 __all__ = [
     # modules
-    "io",
     "core",
     "typing",
     # core
@@ -18,5 +17,5 @@ __all__ = [
     "plot_data_flow",
 ]
 
-from . import core, io, typing
+from . import core, typing
 from .core.flow import DataFlow, plot_data_flow

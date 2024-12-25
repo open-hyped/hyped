@@ -27,6 +27,9 @@ or distributed environment, where each process is assigned a unique rank.
 """
 
 
+# TODO: this needs to integrate crane.core.worker now
+
+
 def _sync_manager_factory() -> SyncManager:
     """Factory function for creating a SyncManager instance.
 

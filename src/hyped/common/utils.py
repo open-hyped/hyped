@@ -1,7 +1,6 @@
 """A Collection of utility functions used throughout the project."""
 
 import importlib.util
-import os
 import sys
 from contextlib import contextmanager
 from functools import cache
@@ -41,24 +40,6 @@ def tmp_setattr(instance: object, attribute: str, value: Any) -> Generator[None,
             setattr(instance, attribute, original_value)
         else:
             delattr(instance, attribute)  # Clean up if there was no original value
-
-
-@contextmanager
-def chdir(new_dir: str) -> Generator[None, None, None]:
-    """Context manager for temporarily changing the working directory.
-
-    Args:
-        new_dir (str): The directory to change to temporarily.
-
-    Yields:
-        None
-    """
-    original_dir = os.getcwd()  # Save the current working directory
-    os.chdir(new_dir)  # Change to the new directory
-    try:
-        yield  # Yield control back to the caller
-    finally:
-        os.chdir(original_dir)  # Restore the original directory
 
 
 @cache

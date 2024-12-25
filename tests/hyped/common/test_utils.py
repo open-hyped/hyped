@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from hyped.common.utils import chdir, is_package_installed, is_python_version_less_than, tmp_setattr
+from hyped.common.utils import is_package_installed, is_python_version_less_than, tmp_setattr
 
 
 class DummyObject:
@@ -47,34 +47,6 @@ def test_tmp_setattr_handle_exceptions(dummy_instance: object) -> None:
             assert dummy_instance.attr == "temporary"  # Temporary value
             raise ValueError("Intentional error")  # Raise an exception
     assert dummy_instance.attr == "original"  # Restored to original even after exception
-
-
-def test_chdir() -> None:
-    # Create temporary directories for testing
-    with tempfile.TemporaryDirectory() as temp_dir1:
-        orig_dir = os.getcwd()
-
-        # Test the chdir context manager
-        with chdir(temp_dir1):
-            assert os.getcwd().endswith(os.path.abspath(temp_dir1))  # Should be in temp_dir2
-
-        # After exiting the context, should be back to temp_dir1
-        assert os.getcwd().endswith(os.path.abspath(orig_dir))
-
-
-def test_chdir_exception() -> None:
-    # Create temporary directories for testing
-    with tempfile.TemporaryDirectory() as temp_dir1:
-        orig_dir = os.getcwd()
-
-        # Test the chdir context manager with an exception
-        with pytest.raises(RuntimeError):
-            with chdir(temp_dir1):
-                assert os.getcwd().endswith(os.path.abspath(temp_dir1))  # Should be in temp_dir2
-                raise RuntimeError("Test exception")  # Raise an exception
-
-        # After exiting the context, should be back to temp_dir1
-        assert os.getcwd().endswith(os.path.abspath(orig_dir))
 
 
 def test_is_package_installed_existing_package() -> None:
