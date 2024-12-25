@@ -1,14 +1,13 @@
 """Type Register."""
 import inspect
+import logging
 from abc import ABC, ABCMeta
 from types import MappingProxyType
 from typing import ClassVar, Iterator
 
 from datasets.packaged_modules import _hash_python_lines
 
-from hyped.common.logging import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class Registrable(ABC):  # noqa: B024

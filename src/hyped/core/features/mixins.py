@@ -1,11 +1,10 @@
 """Type Mixins."""
 
 import inspect
+import logging
 from typing import Any, Callable, ClassVar, TypeVar
 
-from hyped.common.logging import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class MethodRegistryMixin:
