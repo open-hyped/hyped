@@ -54,7 +54,7 @@ def setup_logging(level: int | str, log_file: None | str = None) -> None:
             "filename": log_file,
             "mode": "a",
         }
-        logging_config["loggers"]["crane"]["handlers"].append("file")
+        logging_config["loggers"]["hyped"]["handlers"].append("file")
 
     logging.config.dictConfig(logging_config)
 
