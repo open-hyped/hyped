@@ -16,7 +16,6 @@ authors = [
 requires-python = ">=3.10"
 license = {text = "Apache 2.0"}
 dependencies = [
-    "dill>=0.3.8",
     "datasets>=3.2.0",
     "fsspec<=2023.9.2",
     "networkx>=3.4.2",
@@ -32,7 +31,6 @@ tests = [
     "pytest-cov",
     "pytest-asyncio",
     "pytest-integration",
-    "sharedmock@git+https://github.com/ScriptingSquirrel/python-sharedmock.git"
 ]
 docs = ["sphinx", "furo"]
 
