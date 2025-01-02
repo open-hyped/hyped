@@ -22,6 +22,7 @@ dependencies = [
     "matplotlib>=3.8.2",
     "pydantic>=2.10.4",
     "nest-asyncio>=1.6.0",
+    "pyarrow<18",  # version 18.0 - 18.1 contain a bug, upgrade as soon as >18.2 releases
 ]
 
 [project.optional-dependencies]

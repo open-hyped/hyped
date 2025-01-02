@@ -129,8 +129,8 @@ class Len(TypeValidator):
             if not isinstance(seq, SequenceFeature):
                 raise RuntimeError("Not a sequence")
 
-            if length != len(seq):
-                raise TypeError(f"Length mismatch, {length} != {len(seq)}")
+            if length != seq.length():
+                raise TypeError(f"Length mismatch, {length} != {seq.length()}")
 
             return seq
 
