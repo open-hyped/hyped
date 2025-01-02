@@ -30,7 +30,7 @@ from .features.features import (
     build_feature_from_reference,
 )
 from .features.reference import NodeId
-from .features.validators import Len
+from .features.validators import FeatureResolver, FeatureValidator, Len
 
 __all__ = [
     "Index",
@@ -61,6 +61,8 @@ __all__ = [
     "Mapping",
     "ClassLabel",
     "Len",
+    "FeatureValidator",
+    "FeatureResolver",
     "cast",
 ]
 

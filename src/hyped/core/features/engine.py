@@ -28,7 +28,7 @@ from .session import ValidationSession
 class TypeVarRegister(object):
     """A registry for managing and capturing TypeVars used in type validation."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the TypeVarRegister."""
         self._registered_vars: dict[UUID, TypeVar] = {}
         self._captured_vars: dict[TypeVar, set[Type]] = defaultdict(set)

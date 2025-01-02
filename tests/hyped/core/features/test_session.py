@@ -40,7 +40,7 @@ class TestValidationSession:
         assert session.session_id is None
         with session:
             assert isinstance(session.session_id, UUID)
-        assert session.session_id is not None
+        assert session.session_id is None
 
     def test_context_cleared_on_exit(self):
         """Test that context is cleared automatically when session exits."""
@@ -48,3 +48,19 @@ class TestValidationSession:
         with session:
             session.set_context("key", "value")
         assert session.get_context("key") is None
+
+    def test_nested_contexts(self):
+        """Test that context is only cleared after the top-level session exits."""
+        session = ValidationSession()
+        with session:
+            session.set_context("key1", "value1")
+            with session:
+                session.set_context("key2", "value2")
+                assert session.get_context("key1") == "value1"
+                assert session.get_context("key2") == "value2"
+            # After the inner block, the context should remain intact
+            assert session.get_context("key1") == "value1"
+            assert session.get_context("key2") == "value2"
+        # After the top-level block, the context should be cleared
+        assert session.get_context("key1") is None
+        assert session.get_context("key2") is None

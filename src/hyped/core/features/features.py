@@ -4840,7 +4840,8 @@ def build_feature_from_annotation(
 
     if hasattr(builder, "__parameters__"):
         # lookup typevars in return annotation
-        dtypes = [typevar_mapping[t] for t in builder.__parameters__]
+        resolved_dtypes = [typevar_mapping[t] for t in builder.__parameters__]
+        assert all(isinstance(dtype, dtypes.Type) for dtype in resolved_dtypes)
         # create a feature annotation for each typevar
         # which resolves to the corresponding feature type
         features = [
@@ -4848,7 +4849,7 @@ def build_feature_from_annotation(
                 Feature,
                 pydantic.BeforeValidator(partial(maybe_build_feature_from_reference, dtype=dtype)),
             ]
-            for dtype in dtypes
+            for dtype in resolved_dtypes
         ]
         # apply the feature annotations to the return model
         builder = builder.__class_getitem__(*features)
