@@ -8,14 +8,10 @@ This module optionally relies on PyTorch's worker information if the `torch`
 package is installed and used in a multiprocessing context.
 """
 
-import atexit
-import multiprocessing as mp
 from dataclasses import dataclass, field
-from multiprocessing.managers import SyncManager
 from types import SimpleNamespace
 from typing import TypeAlias
 
-from .lazy_instance import LazyStaticInstance
 from .utils import is_package_installed
 
 Rank: TypeAlias = int
@@ -25,25 +21,6 @@ In distributed or parallel computing, the rank is an integer identifier for a pr
 This type alias is typically used to represent the rank of a process in a multi-processing
 or distributed environment, where each process is assigned a unique rank.
 """
-
-
-def _sync_manager_factory() -> SyncManager:
-    """Factory function for creating a SyncManager instance.
-
-    Returns:
-        SyncManager: An instance of SyncManager.
-    """
-    # create manager and start it
-    manager = SyncManager(ctx=mp.context.DefaultContext)
-    manager.start()
-    # register shutdown at exit
-    atexit.register(manager.shutdown)
-    return manager
-
-
-# create global sync manager
-manager: SyncManager = LazyStaticInstance[SyncManager](_sync_manager_factory)
-"""Global multiprocessing manager"""
 
 
 @dataclass(frozen=True)

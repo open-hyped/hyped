@@ -14,7 +14,10 @@ from hyped.core.typing import Bool, Int
 
 
 class TestDataAggregationManager:
-    @patch("hyped.core.nodes.aggregator._manager", MagicMock(dict=MagicMock(side_effect=dict)))
+    @patch(
+        "hyped.core.nodes.aggregator.mp.Manager",
+        MagicMock(return_value=MagicMock(dict=MagicMock(side_effect=dict))),
+    )
     @patch("hyped.core.nodes.aggregator.pa.array", MagicMock(side_effect=lambda v, **_: v))
     def test_initialization(self) -> None:
         # create mock aggregators and run contexts
@@ -48,7 +51,10 @@ class TestDataAggregationManager:
         assert aggregation_manager._state_buffer[mock_run_contexts[2].node_id] == initial_states[2]
 
     @pytest.mark.asyncio
-    @patch("hyped.core.nodes.aggregator._manager", MagicMock(dict=MagicMock(side_effect=dict)))
+    @patch(
+        "hyped.core.nodes.aggregator.mp.Manager",
+        MagicMock(return_value=MagicMock(dict=MagicMock(side_effect=dict))),
+    )
     @patch("hyped.core.nodes.aggregator.pa.array", MagicMock(side_effect=lambda v, **_: v))
     @patch("hyped.core.nodes.aggregator.replace", MagicMock(side_effect=lambda x, **_: x))
     async def test_aggregate(self) -> None:

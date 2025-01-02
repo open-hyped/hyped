@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import multiprocessing as mp
 from abc import ABC, abstractmethod
 from dataclasses import replace
 from types import MappingProxyType
@@ -31,8 +32,6 @@ from typing import (
 
 import pyarrow as pa
 from typing_extensions import Self
-
-from hyped.common._worker import manager as _manager  # noqa: F401
 
 from ..features.dtypes import MappingType
 from ..typing import Feature
@@ -58,7 +57,7 @@ class DataAggregationManager(object):
             run_contexts (list[RunContext]): A list of contexts correspoding to the aggregators.
                 Only used for call to :func:`initialize` function of each aggregator instance.
         """
-        global _manager
+        manager = mp.Manager()
         # create buffers
         value_buffer = {}
         state_buffer = {}
@@ -70,11 +69,11 @@ class DataAggregationManager(object):
             value_buffer[ctx.node_id] = val
             state_buffer[ctx.node_id] = state
         # create thread-safe buffers
-        self._value_buffer = _manager.dict(value_buffer)
-        self._state_buffer = _manager.dict(state_buffer)
+        self._value_buffer = manager.dict(value_buffer)
+        self._state_buffer = manager.dict(state_buffer)
         # create a lock for each entry to synchronize access
-        self._locks = {ctx.node_id: _manager.Lock() for ctx in run_contexts}
-        self._locks = _manager.dict(self._locks)
+        self._locks = {ctx.node_id: manager.Lock() for ctx in run_contexts}
+        self._locks = manager.dict(self._locks)
 
     @property
     def values_proxy(self) -> MappingProxyType[str, pa.Array]:
