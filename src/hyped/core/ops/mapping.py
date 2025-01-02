@@ -5,7 +5,7 @@ from typing import Annotated
 import pyarrow.compute as pc
 
 from ..features.features import MappingFeature
-from ..features.validators import TypeResolver
+from ..features.validators import FeatureResolver
 from ..nodes.base import RunContext, process_mode
 from ..nodes.processor import BaseDataProcessor, BaseDataProcessorConfig
 from ..typing import Feature, Mapping
@@ -29,7 +29,7 @@ class MappingGetItem(BaseDataProcessor[MappingGetItemConfig]):
     def process(
         self, ctx: RunContext, mapping: Mapping
     ) -> Annotated[
-        Feature, TypeResolver(lambda config, inputs, _: inputs["mapping"].dtype[config.key])
+        Feature, FeatureResolver(lambda config, inputs, _: inputs["mapping"].dtype[config.key])
     ]:
         """Retrieve a value from a mapping using a specified key.
 

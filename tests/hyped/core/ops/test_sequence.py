@@ -12,7 +12,7 @@ from hyped.core.ops.sequence import (
 )
 from hyped.core.testing.augmenter import BaseDataAugmenterTest
 from hyped.core.testing.processor import BaseDataProcessorTest
-from hyped.typing import Bool, Int, Int32, Sequence
+from hyped.typing import Annotated, Bool, Int, Int32, Len, Sequence
 
 
 class TestStringAdd(BaseDataProcessorTest):
@@ -115,4 +115,20 @@ class TestSequencePack(BaseDataAugmenterTest):
     ]
     expected_output_feature = Sequence[Int]
     expected_output_data = [[0, 1, 2], [3, 4]]
+    expected_output_partition = "TEST_PARTITION"
+
+
+class TestSequencePack(BaseDataAugmenterTest):
+    augmenter = SequencePack(original_partition="TEST_PARTITION", original_length=3)
+    input_features = {"values": Int, "trace_index": Int32}
+    input_data = [
+        {"values": 0, "trace_index": 0},
+        {"values": 1, "trace_index": 0},
+        {"values": 2, "trace_index": 0},
+        {"values": 3, "trace_index": 1},
+        {"values": 4, "trace_index": 1},
+        {"values": 5, "trace_index": 1},
+    ]
+    expected_output_feature = Annotated[Sequence[Int], Len(3)]
+    expected_output_data = [[0, 1, 2], [3, 4, 5]]
     expected_output_partition = "TEST_PARTITION"

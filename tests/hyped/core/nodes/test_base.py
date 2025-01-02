@@ -182,6 +182,9 @@ class TestBaseNode:
     def test_call(self, mock_feature_engine: MagicMock) -> None:
         obj = MagicMock()
         obj_dtype = MagicMock()
+        mock_feature_engine.return_value.__enter__ = MagicMock(
+            return_value=mock_feature_engine.return_value
+        )
         mock_feature_engine.return_value.get_references_and_objects.return_value = (
             MagicMock(),
             {"obj": obj},

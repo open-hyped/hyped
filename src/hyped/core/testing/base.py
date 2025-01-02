@@ -16,6 +16,7 @@ import pytest
 
 from hyped.core.features.dtypes import MappingType
 from hyped.core.features.features import MappingFeature, build_feature_from_annotation
+from hyped.core.features.session import ValidationSession
 from hyped.core.flow import DataFlow, ExecutableDataFlow
 from hyped.core.nodes.base import BaseNode
 from hyped.core.typing import Feature, IndexList, Rank
@@ -259,11 +260,15 @@ class BaseNodeTest(ABC):
 
         if cls.expected_output_feature is not None:
             try:
-                adapter = pydantic.TypeAdapter(
-                    cls.expected_output_feature,
-                    config=pydantic.ConfigDict(arbitrary_types_allowed=True),
-                )
-                adapter.validate_python(output)
+                with ValidationSession() as session:
+                    adapter = pydantic.TypeAdapter(
+                        cls.expected_output_feature,
+                        config=pydantic.ConfigDict(arbitrary_types_allowed=True),
+                    )
+                    adapter.validate_python(
+                        output,
+                        context={"config": None, "inputs": {}, "typevars": {}, "session": session},
+                    )
             except pydantic.ValidationError as e:
                 raise AssertionError(
                     f"Output feature mismatch: Expected output feature to conform to "

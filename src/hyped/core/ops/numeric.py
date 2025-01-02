@@ -41,7 +41,7 @@ from ..features.features import (
     UInt64Feature,
     build_feature_from_reference,
 )
-from ..features.validators import TypeResolver
+from ..features.validators import FeatureResolver
 from ..nodes.aggregator import BaseDataAggregator, BaseDataAggregatorConfig
 from ..nodes.base import RunContext, process_mode
 from ..nodes.processor import BaseDataProcessor, BaseDataProcessorConfig
@@ -188,7 +188,7 @@ class Negate(BaseDataProcessor[NegateConfig]):
         self, ctx: RunContext, x: T
     ) -> Annotated[
         Int | Float,
-        TypeResolver(
+        FeatureResolver(
             lambda _, inputs, session: (
                 Int16Feature
                 if isinstance(inputs["x"], UInt8Feature)
@@ -308,7 +308,7 @@ class TrueDiv(BaseDataProcessor[TrueDivConfig]):
         self, ctx: RunContext, x: ScalarType, y: ScalarType
     ) -> Annotated[
         Float,
-        TypeResolver(
+        FeatureResolver(
             lambda _, inputs, session: (
                 ScalarType
                 if (
@@ -350,7 +350,7 @@ class FloorDiv(BaseDataProcessor[FloorDivConfig]):
         self, ctx: RunContext, x: ScalarType, y: ScalarType
     ) -> Annotated[
         Int | UInt,
-        TypeResolver(
+        FeatureResolver(
             lambda _, inputs, session: (
                 ScalarType
                 if (
@@ -609,7 +609,7 @@ class Mean(BaseDataAggregator[MeanConfig]):
     ) -> tuple[
         Annotated[
             Float,
-            TypeResolver(
+            FeatureResolver(
                 lambda _, inputs, session: Float32Feature
                 if isinstance(inputs["val"], Float32Feature)
                 else Float64Feature

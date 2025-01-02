@@ -46,6 +46,7 @@ from .features.features import (
     build_feature_from_reference,
 )
 from .features.reference import ConcreteReference, ForwardReference
+from .features.session import ValidationSession
 from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
@@ -268,40 +269,45 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         # features and/or the source type annotation
         src_dtype: Type
 
-        if (src_type_annotation is not None) and (self._hf_source_features is not None):
-            # create a dummy feature instance according to the huggingface features
-            hf_dtype = build_dtype_from_hf_feature(self._hf_source_features)
-            instance = build_feature_from_reference(ForwardReference(hf_dtype))
-            # validate the feature instance with respect to the type annotation
-            try:
-                adapter = pydantic.TypeAdapter(src_type_annotation)
-                instance = adapter.validate_python(instance, context={"strict": True}, strict=True)
-            except pydantic.ValidationError as e:
+        with ValidationSession() as session:
+            context = {"strict": True, "config": None, "session": session}
+
+            if (src_type_annotation is not None) and (self._hf_source_features is not None):
+                # create a dummy feature instance according to the huggingface features
+                hf_dtype = build_dtype_from_hf_feature(self._hf_source_features)
+                instance = build_feature_from_reference(ForwardReference(hf_dtype))
+                # validate the feature instance with respect to the type annotation
+                try:
+                    adapter = pydantic.TypeAdapter(src_type_annotation)
+                    instance = adapter.validate_python(instance, context=context, strict=True)
+                except pydantic.ValidationError as e:
+                    raise RuntimeError(
+                        f"The provided HuggingFace features '{self._hf_source_features}' are "
+                        f"incompatible with the type annotation {src_type_annotation}."
+                    ) from e
+                # use the data type of the validated instance as the source data type
+                src_dtype = instance.dtype
+
+            elif src_type_annotation is not None:
+                # infer the source dtype from the type annotation
+                src_dtype = build_feature_from_annotation(
+                    src_type_annotation, session=session, context=context
+                ).dtype
+
+            elif self._hf_source_features is not None:
+                # build the source dtype from the huggingface features
+                src_dtype = build_dtype_from_hf_feature(self._hf_source_features)
+
+            else:
+                # no input specified, at least argument or type hint is required
                 raise RuntimeError(
-                    f"The provided HuggingFace features '{self._hf_source_features}' are "
-                    f"incompatible with the type annotation {src_type_annotation}."
-                ) from e
-            # use the data type of the validated instance as the source data type
-            src_dtype = instance.dtype
+                    "Initialization failed: At least one of 'features' or type annotation "
+                    "must be provided to infer the source data type."
+                )
 
-        elif src_type_annotation is not None:
-            # infer the source dtype from the type annotation
-            src_dtype = build_feature_from_annotation(src_type_annotation).dtype
-
-        elif self._hf_source_features is not None:
-            # build the source dtype from the huggingface features
-            src_dtype = build_dtype_from_hf_feature(self._hf_source_features)
-
-        else:
-            # no input specified, at least argument or type hint is required
-            raise RuntimeError(
-                "Initialization failed: At least one of 'features' or type annotation must be "
-                "provided to infer the source data type."
-            )
-
-        # add the source node to the graph with the node id
-        src_ref = self._graph.add_source_node(src_dtype)
-        self._source_feature = build_feature_from_reference(src_ref)
+            # add the source node to the graph with the node id
+            src_ref = self._graph.add_source_node(src_dtype)
+            self._source_feature = build_feature_from_reference(src_ref)
 
     @property
     def depth(self) -> int:

@@ -9,7 +9,7 @@ These processors are registered as methods on the :class:`SequenceFeature` class
 to be applied directly to sequence features.
 """
 
-from typing import Any, Generic, TypeVar
+from typing import Annotated, Any, Generic, TypeVar
 
 import pyarrow as pa
 import pyarrow.compute as pc
@@ -20,6 +20,7 @@ from hyped.core.typing import PartitionId
 from ..features.dtypes import UNDEFINED_SEQUENCE_LENGTH
 from ..features.features import Int32Feature, SequenceFeature
 from ..features.reference import ConcreteReference
+from ..features.validators import FeatureResolver, Len
 from ..graph import DataFlowGraph
 from ..nodes.augmenter import BaseDataAugmenter, BaseDataAugmenterConfig
 from ..nodes.base import RunContext, process_mode
@@ -123,7 +124,7 @@ class SequenceSum(BaseDataProcessor[SequenceSumConfig]):
         return sum(seq)
 
 
-ItemType = TypeVar("T")
+ItemType = TypeVar("ItemType")
 
 
 class SequenceGetItemConfig(BaseDataAugmenterConfig):
@@ -263,6 +264,9 @@ class SequencePackConfig(BaseDataAugmenterConfig):
     original_partition: None | PartitionId = None
     """The partition of unpack node in case the values come from a sequence unpack operation."""
 
+    original_length: None | int = None
+    """The length of the sequence before the unpack operation if defined."""
+
 
 class SequencePack(BaseDataAugmenter[SequencePackConfig]):
     """Augmenter to reconstruct a sequence from elements and trace indices."""
@@ -291,7 +295,19 @@ class SequencePack(BaseDataAugmenter[SequencePackConfig]):
     @process_mode(batched=True, backend="arrow")
     def process(
         self, ctx: RunContext, values: ItemType, trace_index: Int32
-    ) -> tuple[Sequence[ItemType], TraceIndexList]:
+    ) -> tuple[
+        Annotated[
+            Sequence[ItemType],
+            FeatureResolver(
+                lambda c, _, s: (
+                    Sequence[ItemType]
+                    if c.original_length is None
+                    else Annotated[Sequence[ItemType], Len(c.original_length)]
+                )
+            ),
+        ],
+        TraceIndexList,
+    ]:
         """Reconstruct a sequence from flattened elements and trace indices.
 
         Args:
@@ -318,7 +334,8 @@ class SequencePack(BaseDataAugmenter[SequencePackConfig]):
             ]
         )
         # unflatten the sequence
-        return unflatten_list_array(values, offsets), offsets[:-1].to_pylist()
+        cutoffs = offsets if self.config.original_length is None else self.config.original_length
+        return unflatten_list_array(values, cutoffs), offsets[:-1].to_pylist()
 
 
 @SequenceFeature.register_method("min")
@@ -430,12 +447,16 @@ def pack_sequence(
     """
     # get the partition of the node that performs the flattening operation
     # and use it as the target partition of the unflattening operation
-    node_partition = (
+    partition = (
         node._graph.nodes[node._node_id][DataFlowGraph.NodeAttribute.PARTITION]
         if node is not None
         else None
     )
-    return SequencePack(original_partition=node_partition).call(values, trace_index)
+    length = len(node.get_dtype())
+    length = length if length != UNDEFINED_SEQUENCE_LENGTH else None
+
+    pack = SequencePack(original_partition=partition, original_length=length)
+    return pack.call(values, trace_index)
 
 
 SequenceFeature.register_method("sum")(SequenceSum().call)

@@ -425,13 +425,16 @@ class SequenceType(Type, typing.Sequence):
         # TODO: decide if unkown == known length is ok
         return self.value_type == other.value_type and (self.length == other.length)
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: not covered
         """Returns the string representation.
 
         Returns:
             str: A string representation of the sequence instance including the value type.
         """
-        return f"SequenceType[{str(self.value_type)}]"  # pragma: not covered
+        if self.length != UNDEFINED_SEQUENCE_LENGTH:
+            return f"SequenceType[{str(self.value_type)}, {self.length}]"
+        else:
+            return f"SequenceType[{str(self.value_type)}]"
 
     def to_dict(self) -> dict:
         """Serializes the sequence type to a dictionary representation.

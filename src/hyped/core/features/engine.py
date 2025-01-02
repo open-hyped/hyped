@@ -5,6 +5,8 @@ within a data flow graph system. It allows dynamic handling of type annotations,
 validation, and captures type variables during function calls. It integrates with Pydantic to
 handle model validation.
 """
+from __future__ import annotations
+
 import inspect
 from collections import defaultdict
 from functools import partial
@@ -20,6 +22,7 @@ from ..registry.config import BaseConfig
 from .dtypes import Type, build_dtype_from_python_object, common_dtype
 from .features import Feature, build_feature_from_annotation
 from .reference import ConcreteReference
+from .session import ValidationSession
 
 
 class TypeVarRegister(object):
@@ -143,7 +146,7 @@ class FeatureEngine(object):
         # track the type variable assingment while validating
         self.typevar_register = TypeVarRegister()
         # create the validation model
-        self.session_id = uuid4()
+        self.session = ValidationSession()
         self.validator, self.typevar_lookup = self._build_validator()
 
         self.args_param = next(
@@ -160,6 +163,25 @@ class FeatureEngine(object):
             ),
             None,
         )
+
+    def __enter__(self) -> FeatureEngine:
+        """Activates the validation session.
+
+        Returns:
+            FeatureEngine: The validation engine instance.
+        """
+        self.session.__enter__()
+        return self
+
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
+        """Exit the validation session.
+
+        Args:
+            exc_type (type): The exception type, if any.
+            exc_value (Exception): The exception instance, if any.
+            traceback (traceback): The traceback object, if any.
+        """
+        self.session.__exit__(exc_type, exc_value, traceback)
 
     def _build_validator(self) -> pydantic.BaseModel:
         """Build a Pydantic model to validate function arguments based on type hints.
@@ -252,7 +274,7 @@ class FeatureEngine(object):
 
         try:
             # validate input arguments
-            context = {"config": self.config, "session_id": self.session_id}
+            context = {"config": self.config, "session": self.session}
             self.validator.model_validate(bound_args.arguments, context=context)
 
         except pydantic.ValidationError as e:
@@ -317,14 +339,12 @@ class FeatureEngine(object):
 
         context = {
             "config": self.config,
-            "session_id": self.session_id,
             "typevars": self.typevar_register.typevar_mapping,
         }
-
         if inputs is not None:
             context["inputs"] = inputs
 
-        return build_feature_from_annotation(annotation, typevar_mapping, context)
+        return build_feature_from_annotation(annotation, typevar_mapping, self.session, context)
 
     def build_return_feature(self, inputs: dict[str, Feature]) -> Feature:
         """Build the return feature based on the function's return type annotation.
