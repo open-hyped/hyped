@@ -7,14 +7,15 @@ else:
 
 import pytest
 
-from hyped.common._worker import manager, reset_worker_info
+import hyped.common._worker
+from hyped.common._worker import manager
 
 
 @pytest.fixture(autouse=True)
 def _reset_globals_after_test():
     yield
     # reset multiprocessing worker info
-    reset_worker_info()
+    hyped.common._worker._worker_info = None
     # reset global manager
     if manager._is_instantiated():
         manager._instance.shutdown()
