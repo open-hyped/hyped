@@ -10,6 +10,8 @@ from typing import Annotated, Any, Callable, TypeAlias, TypeVar
 import pydantic
 from datasets.features.features import FeatureType
 
+from hyped.common._pydantic import TypeAdapterWithArbitraryTypesAllowed
+
 from .features.dtypes import (
     UNDEFINED_SEQUENCE_LENGTH,
     MappingType,
@@ -60,11 +62,11 @@ def map_recursive(
     return out_obj if out_obj is not None else obj
 
 
-def validate_hf_features(
-    hf_features: FeatureType,
+def validate_hf_feature(
+    hf_feature: FeatureType,
     annotation: Any,
     session: ValidationSession = ValidationSession(),
-    context: dict[str, Any] = {},
+    context: dict[str, Any] = {"config": None},
 ) -> Feature:
     """Validate HuggingFace features against a type annotation.
 
@@ -72,7 +74,7 @@ def validate_hf_features(
     with the provided type annotation and returns a validated feature instance.
 
     Args:
-        hf_features (FeatureType): The HuggingFace feature structure to validate.
+        hf_feature (FeatureType): The HuggingFace feature structure to validate.
         annotation (Any): The type annotation to validate against.
         session (ValidationSession, optional): The validation session instance
             to manage context and validation state. Defaults to a new session.
@@ -86,17 +88,17 @@ def validate_hf_features(
         RuntimeError: If the HuggingFace features are incompatible with the annotation.
     """
     # create a dummy feature instance according to the huggingface features
-    hf_dtype = build_dtype_from_hf_feature(hf_features)
+    hf_dtype = build_dtype_from_hf_feature(hf_feature)
     instance = build_feature_from_reference(ForwardReference(hf_dtype))
     # validate the feature instance with respect to the type annotation
     try:
         context = {**context, "session": session}
-        adapter = pydantic.TypeAdapter(annotation)
+        adapter = TypeAdapterWithArbitraryTypesAllowed(annotation)
         with session:
             return adapter.validate_python(instance, context=context, strict=True)
     except pydantic.ValidationError as e:
         raise RuntimeError(
-            f"The provided HuggingFace features '{hf_features}' are "
+            f"The provided HuggingFace features '{hf_feature}' are "
             f"incompatible with the type annotation {annotation}."
         ) from e
 

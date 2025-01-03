@@ -20,9 +20,9 @@ import nest_asyncio
 import networkx as nx
 import numpy as np
 import pyarrow as pa
-import pydantic
 from matplotlib import colormaps
 
+from hyped.common._pydantic import TypeAdapterWithArbitraryTypesAllowed
 from hyped.common._worker import get_worker_info
 
 from .abstract import AbstractDataFlow
@@ -51,7 +51,7 @@ from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
 from .optim import DataFlowGraphOptimizer
 from .typing import IndexList, NodeId, Rank
-from .utils import NestedType, build_annotation_from_dtype, map_recursive, validate_hf_features
+from .utils import NestedType, build_annotation_from_dtype, map_recursive, validate_hf_feature
 
 # patch asyncio if running in an async environment, such as jupyter notebook
 # this fixes #26
@@ -269,18 +269,14 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         src_dtype: Type
 
         with ValidationSession() as session:
-            context = {"config": None, "session": session}
-
             if (src_type_annotation is not None) and (self._hf_source_features is not None):
-                instance = validate_hf_features(
-                    self._hf_source_features, src_type_annotation, session=session, context=context
+                instance = validate_hf_feature(
+                    self._hf_source_features, src_type_annotation, session=session
                 )
 
             elif src_type_annotation is not None:
                 # infer the source dtype from the type annotation
-                instance = build_feature_from_annotation(
-                    src_type_annotation, session=session, context=context
-                )
+                instance = build_feature_from_annotation(src_type_annotation, session=session)
 
             elif self._hf_source_features is not None:
                 # build the source dtype from the huggingface features
@@ -389,7 +385,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         if feature_type is not None:
             # create a dummy feature to infer the data type
             # from the given feature type
-            adapter = pydantic.TypeAdapter(feature_type)
+            adapter = TypeAdapterWithArbitraryTypesAllowed(feature_type)
             dtype = adapter.validate_python(ForwardReference()).dtype
         else:
             # build the data type matching the object in case no data type was provided
@@ -968,7 +964,7 @@ class ExecutableDataFlow(AbstractDataFlow):
         # this also allows dataset features to be a superset of the required
         # source features, as pydantic ignores all additional inputs
         annotation = build_annotation_from_dtype(self._source_feature.dtype)
-        validate_hf_features(features, annotation, context={"config": None})
+        validate_hf_feature(features, annotation, context={"config": None})
 
         return self._internal_apply(
             ds,

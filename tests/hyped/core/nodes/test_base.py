@@ -179,6 +179,7 @@ class MockNode(BaseNode[MockConfig]):
 class TestBaseNode:
     @patch("hyped.core.nodes.base.FeatureEngine")
     @patch("hyped.core.nodes.base.build_feature_from_reference", MagicMock())
+    @patch("hyped.core.nodes.base.replace", MagicMock())
     def test_call(self, mock_feature_engine: MagicMock) -> None:
         obj = MagicMock()
         obj_dtype = MagicMock()

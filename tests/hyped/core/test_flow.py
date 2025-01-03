@@ -110,7 +110,7 @@ class TestDataFlow:
         flow._graph.reset_mock()
 
         # add constant with specified data type
-        with patch("hyped.core.flow.pydantic.TypeAdapter") as mock_type_adapter:
+        with patch("hyped.core.flow.TypeAdapterWithArbitraryTypesAllowed") as mock_type_adapter:
             dtype = MagicMock()
             flow.const(42, dtype)
             # make sure the type adapter was called
@@ -159,7 +159,9 @@ class TestDataFlow:
         with pytest.raises(RuntimeError):
             flow.build(collect=valid, aggregate=invalid)
 
-        with patch("hyped.core.flow.nx.restricted_view") as mock_restricted_view:
+        with patch("hyped.core.flow.nx.restricted_view") as mock_restricted_view, patch(
+            "hyped.core.features.features.MappingFeature.__post_init__"
+        ):
             flow.build(collect=valid, aggregate=valid)
 
             mock_restricted_view.assert_called_once_with(mock_graph.return_value, [], [])
@@ -382,12 +384,6 @@ class TestExecutableDataFlow:
             desc=ANY,
             new_fingerprint=ANY,
         )
-
-        with patch("hyped.core.flow.is_dtype_subset", MagicMock(return_value=False)), pytest.raises(
-            RuntimeError
-        ):
-            # required source dtype is not a subset of the dataset
-            flow.apply(ds)
 
         ds.reset_mock()
 

@@ -4,6 +4,7 @@ from unittest.mock import ANY, MagicMock
 import pydantic
 import pytest
 
+from hyped.common._pydantic import TypeAdapterWithArbitraryTypesAllowed
 from hyped.core.features.dtypes import Float32Type, Int32Type, SequenceType
 from hyped.core.features.features import SequenceFeature
 from hyped.core.features.reference import ForwardReference
@@ -18,18 +19,16 @@ class TestFeatureValidator:
 
         context = {"config": MagicMock(), "session": MagicMock()}
 
-        adapter = pydantic.TypeAdapter(
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
             Annotated[Int, FeatureValidator(validator_fn)],
-            config=pydantic.ConfigDict(arbitrary_types_allowed=True),
         )
         adapter.validate_python(ForwardReference(), context=context)
 
         validator_fn.assert_called_once_with(ANY, context["config"], context["session"])
 
     def test_error_on_missing_context(self) -> None:
-        adapter = pydantic.TypeAdapter(
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
             Annotated[Int, FeatureValidator(MagicMock())],
-            config=pydantic.ConfigDict(arbitrary_types_allowed=True),
         )
 
         with pytest.raises(RuntimeError):
@@ -40,7 +39,7 @@ class TestFeatureResolver:
     def test_resolve_union(self) -> None:
         context = {"config": MagicMock(), "inputs": {}, "session": MagicMock(), "typevars": {}}
 
-        adapter = pydantic.TypeAdapter(
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
             Annotated[Int | Float, FeatureResolver(lambda c, i, s: Int)],
             config=pydantic.ConfigDict(arbitrary_types_allowed=True),
         )
@@ -48,7 +47,7 @@ class TestFeatureResolver:
 
         assert isinstance(feature, Int)
 
-        adapter = pydantic.TypeAdapter(
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
             Annotated[Int | Float, FeatureResolver(lambda c, i, s: Float)],
             config=pydantic.ConfigDict(arbitrary_types_allowed=True),
         )
@@ -66,7 +65,7 @@ class TestFeatureResolver:
             "typevars": {T: Float32Type},
         }
 
-        adapter = pydantic.TypeAdapter(
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
             Annotated[Int | T, FeatureResolver(lambda c, i, s: Int)],
             config=pydantic.ConfigDict(arbitrary_types_allowed=True),
         )
@@ -74,7 +73,7 @@ class TestFeatureResolver:
 
         assert isinstance(feature, Int)
 
-        adapter = pydantic.TypeAdapter(
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
             Annotated[Int | Float, FeatureResolver(lambda c, i, s: T)],
             config=pydantic.ConfigDict(arbitrary_types_allowed=True),
         )
@@ -92,7 +91,7 @@ class TestFeatureResolver:
             "typevars": {T: Float32Type},
         }
 
-        adapter = pydantic.TypeAdapter(
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
             Annotated[Int | Sequence[T], FeatureResolver(lambda c, i, s: Sequence[T])],
             config=pydantic.ConfigDict(arbitrary_types_allowed=True),
         )
@@ -106,7 +105,7 @@ class TestFeatureResolver:
 
         context = {"config": MagicMock(), "inputs": {}, "session": MagicMock(), "typevars": {}}
 
-        adapter = pydantic.TypeAdapter(
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
             Annotated[
                 Int, FeatureResolver(lambda c, i, s: Annotated[Int, FeatureValidator(validator_fn)])
             ],
@@ -117,7 +116,7 @@ class TestFeatureResolver:
         validator_fn.assert_called_once_with(ANY, context["config"], context["session"])
 
     def test_error_on_missing_context(self) -> None:
-        adapter = pydantic.TypeAdapter(
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
             Annotated[Int | Float, FeatureResolver(lambda c, i, s: Int)],
             config=pydantic.ConfigDict(arbitrary_types_allowed=True),
         )
@@ -139,14 +138,14 @@ class TestLenValidator:
         inst = SequenceFeature(ForwardReference(dtype=SequenceType(Int32Type, length=2)))
 
         # adapter checking for sequence of length 2
-        adapter = pydantic.TypeAdapter(
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
             Annotated[Sequence[Int], Len(2)],
             config=pydantic.ConfigDict(arbitrary_types_allowed=True),
         )
         adapter.validate_python(inst, context=context)
 
         # adapter checking for sequence of length 3
-        adapter = pydantic.TypeAdapter(
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
             Annotated[Sequence[Int], Len(3)],
             config=pydantic.ConfigDict(arbitrary_types_allowed=True),
         )
@@ -157,7 +156,7 @@ class TestLenValidator:
         inst = SequenceFeature(ForwardReference(dtype=SequenceType(Int32Type)))
 
         # adapter checking for sequence of length 2
-        adapter = pydantic.TypeAdapter(
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
             Annotated[Sequence[Int], Len(2, strict=True)],
             config=pydantic.ConfigDict(arbitrary_types_allowed=True),
         )
@@ -171,7 +170,7 @@ class TestLenValidator:
         # length undefined
         inst = SequenceFeature(ForwardReference(dtype=SequenceType(Int32Type)))
 
-        adapter = pydantic.TypeAdapter(
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
             Annotated[Sequence[Int], Len(2)],
             config=pydantic.ConfigDict(arbitrary_types_allowed=True),
         )

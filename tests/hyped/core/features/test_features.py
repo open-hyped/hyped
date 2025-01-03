@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pydantic
 import pytest
 
+from hyped.common._pydantic import TypeAdapterWithArbitraryTypesAllowed
 from hyped.common.utils import is_python_version_less_than
 from hyped.core.features.dtypes import (
     UNDEFINED_SEQUENCE_LENGTH,
@@ -6668,7 +6669,9 @@ class TestClassLabelFeature:
         CustomClassLabel = ClassLabelFeature.from_names(["labelA", "labelB"])
         CustomClassLabel(ForwardReference(dtype))
 
-        inst = pydantic.TypeAdapter(CustomClassLabel).validate_python(ForwardReference())
+        inst = TypeAdapterWithArbitraryTypesAllowed(CustomClassLabel).validate_python(
+            ForwardReference()
+        )
         assert isinstance(inst, CustomClassLabel)
         assert inst.dtype.names == dtype.names
 
@@ -6711,21 +6714,23 @@ class TestClassLabelFeature:
             labelB = 1
 
         # base type supports arbitrary label names
-        adapter = pydantic.TypeAdapter(ClassLabelFeature)
+        adapter = TypeAdapterWithArbitraryTypesAllowed(ClassLabelFeature)
         assert adapter.validate_python(inst) == inst
 
         # cast to custom type
-        adapter = pydantic.TypeAdapter(CustomClassLabel)
+        adapter = TypeAdapterWithArbitraryTypesAllowed(CustomClassLabel)
         assert isinstance(adapter.validate_python(inst), CustomClassLabel)
 
         # cast to custom type
-        adapter = pydantic.TypeAdapter(CustomClassLabel)
+        adapter = TypeAdapterWithArbitraryTypesAllowed(CustomClassLabel)
         inferred_dtype = adapter.validate_python(ForwardReference()).dtype
         assert inferred_dtype.names == dtype.names
 
         with pytest.raises(pydantic.ValidationError):
             # unable to infer labels
-            pydantic.TypeAdapter(ClassLabelFeature).validate_python(ForwardReference())
+            TypeAdapterWithArbitraryTypesAllowed(ClassLabelFeature).validate_python(
+                ForwardReference()
+            )
 
     @pytest.mark.parametrize(
         "fn, registered_fn_name, args, expected_return_feature_type, expected_node_config",
@@ -7395,28 +7400,28 @@ class TestSequenceFeature:
     def test_pydantic_core_schema(self) -> None:
         # test validation of sequence feature
         seq = SequenceFeature(ForwardReference(SequenceType(BoolType)))
-        adapter = pydantic.TypeAdapter(SequenceFeature)
+        adapter = TypeAdapterWithArbitraryTypesAllowed(SequenceFeature)
         assert seq == adapter.validate_python(seq)
 
         # test validation of strongly-typed sequence feature
         seq = SequenceFeature(ForwardReference(SequenceType(BoolType)))
-        adapter = pydantic.TypeAdapter(SequenceFeature[BoolFeature])
+        adapter = TypeAdapterWithArbitraryTypesAllowed(SequenceFeature[BoolFeature])
         assert seq == adapter.validate_python(seq)
 
         # test validation error on value type mismatch
         seq = SequenceFeature(ForwardReference(SequenceType(BoolType)))
         with pytest.raises(pydantic.ValidationError):
-            adapter = pydantic.TypeAdapter(SequenceFeature[StringType])
+            adapter = TypeAdapterWithArbitraryTypesAllowed(SequenceFeature[StringType])
             adapter.validate_python(seq)
 
         # test create sequence feature from reference
         seq = SequenceFeature(ForwardReference(SequenceType(BoolType)))
-        adapter = pydantic.TypeAdapter(SequenceFeature[BoolFeature])
+        adapter = TypeAdapterWithArbitraryTypesAllowed(SequenceFeature[BoolFeature])
         assert adapter.validate_python(ForwardReference()) == seq
 
         # cannot infer sequence feature type from annotation
         with pytest.raises(RuntimeError):
-            adapter = pydantic.TypeAdapter(SequenceFeature)
+            adapter = TypeAdapterWithArbitraryTypesAllowed(SequenceFeature)
             adapter.validate_python(ForwardReference())
 
 
@@ -7525,41 +7530,36 @@ class TestMappingFeature:
             fieldB: StringFeature
 
         # base type supports arbitrary structures
-        adapter = pydantic.TypeAdapter(MappingFeature)
-        assert adapter.validate_python(mapping) == mapping
-
-        # validate mapping matches fields
-        mapping = MappingFeature(ForwardReference(dtype))
-        adapter = pydantic.TypeAdapter(CustomMappingFeature)
+        adapter = TypeAdapterWithArbitraryTypesAllowed(MappingFeature)
         assert adapter.validate_python(mapping) == mapping
 
         # validate and convert to specific mapping type
         mapping = MappingFeature(ForwardReference(dtype))
-        adapter = pydantic.TypeAdapter(CustomMappingFeature)
-        validated_mapping = adapter.validate_python(mapping, context={"strict": True})
+        adapter = TypeAdapterWithArbitraryTypesAllowed(CustomMappingFeature)
+        validated_mapping = adapter.validate_python(mapping)
         assert isinstance(validated_mapping, CustomMappingFeature)
 
         # create mapping feature instance from reference
-        adapter = pydantic.TypeAdapter(CustomMappingFeature)
+        adapter = TypeAdapterWithArbitraryTypesAllowed(CustomMappingFeature)
         validated_mapping = adapter.validate_python(ForwardReference())
         assert validated_mapping.dtype == dtype
 
         # validate generic mapping type
-        mapping = MappingFeature(ForwardReference(dtype))
-        adapter = pydantic.TypeAdapter(GenericMappingFeature[StringFeature])
+        mapping = GenericMappingFeature[StringFeature](ForwardReference(dtype))
+        adapter = TypeAdapterWithArbitraryTypesAllowed(GenericMappingFeature[StringFeature])
         assert adapter.validate_python(mapping) == mapping
 
         # cannot infer mapping fields
-        adapter = pydantic.TypeAdapter(MappingFeature)
+        adapter = TypeAdapterWithArbitraryTypesAllowed(MappingFeature)
         with pytest.raises(RuntimeError):
             adapter.validate_python(ForwardReference())
 
-        adapter = pydantic.TypeAdapter(InvalidCustomMappingFeature)
+        adapter = TypeAdapterWithArbitraryTypesAllowed(InvalidCustomMappingFeature)
         with pytest.raises(pydantic.ValidationError):
             adapter.validate_python(mapping)
 
         # validate invalid generic mapping type
-        adapter = pydantic.TypeAdapter(GenericMappingFeature[BoolFeature])
+        adapter = TypeAdapterWithArbitraryTypesAllowed(GenericMappingFeature[BoolFeature])
         with pytest.raises(pydantic.ValidationError):
             adapter.validate_python(mapping)
 

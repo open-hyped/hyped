@@ -14,6 +14,7 @@ import pyarrow as pa
 import pydantic
 import pytest
 
+from hyped.common._pydantic import TypeAdapterWithArbitraryTypesAllowed
 from hyped.core.features.dtypes import MappingType
 from hyped.core.features.features import MappingFeature, build_feature_from_annotation
 from hyped.core.features.session import ValidationSession
@@ -261,10 +262,7 @@ class BaseNodeTest(ABC):
         if cls.expected_output_feature is not None:
             try:
                 with ValidationSession() as session:
-                    adapter = pydantic.TypeAdapter(
-                        cls.expected_output_feature,
-                        config=pydantic.ConfigDict(arbitrary_types_allowed=True),
-                    )
+                    adapter = TypeAdapterWithArbitraryTypesAllowed(cls.expected_output_feature)
                     adapter.validate_python(
                         output,
                         context={"config": None, "inputs": {}, "typevars": {}, "session": session},

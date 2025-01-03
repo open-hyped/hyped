@@ -33,11 +33,13 @@ from types import GenericAlias
 from typing import Any, Callable, ClassVar, Final, Generic, TypeVar, overload
 
 import pydantic
-from pydantic.type_adapter import _type_has_config
 from pydantic_core import PydanticCustomError, core_schema
 from typing_extensions import Self
 
-from hyped.common._pydantic import BaseModelWithArbitraryTypesAllowed
+from hyped.common._pydantic import (
+    BaseModelWithArbitraryTypesAllowed,
+    TypeAdapterWithArbitraryTypesAllowed,
+)
 from hyped.common.utils import is_python_version_less_than
 
 from . import dtypes
@@ -4426,12 +4428,7 @@ class SequenceFeature(typing.Sequence[T], Feature[dtypes.SequenceType]):
             assert typing.get_origin(source_type) is cls
             (expected_item_type,) = typing.get_args(source_type)
             # create the type adapter to validate the item type
-            config = (
-                None
-                if _type_has_config(expected_item_type)
-                else pydantic.ConfigDict(arbitrary_types_allowed=True)
-            )
-            adapter = pydantic.TypeAdapter(expected_item_type, config=config)
+            adapter = TypeAdapterWithArbitraryTypesAllowed(expected_item_type)
 
         def validator_fn(inst, validator, info):
             if isinstance(inst, BaseReference):
@@ -4529,7 +4526,7 @@ class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
             KeyError: If there are any invalid or missing keys in the
                       mapping feature.
         """
-        assert isinstance(self.dtype, dtypes.MappingType)
+        assert isinstance(self.dtype, dtypes.MappingType), self.dtype
 
         # base mapping type allows arbitrary keys
         if type(self) is _MappingFeature:
@@ -4689,13 +4686,13 @@ class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
                     # apply the validated field dtypes
                     fields = {k: field.dtype for k, field in fields}
                     dtype = dtypes.MappingType.construct(fields)
-                    inst = cls(ForwardReference(dtype))
+                    inst = source_type(ForwardReference(dtype))
 
             # convert the instance to the actual class type
             return (
                 inst
                 if isinstance(inst, cls) or isinstance(inst.ref, ConcreteReference)
-                else cls(inst.ref)
+                else source_type(inst.ref)
             )
 
         return core_schema.with_info_wrap_validator_function(
@@ -4801,7 +4798,7 @@ def build_feature_from_annotation(
     annotation: Any,
     typevar_mapping: dict[TypeVar, dtypes.Type] = {},
     session: ValidationSession = ValidationSession(),
-    context: dict[str, Any] = {},
+    context: dict[str, Any] = {"config": None},
 ) -> Feature:
     """Build a feature from a given annotation using a forward reference.
 
