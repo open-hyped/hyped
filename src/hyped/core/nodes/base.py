@@ -525,10 +525,16 @@ class BaseNode(BaseConfigurable[C], ABC):
             # split the input features from the input constants
             references, objects, object_dtypes = engine.get_references_and_objects(*args, **kwargs)
 
-        # collect all objects
-        for key, val in objects.items():
-            references[key] = graph.add_collect_node_with_constants(val, object_dtypes[key])
+            # collect all objects
+            for key, val in objects.items():
+                references[key] = graph.add_collect_node_with_constants(val, object_dtypes[key])
+
+            # build the return feature of the node
+            input_features = {
+                key: build_feature_from_reference(ref) for key, ref in references.items()
+            }
+            return_feature = engine.build_return_feature(input_features)
 
         # add the node and return the output feature
         ref = graph.add_compute_node(self, references)
-        return build_feature_from_reference(ref)
+        return replace(return_feature, ref=ref)

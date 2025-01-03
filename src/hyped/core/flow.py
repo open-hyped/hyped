@@ -51,7 +51,7 @@ from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
 from .optim import DataFlowGraphOptimizer
 from .typing import IndexList, NodeId, Rank
-from .utils import NestedType, convert_dtype_to_annotation, map_recursive, validate_hf_features
+from .utils import NestedType, build_annotation_from_dtype, map_recursive, validate_hf_features
 
 # patch asyncio if running in an async environment, such as jupyter notebook
 # this fixes #26
@@ -260,7 +260,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         assert not self._is_initialized, "DataFlow has already been initialized."
 
         # try to get the source type from the type variable
-        src_type_annotation: None | type[T] = (
+        src_type_annotation: None | Any = (
             None if not hasattr(self, "__orig_class__") else get_args(self.__orig_class__)[0]
         )
 
@@ -964,10 +964,11 @@ class ExecutableDataFlow(AbstractDataFlow):
         if features is None:
             raise RuntimeError("Dataset features must not be None.")
 
-        with ValidationSession() as session:
-            context = {"config": None, "session": session}
-            src_type_annotation = convert_dtype_to_annotation(self._source_feature.dtype)
-            validate_hf_features(features, src_type_annotation, session=session, context=context)
+        # make sure that dataset features match source features of data flow
+        # this also allows dataset features to be a superset of the required
+        # source features, as pydantic ignores all additional inputs
+        annotation = build_annotation_from_dtype(self._source_feature.dtype)
+        validate_hf_features(features, annotation, context={"config": None})
 
         return self._internal_apply(
             ds,

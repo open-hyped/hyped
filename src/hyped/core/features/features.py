@@ -42,7 +42,7 @@ from hyped.common.utils import is_python_version_less_than
 
 from . import dtypes
 from .mixins import MethodRegistryMixin
-from .reference import BaseReference, ForwardReference
+from .reference import BaseReference, ConcreteReference, ForwardReference
 from .session import ValidationSession
 
 if is_python_version_less_than(3, 12):  # pragma: not covered
@@ -4466,7 +4466,9 @@ class SequenceFeature(typing.Sequence[T], Feature[dtypes.SequenceType]):
                 value_feature = adapter.validate_python(
                     value_feature, context=info.context, strict=True
                 )
+
                 if isinstance(inst.ref, ForwardReference):
+                    # apply the validated sequence value dtype
                     inst = SequenceFeature(
                         replace(inst.ref, dtype=replace(inst.dtype, value_type=value_feature.dtype))
                     )
@@ -4681,10 +4683,20 @@ class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
                     key: build_feature_from_reference(ForwardReference(inst.dtype[key]))
                     for key in inst.keys()
                 }
-                model.model_validate(fields, context=info.context, strict=True)
+                fields = model.model_validate(fields, context=info.context, strict=True)
+
+                if isinstance(inst.ref, ForwardReference):
+                    # apply the validated field dtypes
+                    fields = {k: field.dtype for k, field in fields}
+                    dtype = dtypes.MappingType.construct(fields)
+                    inst = cls(ForwardReference(dtype))
 
             # convert the instance to the actual class type
-            return inst if isinstance(inst, cls) else cls(inst.ref)
+            return (
+                inst
+                if isinstance(inst, cls) or isinstance(inst.ref, ConcreteReference)
+                else cls(inst.ref)
+            )
 
         return core_schema.with_info_wrap_validator_function(
             validator_fn, schema=core_schema.is_instance_schema(_MappingFeature)

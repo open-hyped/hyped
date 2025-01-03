@@ -90,6 +90,7 @@ def validate_hf_features(
     instance = build_feature_from_reference(ForwardReference(hf_dtype))
     # validate the feature instance with respect to the type annotation
     try:
+        context = {**context, "session": session}
         adapter = pydantic.TypeAdapter(annotation)
         with session:
             return adapter.validate_python(instance, context=context, strict=True)
@@ -100,11 +101,11 @@ def validate_hf_features(
         ) from e
 
 
-def convert_dtype_to_annotation(dtype: Type) -> Any:
-    """Convert a hyped dtype to a corresponding type annotation.
+def build_annotation_from_dtype(dtype: Type) -> Any:
+    """Convert a dtype instance to a type annotation.
 
-    Maps a `Type` object into a Python type annotation suitable for describing
-    the structure of a dataset feature.
+    Maps a :class:`Type` object into a Python type annotation suitable
+    for describing the structure of a dataset feature.
 
     Args:
         dtype (Type): The data type to convert.
@@ -115,7 +116,7 @@ def convert_dtype_to_annotation(dtype: Type) -> Any:
     if isinstance(dtype, PrimitiveType):
         return PRIMITIVE_FEATURE_MAPPING[dtype]
     elif isinstance(dtype, SequenceType):
-        seq_annotation = SequenceFeature[convert_dtype_to_annotation(dtype.value_type)]
+        seq_annotation = SequenceFeature[build_annotation_from_dtype(dtype.value_type)]
         return (
             Annotated[seq_annotation, Len(dtype.length)]
             if dtype.length != UNDEFINED_SEQUENCE_LENGTH
@@ -127,7 +128,7 @@ def convert_dtype_to_annotation(dtype: Type) -> Any:
             (MappingFeature,),
             {
                 "__annotations__": {
-                    field_name: convert_dtype_to_annotation(field_dtype)
+                    field_name: build_annotation_from_dtype(field_dtype)
                     for field_name, field_dtype in dtype.fields
                 }
             },
