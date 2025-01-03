@@ -352,26 +352,7 @@ class NodeProtocol(Protocol, Generic[Params, Return]):
     def call(self, flow: AbstractDataFlow, *args: Params.args, **kwargs: Params.kwargs) -> Return:
         ...
 
-    def call(self, *args: Params.args, **kwargs: Params.kwargs) -> Return:
-        """Call the node, adding it to the underlying data flow.
-
-        This method is used to execute the node within the context of a data flow graph.
-        It validates the node's signature, processes the input arguments, and adds necessary
-        constants and processor nodes to the graph. Finally, it returns the processed output
-        feature.
-
-        Args:
-            *args (Params.args): Positional arguments for the node, which may include features
-                or data flows.
-            **kwargs (Params.kwargs): Keyword arguments for the node, which may include features
-                or data flows.
-
-        Returns:
-            Return: The feature resulting from the node's processing within the graph.
-
-        Raises:
-            RuntimeError: If the flow cannot be inferred from the arguments.
-        """
+    def call(self, *args: Params.args, **kwargs: Params.kwargs) -> Return:  # noqa: D102
         ...  # pragma: not covered
 
 
