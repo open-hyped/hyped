@@ -4091,7 +4091,8 @@ class ClassLabelFeature(Int64Feature):
     Subclassing :class:`ClassLabelFeature` allows users to define class labels as attributes,
     similar to defining members in an `Enum`:
 
-    Example:
+    **Example**:
+
     .. code-block:: python
 
         class Labels(ClassLabelFeature):
@@ -4172,8 +4173,8 @@ class ClassLabelFeature(Int64Feature):
             where each label name in the input list is assigned as a class-level attribute with its
             corresponding integer ID as the value.
 
-        Example:
-        --------
+        **Example**:
+
         .. code-block:: python
 
             from my_module import ClassLabelFeature
