@@ -118,7 +118,7 @@ class TestSequencePack(BaseDataAugmenterTest):
     expected_output_partition = "TEST_PARTITION"
 
 
-class TestSequencePack(BaseDataAugmenterTest):
+class TestSequencePackFixedLength(BaseDataAugmenterTest):
     augmenter = SequencePack(original_partition="TEST_PARTITION", original_length=3)
     input_features = {"values": Int, "trace_index": Int32}
     input_data = [

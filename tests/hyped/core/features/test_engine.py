@@ -80,7 +80,7 @@ class TestFeatureEngine:
         with patch("hyped.core.features.engine.common_dtype") as mock_common_dtype:
             engine.validate_arguments(a=a, b=b)
             # build typevar mapping
-            engine.typevar_register.typevar_mapping
+            _ = engine.typevar_register.typevar_mapping
             # make sure typevar was resolved to common type
             mock_common_dtype.assert_called_once()
             assert set(mock_common_dtype.mock_calls[0].args) == {BoolType, Int16Type}

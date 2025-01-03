@@ -104,7 +104,12 @@ def _test_call_to_registered_method(
 
 class TestPrimitiveFeatures:
     @pytest.mark.parametrize(
-        "feature_type, fn, registered_fn_name, args, expected_return_feature_type, expected_node_config",
+        "feature_type,"
+        "fn,"
+        "registered_fn_name,"
+        "args,"
+        "expected_return_feature_type,"
+        "expected_node_config",
         [
             # Boolean methods
             (
@@ -6596,7 +6601,7 @@ class TestPrimitiveFeatures:
             return_annotation = annotations.pop("return")
 
             # check if all arguments match the signature
-            for param, arg in zip(parameter_order, args):
+            for param, arg in zip(parameter_order, args, strict=False):
                 try:
                     if not ((annotations[param] is Any) or isinstance(arg, annotations[param])):
                         break
@@ -7270,7 +7275,13 @@ class TestSequenceFeature:
             len(sequence)
 
     @pytest.mark.parametrize(
-        "feature, fn, registered_fn_name, args, expected_return_feature, expected_node_config, raises_error",
+        "feature,"
+        "fn,"
+        "registered_fn_name,"
+        "args,"
+        "expected_return_feature,"
+        "expected_node_config,"
+        "raises_error",
         [
             (
                 SequenceFeature(ForwardReference(SequenceType(Int64Type))),
@@ -7440,7 +7451,13 @@ class TestMappingFeature:
             CustomMappingFeature(ForwardReference(dtype))
 
     @pytest.mark.parametrize(
-        "feature, fn, registered_fn_name, args, expected_return_feature, expected_node_config, raises_error",
+        "feature,"
+        "fn,"
+        "registered_fn_name,"
+        "args,"
+        "expected_return_feature,"
+        "expected_node_config,"
+        "raises_error",
         [
             (
                 MappingFeature(ForwardReference(MappingType.construct({"field": Int64Type}))),

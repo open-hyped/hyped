@@ -12,7 +12,12 @@ from hyped.core.utils import NestedType
 
 class TestCollectNode:
     @pytest.mark.parametrize(
-        "collect, input_types, input_objects, expected_dtype, expected_object, expected_required_casts",
+        "collect,"
+        "input_types,"
+        "input_objects,"
+        "expected_dtype,"
+        "expected_object,"
+        "expected_required_casts",
         [
             # collect simple feature
             ("x", {"x": Int32Type}, {"x": 0}, Int32Type, 0, {}),
@@ -113,4 +118,4 @@ class TestCollectNode:
     def test_empty_sequences_not_supported(self) -> None:
         node = CollectNode(lookup=[])
         with pytest.raises(RuntimeError):
-            dtype = node.build_output_type(MagicMock(), {})
+            node.build_output_type(MagicMock(), {})

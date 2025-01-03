@@ -1,7 +1,7 @@
 from inspect import Parameter, Signature, _ParameterKind
 from itertools import chain
 from typing import AsyncIterable, Iterable
-from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 from uuid import uuid4
 
 import pytest

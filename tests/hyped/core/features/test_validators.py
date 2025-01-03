@@ -1,4 +1,4 @@
-from typing import Annotated, Any, Generator, TypeVar
+from typing import Annotated, Any, TypeVar
 from unittest.mock import ANY, MagicMock
 
 import pydantic

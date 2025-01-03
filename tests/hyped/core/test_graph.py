@@ -3,11 +3,10 @@ from typing import Hashable
 from unittest.mock import MagicMock, call, patch
 
 import networkx as nx
-import pyarrow as pa
 import pytest
 
 from hyped.core.features.dtypes import BoolType as MockType
-from hyped.core.features.dtypes import MappingType, SequenceType, Type
+from hyped.core.features.dtypes import MappingType, SequenceType
 from hyped.core.features.reference import ConcreteReference
 from hyped.core.graph import (
     DataFlowGraph,
@@ -366,7 +365,7 @@ class TestDataFlowGraph:
         ref = graph.add_cast_node(src_ref, MockType)
         # make sure node was added as expected
         attrs = graph.nodes[ref._node_id]
-        assert attrs[DataFlowGraph.NodeAttribute.NODE_OBJ] == None
+        assert attrs[DataFlowGraph.NodeAttribute.NODE_OBJ] is None
         assert attrs[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.CAST
         assert attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] == MockType
         assert attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] == MappingType.construct(
