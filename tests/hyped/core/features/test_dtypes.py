@@ -533,6 +533,12 @@ def test_common_dtype(dtypes: tuple[Type], result_dtype: None | Type, raises_err
             SequenceType(value_type=Int32Type),
             False,
         ),
+        # Fixed-Sized List type conversion
+        (
+            pa.list_(pa.int32(), 5),
+            SequenceType(value_type=Int32Type, length=5),
+            False,
+        ),
     ],
 )
 def test_build_dtype_from_arrow_type(arrow_type, expected_output, expect_exception):
