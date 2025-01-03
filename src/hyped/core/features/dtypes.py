@@ -658,6 +658,12 @@ def build_dtype_from_arrow_type(arrow_type: pa.DataType) -> Type:
             value_type=build_dtype_from_arrow_type(arrow_type.value_type),
         )
 
+    elif pa.types.is_fixed_size_list(arrow_type):
+        return SequenceType(
+            value_type=build_dtype_from_arrow_type(arrow_type.value_type),
+            length=arrow_type.list_size,
+        )
+
     if (
         isinstance(arrow_type, pa.DataType)
         and str(arrow_type) in ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING
