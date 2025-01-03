@@ -54,7 +54,7 @@ def test_lazy_module(mock_import_module: MagicMock, lazy_module: LazyModule) -> 
 
 def test_lazy_import_not_in_dict(lazy_module: LazyModule) -> None:
     with pytest.raises(AttributeError):
-        _ = getattr(lazy_module, "non_existent_attribute")
+        _ = lazy_module.non_existent_attribute
 
 
 def test_dir_includes_lazy_imports_and_modules(lazy_module: LazyModule) -> None:

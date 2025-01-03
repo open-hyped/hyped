@@ -814,12 +814,12 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         input_features = {key: build_feature_from_reference(ref) for key, ref in inputs.items()}
         # create a type validation engine instance
         name = f"DataFlowGraph.add_node({type(obj).__qualname__})"
-        engine = FeatureEngine(name, obj.config, obj.signature)
-        # validate the input features to the node
-        engine.validate_signature()
-        engine.validate_arguments(**input_features)
-        # get the output feature type of the node for the given inputs
-        feature_type = engine.build_return_feature(input_features).dtype
+        with FeatureEngine(name, obj.config, obj.signature) as engine:
+            # validate the input features to the node
+            engine.validate_signature()
+            engine.validate_arguments(**input_features)
+            # get the output feature type of the node for the given inputs
+            feature_type = engine.build_return_feature(input_features).dtype
 
         return self.add_node(
             node_obj=obj,

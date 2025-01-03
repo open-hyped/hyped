@@ -1,5 +1,5 @@
 from typing import Hashable
-from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import datasets
 import matplotlib.pyplot as plt
@@ -87,11 +87,12 @@ class TestDataFlow:
 
         with pytest.raises(RuntimeError):
             # no input features specified
-            DataFlow().source
+            _ = DataFlow().source
 
         with pytest.raises(RuntimeError):
             # hf features are not compatible with annotation
-            DataFlow[SourceFeature](datasets.Features({"other": datasets.Value("bool")})).source
+            features = datasets.Features({"other": datasets.Value("bool")})
+            _ = DataFlow[SourceFeature](features).source
 
     @patch("hyped.core.flow.DataFlowGraph", MagicMock())
     @patch("hyped.core.flow.build_feature_from_reference", MagicMock())
@@ -283,7 +284,7 @@ class TestExecutableDataFlow:
             patch("hyped.core.flow.DataFlowGraphOptimizer", MagicMock(return_value=mock_optimizer)),
             patch("hyped.core.flow.DataFlowExecutor") as mock_executor,
             patch("hyped.core.flow.LazyDataFlowExecutor") as mock_lazy_executor,
-            patch("hyped.core.flow.DataAggregationManager") as mock_aggregation_manager,
+            patch("hyped.core.flow.DataAggregationManager"),
         ):
             # create the executable flow
             flow = ExecutableDataFlow(graph, collect, aggregate)

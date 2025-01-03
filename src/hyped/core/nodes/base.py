@@ -517,13 +517,13 @@ class BaseNode(BaseConfigurable[C], ABC):
 
         # create the type engine from the node signature
         name = f"{type(self).__qualname__}.call"
-        engine = FeatureEngine(name, self.config, self.signature)
 
-        # validate the node signature and input arguments
-        engine.validate_signature()
-        engine.validate_arguments(*args, **kwargs)
-        # split the input features from the input constants
-        references, objects, object_dtypes = engine.get_references_and_objects(*args, **kwargs)
+        with FeatureEngine(name, self.config, self.signature) as engine:
+            # validate the node signature and input arguments
+            engine.validate_signature()
+            engine.validate_arguments(*args, **kwargs)
+            # split the input features from the input constants
+            references, objects, object_dtypes = engine.get_references_and_objects(*args, **kwargs)
 
         # collect all objects
         for key, val in objects.items():

@@ -43,6 +43,7 @@ from hyped.common.utils import is_python_version_less_than
 from . import dtypes
 from .mixins import MethodRegistryMixin
 from .reference import BaseReference, ForwardReference
+from .session import ValidationSession
 
 if is_python_version_less_than(3, 12):  # pragma: not covered
 
@@ -4090,7 +4091,8 @@ class ClassLabelFeature(Int64Feature):
     Subclassing :class:`ClassLabelFeature` allows users to define class labels as attributes,
     similar to defining members in an `Enum`:
 
-    Example:
+    **Example**:
+
     .. code-block:: python
 
         class Labels(ClassLabelFeature):
@@ -4171,8 +4173,8 @@ class ClassLabelFeature(Int64Feature):
             where each label name in the input list is assigned as a class-level attribute with its
             corresponding integer ID as the value.
 
-        Example:
-        --------
+        **Example**:
+
         .. code-block:: python
 
             from my_module import ClassLabelFeature
@@ -4655,7 +4657,10 @@ class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
                 assert isinstance(inst, ForwardReference)
                 # infer member types from annotations using the validation model
                 members = {key: ForwardReference() for key in model.model_fields.keys()}
-                members = {key: field.dtype for key, field in model.model_validate(members)}
+                members = {
+                    key: field.dtype
+                    for key, field in model.model_validate(members, context=info.context)
+                }
                 # create the mapping instance from the member types
                 dtype = dtypes.MappingType.construct(members)
                 inst = build_feature_from_reference(ForwardReference(dtype))
@@ -4779,6 +4784,7 @@ def build_feature_from_reference(
 def build_feature_from_annotation(
     annotation: Any,
     typevar_mapping: dict[TypeVar, dtypes.Type] = {},
+    session: ValidationSession = ValidationSession(),
     context: dict[str, Any] = {},
 ) -> Feature:
     """Build a feature from a given annotation using a forward reference.
@@ -4797,13 +4803,13 @@ def build_feature_from_annotation(
             include type parameters or type variables.
         typevar_mapping (dict[TypeVar, types.Type]): A mapping that associates
             type variables with their corresponding types. Defaults to an empty dictionary.
+        session (ValidationSession): The validation session.
         context (dict[str, Any]): A context dictionary that can provide additional
             information to the validation process. Defaults to an empty dictionary.
 
     Returns:
         Feature: The feature built from the annotation and reference. This feature matches
             the structure defined by the annotation and resolves any type parameters.
-
     """
 
     def maybe_build_feature_from_reference(
@@ -4835,7 +4841,8 @@ def build_feature_from_annotation(
 
     if hasattr(builder, "__parameters__"):
         # lookup typevars in return annotation
-        dtypes = [typevar_mapping[t] for t in builder.__parameters__]
+        resolved_dtypes = [typevar_mapping[t] for t in builder.__parameters__]
+        assert all(isinstance(dtype, dtypes.Type) for dtype in resolved_dtypes)
         # create a feature annotation for each typevar
         # which resolves to the corresponding feature type
         features = [
@@ -4843,13 +4850,17 @@ def build_feature_from_annotation(
                 Feature,
                 pydantic.BeforeValidator(partial(maybe_build_feature_from_reference, dtype=dtype)),
             ]
-            for dtype in dtypes
+            for dtype in resolved_dtypes
         ]
         # apply the feature annotations to the return model
         builder = builder.__class_getitem__(*features)
 
-    # build the output feature
-    feature = builder.model_validate({"field": ForwardReference()}, context=context).field
-    assert isinstance(feature, Feature)
+    with session:
+        # build the output feature
+        feature = builder.model_validate(
+            {"field": ForwardReference()},
+            context={**context, "typevars": typevar_mapping, "session": session},
+        ).field
+        assert isinstance(feature, Feature)
 
     return feature

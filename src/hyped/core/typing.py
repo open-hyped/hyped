@@ -30,7 +30,7 @@ from .features.features import (
     build_feature_from_reference,
 )
 from .features.reference import NodeId
-from .features.validators import Len
+from .features.validators import FeatureResolver, FeatureValidator, Len
 
 __all__ = [
     "Index",
@@ -61,6 +61,8 @@ __all__ = [
     "Mapping",
     "ClassLabel",
     "Len",
+    "FeatureValidator",
+    "FeatureResolver",
     "cast",
 ]
 
@@ -374,7 +376,7 @@ def _cast(typ: Any, val: Any) -> Any:
 
     # infer the target dtype from the given type annotation and
     # add the cast node to the graph
-    dtype = build_feature_from_annotation(val.ref, typ).dtype
+    dtype = build_feature_from_annotation(typ).dtype
     ref = val.ref._graph.add_cast_node(val.ref, dtype)
     # return the output feature of the cast operation
     return build_feature_from_reference(ref)
