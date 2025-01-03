@@ -5,7 +5,29 @@ feature mappings, and nested structures in the core module.
 """
 from __future__ import annotations
 
-from typing import Any, Callable, TypeAlias, TypeVar
+from typing import Annotated, Any, Callable, TypeAlias, TypeVar
+
+import pydantic
+from datasets.features.features import FeatureType
+
+from .features.dtypes import (
+    UNDEFINED_SEQUENCE_LENGTH,
+    MappingType,
+    PrimitiveType,
+    SequenceType,
+    Type,
+    build_dtype_from_hf_feature,
+)
+from .features.features import (
+    PRIMITIVE_FEATURE_MAPPING,
+    Feature,
+    MappingFeature,
+    SequenceFeature,
+    build_feature_from_reference,
+)
+from .features.reference import ForwardReference
+from .features.session import ValidationSession
+from .features.validators import Len
 
 T = TypeVar("T")
 NestedType: TypeAlias = dict[str, "NestedType"] | list["NestedType"] | tuple["NestedType"] | T
@@ -36,3 +58,77 @@ def map_recursive(
     )
     out_obj = fn(path, obj)
     return out_obj if out_obj is not None else obj
+
+
+def validate_hf_features(
+    hf_features: FeatureType,
+    annotation: Any,
+    session: ValidationSession = ValidationSession(),
+    context: dict[str, Any] = {},
+) -> Feature:
+    """Validate HuggingFace features against a type annotation.
+
+    This function checks if the given HuggingFace feature structure is compatible
+    with the provided type annotation and returns a validated feature instance.
+
+    Args:
+        hf_features (FeatureType): The HuggingFace feature structure to validate.
+        annotation (Any): The type annotation to validate against.
+        session (ValidationSession, optional): The validation session instance
+            to manage context and validation state. Defaults to a new session.
+        context (dict[str, Any], optional): Additional context for validation.
+            Defaults to an empty dictionary.
+
+    Returns:
+        Feature: A validated feature instance compatible with the provided annotation.
+
+    Raises:
+        RuntimeError: If the HuggingFace features are incompatible with the annotation.
+    """
+    # create a dummy feature instance according to the huggingface features
+    hf_dtype = build_dtype_from_hf_feature(hf_features)
+    instance = build_feature_from_reference(ForwardReference(hf_dtype))
+    # validate the feature instance with respect to the type annotation
+    try:
+        adapter = pydantic.TypeAdapter(annotation)
+        with session:
+            return adapter.validate_python(instance, context=context, strict=True)
+    except pydantic.ValidationError as e:
+        raise RuntimeError(
+            f"The provided HuggingFace features '{hf_features}' are "
+            f"incompatible with the type annotation {annotation}."
+        ) from e
+
+
+def convert_dtype_to_annotation(dtype: Type) -> Any:
+    """Convert a hyped dtype to a corresponding type annotation.
+
+    Maps a `Type` object into a Python type annotation suitable for describing
+    the structure of a dataset feature.
+
+    Args:
+        dtype (Type): The data type to convert.
+
+    Returns:
+        Any: A type annotation corresponding to the provided dtype.
+    """
+    if isinstance(dtype, PrimitiveType):
+        return PRIMITIVE_FEATURE_MAPPING[dtype]
+    elif isinstance(dtype, SequenceType):
+        seq_annotation = SequenceFeature[convert_dtype_to_annotation(dtype.value_type)]
+        return (
+            Annotated[seq_annotation, Len(dtype.length)]
+            if dtype.length != UNDEFINED_SEQUENCE_LENGTH
+            else seq_annotation
+        )
+    elif isinstance(dtype, MappingType):
+        return type(
+            "DynamicSourceAnnotation",
+            (MappingFeature,),
+            {
+                "__annotations__": {
+                    field_name: convert_dtype_to_annotation(field_dtype)
+                    for field_name, field_dtype in dtype.fields
+                }
+            },
+        )

@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import typing
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import IntEnum
 from functools import partial
 from types import GenericAlias
@@ -4463,7 +4463,13 @@ class SequenceFeature(typing.Sequence[T], Feature[dtypes.SequenceType]):
                 value_feature = build_feature_from_reference(
                     ForwardReference(inst.dtype.value_type)
                 )
-                adapter.validate_python(value_feature, context=info.context, strict=True)
+                value_feature = adapter.validate_python(
+                    value_feature, context=info.context, strict=True
+                )
+                if isinstance(inst.ref, ForwardReference):
+                    inst = SequenceFeature(
+                        replace(inst.ref, dtype=replace(inst.dtype, value_type=value_feature.dtype))
+                    )
 
             return inst
 
@@ -4538,7 +4544,7 @@ class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
         missing_keys = valid_keys - set_keys
 
         if len(invalid_keys) > 0:
-            raise KeyError(f"Invalid Keys: {invalid_keys}", invalid_keys)
+            raise KeyError(f"Invalid Keys: {invalid_keys}, expected: {valid_keys}")
 
         if len(missing_keys) > 0:
             raise KeyError(f"Missing Keys: {missing_keys}", missing_keys)
@@ -4677,10 +4683,8 @@ class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
                 }
                 model.model_validate(fields, context=info.context, strict=True)
 
-            strict = (info.context or {}).get("strict", False)
-            # convert the instance to the actual class type in case of
-            # strict validation
-            return inst if isinstance(inst, cls) or not strict else cls(inst.ref)
+            # convert the instance to the actual class type
+            return inst if isinstance(inst, cls) else cls(inst.ref)
 
         return core_schema.with_info_wrap_validator_function(
             validator_fn, schema=core_schema.is_instance_schema(_MappingFeature)

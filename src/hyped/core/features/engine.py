@@ -275,7 +275,7 @@ class FeatureEngine(object):
         try:
             # validate input arguments
             context = {"config": self.config, "session": self.session}
-            self.validator.model_validate(bound_args.arguments, context=context)
+            self.validator.model_validate(bound_args.arguments, context=context, strict=True)
 
         except pydantic.ValidationError as e:
             # TODO: improve error message to include error keys and expected type

@@ -572,7 +572,7 @@ class MappingType(Type, typing.Mapping[str, Type]):
         Returns:
             str: The name of the class (`MappingType`).
         """
-        return type(self).__name__  # pragma: not covered
+        return f"{type(self).__name__}(fields={dict(self.fields)})"
 
     def to_dict(self) -> dict:
         """Serializes the :class:`MappingType` instance to a dictionary.

@@ -32,7 +32,6 @@ from .features.dtypes import (
     Type,
     build_dtype_from_hf_feature,
     build_dtype_from_python_object,
-    is_dtype_subset,
 )
 from .features.features import (
     BoolFeature,
@@ -52,7 +51,7 @@ from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
 from .optim import DataFlowGraphOptimizer
 from .typing import IndexList, NodeId, Rank
-from .utils import NestedType, map_recursive
+from .utils import NestedType, convert_dtype_to_annotation, map_recursive, validate_hf_features
 
 # patch asyncio if running in an async environment, such as jupyter notebook
 # this fixes #26
@@ -270,33 +269,23 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         src_dtype: Type
 
         with ValidationSession() as session:
-            context = {"strict": True, "config": None, "session": session}
+            context = {"config": None, "session": session}
 
             if (src_type_annotation is not None) and (self._hf_source_features is not None):
-                # create a dummy feature instance according to the huggingface features
-                hf_dtype = build_dtype_from_hf_feature(self._hf_source_features)
-                instance = build_feature_from_reference(ForwardReference(hf_dtype))
-                # validate the feature instance with respect to the type annotation
-                try:
-                    adapter = pydantic.TypeAdapter(src_type_annotation)
-                    instance = adapter.validate_python(instance, context=context, strict=True)
-                except pydantic.ValidationError as e:
-                    raise RuntimeError(
-                        f"The provided HuggingFace features '{self._hf_source_features}' are "
-                        f"incompatible with the type annotation {src_type_annotation}."
-                    ) from e
-                # use the data type of the validated instance as the source data type
-                src_dtype = instance.dtype
+                instance = validate_hf_features(
+                    self._hf_source_features, src_type_annotation, session=session, context=context
+                )
 
             elif src_type_annotation is not None:
                 # infer the source dtype from the type annotation
-                src_dtype = build_feature_from_annotation(
+                instance = build_feature_from_annotation(
                     src_type_annotation, session=session, context=context
-                ).dtype
+                )
 
             elif self._hf_source_features is not None:
                 # build the source dtype from the huggingface features
                 src_dtype = build_dtype_from_hf_feature(self._hf_source_features)
+                instance = MappingFeature(ForwardReference(dtype=src_dtype))
 
             else:
                 # no input specified, at least argument or type hint is required
@@ -306,8 +295,8 @@ class DataFlow(AbstractDataFlow, Generic[T]):
                 )
 
             # add the source node to the graph with the node id
-            src_ref = self._graph.add_source_node(src_dtype)
-            self._source_feature = build_feature_from_reference(src_ref)
+            src_ref = self._graph.add_source_node(instance.dtype)
+            self._source_feature = replace(instance, ref=src_ref)
 
     @property
     def depth(self) -> int:
@@ -972,16 +961,13 @@ class ExecutableDataFlow(AbstractDataFlow):
                 "got %s" % type(ds)
             )
 
-        # build the arrow type from the dataset features
-        ds_dtype: MappingType = build_dtype_from_hf_feature(features)
+        if features is None:
+            raise RuntimeError("Dataset features must not be None.")
 
-        # make sure the necessary features are contained in the dataset
-        if not is_dtype_subset(self._source_feature.dtype, ds_dtype):
-            raise RuntimeError(
-                f"Expected input schema doesn't match dataset:\n"
-                f"Expected feature type: {self._source_feature.dtype}\n"
-                f"But received type: {ds_dtype}"
-            )
+        with ValidationSession() as session:
+            context = {"config": None, "session": session}
+            src_type_annotation = convert_dtype_to_annotation(self._source_feature.dtype)
+            validate_hf_features(features, src_type_annotation, session=session, context=context)
 
         return self._internal_apply(
             ds,
