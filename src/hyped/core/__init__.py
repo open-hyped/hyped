@@ -9,9 +9,11 @@ Modules:
     - :class:`flow`: Provides the high-level interface for defining data processing workflows.
     - :class:`graph`: Defines the structure of the data flow graph and its components.
     - :class:`optim`: Defines an Optimizer to optimize the graph of the data flow.
-    - :class:`nodes`: Defines the base classes for nodes of the DAG.
     - :class:`typing`: Defines core type aliases including those used to define node interfaces.
-    - :class:`features`: The feature framework.
+    - :class:`nodes`: Defines the base classes for nodes of the DAG.
+    - :class:`features`: The feature system.
+    - :class:`ops`: Implementation of core operations.
+    - :class:`testing`: Defines base classes to implement node tests.
 
 While these modules are crucial for processor development, they are not intended for
 direct use by end users interacting with the high-level data flow interface.
