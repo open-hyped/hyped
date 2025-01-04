@@ -1107,6 +1107,85 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         node_depths = _compute_node_depth(self)
         nx.set_node_attributes(self, node_depths, DataFlowGraph.NodeAttribute.DEPTH)
 
+    def attach_graph_to_node(self, node_id: NodeId, graph: DataFlowGraph) -> DataFlowGraph:
+        """Attach a data flow graph to a specific node within the current graph.
+
+        This method embeds a separate data flow graph (:code:`graph`) into the current graph by
+        attaching the source node of the :code:`graph` to the node identified by :code:`node_id`
+        in the current graph. During this process, the nodes and edges of the `graph` are
+        integrated into the current graph, preserving their relationships, configurations and
+        node ids.
+
+        Parameters:
+            node_id (NodeId): The ID of the target node in the current graph to which
+                the source node of the :code:`graph` will be attached.
+            graph (DataFlowGraph): The data flow graph to be attached to the current graph.
+
+        Returns:
+            DataFlowGraph: The updated graph after the attachment.
+
+        Raises:
+            RuntimeError: If :code:`node_id` is not present in the current graph.
+            NotImplementedError: If the method encounters an unsupported node type in the `graph`.
+        """
+        # TODO: implement tests
+
+        if node_id not in self.nodes:
+            raise RuntimeError(f"Node ID {node_id} does not exist in the current graph.")
+
+        # mapping node ids of the 'graph' to references in the new graph 'h'
+        node_id_mapping: dict[NodeId, ConcreteReference] = {
+            graph.src_node_id: ConcreteReference(node_id, _graph=self)
+        }
+
+        for node_id in nx.topological_sort(graph):
+            node_attrs = graph.nodes[node_id]
+            node_obj = node_attrs[DataFlowGraph.NodeAttribute.NODE_OBJ]
+            node_type = node_attrs[DataFlowGraph.NodeAttribute.NODE_TYPE]
+            # collect all input references to the current node
+            inputs = {
+                key: node_id_mapping[in_node_id]
+                for in_node_id, _, key in graph.in_edges(node_id, keys=True)
+            }
+
+            # handle different node types
+            if node_type == DataFlowGraph.NodeType.SOURCE:
+                pass
+
+            elif node_type == DataFlowGraph.NodeType.COLLECT:
+
+                def resolve(_, k):
+                    return inputs[k] if isinstance(k, str) else k
+
+                collect = map_recursive(resolve, node_obj.config.lookup)
+                node_id_mapping[node_id] = self.add_collect_node(collect, node_id=node_id)
+
+            elif node_type == DataFlowGraph.NodeType.CONST:
+                node_id_mapping[node_id] = self.add_const_node(
+                    node_obj.config.value.to_pylist()[0],
+                    dtype=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
+                    node_id=node_id,
+                )
+
+            elif node_type == DataFlowGraph.NodeType.CAST:
+                node_id_mapping[node_id] = self.add_cast_node(
+                    inputs["value"],
+                    dtype=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
+                    node_id=node_id,
+                )
+
+            elif node_type in {
+                DataFlowGraph.NodeType.DATA_PROCESSOR,
+                DataFlowGraph.NodeType.DATA_AUGMENTER,
+                DataFlowGraph.NodeType.DATA_AGGREGATOR,
+            }:
+                node_id_mapping[node_id] = self.add_compute_node(node_obj, inputs, node_id=node_id)
+
+            else:
+                raise NotImplementedError(f"Unexpected node type: {node_type}")
+
+        return self
+
     def to_dict(self) -> dict:
         """Serializes the data flow graph into a dictionary representation.
 

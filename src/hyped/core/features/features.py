@@ -24,8 +24,8 @@ dependencies.
 
 from __future__ import annotations
 
+import logging
 import typing
-import warnings
 from dataclasses import dataclass, replace
 from enum import IntEnum
 from functools import partial
@@ -59,6 +59,8 @@ if is_python_version_less_than(3, 12):  # pragma: not covered
 else:
     from types import get_original_bases  # noqa: E402
 
+
+logger = logging.getLogger(__name__)
 
 DataType = TypeVar("DataType", bound=dtypes.Type)
 
@@ -4149,7 +4151,7 @@ class ClassLabelFeature(Int64Feature):
         enum = cls._build_class_label_enum()
         for i in range(0, max(enum, default=-1) + 1):
             if i not in set(enum):
-                warnings.warn(
+                logger.warning(
                     f"Detected missing label ID {i} in {cls.__qualname__}, filling with 'UNDEF'."
                 )
             names.append(enum(i).name if i in set(enum) else "UNDEF")
@@ -4352,7 +4354,7 @@ class SequenceFeature(typing.Sequence[T], Feature[dtypes.SequenceType]):
             transformed sequence, with the same structural layout as the original.
         """
         values, index = self.unpack(return_index=True)
-        return SequenceFeature.get_method("pack")(fn(values), index, values.ref)
+        return SequenceFeature.get_method("pack")(fn(values), index, self.ref)
 
     @overload
     def unpack(self) -> T:

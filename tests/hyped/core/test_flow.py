@@ -1,5 +1,5 @@
 from typing import Hashable
-from unittest.mock import ANY, AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, PropertyMock, patch
 
 import datasets
 import matplotlib.pyplot as plt
@@ -7,7 +7,7 @@ import networkx as nx
 import pytest
 
 from hyped.core.executor import DataFlowExecutor
-from hyped.core.features.dtypes import BoolType, MappingType
+from hyped.core.features.dtypes import BoolType, Int16Type, Int32Type, MappingType
 from hyped.core.features.features import Feature, MappingFeature
 from hyped.core.features.reference import ConcreteReference
 from hyped.core.flow import DataFlow, ExecutableDataFlow, plot_data_flow
@@ -137,9 +137,9 @@ class TestDataFlow:
     @patch("hyped.core.flow.ExecutableDataFlow")
     @patch("hyped.core.flow.build_feature_from_reference", MagicMock())
     def test_build(self, mock_executable_flow: MagicMock, mock_graph: MagicMock) -> None:
-        flow = DataFlow(datasets.Features({"field": datasets.Value("bool")}))
         # set source node id of mock graph to none
         # to mimic the flow not being initialized
+        flow = DataFlow(datasets.Features({"field": datasets.Value("bool")}))
         flow._graph.src_node_id = None
 
         # create valid and invalid features
@@ -159,17 +159,25 @@ class TestDataFlow:
         with pytest.raises(RuntimeError):
             flow.build(collect=valid, aggregate=invalid)
 
-        with patch("hyped.core.flow.nx.restricted_view") as mock_restricted_view, patch(
-            "hyped.core.features.features.MappingFeature.__post_init__"
+        manager = MagicMock()
+
+        with (
+            patch("hyped.core.flow.DataFlow._initialize"),
+            patch(
+                "hyped.core.flow.DataFlow._source_annotation", PropertyMock()
+            ) as mock_source_annotation,
+            patch("hyped.core.features.features.MappingFeature.__post_init__"),
+            patch("hyped.core.flow.nx.restricted_view") as mock_restricted_view,
         ):
-            flow.build(collect=valid, aggregate=valid)
+            flow.build(collect=valid, aggregate=valid, aggregation_manager=manager)
 
             mock_restricted_view.assert_called_once_with(mock_graph.return_value, [], [])
-
             mock_executable_flow.assert_called_once_with(
+                mock_source_annotation.return_value,
                 mock_restricted_view.return_value,
                 ConcreteReference(valid.ref._node_id, mock_restricted_view.return_value),
                 ConcreteReference(valid.ref._node_id, mock_restricted_view.return_value),
+                manager,
             )
 
     @patch("hyped.core.flow.DataFlow.build")
@@ -201,14 +209,14 @@ class TestExecutableDataFlow:
             with pytest.raises(RuntimeError):
                 # invalid node id in collect reference
                 collect = MagicMock(spec=ConcreteReference, _graph=mock_graph, _node_id=MagicMock())
-                ExecutableDataFlow(mock_graph, collect, None)
+                ExecutableDataFlow(None, mock_graph, collect, None, None)
 
             with pytest.raises(RuntimeError):
                 # collect node cannot be part of aggregated partition
                 collect = MagicMock(
                     spec=ConcreteReference, _graph=mock_graph, _node_id=mock_aggregate_node._node_id
                 )
-                ExecutableDataFlow(mock_graph, collect, None)
+                ExecutableDataFlow(None, mock_graph, collect, None, None)
 
             # valid collect reference
             collect = MagicMock(
@@ -220,14 +228,14 @@ class TestExecutableDataFlow:
                 aggregate = MagicMock(
                     spec=ConcreteReference, _graph=mock_graph, _node_id=MagicMock()
                 )
-                ExecutableDataFlow(mock_graph, collect, aggregate)
+                ExecutableDataFlow(None, mock_graph, collect, aggregate, None)
 
             with pytest.raises(RuntimeError):
                 # aggregate node must be part of aggregated partition
                 aggregate = MagicMock(
                     spec=ConcreteReference, _graph=mock_graph, _node_id=mock_feature_node._node_id
                 )
-                ExecutableDataFlow(mock_graph, collect, aggregate)
+                ExecutableDataFlow(None, mock_graph, collect, aggregate, None)
 
     @pytest.mark.parametrize(
         "graph, collect, aggregate, expected_instance_graph, expected_aggregates_graph",
@@ -289,7 +297,7 @@ class TestExecutableDataFlow:
             patch("hyped.core.flow.DataAggregationManager"),
         ):
             # create the executable flow
-            flow = ExecutableDataFlow(graph, collect, aggregate)
+            flow = ExecutableDataFlow(None, graph, collect, aggregate, None)
 
             # make sure the instance graph has the expected structure
             assert nx.is_isomorphic(flow._instance_graph, expected_instance_graph)
@@ -319,7 +327,7 @@ class TestExecutableDataFlow:
             patch("hyped.core.flow.DataFlowExecutor", MagicMock(return_value=mock_executor)),
         ):
             # create the executable data flow instance
-            flow = ExecutableDataFlow(graph, collect, None)
+            flow = ExecutableDataFlow(None, graph, collect, None, None)
 
             # create mock inputs to be processed
             mock_batch = MagicMock()
@@ -357,7 +365,7 @@ class TestExecutableDataFlow:
         # create the collect reference
         collect = ConcreteReference(_node_id=graph.src_node_id, _graph=graph)
         # create the executable data flow instance
-        flow = ExecutableDataFlow(graph, collect, None)
+        flow = ExecutableDataFlow(None, graph, collect, None, None)
 
         with pytest.raises(ValueError):
             # not a dataset
@@ -441,14 +449,111 @@ class TestExecutableDataFlow:
             remove_columns=ANY,
         )
 
+    @patch("hyped.core.flow.datasets.fingerprint.generate_fingerprint", MagicMock())
+    @patch("hyped.core.flow.datasets.fingerprint.update_fingerprint", MagicMock())
+    def test_apply_fallback_on_feature_mismatch(self) -> None:
+        # create two different but castable dtypes
+        dtype_A = MappingType.construct({"field": Int16Type})
+        dtype_B = MappingType.construct({"field": Int32Type})
+        # create a simple data flow graph containing only a source node
+        # using the first dtype and a single aggregator node
+        from hyped.core.ops.mapping import MappingGetItem
+        from hyped.core.ops.numeric import Sum
+
+        graph = DataFlowGraph()
+        src_ref = graph.add_source_node(dtype_A)
+        val_ref = graph.add_compute_node(MappingGetItem(key="field"), {"mapping": src_ref})
+        sum_ref = graph.add_compute_node(Sum(), {"val": val_ref})
+        agg_ref = graph.add_collect_node({"sum": sum_ref})
+        # create the executable data flow instance
+        mock_manager = MagicMock(
+            values_proxy={sum_ref._node_id: MagicMock(type=Int16Type.arrow_type)}
+        )
+        flow = ExecutableDataFlow(None, graph, src_ref, agg_ref, mock_manager)
+
+        # create a mock dataset with features matching the second data type
+        ds = MagicMock(spec=datasets.Dataset, features=dtype_B.hf_feature)
+
+        exec_flow_buffer: list[ExecutableDataFlow] = []
+
+        def capture_exec_flow_hook(*args, **kwargs):
+            exec_flow = ExecutableDataFlow(*args, **kwargs)
+            exec_flow_buffer.append(exec_flow)
+            return exec_flow
+
+        mock_exec_flow_class = MagicMock(side_effect=capture_exec_flow_hook)
+
+        with patch("hyped.core.flow.ExecutableDataFlow", mock_exec_flow_class):
+            flow.apply(ds)
+
+        # make sure a new data flow was build by the apply
+        mock_exec_flow_class.assert_called_once()
+        assert len(exec_flow_buffer) == 1
+        # check the structure of the exec
+        (exec_flow,) = exec_flow_buffer
+        # make sure the new flow uses the same aggregation manager
+        assert exec_flow._aggregation_manager == mock_manager
+        # make sure the source features match the features of the dataset
+        assert exec_flow._graph.src_dtype == dtype_B
+        # make sure there is exactly one node connecting to the source node
+        assert exec_flow._graph.out_degree(exec_flow._graph.src_node_id) == 1
+        edges = exec_flow._graph.out_edges(exec_flow._graph.src_node_id)
+        _, cast_node_id = next(iter(edges))
+        # make sure that node is the cast node
+        node_type = exec_flow._graph.nodes[cast_node_id][DataFlowGraph.NodeAttribute.NODE_TYPE]
+        out_dtype = exec_flow._graph.nodes[cast_node_id][
+            DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
+        ]
+        assert node_type == DataFlowGraph.NodeType.CAST
+        assert out_dtype == dtype_A
+
+    @patch("hyped.core.flow.datasets.fingerprint.generate_fingerprint", MagicMock())
+    @patch("hyped.core.flow.datasets.fingerprint.update_fingerprint", MagicMock())
+    def test_apply_exceptions(self) -> None:
+        # create two different and un-castable dtypes
+        dtype_A = MappingType.construct({"field": Int16Type})
+        dtype_B = MappingType.construct({"other": Int32Type})
+        # create a simple data flow graph containing only a source node
+        # using the first dtype
+        graph = DataFlowGraph()
+        graph.add_source_node(dtype_A)
+        # create the collect reference
+        collect = ConcreteReference(_node_id=graph.src_node_id, _graph=graph)
+        # create the executable data flow instance
+        flow = ExecutableDataFlow(None, graph, collect, None, None)
+
+        with pytest.raises(ValueError, match="Expected one of `datasets.Dataset`,"):
+            flow.apply(MagicMock())
+
+        # create a mock dataset with undefined dataset features
+        ds = MagicMock(spec=datasets.Dataset, features=None)
+        with pytest.raises(RuntimeError, match="Dataset features must not be None."):
+            flow.apply(ds)
+
+        # create a mock dataset with features matching the second data type
+        ds = MagicMock(spec=datasets.Dataset, features=dtype_B.hf_feature)
+        with pytest.raises(RuntimeError, match="Failed to cast dataset features"):
+            flow.apply(ds)
+
+        with (
+            pytest.raises(RuntimeError, match="Dataset features do not align with the expected"),
+            patch("hyped.core.flow.validate_hf_feature") as mock_validate_hf_feature,
+        ):
+            flow = ExecutableDataFlow(MagicMock(), graph, collect, None, None)
+            mock_validate_hf_feature.side_effect = Exception
+            flow.apply(ds)
+
     def test_serialization(self) -> None:
+        class Inputs(Mapping):
+            x: Bool
+
         # create a simple data flow graph containing only a source node
         graph = DataFlowGraph()
         graph.add_source_node(MappingType.construct({"x": BoolType}))
         # create the collect reference
         collect = ConcreteReference(_node_id=graph.src_node_id, _graph=graph)
         # create the executable data flow instance
-        flow = ExecutableDataFlow(graph, collect, None)
+        flow = ExecutableDataFlow(Inputs, graph, collect, None, None)
 
         serialized = flow.serialize()
         flow = DataFlow.deserialize(serialized)

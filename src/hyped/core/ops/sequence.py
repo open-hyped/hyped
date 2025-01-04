@@ -452,7 +452,7 @@ def pack_sequence(
         if node is not None
         else None
     )
-    length = len(node.get_dtype())
+    length = len(node.get_dtype()) if node is not None else None
     length = length if length != UNDEFINED_SEQUENCE_LENGTH else None
 
     pack = SequencePack(original_partition=partition, original_length=length)

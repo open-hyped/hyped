@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import pickle
 import re
 from dataclasses import replace
 from itertools import groupby
@@ -50,8 +52,10 @@ from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
 from .optim import DataFlowGraphOptimizer
-from .typing import IndexList, NodeId, Rank
+from .typing import IndexList, NodeId, Rank, cast
 from .utils import NestedType, build_annotation_from_dtype, map_recursive, validate_hf_feature
+
+logger = logging.getLogger(__name__)
 
 # patch asyncio if running in an async environment, such as jupyter notebook
 # this fixes #26
@@ -244,6 +248,10 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         """
         return self._graph.src_node_id is not None
 
+    @property
+    def _source_annotation(self) -> Any:
+        return None if not hasattr(self, "__orig_class__") else get_args(self.__orig_class__)[0]
+
     def _initialize(self) -> None:
         """Initialize the data flow graph by defining the source node.
 
@@ -259,11 +267,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         # make sure the flow is not initialized yet
         assert not self._is_initialized, "DataFlow has already been initialized."
 
-        # try to get the source type from the type variable
-        src_type_annotation: None | Any = (
-            None if not hasattr(self, "__orig_class__") else get_args(self.__orig_class__)[0]
-        )
-
+        src_type_annotation = self._source_annotation
         # infer the source data type from the hf
         # features and/or the source type annotation
         src_dtype: Type
@@ -441,6 +445,8 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         self,
         collect: Feature | dict[str, Any],
         aggregate: None | Feature | dict[str, Any] = None,
+        *,
+        aggregation_manager: DataAggregationManager | None = None,
     ) -> ExecutableDataFlow:
         """Build an executable data flow for computing and collecting features.
 
@@ -453,6 +459,9 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             collect (Feature | dict[str, Any]): The feature to be computed and collected.
             aggregate (None | Feature): An optional feature for computing aggregated values
                 across the dataset.
+            *
+            aggregation_manager (DataAggregationManager | None): The data aggregation manager
+                instance.
 
         Returns:
             ExecutableDataFlow[T]: An executable data flow that encapsulates the graph,
@@ -484,7 +493,9 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         collect = replace(collect.ref, _graph=graph)
         aggregate = None if aggregate is None else replace(aggregate.ref, _graph=graph)
         # build executable data flow
-        return ExecutableDataFlow(graph, collect, aggregate)
+        return ExecutableDataFlow(
+            self._source_annotation, graph, collect, aggregate, aggregation_manager
+        )
 
     @overload
     def apply(
@@ -627,15 +638,23 @@ class ExecutableDataFlow(AbstractDataFlow):
     """
 
     def __init__(
-        self, graph: DataFlowGraph, collect: ConcreteReference, aggregate: ConcreteReference | None
+        self,
+        source_annotation: Any | None,
+        graph: DataFlowGraph,
+        collect: ConcreteReference,
+        aggregate: ConcreteReference | None,
+        aggregation_manager: DataAggregationManager | None,
     ) -> None:
         """Initialize a :class:`ExecutableDataFlow`.
 
         Args:
+            source_annotation (Any): The source annotation.
             graph (DataFlowGraph): The data flow graph describing the pipeline.
             collect (ConcreteReference): A reference to the "collect" node in the graph.
             aggregate (ConcreteReference | None): A reference to the "aggregate" node,
                 if applicable.
+            aggregation_manager (DataAggregationManager | None): The data aggregation
+                manager instance to use in case the flow contains aggregator nodes.
 
         Raises:
             RuntimeError: If the collect node is not part of the graph.
@@ -645,6 +664,7 @@ class ExecutableDataFlow(AbstractDataFlow):
             RuntimeError: If the aggregate node is not part of the :code:`AGGREGATED` partition.
             RuntimeError: If the aggregate feature is not a mapping.
         """
+        self._source_annotation = source_annotation
         # make sure the collect feature belongs to the graph
         if (collect._graph is not graph) or (collect._node_id not in graph.nodes):
             raise RuntimeError(
@@ -720,7 +740,11 @@ class ExecutableDataFlow(AbstractDataFlow):
 
             # build the data aggregation manager instance and the aggregates graph,
             # which implements the operations performed on aggregated values
-            self._aggregation_manager = self._build_aggregation_manager(nodes)
+            self._aggregation_manager = (
+                self._build_aggregation_manager(nodes)
+                if aggregation_manager is None
+                else self._check_aggregation_manager(nodes, aggregation_manager)
+            )
             self._aggregates_graph = self._build_aggregates_graph(aggregate, set(nodes))
             # initialize the aggregates executor from the graph and manager
             self._aggregates_executor = LazyDataFlowExecutor(
@@ -777,7 +801,11 @@ class ExecutableDataFlow(AbstractDataFlow):
             None | MappingFeature: The aggregates feature that is computed when the data flow is
                 executed. :code:`None` in case no aggregates were specified when building the flow.
         """
-        return None if self._aggregates_executor is None else self._aggregates_executor.collect
+        return (
+            None
+            if self._aggregates_executor is None
+            else build_feature_from_reference(self._aggregates_executor.collect)
+        )
 
     @property
     def aggregates(self) -> Mapping[str, Any]:  # pragma: not covered
@@ -848,6 +876,30 @@ class ExecutableDataFlow(AbstractDataFlow):
             )
 
         return h
+
+    def _check_aggregation_manager(
+        self, nodes: list[NodeId], manager: DataAggregationManager
+    ) -> DataAggregationManager:
+        """Checks the aggregation manager.
+
+        Checks whether all aggregators are registered in the aggregation manager and
+        the data types of the corresponding values match expectation.
+
+        Args:
+            nodes (list[NodeId]): A list of node IDs corresponding to the aggregator nodes
+                for which the data aggregation manager is to be constructed.
+            manager (DataAggregationManager): The aggregation manager to check.
+
+        Returns:
+            DataAggregationManager: The checked aggregation manager.
+        """
+        assert set(manager.values_proxy.keys()) == set(nodes)
+        assert all(
+            buf.type
+            == self._graph.nodes[node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE].arrow_type
+            for node_id, buf in manager.values_proxy.items()
+        )
+        return manager
 
     def _build_aggregation_manager(self, nodes: list[NodeId]) -> DataAggregationManager:
         """Build the aggregation manager.
@@ -921,6 +973,11 @@ class ExecutableDataFlow(AbstractDataFlow):
         The behavior of the processing depends on whether the dataset is an in-memory or
         streamed dataset (i.e. :class:`datasets.Dataset` or :class:`datasets.IterableDataset`)).
 
+        If the dataset features do not fully align with the source features of the data flow
+        graph, a fallback mechanism applies a casting operation. This ensures compatibility
+        but may result in data loss or type adjustments. The casting adapts the dataset
+        features to match the schema defined by the data flow graph.
+
         Parameters:
             ds (Dataset | IterableDataset): The dataset to which the data flow graph will be
                 applied.
@@ -945,6 +1002,16 @@ class ExecutableDataFlow(AbstractDataFlow):
             Dataset | ItDataset | tuple[Dataset: The transformed dataset matching the input
             dataset type.
         """
+        kwargs = dict(
+            batch_size=batch_size,
+            drop_last_batch=drop_last_batch,
+            keep_in_memory=keep_in_memory,
+            load_from_cache_file=load_from_cache_file,
+            writer_batch_size=writer_batch_size,
+            num_proc=num_proc,
+            desc=desc,
+        )
+
         # get the dataset features
         if isinstance(ds, (datasets.Dataset, datasets.IterableDataset)):
             features = ds.features
@@ -960,21 +1027,102 @@ class ExecutableDataFlow(AbstractDataFlow):
         if features is None:
             raise RuntimeError("Dataset features must not be None.")
 
-        # make sure that dataset features match source features of data flow
-        # this also allows dataset features to be a superset of the required
-        # source features, as pydantic ignores all additional inputs
         annotation = build_annotation_from_dtype(self._source_feature.dtype)
-        validate_hf_feature(features, annotation, context={"config": None})
+        try:
+            # make sure that dataset features match source features of data flow
+            # this also allows dataset features to be a superset of the required
+            # source features, as pydantic ignores all additional inputs
+            validate_hf_feature(features, annotation)
+        except Exception:
+            if self._source_annotation is not None:
+                try:
+                    # check if the dataset features align with the data flow
+                    # source annotation at all
+                    validate_hf_feature(features, self._source_annotation)
+                except Exception as e:
+                    raise RuntimeError(
+                        "Dataset features do not align with the expected data flow source "
+                        "annotation. Ensure the dataset features matches the expected graph "
+                        "definition."
+                    ) from e
 
-        return self._internal_apply(
-            ds,
-            batch_size=batch_size,
-            drop_last_batch=drop_last_batch,
-            keep_in_memory=keep_in_memory,
-            load_from_cache_file=load_from_cache_file,
-            writer_batch_size=writer_batch_size,
-            num_proc=num_proc,
-            desc=desc,
+            logger.warning(
+                "Dataset features do not fully align with the expected data flow features. "
+                "A cast operation will be applied to adapt the dataset features to match the "
+                "expected schema defined in the graph. This may result in potential data loss "
+                "or type adjustments during casting."
+            )
+
+            try:
+                # create a new data flow instance with the dataset features
+                flow = (
+                    DataFlow(features)
+                    if self._source_annotation is None
+                    else DataFlow[self._source_annotation](features)
+                )
+                # rebuild the data flow graph by attaching it to the casted source
+                # node of the new flow and build it, use the same aggregation
+                # manager to make sure the aggregation is not reset
+                casted_source = cast(annotation, flow.source)  # type: ignore
+                collect, aggregate = self.attach(casted_source)
+                exec_flow = flow.build(
+                    collect, aggregate, aggregation_manager=self._aggregation_manager
+                )
+
+            except Exception as e:
+                # unable to cast dataset features to flow features and applying the flow
+                raise RuntimeError(
+                    "Failed to cast dataset features to match the data flow graph. Ensure "
+                    "the dataset features are compatible with the graph schema."
+                ) from e
+
+            # apply the new data flow to the dataset
+            return exec_flow._internal_apply(ds, **kwargs)
+
+        return self._internal_apply(ds, **kwargs)
+
+    def attach(self, node: MappingFeature) -> tuple[MappingFeature, MappingFeature | None]:
+        """Attach the data flow graph to a given node.
+
+        This method attaches a data flow graph (`self`) to a specified node of an existing graph.
+        Attaching the data flow graph means that the source node of the current graph is connected
+        to the given node, effectively embedding the data flow graph into the target graph at
+        the specified location.
+
+        Parameters:
+            node (MappingFeature): The target node in the existing graph to which the
+                data flow graph will be attached.
+
+        Returns:
+            tuple[MappingFeature, MappingFeature | None]: A tuple containing:
+                - The updated collect feature, which now references the corresponding node
+                  in the attached graph.
+                - The updated aggregate feature, or :code:`None` if the data flow graph does not
+                  have an aggregate feature.
+        """
+        ref: ConcreteReference = node.ref
+        # attach the graph to the referenced node
+        g: DataFlowGraph = ref._graph
+        g.attach_graph_to_node(ref._node_id, self._graph)
+
+        # get the collect node id, use the node id of the node to attach to
+        # in case the source features are collected by the original graph
+        collect_id = self.collect_feature.ref._node_id
+        collect_id = collect_id if collect_id != self._graph.src_node_id else node.ref._node_id
+        # do the same for the aggregate id
+        aggregate_id: None | NodeId = None
+        if self.aggregates_feature is not None:
+            aggregate_id = self.aggregates_feature.ref._node_id
+            aggregate_id = (
+                aggregate_id if aggregate_id != self._graph.src_node_id else node.ref._node_id
+            )
+
+        # create the references to the collect and aggregate references
+        return (
+            build_feature_from_reference(ConcreteReference(collect_id, g)),
+            build_feature_from_reference(ConcreteReference(aggregate_id, g))
+            if aggregate_id is not None
+            else None,
         )
 
     def arrow_process(
@@ -1148,8 +1296,22 @@ class ExecutableDataFlow(AbstractDataFlow):
         Returns:
             str: The JSON string representing the serialized executable data flow.
         """
+        source_annotation: None | Any = None
+        if self._source_annotation is not None:
+            try:
+                # try to dump the source annotation
+                source_annotation = pickle.dumps(self._source_annotation)
+            except AttributeError as e:
+                logger.warning(
+                    logger.warning(
+                        f"Failed to serialize the source annotation due to Exception: {str(e)}. "
+                        "The source annotation will be set to None."
+                    )
+                )
+
         # build data dictionary representing the full graph
         data = {}
+        data["source_annotation"] = source_annotation
         data["collect"] = self._instance_executor.collect._node_id
         data["aggregate"] = (
             None
@@ -1182,11 +1344,17 @@ class ExecutableDataFlow(AbstractDataFlow):
         data = json.loads(data)
 
         # check data dict
-        if ("graph" not in data) or ("collect" not in data) or ("aggregate" not in data):
+        if set(data.keys()) != {"source_annotation", "graph", "collect", "aggregate"}:
             raise ValueError(
-                "Missing required keys in the serialized data: 'graph', 'collect', and "
-                f"'aggregate'. Got {list(data.keys())}."
+                "Missing required keys in the serialized data, expected "
+                "['source_annotation', 'graph', 'collect', 'aggregate'], "
+                f"got {list(data.keys())}."
             )
+
+        # deserialize source annotation
+        source_annotation: None | Any = (
+            None if data["source_annotation"] is None else pickle.loads(data["source_annotation"])
+        )
 
         # deserialize data flow graph
         graph = DataFlowGraph.from_dict(data["graph"])
@@ -1200,4 +1368,4 @@ class ExecutableDataFlow(AbstractDataFlow):
         )
 
         # construct executable data flow
-        return ExecutableDataFlow(graph, collect, aggregate)
+        return ExecutableDataFlow(source_annotation, graph, collect, aggregate, None)

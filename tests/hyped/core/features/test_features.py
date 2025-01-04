@@ -2,7 +2,7 @@ import inspect
 from functools import partial
 from itertools import chain
 from typing import Any, Callable, Generic, TypeVar, get_type_hints
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pydantic
 import pytest
@@ -6701,9 +6701,11 @@ class TestClassLabelFeature:
             labelA = 0
             labelB = 2
 
-        with pytest.warns(UserWarning):
+        with patch("hyped.core.features.features.logger") as mock_logger:
             dtype = CustomClassLabel._build_class_label_dtype()
             assert dtype.names == ("labelA", "UNDEF", "labelB")
+
+            mock_logger.warning.assert_called_once()
 
     def test_pydantic_core_schema(self) -> None:
         dtype = ClassLabelType(names=("labelA", "labelB"))
