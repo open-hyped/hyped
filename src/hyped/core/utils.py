@@ -125,13 +125,10 @@ def build_annotation_from_dtype(dtype: Type) -> Any:
             else seq_annotation
         )
     elif isinstance(dtype, MappingType):
+        annotations = {
+            field_name: build_annotation_from_dtype(field_dtype)
+            for field_name, field_dtype in dtype.fields
+        }
         return type(
-            "DynamicSourceAnnotation",
-            (MappingFeature,),
-            {
-                "__annotations__": {
-                    field_name: build_annotation_from_dtype(field_dtype)
-                    for field_name, field_dtype in dtype.fields
-                }
-            },
+            f"DynamicMapping({annotations})", (MappingFeature,), {"__annotations__": annotations}
         )

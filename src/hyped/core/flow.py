@@ -8,6 +8,7 @@ directed acyclic graphs (DAGs) of data processors.
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import pickle
@@ -34,6 +35,7 @@ from .features.dtypes import (
     Type,
     build_dtype_from_hf_feature,
     build_dtype_from_python_object,
+    is_dtype_subset,
 )
 from .features.features import (
     BoolFeature,
@@ -1027,13 +1029,20 @@ class ExecutableDataFlow(AbstractDataFlow):
         if features is None:
             raise RuntimeError("Dataset features must not be None.")
 
-        annotation = build_annotation_from_dtype(self._source_feature.dtype)
-        try:
-            # make sure that dataset features match source features of data flow
-            # this also allows dataset features to be a superset of the required
-            # source features, as pydantic ignores all additional inputs
-            validate_hf_feature(features, annotation)
-        except Exception:
+        # annotation = build_annotation_from_dtype(self._source_feature.dtype)
+        # try:
+        # make sure that dataset features match source features of data flow
+        # this also allows dataset features to be a superset of the required
+        # source features, as pydantic ignores all additional inputs
+        # TODO: this allows dataset features to be sequences of undefined
+        #       length while the annotations is fixed length which leads to
+        #       errors during execution, we need to check more explicitly here
+        #    validate_hf_feature(features, annotation)
+        # except Exception:
+        #    pass
+
+        # make sure the dataset features are a subset of the source features of the data flow
+        if not is_dtype_subset(self._source_feature.dtype, build_dtype_from_hf_feature(features)):
             if self._source_annotation is not None:
                 try:
                     # check if the dataset features align with the data flow
@@ -1060,10 +1069,16 @@ class ExecutableDataFlow(AbstractDataFlow):
                     if self._source_annotation is None
                     else DataFlow[self._source_annotation](features)
                 )
+                # cast the source dataset features to the expected feature type
+                # TODO: This works ONLY when all dataset features are used by the
+                #       data flow, and leads to errors during execution in case
+                #       the dataset provides additional features that are just
+                #       not used by the flow
+                annotation = build_annotation_from_dtype(self._source_feature.dtype)
+                casted_source = cast(annotation, flow.source)  # type: ignore
                 # rebuild the data flow graph by attaching it to the casted source
                 # node of the new flow and build it, use the same aggregation
                 # manager to make sure the aggregation is not reset
-                casted_source = cast(annotation, flow.source)  # type: ignore
                 collect, aggregate = self.attach(casted_source)
                 exec_flow = flow.build(
                     collect, aggregate, aggregation_manager=self._aggregation_manager
@@ -1301,6 +1316,7 @@ class ExecutableDataFlow(AbstractDataFlow):
             try:
                 # try to dump the source annotation
                 source_annotation = pickle.dumps(self._source_annotation)
+                source_annotation = base64.b64encode(source_annotation).decode("utf-8")
             except AttributeError as e:
                 logger.warning(
                     logger.warning(
@@ -1352,9 +1368,10 @@ class ExecutableDataFlow(AbstractDataFlow):
             )
 
         # deserialize source annotation
-        source_annotation: None | Any = (
-            None if data["source_annotation"] is None else pickle.loads(data["source_annotation"])
-        )
+        source_annotation = data["source_annotation"]
+        if source_annotation is not None:
+            source_annotation = base64.b64decode(source_annotation)
+            source_annotation = pickle.loads(source_annotation)
 
         # deserialize data flow graph
         graph = DataFlowGraph.from_dict(data["graph"])
