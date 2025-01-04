@@ -33,7 +33,7 @@ tests = [
     "pytest-asyncio",
     "pytest-integration",
 ]
-docs = ["sphinx", "furo"]
+docs = ["sphinx", "furo", "nbsphinx", "nbsphinx-link"]
 
 [build-system]
 requires = ["setuptools >= 61.0.0", "setuptools_scm>=8.0.0"]

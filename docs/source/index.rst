@@ -44,8 +44,10 @@ Content
 Below is a list of key sections in this documentation, guiding you through installation, basic usage, API references, and more.
 
 .. toctree::
+   :maxdepth: 2
 
    getting_started
+   tutorials
    data_flow
    data_processors
    data_augmenters
