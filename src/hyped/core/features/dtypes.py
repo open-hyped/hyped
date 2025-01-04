@@ -784,6 +784,27 @@ def cast_dtype(src_dtype: Type, tgt_dtype: Type) -> Type:
     or constraints (e.g., incompatible lengths for sequences or mismatched keys for
     mappings), an exception is raised.
 
+    **Special Behavior for Mappings**:
+    - When both :code:`src_dtype` and :code:`tgt_dtype` are :class:`MappingType`, the output
+      retains all fields from `src_dtype`, but fields specified in `tgt_dtype` are cast to
+      their corresponding target types.
+    - Fields in :code:`src_dtype` that are not specified in :code:`tgt_dtype` remain unchanged
+      in the output.
+    - Keys in :code:`tgt_dtype` must be a subset of the keys in :code:`src_dtype`. If not, a
+      :class:`RuntimeError` is raised.
+
+    **Example**:
+
+    .. code-block:: python
+
+        src_dtype = MappingType.construct({"field": Int32Type, "other": BoolType})
+        tgt_dtype = MappingType.construct({"field": Int64Type})
+
+        result = cast_dtype(src_dtype, tgt_dtype)
+
+        # result:
+        # MappingType.construct({"field": Int64Type, "other": BoolType})
+
     Args:
         src_dtype (Type): The source data type.
         tgt_dtype (Type): The target data type.
@@ -811,7 +832,7 @@ def cast_dtype(src_dtype: Type, tgt_dtype: Type) -> Type:
         return SequenceType(cast_dtype(src_dtype.value_type, tgt_dtype.value_type), length=length)
 
     elif isinstance(src_dtype, MappingType) and isinstance(tgt_dtype, MappingType):
-        if set(src_dtype.keys()) != set(tgt_dtype.keys()):
+        if not set(tgt_dtype.keys()).issubset(set(src_dtype.keys())):
             raise RuntimeError(
                 f"Cannot cast mapping with keys {set(src_dtype.keys())} to a "
                 f"mapping with keys {set(tgt_dtype.keys())}."
@@ -819,7 +840,7 @@ def cast_dtype(src_dtype: Type, tgt_dtype: Type) -> Type:
 
         # make sure both mappings contain all keys and the fields
         # are castable
-        fields = {k: cast_dtype(src_dtype[k], tgt_dtype[k]) for k in src_dtype.keys()}
+        fields = {k: cast_dtype(src_dtype[k], tgt_dtype.get(k, t)) for k, t in src_dtype.items()}
         return MappingType.construct(fields)
 
     elif isinstance(src_dtype, PrimitiveType) and isinstance(tgt_dtype, PrimitiveType):

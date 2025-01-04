@@ -269,6 +269,12 @@ def test_type_serialization(dtype: Type) -> None:
             True,
         ),
         (SequenceType(BoolType, 5), MappingType.construct({"field": BoolType}), None, True),
+        (
+            MappingType.construct({"field": Int32Type, "other": BoolType}),
+            MappingType.construct({"field": Int64Type}),
+            MappingType.construct({"field": Int64Type, "other": BoolType}),
+            False,
+        ),
     ],
 )
 def test_cast_dtype(

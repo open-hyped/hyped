@@ -35,6 +35,7 @@ from .features.dtypes import (
     Type,
     build_dtype_from_hf_feature,
     build_dtype_from_python_object,
+    cast_dtype,
     is_dtype_subset,
 )
 from .features.features import (
@@ -1029,18 +1030,6 @@ class ExecutableDataFlow(AbstractDataFlow):
         if features is None:
             raise RuntimeError("Dataset features must not be None.")
 
-        # annotation = build_annotation_from_dtype(self._source_feature.dtype)
-        # try:
-        # make sure that dataset features match source features of data flow
-        # this also allows dataset features to be a superset of the required
-        # source features, as pydantic ignores all additional inputs
-        # TODO: this allows dataset features to be sequences of undefined
-        #       length while the annotations is fixed length which leads to
-        #       errors during execution, we need to check more explicitly here
-        #    validate_hf_feature(features, annotation)
-        # except Exception:
-        #    pass
-
         # make sure the dataset features are a subset of the source features of the data flow
         if not is_dtype_subset(self._source_feature.dtype, build_dtype_from_hf_feature(features)):
             if self._source_annotation is not None:
@@ -1069,12 +1058,13 @@ class ExecutableDataFlow(AbstractDataFlow):
                     if self._source_annotation is None
                     else DataFlow[self._source_annotation](features)
                 )
-                # cast the source dataset features to the expected feature type
-                # TODO: This works ONLY when all dataset features are used by the
-                #       data flow, and leads to errors during execution in case
-                #       the dataset provides additional features that are just
-                #       not used by the flow
-                annotation = build_annotation_from_dtype(self._source_feature.dtype)
+                # cast the source dataset features to the expected feature type this takes
+                # the used dataset features (i.e. flow.source.dtype) and casts them to the
+                # expected source features (i.e. self._source_features.dtype)
+                # note that cast_dtype supports the target dtype to specify only a subset
+                # of the source dtype
+                dtype = cast_dtype(flow.source.dtype, self._source_feature.dtype)
+                annotation = build_annotation_from_dtype(dtype)
                 casted_source = cast(annotation, flow.source)  # type: ignore
                 # rebuild the data flow graph by attaching it to the casted source
                 # node of the new flow and build it, use the same aggregation
