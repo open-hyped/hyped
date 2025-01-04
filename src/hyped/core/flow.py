@@ -253,6 +253,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
 
     @property
     def _source_annotation(self) -> Any:
+        """Retrieves the source features annotation if present."""
         return None if not hasattr(self, "__orig_class__") else get_args(self.__orig_class__)[0]
 
     def _initialize(self) -> None:
