@@ -13,3 +13,4 @@ These tutorials are organized to cater to different levels of experience. In eac
     _tutorials/basics
     _tutorials/processor
     _tutorials/augmenter
+    _tutorials/aggregator

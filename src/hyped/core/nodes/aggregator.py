@@ -139,8 +139,10 @@ class DataAggregationManager(object):
 
         for c, kw in mode.prepare(ctx, **inputs):
             # extract values required for update from current input batch
-            # and update the aggregated value and state
             extracted = await aggregator.extract(c, **kw)
+            # update the aggregated value and state
+            # make sure the context is in batched format for the update process mode
+            c = c if mode.batched else replace(c, index=[c.index])
             await self._safe_update(c, aggregator, extracted)
 
 
