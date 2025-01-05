@@ -30,13 +30,13 @@ Now you're ready to start using Hyped for managing and executing your data pipel
 Usage
 -----
 
-Start by importing the necessary modules and classes:
+Start by importing the necessary modules and classes. Note that the following example also requires the `hyped-extensions-nlp <https://github.com/open-hyped/hyped-extensions-nlp>`_ extension:
 
 .. code-block:: python
 
     import datasets
     from hyped import DataFlow
-    from hyped.nodes import TransformersTokenizer
+    from hyped.extensions.nlp import TransformersTokenizer
 
 Next, load your dataset using the datasets library. In this example, we load the IMDb dataset:
 
@@ -61,9 +61,9 @@ Finally, we can apply the data pipeline to your dataset using the `apply` method
 
 .. code-block:: python
 
-    ds, _ = flow.apply(ds, collect=tokenized_features)
+    ds = flow.apply(ds, collect=tokenized_features)
 
-For more examples and advanced usage scenarios, check out the `Hyped examples <https://github.com/open-hyped/examples>`_ repository.
+For more examples and advanced usage scenarios, check out the :doc:`Tutorials <tutorials>`.
 
 Configuration
 -------------
@@ -77,7 +77,22 @@ Each data processor in Hyped can be configured with specific parameters to tailo
 
 .. code-block:: python
 
+    # create the configuration
     config = TransformersTokenizer.Config(
+        tokenizer="bert-base-uncased",
+        max_length=128,
+        padding=True,
+        truncation=True
+    )
+    # create the tokenizer instance from the configuration
+    tokenizer = TransformersTokenizer(config)
+
+As a short hand processors also support providing the configuration arguments directly when constructing the instance:
+
+.. code-block:: python
+
+    # create the tokenizer instance from the configuration
+    tokenizer = TransformersTokenizer(
         tokenizer="bert-base-uncased",
         max_length=128,
         padding=True,
@@ -87,7 +102,7 @@ Each data processor in Hyped can be configured with specific parameters to tailo
 Multiprocessing and Batch Processing
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Hyped supports data parallel multiprocessing to utilize multiple CPU cores for faster data processing. You can configure the number of processes to use and other multiprocessing options based on your system's specifications. Additionally, batch processing allows you to process data in batches, which can further improve performance and memory efficiency.
+Hyped supports data parallel multiprocessing to utilize multiple CPU cores for faster data processing. Additionally, batch processing allows you to process data in batches, which can further improve performance and memory efficiency.
 
 .. code-block:: python
 
@@ -96,17 +111,17 @@ Hyped supports data parallel multiprocessing to utilize multiple CPU cores for f
 Data Streaming
 ~~~~~~~~~~~~~~
 
-Hyped supports streaming data directly from and to disk, enabling efficient processing of large datasets that may not fit into memory. You can stream datasets using lazy processing, where examples are only processed when accessed.
+Hyped also supports HuggingFace's `IterableDataset` types which allow streaming data directly from disk, enabling efficient processing of large datasets that may not fit into memory. This seamlessly integrates with `crane <https://github.com/open-hyped/crane>`_ so process large datasets.
 
 .. code-block:: python
 
-    from hyped.io.writers import JsonDatasetWriter
+    from crane import JsonDatasetWriter
 
     # Load dataset with streaming enabled
     ds = datasets.load_dataset("imdb", split="train", streaming=True)
 
     # Apply data pipeline (lazy processing for streamed datasets)
-    ds, _ = flow.apply(ds)
+    ds = flow.apply(ds)
 
     # Write processed examples to disk using 4 worker processes
     JsonDatasetWriter("dump/", num_proc=4).write(ds)

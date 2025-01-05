@@ -1,5 +1,5 @@
-Add-Ons
-=======
+Extensions
+==========
 
 Extend the functionality of Hyped by installing add-ons, which provide additional features and capabilities to the framework. Add-ons are available as separate packages that can be installed via pip and then imported as sub-packages within your code.
 

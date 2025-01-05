@@ -11,3 +11,4 @@ These tutorials are organized to cater to different levels of experience. In eac
     :maxdepth: 1
 
     _tutorials/basics
+    _tutorials/processor

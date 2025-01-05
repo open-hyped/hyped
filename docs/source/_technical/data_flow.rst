@@ -14,7 +14,7 @@ A Directed Acyclic Graph (DAG) is a graph with directed edges where no cycles ex
 
 In Hyped, the DAG structure ensures that data processing is organized and manageable. It allows for clear visualization of the processing pipeline, making it easier to understand and debug. The absence of cycles guarantees that each piece of data is processed exactly once in a defined order, enhancing the reliability and predictability of the data flow.
 
-.. image:: _static/DAG.svg
+.. image:: ../_static/dag.svg
 
 Nodes and Edges
 ~~~~~~~~~~~~~~~
@@ -47,7 +47,7 @@ In addition to these predefined partitions, the outputs of each data augmentatio
 
 It is important to note that while data augmentation nodes introduce new partitions to the graph, they are not part of the partitions they create - they simply point to them. Similarly, aggregator nodes are not included in the aggregated partition — they only direct towards it.
 
-.. image:: _static/Partitions.svg
+.. image:: ../_static/partitions.svg
 
 Execution Model
 ---------------
@@ -82,7 +82,7 @@ Asynchronous execution is a key feature of the data flow architecture, allowing 
 - **Non-Blocking Operations**: Asynchronous tasks can execute independently, allowing the data flow to proceed with other operations while waiting for I/O-bound tasks to complete.
 - **Efficient Resource Management**: Asynchronous execution optimizes resource usage by avoiding unnecessary waiting periods, resulting in better scalability and responsiveness.
 
-.. image:: _static/AsyncExecution.svg
+.. image:: ../_static/async_execution.svg
 
 Parallelization
 ~~~~~~~~~~~~~~~
@@ -93,9 +93,7 @@ Parallelization is another key aspect of the data flow execution model, enabling
 - **Data Parallelism**: Data parallelism involves partitioning data into smaller chunks and processing them in parallel across multiple processing units. This approach enhances throughput and scalability, particularly for large-scale data processing tasks.
 - **Pipeline Parallelism**: Coming Soon
 
-.. figure:: _static/PipelineParallel.svg
-
-   Pipeline Parallelism
+.. image:: ../_static/pipeline_parallel.svg
 
 Optimizing Performance
 ~~~~~~~~~~~~~~~~~~~~~~

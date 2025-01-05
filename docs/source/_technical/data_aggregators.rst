@@ -20,7 +20,7 @@ Data aggregators operate through a series of well-defined steps that ensure effi
 
 The figure below illustrates the workings of the extraction and update phase. It highlights the concurrent execution of the extraction phase alongside the synchronized processing of the update phase which guarantees the integrity of the aggregation outcome.
 
-.. image:: _static/AggregationExecutionModel.svg
+.. image:: ../_static/aggregation_execution_model.svg
     :width: 600
 
 This logic is implemented by the :doc:`DataAggregationManager <api/hyped.core.nodes.aggregator>`.

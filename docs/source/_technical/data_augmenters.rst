@@ -26,7 +26,7 @@ To maintain a valid flow structure, the data flow must adhere to a tree-like str
 
 The diagram below illustrates an example of a valid data flow structure, including various partitions and connections. **Green lines indicate valid connections** where the tree structure is maintained, while **red lines indicate invalid connections** where incompatible outputs are combined, breaking the tree structure.
 
-.. image:: _static/AugmentersTreeStructure.svg
+.. image:: ../_static/partition_tree_structure.svg
 
 Note that the tree structure requirement applies only on partition-level. Within a partition, the data flow can be any DAG.
 
