@@ -77,6 +77,7 @@ class TestDataAggregationManager:
         prepared_context_for_extract = MagicMock(node_id=mock_run_context.node_id)
         # create the mock process mode for the extract function
         mock_extract_mode = MagicMock(
+            batched=True,
             spec=ProcessMode,
             prepare=MagicMock(
                 return_value=[(prepared_context_for_extract, prepared_input_for_extract)]
@@ -87,6 +88,7 @@ class TestDataAggregationManager:
         prepared_context_for_update = MagicMock(node_id=mock_run_context.node_id)
         # create the mock process mode for the update function
         mock_update_mode = MagicMock(
+            batched=False,
             spec=ProcessMode,
             prepare=MagicMock(
                 return_value=[(prepared_context_for_update, {"value": prepared_value_for_update})]
