@@ -10,7 +10,7 @@ import pyarrow as pa
 
 from hyped.common._worker import Rank
 
-from .features.features import BoolFeature, ClassLabelFeature
+from .features.features import BoolFeature, ClassLabelFeature, ExcludeFieldIf
 from .features.features import Feature as _Feature
 from .features.features import (
     Float32Feature,
@@ -63,6 +63,7 @@ __all__ = [
     "Len",
     "FeatureValidator",
     "FeatureResolver",
+    "ExcludeFieldIf",
     "cast",
 ]
 
