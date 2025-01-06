@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import logging
 import typing
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from enum import IntEnum
 from functools import partial
 from types import GenericAlias
@@ -42,6 +42,7 @@ from hyped.common._pydantic import (
 )
 from hyped.common.utils import is_python_version_less_than
 
+from ..registry.config import BaseConfig
 from . import dtypes
 from .mixins import MethodRegistryMixin
 from .reference import BaseReference, ConcreteReference, ForwardReference
@@ -4453,7 +4454,7 @@ class SequenceFeature(typing.Sequence[T], Feature[dtypes.SequenceType]):
 
             # run the core validator checking that the instance
             # is a valid sequence feature
-            validator(inst)
+            inst = validator(inst)
 
             if adapter is not None:
                 # create a copy of the instance but with length 1
@@ -4479,6 +4480,70 @@ class SequenceFeature(typing.Sequence[T], Feature[dtypes.SequenceType]):
         )
 
 
+class ExcludeFieldIf(pydantic.AfterValidator):
+    """A Pydantic validator that conditionally excludes a field from the mapping.
+
+    This class applies a callable :code:`condition` to determine whether a field
+    should be excluded from the mapping. The condition is evaluated with the node's
+    configuration (:class:`BaseConfig`) and the validation session
+    (:class:`ValidationSession`) as inputs, returning :code:`True` to exclude the
+    field or :code:`False` to include it.
+
+    For an usage example, see :class:`_MappingFeature`.
+    """
+
+    def __init__(self, condition: Callable[[BaseConfig, ValidationSession], bool]) -> None:
+        """Initializes the :class:`ExcludeFieldIf` validator with conditional exclusion logic.
+
+        Args:
+            condition (Callable[[BaseConfig, ValidationSession], bool]): A callable that returns
+                :code:`True` to exclude the field or :code:`False` to include it.
+
+        Raises:
+            RuntimeError: If the validation context does not include the required `"config"`
+                or `"session"` keys.
+            AssertionError: If the condition evaluation result differs from a previously
+                captured value for the same instance, indicating inconsistent state or
+                implementation issues.
+
+        Notes:
+            - The validation context must include the `"config"` and `"session"` keys.
+            - The result of the condition is stored in the validation session and checked
+            for consistency during subsequent evaluations.
+        """
+
+        def wrapped_condition(val, info) -> Any:
+            # context is required
+            if (
+                (info.context is None)
+                or ("config" not in info.context)
+                or ("session" not in info.context)
+            ):
+                raise RuntimeError(
+                    "SkipFieldIf requires 'config' and 'session' to be present "
+                    "in the validation context. Ensure that these are properly set."
+                    f"Got {info.context.keys()}"
+                )
+
+            # store condition output in session
+            session: ValidationSession = info.context["session"]
+            cond = condition(info.context["config"], session)
+            # get the condition captured in the session
+            captured_cond = session.get_context(self)
+            session.set_context(self, cond)
+            # make sure the captured condition matches the current condition
+            assert (captured_cond is None) or (cond == captured_cond), (
+                "Condition evaluation mismatch detected for `ExcludeFieldIf`. "
+                "The condition produced inconsistent results during validation. "
+                f"Previous: {captured_cond}, Current: {cond}. "
+                "Ensure that the condition function is deterministic and context-independent."
+            )
+
+            return val
+
+        super(ExcludeFieldIf, self).__init__(wrapped_condition)
+
+
 @dataclass(eq=True, frozen=False)
 class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
     """A base class for defining strongly-typed mappings.
@@ -4494,16 +4559,36 @@ class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
     the validation mechanism that ensures the keys and values adhere to the expected
     data types.
 
-    Example:
+    **Examples**:
+
     .. code-block:: python
 
         class MyMappingFeature(_MappingFeature):
             key1: _String
             key2: _Int32
 
-        # This subclass defines a mapping with `key1` as a string feature
-        # and `key2` as an integer feature.
+    This subclass defines a mapping with :code:`key1` as a string feature and :code:`key2`
+    as an integer feature.
+
+    .. code-block:: python
+
+        def exclude_key2_condition(
+            config: BaseConfig,
+            session: ValidationSession
+        ) -> bool:
+            return True
+
+        class MyMappingFeature(_MappingFeature):
+            key1: _String
+            key2: Annotated[_Int32, ExcludeFieldIf(exclude_key2_condition)]
+
+    In this example the :code:`key2` field is conditioned on the :code:`exclude_key2_condition`
+    function. This functionality allows fine-grained control over the structure of mappings
+    during runtime.
     """
+
+    skip_keys: set[str] = field(default_factory=set)
+    """A set of keys that are excluded even though they are annotated."""
 
     def __post_init__(self) -> None:
         """Post initialization validation.
@@ -4542,13 +4627,13 @@ class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
         set_keys = set(self.keys())
         # compute the invalid and missing keys
         invalid_keys = set_keys - valid_keys
-        missing_keys = valid_keys - set_keys
+        missing_keys = valid_keys - set_keys - self.skip_keys
 
         if len(invalid_keys) > 0:
             raise KeyError(f"Invalid Keys: {invalid_keys}, expected: {valid_keys}")
 
         if len(missing_keys) > 0:
-            raise KeyError(f"Missing Keys: {missing_keys}", missing_keys)
+            raise KeyError(f"Missing Keys: {missing_keys}")
 
     def __len__(self) -> int:
         """Returns the number of elements in the mapping."""
@@ -4651,6 +4736,25 @@ class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
         model = model if model is not _MappingFeature else None
 
         def validator_fn(inst, validator, info):
+            skip_field: dict[str, bool] = {}
+
+            if model is not None:
+                assert info.context is not None and "session" in info.context
+                # get the validation session
+                session: ValidationSession = info.context["session"]
+                # infer member types from annotations using the validation model
+                fields = {key: ForwardReference() for key in model.model_fields.keys()}
+                fields = model.model_validate(fields, context=info.context)
+                # parition members into valid and skip members
+                for key, f in model.model_fields.items():
+                    # find all skip if conditions in the field metadata and
+                    # extract the condition value from the session
+                    skip_conds = (v for v in f.metadata if isinstance(v, ExcludeFieldIf))
+                    skip_field[key] = any(
+                        session.get_context(skip_if) if skip_if is not None else False
+                        for skip_if in skip_conds
+                    )
+
             if isinstance(inst, BaseReference):
                 if inst.get_dtype() is not None:
                     return _MappingFeature(inst)
@@ -4662,19 +4766,18 @@ class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
                     )
 
                 assert isinstance(inst, ForwardReference)
-                # infer member types from annotations using the validation model
-                members = {key: ForwardReference() for key in model.model_fields.keys()}
-                members = {
-                    key: field.dtype
-                    for key, field in model.model_validate(members, context=info.context)
-                }
                 # create the mapping instance from the member types
-                dtype = dtypes.MappingType.construct(members)
+                dtype = dtypes.MappingType.construct(
+                    {k: f.dtype for k, f in fields if not skip_field[k]}
+                )
                 inst = build_feature_from_reference(ForwardReference(dtype))
 
             # run the core validator checking that the instance
             # is a valid mapping
-            validator(inst)
+            inst = validator(inst)
+
+            # get the set of field keys to skip
+            skip_field_keys = {k for k, v in skip_field.items() if v}
 
             if model is not None:
                 # validate the field types
@@ -4682,19 +4785,22 @@ class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
                     key: build_feature_from_reference(ForwardReference(inst.dtype[key]))
                     for key in inst.keys()
                 }
+                # add defaults for the skip fields
+                fields |= {key: ForwardReference(None) for key in skip_field_keys}
                 fields = model.model_validate(fields, context=info.context, strict=True)
 
                 if isinstance(inst.ref, ForwardReference):
                     # apply the validated field dtypes
-                    fields = {k: field.dtype for k, field in fields}
-                    dtype = dtypes.MappingType.construct(fields)
-                    inst = source_type(ForwardReference(dtype))
+                    dtype = dtypes.MappingType.construct(
+                        {k: field.dtype for k, field in fields if not skip_field[k]}
+                    )
+                    inst = source_type(ForwardReference(dtype), skip_keys=skip_field_keys)
 
             # convert the instance to the actual class type
             return (
                 inst
                 if isinstance(inst, cls) or isinstance(inst.ref, ConcreteReference)
-                else source_type(inst.ref)
+                else source_type(inst.ref, skip_keys=skip_field_keys)
             )
 
         return core_schema.with_info_wrap_validator_function(

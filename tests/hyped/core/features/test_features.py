@@ -1,7 +1,7 @@
 import inspect
 from functools import partial
 from itertools import chain
-from typing import Any, Callable, Generic, TypeVar, get_type_hints
+from typing import Annotated, Any, Callable, Generic, TypeVar, get_type_hints
 from unittest.mock import MagicMock, patch
 
 import pydantic
@@ -31,6 +31,7 @@ from hyped.core.features.dtypes import (
 from hyped.core.features.features import (
     BoolFeature,
     ClassLabelFeature,
+    ExcludeFieldIf,
     Feature,
     Float32Feature,
     Float64Feature,
@@ -49,6 +50,7 @@ from hyped.core.features.features import (
 from hyped.core.features.features import _MappingFeature as MappingFeature
 from hyped.core.features.features import build_feature_from_annotation, build_feature_from_reference
 from hyped.core.features.reference import ForwardReference
+from hyped.core.features.session import ValidationSession
 from hyped.core.graph import DataFlowGraph
 from hyped.core.nodes.base import BaseNode, BaseNodeConfig
 from hyped.core.ops import boolean, mapping, numeric, sequence, string
@@ -7428,6 +7430,11 @@ class TestSequenceFeature:
 
 
 class TestMappingFeature:
+    @pytest.fixture
+    def context(self) -> dict[str, Any]:
+        with ValidationSession() as session:
+            return {"config": MagicMock(), "session": session}
+
     def test_post_init(self) -> None:
         # base mapping feature allows arbitrary fields
         dtype = MappingType.construct({"fieldA": BoolType, "fieldB": StringType})
@@ -7512,7 +7519,7 @@ class TestMappingFeature:
         else:
             test()
 
-    def test_pydantic_core_schema(self) -> None:
+    def test_pydantic_core_schema(self, context: dict[str, Any]) -> None:
         # create mapping feature instance
         dtype = MappingType.construct({"fieldA": BoolType, "fieldB": StringType})
         mapping = MappingFeature(ForwardReference(dtype))
@@ -7533,37 +7540,76 @@ class TestMappingFeature:
 
         # base type supports arbitrary structures
         adapter = TypeAdapterWithArbitraryTypesAllowed(MappingFeature)
-        assert adapter.validate_python(mapping) == mapping
+        assert adapter.validate_python(mapping, context=context) == mapping
 
         # validate and convert to specific mapping type
         mapping = MappingFeature(ForwardReference(dtype))
         adapter = TypeAdapterWithArbitraryTypesAllowed(CustomMappingFeature)
-        validated_mapping = adapter.validate_python(mapping)
+        validated_mapping = adapter.validate_python(mapping, context=context)
         assert isinstance(validated_mapping, CustomMappingFeature)
 
         # create mapping feature instance from reference
         adapter = TypeAdapterWithArbitraryTypesAllowed(CustomMappingFeature)
-        validated_mapping = adapter.validate_python(ForwardReference())
+        validated_mapping = adapter.validate_python(ForwardReference(), context=context)
         assert validated_mapping.dtype == dtype
 
         # validate generic mapping type
         mapping = GenericMappingFeature[StringFeature](ForwardReference(dtype))
         adapter = TypeAdapterWithArbitraryTypesAllowed(GenericMappingFeature[StringFeature])
-        assert adapter.validate_python(mapping) == mapping
+        assert adapter.validate_python(mapping, context=context) == mapping
 
         # cannot infer mapping fields
         adapter = TypeAdapterWithArbitraryTypesAllowed(MappingFeature)
         with pytest.raises(RuntimeError):
-            adapter.validate_python(ForwardReference())
+            adapter.validate_python(ForwardReference(), context=context)
 
         adapter = TypeAdapterWithArbitraryTypesAllowed(InvalidCustomMappingFeature)
         with pytest.raises(pydantic.ValidationError):
-            adapter.validate_python(mapping)
+            adapter.validate_python(mapping, context=context)
 
         # validate invalid generic mapping type
         adapter = TypeAdapterWithArbitraryTypesAllowed(GenericMappingFeature[BoolFeature])
         with pytest.raises(pydantic.ValidationError):
-            adapter.validate_python(mapping)
+            adapter.validate_python(mapping, context=context)
+
+    def test_exclude_field_if(self, context: dict[str, Any]) -> None:
+        class CustomMappingFeature(MappingFeature):
+            fieldA: BoolFeature
+            fieldB: Annotated[StringFeature, ExcludeFieldIf(lambda c, s: False)]
+
+        adapter = TypeAdapterWithArbitraryTypesAllowed(CustomMappingFeature)
+        dtype = adapter.validate_python(ForwardReference(), context=context).dtype
+        assert dtype == MappingType.construct({"fieldA": BoolType, "fieldB": StringType})
+
+        class CustomMappingFeature(MappingFeature):
+            fieldA: BoolFeature
+            fieldB: Annotated[StringFeature, ExcludeFieldIf(lambda c, s: True)]
+
+        adapter = TypeAdapterWithArbitraryTypesAllowed(CustomMappingFeature)
+        dtype = adapter.validate_python(ForwardReference(), context=context).dtype
+        assert dtype == MappingType.construct({"fieldA": BoolType})
+
+        class NestedMappingFeature(MappingFeature):
+            fieldA: BoolFeature
+            fieldB: Annotated[StringFeature, ExcludeFieldIf(lambda c, s: True)]
+
+        class CustomMappingFeature(MappingFeature):
+            fieldA: BoolFeature
+            fieldB: Annotated[NestedMappingFeature, ExcludeFieldIf(lambda c, s: True)]
+
+        adapter = TypeAdapterWithArbitraryTypesAllowed(CustomMappingFeature)
+        dtype = adapter.validate_python(ForwardReference(), context=context).dtype
+        assert dtype == MappingType.construct({"fieldA": BoolType})
+
+        class CustomMappingFeature(MappingFeature):
+            fieldA: BoolFeature
+            fieldB: Annotated[NestedMappingFeature, ExcludeFieldIf(lambda c, s: False)]
+
+        adapter = TypeAdapterWithArbitraryTypesAllowed(CustomMappingFeature)
+        dtype = adapter.validate_python(ForwardReference(), context=context).dtype
+        assert dtype == MappingType.construct(
+            {"fieldA": BoolType, "fieldB": MappingType.construct({"fieldA": BoolType})}
+        )
 
 
 @pytest.mark.parametrize(
