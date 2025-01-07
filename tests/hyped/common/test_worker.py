@@ -2,11 +2,18 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from crane.core.worker import WorkerInfo as CraneWorkerInfo
-from torch.utils.data._utils.worker import WorkerInfo as TorchWorkerInfo
 
 from hyped.common._worker import WorkerInfo, get_worker_info
 from hyped.common.utils import is_package_installed
+
+if is_package_installed("torch"):
+    from torch.utils.data._utils.worker import WorkerInfo as TorchWorkerInfo
+else:
+    TorchWorkerInfo = MagicMock()
+if is_package_installed("crane"):
+    from crane.core.worker import WorkerInfo as CraneWorkerInfo
+else:
+    CraneWorkerInfo = MagicMock()
 
 
 @pytest.mark.skipif(condition=not is_package_installed("torch"), reason="Torch not installed.")

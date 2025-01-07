@@ -4522,10 +4522,11 @@ class ExcludeFieldIf(pydantic.AfterValidator):
             if (
                 (info.context is None)
                 or ("config" not in info.context)
+                or ("inputs" not in info.context)
                 or ("session" not in info.context)
             ):
                 raise RuntimeError(
-                    "SkipFieldIf requires 'config' and 'session' to be present "
+                    "ExcludeFieldIf requires 'config', 'inputs' and 'session' to be present "
                     "in the validation context. Ensure that these are properly set."
                     f"Got {info.context.keys()}"
                 )
