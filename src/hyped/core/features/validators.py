@@ -215,6 +215,10 @@ class FeatureResolver(BeforeValidator):
         super(FeatureResolver, self).__init__(wrapped_resolver)
 
 
+CapturedLength: TypeAlias = int | None
+LengthComputeFn: TypeAlias = Callable[[BaseConfig, CapturedLength, ValidationSession], int | None]
+
+
 @dataclass(eq=True, frozen=True)
 class Len(FeatureValidator):
     """A :class:`TypeValidator` that sets/checks the length of a sequence.
@@ -358,14 +362,18 @@ class Len(FeatureValidator):
         ...
 
     @overload
-    def __init__(self, length: None | int, strict: bool) -> None:
+    def __init__(self, length: LengthComputeFn) -> None:
         ...
 
     @overload
-    def __init__(self, length: int, strict: Literal[True]) -> None:
+    def __init__(self, length: None | int | LengthComputeFn, strict: bool) -> None:
         ...
 
-    def __init__(self, length: None | int = None, strict: bool = False) -> None:
+    @overload
+    def __init__(self, length: int | LengthComputeFn, strict: Literal[True]) -> None:
+        ...
+
+    def __init__(self, length: None | int | LengthComputeFn = None, strict: bool = False) -> None:
         """Initializes the :class:`Len` validator with the expected length of the sequence.
 
         Args:
@@ -390,7 +398,13 @@ class Len(FeatureValidator):
 
             # get the expected length, potentially from the session context
             actual_length = len(seq.dtype)
-            expected_length = length or session.get_context(self)
+            captured_length: CapturedLength = session.get_context(self)
+            if isinstance(length, Callable):
+                expected_length = length(config, captured_length, session)
+            elif length is not None:
+                expected_length = length
+            else:
+                expected_length = captured_length
 
             if strict or (
                 (actual_length != UNDEFINED_SEQUENCE_LENGTH) and (expected_length is not None)

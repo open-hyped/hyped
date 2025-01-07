@@ -210,3 +210,22 @@ class TestLenValidator:
         with session:
             inst = Model.model_validate({"fieldA": instA, "fieldB": instB}, context=context)
         assert inst.fieldB.dtype.length == 2
+
+    def test_compute_length(self, context: dict[str, Any], session: ValidationSession) -> None:
+        def compute_len_fn(
+            config: MagicMock, captured_length: int | None, session: ValidationSession
+        ) -> int:
+            return 20
+
+        # length undefined
+        inst = SequenceFeature(ForwardReference(dtype=SequenceType(Int32Type)))
+
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
+            Annotated[Sequence[Int], Len(compute_len_fn)],
+            config=pydantic.ConfigDict(arbitrary_types_allowed=True),
+        )
+        # instance length is undefined and validator is checking for length 2 in non-strict mode
+        # expected to specify the sequence length of the instance
+        inst: SequenceFeature = adapter.validate_python(inst, context=context)
+
+        assert inst.dtype.length == 20
