@@ -345,7 +345,7 @@ class BaseNodeTest(ABC):
             return
 
     @abstractmethod
-    def execute_test(self) -> None:
+    def execute_test(self) -> Any:
         """Test execution.
 
         Abstract method that must be implemented in subclasses. Contains the specific

@@ -4,10 +4,11 @@ This module defines the :class:`BaseDataAugmenterTest` class, which extends
 the :class:`BaseNodeTest` class to provide specialized functionality for
 testing data :class:`BaseDataAugmenter` nodes.
 """
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from hyped.core.nodes.augmenter import BaseDataAugmenter
 from hyped.core.typing import PartitionId
+from hyped.typing import Feature
 
 from .base import BaseNodeTest
 
@@ -44,7 +45,7 @@ class BaseDataAugmenterTest(BaseNodeTest):
     will assert that the actual output partition matches this value.
     """
 
-    def execute_test(self) -> None:
+    def execute_test(self) -> tuple[Feature, list[dict[str, Any]]]:
         """Executes the test for the data augmenter node.
 
         This method performs the following steps to test the behavior of the augmenter node:
@@ -63,18 +64,25 @@ class BaseDataAugmenterTest(BaseNodeTest):
         This method ensures that the augmenter node behaves as expected, correctly assigns
         partitions to its output (if applicable), and generates output data that matches
         the predefined expectations.
+
+        Returns:
+            output_feature, output_data: tuple[Feature, list[dict[str, Any]]]: The output feature
+                that the augmenter call returns, as well as the processed data.
         """
         cls = type(self)
         # call node and build flow
-        flow, output = self.call_node(cls.augmenter)
-        flow = flow.build(collect={"output": output})
+        flow, output_feature = self.call_node(cls.augmenter)
+        flow = flow.build(collect={"output": output_feature})
         # check the output partition of the node call
         if cls.expected_output_partition is not None:
-            partition = flow._graph.get_node_output_partition(output.ref._node_id)
+            partition = flow._graph.get_node_output_partition(output_feature.ref._node_id)
             assert cls.expected_output_partition == partition, (
                 f"Expected output partition {cls.expected_output_partition}, "
                 f"but got {partition}."
             )
         # execute the flow and check the output data
-        output_data = self.execute_flow(flow)
-        cls.check_output_data_matches_expectation(output_data["output"].to_pylist())
+        output_arrow = self.execute_flow(flow)
+        output_data = output_arrow["output"].to_pylist()
+        cls.check_output_data_matches_expectation(output_data)
+
+        return output_feature, output_data

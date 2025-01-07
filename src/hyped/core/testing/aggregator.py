@@ -7,6 +7,7 @@ testing :class:`BaseDataAggregator` nodes.
 from typing import Any, ClassVar
 
 from hyped.core.nodes.aggregator import BaseDataAggregator
+from hyped.typing import Feature
 
 from .base import BaseNodeTest
 
@@ -39,10 +40,10 @@ class BaseDataAggregatorTest(BaseNodeTest):
 
     This should contain the expected aggregated output value. If :code:`None`, no
     specific output data is provided by default, and the test will only verify the
-    aggregator’s general behavior.
+    aggregator's general behavior.
     """
 
-    def execute_test(self) -> None:
+    def execute_test(self) -> tuple[Feature, dict[str, Any]]:
         """Executes the test for the data aggregator node.
 
         This method performs the following steps to test the behavior of the aggregator node:
@@ -59,10 +60,17 @@ class BaseDataAggregatorTest(BaseNodeTest):
         This method ensures that the aggregator node behaves as expected and that the
         generated aggregated output matches the predefined expectations, including handling any
         specified errors or mismatches.
+
+        Returns:
+            output_feature, output_data: tuple[Feature, list[dict[str, Any]]]: The output feature
+                that the aggregator call returns, as well as the aggregated data.
         """
         # call node and build flow
-        flow, output = self.call_node(type(self).aggregator)
-        flow = flow.build(collect=flow.source, aggregate={"output": output})
+        flow, output_feature = self.call_node(type(self).aggregator)
+        flow = flow.build(collect=flow.source, aggregate={"output": output_feature})
         # execute the flow and check the output data
         _ = self.execute_flow(flow)
-        type(self).check_output_data_matches_expectation(flow.aggregates["output"])
+        aggregate_data = flow.aggregates["output"]
+        type(self).check_output_data_matches_expectation(aggregate_data)
+
+        return output_feature, aggregate_data
