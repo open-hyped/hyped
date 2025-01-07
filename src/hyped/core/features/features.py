@@ -4480,6 +4480,11 @@ class SequenceFeature(typing.Sequence[T], Feature[dtypes.SequenceType]):
         )
 
 
+ConditionFunction: typing.TypeAlias = Callable[
+    [BaseConfig, dict[str, Feature], ValidationSession], bool
+]
+
+
 class ExcludeFieldIf(pydantic.AfterValidator):
     """A Pydantic validator that conditionally excludes a field from the mapping.
 
@@ -4492,7 +4497,7 @@ class ExcludeFieldIf(pydantic.AfterValidator):
     For an usage example, see :class:`_MappingFeature`.
     """
 
-    def __init__(self, condition: Callable[[BaseConfig, ValidationSession], bool]) -> None:
+    def __init__(self, condition: ConditionFunction) -> None:
         """Initializes the :class:`ExcludeFieldIf` validator with conditional exclusion logic.
 
         Args:
@@ -4527,7 +4532,7 @@ class ExcludeFieldIf(pydantic.AfterValidator):
 
             # store condition output in session
             session: ValidationSession = info.context["session"]
-            cond = condition(info.context["config"], session)
+            cond = condition(info.context["config"], info.context["inputs"], session)
             # get the condition captured in the session
             captured_cond = session.get_context(self)
             session.set_context(self, cond)
@@ -4598,7 +4603,7 @@ class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
 
         This method performs two main tasks:
 
-        1. Verifies that the :code:`dtype` is of the correct type, i.e.,
+        1. Verifies that the :code:`dtype` is of the correct type, exclude_condition.e.,
            :class:`types.MappingType`, to confirm that the instance represents
            a mapping feature.
         2. Checks that the fields defined in the subclass match the keys specified in

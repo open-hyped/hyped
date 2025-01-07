@@ -7433,7 +7433,7 @@ class TestMappingFeature:
     @pytest.fixture
     def context(self) -> dict[str, Any]:
         with ValidationSession() as session:
-            return {"config": MagicMock(), "session": session}
+            return {"config": MagicMock(), "session": session, "inputs": MagicMock()}
 
     def test_post_init(self) -> None:
         # base mapping feature allows arbitrary fields
@@ -7575,7 +7575,7 @@ class TestMappingFeature:
     def test_exclude_field_if(self, context: dict[str, Any]) -> None:
         class CustomMappingFeature(MappingFeature):
             fieldA: BoolFeature
-            fieldB: Annotated[StringFeature, ExcludeFieldIf(lambda c, s: False)]
+            fieldB: Annotated[StringFeature, ExcludeFieldIf(lambda c, i, s: False)]
 
         adapter = TypeAdapterWithArbitraryTypesAllowed(CustomMappingFeature)
         dtype = adapter.validate_python(ForwardReference(), context=context).dtype
@@ -7583,7 +7583,7 @@ class TestMappingFeature:
 
         class CustomMappingFeature(MappingFeature):
             fieldA: BoolFeature
-            fieldB: Annotated[StringFeature, ExcludeFieldIf(lambda c, s: True)]
+            fieldB: Annotated[StringFeature, ExcludeFieldIf(lambda c, i, s: True)]
 
         adapter = TypeAdapterWithArbitraryTypesAllowed(CustomMappingFeature)
         dtype = adapter.validate_python(ForwardReference(), context=context).dtype
@@ -7591,11 +7591,11 @@ class TestMappingFeature:
 
         class NestedMappingFeature(MappingFeature):
             fieldA: BoolFeature
-            fieldB: Annotated[StringFeature, ExcludeFieldIf(lambda c, s: True)]
+            fieldB: Annotated[StringFeature, ExcludeFieldIf(lambda c, i, s: True)]
 
         class CustomMappingFeature(MappingFeature):
             fieldA: BoolFeature
-            fieldB: Annotated[NestedMappingFeature, ExcludeFieldIf(lambda c, s: True)]
+            fieldB: Annotated[NestedMappingFeature, ExcludeFieldIf(lambda c, i, s: True)]
 
         adapter = TypeAdapterWithArbitraryTypesAllowed(CustomMappingFeature)
         dtype = adapter.validate_python(ForwardReference(), context=context).dtype
@@ -7603,7 +7603,7 @@ class TestMappingFeature:
 
         class CustomMappingFeature(MappingFeature):
             fieldA: BoolFeature
-            fieldB: Annotated[NestedMappingFeature, ExcludeFieldIf(lambda c, s: False)]
+            fieldB: Annotated[NestedMappingFeature, ExcludeFieldIf(lambda c, i, s: False)]
 
         adapter = TypeAdapterWithArbitraryTypesAllowed(CustomMappingFeature)
         dtype = adapter.validate_python(ForwardReference(), context=context).dtype
