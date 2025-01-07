@@ -265,7 +265,12 @@ class BaseNodeTest(ABC):
                     adapter = TypeAdapterWithArbitraryTypesAllowed(cls.expected_output_feature)
                     adapter.validate_python(
                         output,
-                        context={"config": None, "inputs": {}, "typevars": {}, "session": session},
+                        context={
+                            "config": node.config,
+                            "inputs": {},
+                            "typevars": {},
+                            "session": session,
+                        },
                     )
             except pydantic.ValidationError as e:
                 raise AssertionError(
