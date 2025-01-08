@@ -685,11 +685,11 @@ def build_dtype_from_hf_feature(feature: FeatureType) -> Type:
     Raises:
         TypeError: If the feature type is unsupported.
     """
-    if isinstance(feature, datasets.Features):
+    if isinstance(feature, (datasets.Features, dict)):
         fields = {key: build_dtype_from_hf_feature(field) for key, field in feature.items()}
         return MappingType.construct(fields)
 
-    if isinstance(feature, datasets.Sequence):
+    if isinstance(feature, (datasets.Sequence, list)):
         value_type = feature.feature if isinstance(feature, datasets.Sequence) else feature[0]
         length = feature.length if isinstance(feature, datasets.Sequence) else -1
         return SequenceType(
