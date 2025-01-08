@@ -23,7 +23,7 @@ from .features.dtypes import MappingType
 from .features.reference import ConcreteReference
 from .graph import DataFlowGraph
 from .nodes.aggregator import BaseDataAggregator, DataAggregationManager
-from .nodes.augmenter import BaseDataAugmenter
+from .nodes.augmentor import BaseDataAugmentor
 from .nodes.base import RunContext
 from .nodes.collect import CollectNode
 from .nodes.const import ConstNode
@@ -342,8 +342,8 @@ class DataFlowExecutor(object):
             # capture output in execution state
             state.capture_output(node_id, out)
 
-        elif node_type == DataFlowGraph.NodeType.DATA_AUGMENTER:
-            assert isinstance(node_obj, BaseDataAugmenter)
+        elif node_type == DataFlowGraph.NodeType.DATA_AUGMENTOR:
+            assert isinstance(node_obj, BaseDataAugmentor)
             # run processor and check the output batch size
             out, trace_index = await node_obj.run(ctx, inputs)
             assert out.type == ctx.output_type.arrow_type, "Unexpected output type"

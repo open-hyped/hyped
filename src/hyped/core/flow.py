@@ -90,7 +90,7 @@ def plot_data_flow(
         Literal[
             DataFlowGraph.NodeType.SOURCE,
             DataFlowGraph.NodeType.DATA_PROCESSOR,
-            DataFlowGraph.NodeType.DATA_AUGMENTER,
+            DataFlowGraph.NodeType.DATA_AUGMENTOR,
             DataFlowGraph.NodeType.DATA_AGGREGATOR,
         ],
         str,
@@ -130,7 +130,7 @@ def plot_data_flow(
         DataFlowGraph.NodeType.CAST: cmap.colors[5],
         DataFlowGraph.NodeType.COLLECT: cmap.colors[6],
         DataFlowGraph.NodeType.DATA_PROCESSOR: cmap.colors[2],
-        DataFlowGraph.NodeType.DATA_AUGMENTER: cmap.colors[3],
+        DataFlowGraph.NodeType.DATA_AUGMENTOR: cmap.colors[3],
         DataFlowGraph.NodeType.DATA_AGGREGATOR: cmap.colors[4],
     }
     color_map = default_color_map | color_map

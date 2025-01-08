@@ -32,7 +32,7 @@ from .features.engine import FeatureEngine
 from .features.features import build_feature_from_reference
 from .features.reference import ConcreteReference
 from .nodes.aggregator import BaseDataAggregator
-from .nodes.augmenter import BaseDataAugmenter
+from .nodes.augmentor import BaseDataAugmentor
 from .nodes.base import BaseNode, RunContext
 from .nodes.collect import CollectNode
 from .nodes.const import ConstNode
@@ -233,13 +233,13 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         nodes typically perform dataset-wide computations.
         """
 
-        DATA_AUGMENTER = "DATA_AUGMENTER_NODE"
+        DATA_AUGMENTOR = "DATA_AUGMENTOR_NODE"
         """
-        Represents a data augmenter node in the data flow graph.
+        Represents a data augmentor node in the data flow graph.
 
         This type of node is responsible for modifying the dataset by generating
         new samples from existing ones or filtering out certain samples. Data
-        augmenter nodes are used to expand or contract the dataset.
+        augmentor nodes are used to expand or contract the dataset.
         """
 
     class NodeAttribute(str, Enum):
@@ -781,7 +781,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         Args:
             obj (BaseNode): The compute node object, which defines the transformation logic.
                 Supported subclasses include :class:`BaseDataProcessor`,
-                :class:`BaseDataAggregator`, and :class:`BaseDataAugmenter`.
+                :class:`BaseDataAggregator`, and :class:`BaseDataAugmentor`.
             inputs (dict[str, ConcreteReference]): A mapping of input names to references for input
                 features consumed by this compute node.
             node_id (None | NodeId): An optional unique identifier for the node. If not
@@ -803,8 +803,8 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             if isinstance(obj, BaseDataProcessor)
             else DataFlowGraph.NodeType.DATA_AGGREGATOR
             if isinstance(obj, BaseDataAggregator)
-            else DataFlowGraph.NodeType.DATA_AUGMENTER
-            if isinstance(obj, BaseDataAugmenter)
+            else DataFlowGraph.NodeType.DATA_AUGMENTOR
+            if isinstance(obj, BaseDataAugmentor)
             else None
         )
         # make sure the object is valid
@@ -839,8 +839,8 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         - :code:`DATA_AGGREGATOR`: Outputs always point to the :code:`AGGREGATED` partition,
           even though the aggregator node itself is not part of this partition.
 
-        - :code:`DATA_AUGMENTER`: Outputs always point to their own partition, using the
-          node's ID as the partition name. Like aggregators, augmenters are not part of
+        - :code:`DATA_AUGMENTOR`: Outputs always point to their own partition, using the
+          node's ID as the partition name. Like aggregators, augmentors are not part of
           the partition they point to.
 
         - Other node types: Outputs remain within the partition specified by the
@@ -861,7 +861,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             # node itself is not part of the aggregated partition
             return DataFlowGraph.Partition.AGGREGATED.value
 
-        elif input_node_type == DataFlowGraph.NodeType.DATA_AUGMENTER:
+        elif input_node_type == DataFlowGraph.NodeType.DATA_AUGMENTOR:
             # build a mock run context
             ctx = RunContext(
                 node_id=node_id,
@@ -1176,7 +1176,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
 
             elif node_type in {
                 DataFlowGraph.NodeType.DATA_PROCESSOR,
-                DataFlowGraph.NodeType.DATA_AUGMENTER,
+                DataFlowGraph.NodeType.DATA_AUGMENTOR,
                 DataFlowGraph.NodeType.DATA_AGGREGATOR,
             }:
                 node_id_mapping[node_id] = self.add_compute_node(node_obj, inputs, node_id=node_id)

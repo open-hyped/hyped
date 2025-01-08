@@ -12,7 +12,7 @@ from hyped.core.features.dtypes import BoolType, MappingType, Type
 from hyped.core.features.reference import ForwardReference
 from hyped.core.graph import DataFlowGraph
 from hyped.core.nodes.aggregator import BaseDataAggregator
-from hyped.core.nodes.augmenter import BaseDataAugmenter
+from hyped.core.nodes.augmentor import BaseDataAugmentor
 from hyped.core.nodes.collect import CollectNode
 from hyped.core.nodes.const import ConstNode
 from hyped.core.nodes.processor import BaseDataProcessor
@@ -33,9 +33,9 @@ def build_mock_node(node_type: DataFlowGraph.NodeType) -> MagicMock:
         return MagicMock(spec=CollectNode, collect=MagicMock())
     if node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
         return MagicMock(spec=BaseDataProcessor, run=AsyncMock())
-    if node_type == DataFlowGraph.NodeType.DATA_AUGMENTER:
+    if node_type == DataFlowGraph.NodeType.DATA_AUGMENTOR:
         return MagicMock(
-            spec=BaseDataAugmenter, run=AsyncMock(return_value=(MagicMock(), MagicMock()))
+            spec=BaseDataAugmentor, run=AsyncMock(return_value=(MagicMock(), MagicMock()))
         )
     if node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
         return MagicMock(spec=BaseDataAggregator)
@@ -83,19 +83,19 @@ class TestExecutionState:
                 [(0, 1, "x")],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
                 },
                 {},
                 DataFlowGraph.Partition.DEFAULT,
                 DataFlowGraph.Partition.DEFAULT,
                 [0, 1, 2, 3, 4],
             ),
-            # Simple filter augmenter
+            # Simple filter augmentor
             (
                 [(0, 1, "x")],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
                 },
                 {
                     1: [0, 1, 3, 4],
@@ -109,7 +109,7 @@ class TestExecutionState:
                 [(0, 1, "x")],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
                 },
                 {
                     1: [0, 0, 1, 1, 2, 2, 3, 3, 4, 4],
@@ -123,21 +123,21 @@ class TestExecutionState:
                 [(0, 1, "x"), (1, 2, "x")],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTER,
-                    2: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
+                    2: DataFlowGraph.NodeType.DATA_AUGMENTOR,
                 },
                 {1: [1, 2, 3], 2: [1, 2]},
                 DataFlowGraph.Partition.DEFAULT,
                 2,
                 [2, 3],
             ),
-            # Chaining augmenters
+            # Chaining augmentors
             (
                 [(0, 1, "x"), (1, 2, "x")],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTER,
-                    2: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
+                    2: DataFlowGraph.NodeType.DATA_AUGMENTOR,
                 },
                 {1: [1, 1, 1, 2, 2], 2: [2, 3, 4, 4]},
                 DataFlowGraph.Partition.DEFAULT,
@@ -158,17 +158,17 @@ class TestExecutionState:
         index = [0, 1, 2, 3, 4]
         trace_index = np.asarray(trace_index)
 
-        # mock augmenter nodes
-        mock_augmenter_nodes = {
+        # mock augmentor nodes
+        mock_augmentor_nodes = {
             i: MagicMock(
-                __spec__=BaseDataAugmenter, infer_output_partition=MagicMock(return_value=i)
+                __spec__=BaseDataAugmentor, infer_output_partition=MagicMock(return_value=i)
             )
             for i, node_type in node_types.items()
-            if node_type == DataFlowGraph.NodeType.DATA_AUGMENTER
+            if node_type == DataFlowGraph.NodeType.DATA_AUGMENTOR
         }
 
         # build the data flow graph
-        graph = build_graph(edges, node_types, node_objects=mock_augmenter_nodes)
+        graph = build_graph(edges, node_types, node_objects=mock_augmentor_nodes)
         state = ExecutionState(
             graph, graph.build_partition_graph(), MagicMock(), index, MagicMock()
         )
@@ -201,20 +201,20 @@ class TestExecutionState:
     ) -> None:
         mock_trace_trough_partition_graph.return_value = (MagicMock(),)
 
-        # create a mock graph including a constant and a data augmenter
+        # create a mock graph including a constant and a data augmentor
         # to introduce another partition
         graph = build_graph(
             [(0, 1, "0"), (0, 2, "0"), (3, 4, "3"), (1, 4, "1"), (2, 4, "2")],
             {
                 0: DataFlowGraph.NodeType.SOURCE,
                 1: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                2: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                2: DataFlowGraph.NodeType.DATA_AUGMENTOR,
                 3: DataFlowGraph.NodeType.CONST,
                 4: DataFlowGraph.NodeType.DATA_PROCESSOR,
             },
             {
                 2: MagicMock(
-                    __spec__=BaseDataAugmenter, infer_output_partition=MagicMock(return_value=2)
+                    __spec__=BaseDataAugmentor, infer_output_partition=MagicMock(return_value=2)
                 )
             },
         )
@@ -243,7 +243,7 @@ class TestExecutionState:
         )
         assert inputs["1"] == mock_trace_trough_partition_graph.return_value[0]
 
-        # the output of the data augmenter introducing the partition
+        # the output of the data augmentor introducing the partition
         # is not traced through the graph
         assert inputs["2"] == mock_outputs[2]
 
@@ -334,12 +334,12 @@ class TestDataFlowExecutor:
                 4,
                 [1, 2, 3],
             ),
-            # Augmenter node
+            # Augmentor node
             (
                 [(0, 1, "x")],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
                 },
                 1,
                 [0],
@@ -414,7 +414,7 @@ class TestDataFlowExecutor:
             node_obj.run.assert_called_once_with(mock_run_context, mock_inputs)
             state.capture_output.assert_called_once_with(node, node_obj.run.return_value)
 
-        elif node_types[node] == DataFlowGraph.NodeType.DATA_AUGMENTER:
+        elif node_types[node] == DataFlowGraph.NodeType.DATA_AUGMENTOR:
             node_obj.run.assert_called_once_with(mock_run_context, mock_inputs)
             out, trace_index = await node_obj.run()
             state.register_partition_trace.assert_called_once_with(node, trace_index)

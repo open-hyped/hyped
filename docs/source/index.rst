@@ -56,7 +56,7 @@ Below is a list of key sections in this documentation, guiding you through insta
 
    _technical/data_flow
    _technical/data_processors
-   _technical/data_augmenters
+   _technical/data_augmentors
    _technical/data_aggregators
 
 .. toctree::

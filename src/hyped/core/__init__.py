@@ -26,8 +26,8 @@ __all__ = [
     "process_mode",
     "BaseDataProcessor",
     "BaseDataProcessorConfig",
-    "BaseDataAugmenter",
-    "BaseDataAugmenterConfig",
+    "BaseDataAugmentor",
+    "BaseDataAugmentorConfig",
     "BaseDataAggregator",
     "BaseDataAggregatorConfig",
     "ValidationSession",
@@ -39,6 +39,6 @@ from . import ops
 from .features.session import ValidationSession
 from .flow import DataFlow
 from .nodes.aggregator import BaseDataAggregator, BaseDataAggregatorConfig
-from .nodes.augmenter import BaseDataAugmenter, BaseDataAugmenterConfig
+from .nodes.augmentor import BaseDataAugmentor, BaseDataAugmentorConfig
 from .nodes.base import NodeProtocol, RunContext, process_mode
 from .nodes.processor import BaseDataProcessor, BaseDataProcessorConfig

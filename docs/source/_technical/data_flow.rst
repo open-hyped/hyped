@@ -35,7 +35,7 @@ Nodes in a data flow can be of various types, each performing a specific functio
 Partitions
 ~~~~~~~~~~
 
-In a data flow, the underlying graph is divided into several partitions, which are essential for both bookkeeping and execution of the data flow. As the data flow executes, a batch of samples is processed through the graph, with nodes like aggregators or augmenters potentially altering the batch size, resulting in a dynamic batch size across different stages. However, within each partition, the batch size is guaranteed to be constant, allowing a steady and consistent data flow through the processing steps. This partitioning strategy enhances the efficiency of data flow management and execution, ensuring that each phase is handled in an organized and controlled manner.
+In a data flow, the underlying graph is divided into several partitions, which are essential for both bookkeeping and execution of the data flow. As the data flow executes, a batch of samples is processed through the graph, with nodes like aggregators or augmentors potentially altering the batch size, resulting in a dynamic batch size across different stages. However, within each partition, the batch size is guaranteed to be constant, allowing a steady and consistent data flow through the processing steps. This partitioning strategy enhances the efficiency of data flow management and execution, ensuring that each phase is handled in an organized and controlled manner.
 
 Certain predefined partitions are present at most once in every data flow graph:
 

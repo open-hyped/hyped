@@ -1,7 +1,7 @@
 """Provides base classes for data augmentation in a data flow graph.
 
 This module defines the base classes for data augmentation tasks within
-a data flow graph framework. Data augmenters are responsible for filtering or
+a data flow graph framework. Data augmentors are responsible for filtering or
 generating new data samples from on existing ones.
 """
 
@@ -40,7 +40,7 @@ Return = TypeVar("Return", covariant=True)
 
 @runtime_checkable
 class _ProcessFunctionProtocol(Protocol, Generic[Params, Return]):
-    """Protocol for synchronous processing functions in data augmenters."""
+    """Protocol for synchronous processing functions in data augmentors."""
 
     def process(self, *args: Params.args, **kwargs: Params.kwargs) -> Iterable[Return]:
         """Processes data samples and returns an iterable of results."""
@@ -49,7 +49,7 @@ class _ProcessFunctionProtocol(Protocol, Generic[Params, Return]):
 
 @runtime_checkable
 class _AsyncProcessFunctionProtocol(Protocol, Generic[Params, Return]):
-    """Protocol for asynchronous processing functions in data augmenters."""
+    """Protocol for asynchronous processing functions in data augmentors."""
 
     def process(self, *args: Params.args, **kwargs: Params.kwargs) -> AsyncIterable[Return]:
         """Processes data samples asynchronously and returns an async iterable of results."""
@@ -58,31 +58,31 @@ class _AsyncProcessFunctionProtocol(Protocol, Generic[Params, Return]):
 
 @runtime_checkable
 class _BatchProcessFunctionProtocol(Protocol, Generic[Params, Return]):
-    """Protocol for batched processing functions in data augmenters."""
+    """Protocol for batched processing functions in data augmentors."""
 
     def process(self, *args: Params.args, **kwargs: Params.kwargs) -> tuple[Return, TraceIndexList]:
         """Processes data batches and returns the result and corresponding trace index list."""
         ...  # pragma: not covered
 
 
-class BaseDataAugmenterConfig(BaseNodeConfig):
-    """Base configuration class for data augmenters.
+class BaseDataAugmentorConfig(BaseNodeConfig):
+    """Base configuration class for data augmentors.
 
-    This class serves as the base configuration for data augmenters,
+    This class serves as the base configuration for data augmentors,
     inheriting from :code:`BaseNodeConfig` to provide configuration
     functionality specifically for data augmentation tasks.
     """
 
 
-C = TypeVar("C", bound=BaseDataAugmenterConfig)
+C = TypeVar("C", bound=BaseDataAugmentorConfig)
 
 
-class BaseDataAugmenter(BaseNode[C], ABC):
-    """Base class for data augmenters in a data flow graph.
+class BaseDataAugmentor(BaseNode[C], ABC):
+    """Base class for data augmentors in a data flow graph.
 
-    This class represents a data augmenter node in a data flow graph. Data augmenters
+    This class represents a data augmentor node in a data flow graph. Data augmentors
     modify or generate new samples from existing ones, which can include filtering or
-    creating new data points. Subclasses of :code:`BaseDataAugmenter` must implement
+    creating new data points. Subclasses of :code:`BaseDataAugmentor` must implement
     either the :code:`process` or the :code:`batch_process` method to define how the
     augmentation is applied to the input data.
     """
@@ -96,9 +96,9 @@ class BaseDataAugmenter(BaseNode[C], ABC):
         *args: Any,
         **kwargs: Any,
     ) -> NodeProtocol[Params, Return]:
-        """Creates a new instance of a data augmenter node.
+        """Creates a new instance of a data augmentor node.
 
-        This method is responsible for creating an instance of the augmenter node, which
+        This method is responsible for creating an instance of the augmentor node, which
         follows either a synchronous or asynchronous processing protocol based on its type.
 
         Args:
@@ -111,11 +111,11 @@ class BaseDataAugmenter(BaseNode[C], ABC):
         return super().__new__(cls)
 
     def __init__(self, config: None | C = None, **kwargs) -> None:
-        """Initializes the data augmenter with optional configuration.
+        """Initializes the data augmentor with optional configuration.
 
         Args:
-            config (None | C): Optional configuration instance for the augmenter.
-            **kwargs (Any): Additional arguments for the augmenter configuration.
+            config (None | C): Optional configuration instance for the augmentor.
+            **kwargs (Any): Additional arguments for the augmentor configuration.
         """
         super().__init__(config, **kwargs)
         self._is_process_async = inspect.isasyncgenfunction(self.process)
@@ -123,8 +123,8 @@ class BaseDataAugmenter(BaseNode[C], ABC):
     def infer_output_partition(self, ctx: RunContext, partition: PartitionId) -> PartitionId:
         """Determine the output partition of the augmentater.
 
-        By default, data augmenters point to their own partition. This method
-        reuses the node ID of the augmenter as the output partition ID.
+        By default, data augmentors point to their own partition. This method
+        reuses the node ID of the augmentor as the output partition ID.
 
         Args:
             ctx (RunContext): Execution context for the node.
@@ -132,7 +132,7 @@ class BaseDataAugmenter(BaseNode[C], ABC):
                 node is assigned to.
 
         Returns:
-            PartitionId: The output partition ID, corresponding to the node ID of the augmenter.
+            PartitionId: The output partition ID, corresponding to the node ID of the augmentor.
         """
         return ctx.node_id
 
@@ -294,7 +294,7 @@ class BaseDataAugmenter(BaseNode[C], ABC):
         is still required to define the input and output features of the node.
 
         Args:
-            ctx (RunContext): Context information for the data augmenter's execution.
+            ctx (RunContext): Context information for the data augmentor's execution.
             *args (Feature): Positional input arguments.
             **kwargs (Feature): Keyword arguments.
 
@@ -319,7 +319,7 @@ class BaseDataAugmenter(BaseNode[C], ABC):
     async def run(
         self, ctx: RunContext, arrays: dict[str, pa.Array]
     ) -> tuple[pa.Array, TraceIndexList]:
-        """Execute the main processing logic for the data augmenter.
+        """Execute the main processing logic for the data augmentor.
 
         This method serves as the primary entry point for processing data within
         a data flow graph, returning both the processed outputs and their associated

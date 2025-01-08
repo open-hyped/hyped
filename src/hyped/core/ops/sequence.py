@@ -22,7 +22,7 @@ from ..features.features import Int32Feature, SequenceFeature
 from ..features.reference import ConcreteReference
 from ..features.validators import FeatureResolver, Len
 from ..graph import DataFlowGraph
-from ..nodes.augmenter import BaseDataAugmenter, BaseDataAugmenterConfig
+from ..nodes.augmentor import BaseDataAugmentor, BaseDataAugmentorConfig
 from ..nodes.base import RunContext, process_mode
 from ..nodes.processor import BaseDataProcessor, BaseDataProcessorConfig
 from ..typing import Float, Int, Int32, Mapping, Sequence, TraceIndexList, UInt
@@ -127,7 +127,7 @@ class SequenceSum(BaseDataProcessor[SequenceSumConfig]):
 ItemType = TypeVar("ItemType")
 
 
-class SequenceGetItemConfig(BaseDataAugmenterConfig):
+class SequenceGetItemConfig(BaseDataAugmentorConfig):
     """Configuration class for the :class:`SequenceGetItem` processor."""
 
     index: int
@@ -155,7 +155,7 @@ class SequenceGetItem(BaseDataProcessor[SequenceGetItemConfig]):
         return pc.list_element(seq, self.config.index)
 
 
-class SequenceGetSliceConfig(BaseDataAugmenterConfig):
+class SequenceGetSliceConfig(BaseDataAugmentorConfig):
     """Configuration class for the :class:`SequenceGetSlice` processor."""
 
     start: int
@@ -199,12 +199,12 @@ class SequenceValueWithIndex(Mapping, Generic[ItemType]):
     """The index of the batch containing the sequence that the value originates from."""
 
 
-class SequenceUnpackConfig(BaseDataAugmenterConfig):
-    """Configuration class for the :class:`SequenceUnpack` augmenter."""
+class SequenceUnpackConfig(BaseDataAugmentorConfig):
+    """Configuration class for the :class:`SequenceUnpack` augmentor."""
 
 
-class SequenceUnpack(BaseDataAugmenter[SequenceUnpackConfig]):
-    """Augmenter to unpack a sequence."""
+class SequenceUnpack(BaseDataAugmentor[SequenceUnpackConfig]):
+    """Augmentor to unpack a sequence."""
 
     @process_mode(batched=True, backend="arrow")
     def process(self, ctx: RunContext, seq: Sequence[ItemType]) -> tuple[ItemType, TraceIndexList]:
@@ -224,12 +224,12 @@ class SequenceUnpack(BaseDataAugmenter[SequenceUnpackConfig]):
         return flattened, trace_indices.to_pylist()
 
 
-class SequenceUnpackWithIndexConfig(BaseDataAugmenterConfig):
-    """Configuration class for the :class:`SequenceUnpackWithIndex` augmenter."""
+class SequenceUnpackWithIndexConfig(BaseDataAugmentorConfig):
+    """Configuration class for the :class:`SequenceUnpackWithIndex` augmentor."""
 
 
-class SequenceUnpackWithIndex(BaseDataAugmenter[SequenceUnpackWithIndexConfig]):
-    """Augmenter to unpack a sequence and compute trace indices."""
+class SequenceUnpackWithIndex(BaseDataAugmentor[SequenceUnpackWithIndexConfig]):
+    """Augmentor to unpack a sequence and compute trace indices."""
 
     @process_mode(batched=True, backend="arrow")
     def process(
@@ -258,8 +258,8 @@ class SequenceUnpackWithIndex(BaseDataAugmenter[SequenceUnpackWithIndexConfig]):
         return output, trace_indices.to_pylist()
 
 
-class SequencePackConfig(BaseDataAugmenterConfig):
-    """Configuration class for the :class:`SequencePackUnpacked` augmenter."""
+class SequencePackConfig(BaseDataAugmentorConfig):
+    """Configuration class for the :class:`SequencePackUnpacked` augmentor."""
 
     original_partition: None | PartitionId = None
     """The partition of unpack node in case the values come from a sequence unpack operation."""
@@ -268,8 +268,8 @@ class SequencePackConfig(BaseDataAugmenterConfig):
     """The length of the sequence before the unpack operation if defined."""
 
 
-class SequencePack(BaseDataAugmenter[SequencePackConfig]):
-    """Augmenter to reconstruct a sequence from elements and trace indices."""
+class SequencePack(BaseDataAugmentor[SequencePackConfig]):
+    """Augmentor to reconstruct a sequence from elements and trace indices."""
 
     def infer_output_partition(self, ctx: RunContext, partition: PartitionId) -> PartitionId:
         """Infer the output partition of the pack node.
@@ -284,7 +284,7 @@ class SequencePack(BaseDataAugmenter[SequencePackConfig]):
                 node is assigned to.
 
         Returns:
-            PartitionId: The output partition ID, corresponding to the node ID of the augmenter.
+            PartitionId: The output partition ID, corresponding to the node ID of the augmentor.
         """
         return (
             self.config.original_partition
@@ -429,7 +429,7 @@ def pack_sequence(
 ) -> Sequence[ItemType]:
     """Reconstruct a sequence from values and trace indices.
 
-    This method leverages the :class:`SequencePack` augmenter to rebuild a sequence from its
+    This method leverages the :class:`SequencePack` augmentor to rebuild a sequence from its
     flattened components, ensuring the sequence is packed with its associated trace indices.
     Additionally, it ensures that the sequence is assigned to the appropriate partition based
     on the node performing the flattening operation.

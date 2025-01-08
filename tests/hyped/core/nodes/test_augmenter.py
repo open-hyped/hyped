@@ -6,12 +6,12 @@ from uuid import uuid4
 
 import pytest
 
-from hyped.core.nodes.augmenter import BaseDataAugmenter, BaseDataAugmenterConfig
+from hyped.core.nodes.augmentor import BaseDataAugmentor, BaseDataAugmentorConfig
 from hyped.core.nodes.base import ProcessMode, RunContext, process_mode
 from hyped.core.typing import Bool, Int, TraceIndexList
 
 
-class MockConfig(BaseDataAugmenterConfig):
+class MockConfig(BaseDataAugmentorConfig):
     @classmethod
     @property
     def type_id(self) -> str:
@@ -28,21 +28,21 @@ class TestBaseDataProcessor:
             return_annotation=Bool,
         )
 
-        class MockDataProcessor(BaseDataAugmenter[MockConfig]):
+        class MockDataProcessor(BaseDataAugmentor[MockConfig]):
             def process(self, ctx: RunContext, x: Bool, y: Int) -> Iterable[Bool]:
                 ...
 
         processor: MockDataProcessor = MockDataProcessor()
         assert processor.signature == expected_signature
 
-        class MockDataProcessor(BaseDataAugmenter[MockConfig]):
+        class MockDataProcessor(BaseDataAugmentor[MockConfig]):
             async def process(self, ctx: RunContext, x: Bool, y: Int) -> AsyncIterable[Bool]:
                 ...
 
         processor: MockDataProcessor = MockDataProcessor()
         assert processor.signature == expected_signature
 
-        class MockDataProcessor(BaseDataAugmenter[MockConfig]):
+        class MockDataProcessor(BaseDataAugmentor[MockConfig]):
             @process_mode(batched=True, backend="python")
             async def process(
                 self, ctx: RunContext, x: Bool, y: Int
@@ -54,7 +54,7 @@ class TestBaseDataProcessor:
 
     def test_init_subclass(self) -> None:
         # valid definition
-        class MockDataProcessor(BaseDataAugmenter[MockConfig]):
+        class MockDataProcessor(BaseDataAugmentor[MockConfig]):
             def process(self, ctx: RunContext, x: Bool, y: Int) -> Bool:
                 ...
 
@@ -63,29 +63,29 @@ class TestBaseDataProcessor:
 
         with pytest.raises(TypeError):
             # no process method specified
-            class MockDataProcessor(BaseDataAugmenter[MockConfig]):
+            class MockDataProcessor(BaseDataAugmentor[MockConfig]):
                 ...
 
         with pytest.raises(TypeError):
             # missing context input
-            class MockDataProcessor(BaseDataAugmenter[MockConfig]):
+            class MockDataProcessor(BaseDataAugmentor[MockConfig]):
                 def process(self, x: Bool, y: Int) -> Bool:
                     ...
 
         with pytest.raises(TypeError):
             # wrong signature for batched process function
-            class MockDataProcessor(BaseDataAugmenter[MockConfig]):
+            class MockDataProcessor(BaseDataAugmentor[MockConfig]):
                 @process_mode(batched=True, backend="python")
                 def process(self, ctx: RunContext, x: Bool, y: Int) -> Bool:
                     ...
 
     @pytest.mark.asyncio
     async def test_run_batched(self) -> None:
-        class MockDataProcessor(BaseDataAugmenter[MockConfig]):
+        class MockDataProcessor(BaseDataAugmentor[MockConfig]):
             def process(self, ctx: RunContext, a: Bool) -> Iterable[Bool]:
                 ...
 
-        with patch("hyped.core.nodes.augmenter.ProcessMode") as mock_process_mode:
+        with patch("hyped.core.nodes.augmentor.ProcessMode") as mock_process_mode:
             # set up process mode mock
             mock_mode = MagicMock(spec=ProcessMode, batched=True)
             mock_process_mode.from_decorated_fn.return_value = mock_mode
@@ -116,11 +116,11 @@ class TestBaseDataProcessor:
 
     @pytest.mark.asyncio
     async def test_run_batched_async(self) -> None:
-        class MockDataProcessor(BaseDataAugmenter[MockConfig]):
+        class MockDataProcessor(BaseDataAugmentor[MockConfig]):
             def process(self, ctx: RunContext, a: Bool) -> Iterable[Bool]:
                 ...
 
-        with patch("hyped.core.nodes.augmenter.ProcessMode") as mock_process_mode:
+        with patch("hyped.core.nodes.augmentor.ProcessMode") as mock_process_mode:
             # set up process mode mock
             mock_mode = MagicMock(spec=ProcessMode, batched=True)
             mock_process_mode.from_decorated_fn.return_value = mock_mode
@@ -152,12 +152,12 @@ class TestBaseDataProcessor:
 
     @pytest.mark.asyncio
     async def test_run_non_batched(self) -> None:
-        class MockDataProcessor(BaseDataAugmenter[MockConfig]):
+        class MockDataProcessor(BaseDataAugmentor[MockConfig]):
             def process(self, ctx: RunContext, a: Bool) -> Iterable[Bool]:
                 ...
 
-        with patch("hyped.core.nodes.augmenter.ProcessMode") as mock_process_mode, patch(
-            "hyped.core.nodes.augmenter.chain",
+        with patch("hyped.core.nodes.augmentor.ProcessMode") as mock_process_mode, patch(
+            "hyped.core.nodes.augmentor.chain",
             MagicMock(
                 side_effect=lambda *x: list(chain(*x)),
                 from_iterable=lambda x: list(chain.from_iterable(x)),
@@ -193,12 +193,12 @@ class TestBaseDataProcessor:
 
     @pytest.mark.asyncio
     async def test_run_non_batched_async(self) -> None:
-        class MockDataProcessor(BaseDataAugmenter[MockConfig]):
+        class MockDataProcessor(BaseDataAugmentor[MockConfig]):
             def process(self, ctx: RunContext, a: Bool) -> Iterable[Bool]:
                 ...
 
-        with patch("hyped.core.nodes.augmenter.ProcessMode") as mock_process_mode, patch(
-            "hyped.core.nodes.augmenter.chain",
+        with patch("hyped.core.nodes.augmentor.ProcessMode") as mock_process_mode, patch(
+            "hyped.core.nodes.augmentor.chain",
             MagicMock(
                 side_effect=lambda *x: list(chain(*x)),
                 from_iterable=lambda x: list(chain.from_iterable(x)),

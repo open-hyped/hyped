@@ -10,7 +10,7 @@ from hyped.core.ops.sequence import (
     SequenceUnpackWithIndex,
     SequenceValueWithIndex,
 )
-from hyped.core.testing.augmenter import BaseDataAugmenterTest
+from hyped.core.testing.augmentor import BaseDataAugmentorTest
 from hyped.core.testing.processor import BaseDataProcessorTest
 from hyped.typing import Annotated, Bool, Int, Int32, Len, Sequence
 
@@ -74,8 +74,8 @@ class TestSequenceGetSlice(BaseDataProcessorTest):
     expected_output_data = [[1, 0], [3, 7]]
 
 
-class TestSequenceUnpack(BaseDataAugmenterTest):
-    augmenter = SequenceUnpack()
+class TestSequenceUnpack(BaseDataAugmentorTest):
+    augmentor = SequenceUnpack()
     input_features = {"seq": Sequence[Int]}
     input_data = [
         {"seq": [1, 2, 3]},
@@ -85,8 +85,8 @@ class TestSequenceUnpack(BaseDataAugmenterTest):
     expected_output_data = [1, 2, 3, 4, 5, 6]
 
 
-class TestSequenceUnpackWithIndex(BaseDataAugmenterTest):
-    augmenter = SequenceUnpackWithIndex()
+class TestSequenceUnpackWithIndex(BaseDataAugmentorTest):
+    augmentor = SequenceUnpackWithIndex()
     input_features = {"seq": Sequence[Int]}
     input_data = [
         {"seq": [1, 2, 3]},
@@ -103,8 +103,8 @@ class TestSequenceUnpackWithIndex(BaseDataAugmenterTest):
     ]
 
 
-class TestSequencePack(BaseDataAugmenterTest):
-    augmenter = SequencePack(original_partition="TEST_PARTITION")
+class TestSequencePack(BaseDataAugmentorTest):
+    augmentor = SequencePack(original_partition="TEST_PARTITION")
     input_features = {"values": Int, "trace_index": Int32}
     input_data = [
         {"values": 0, "trace_index": 0},
@@ -118,8 +118,8 @@ class TestSequencePack(BaseDataAugmenterTest):
     expected_output_partition = "TEST_PARTITION"
 
 
-class TestSequencePackFixedLength(BaseDataAugmenterTest):
-    augmenter = SequencePack(original_partition="TEST_PARTITION", original_length=3)
+class TestSequencePackFixedLength(BaseDataAugmentorTest):
+    augmentor = SequencePack(original_partition="TEST_PARTITION", original_length=3)
     input_features = {"values": Int, "trace_index": Int32}
     input_data = [
         {"values": 0, "trace_index": 0},

@@ -15,7 +15,7 @@ from hyped.core.graph import (
     random_uuid,
 )
 from hyped.core.nodes.aggregator import BaseDataAggregator
-from hyped.core.nodes.augmenter import BaseDataAugmenter
+from hyped.core.nodes.augmentor import BaseDataAugmentor
 from hyped.core.nodes.const import ConstNode
 from hyped.core.nodes.processor import BaseDataProcessor
 from hyped.core.typing import PartitionId
@@ -180,13 +180,13 @@ class TestDataFlowGraph:
                 },
                 [(DataFlowGraph.Partition.DEFAULT.value, DataFlowGraph.Partition.AGGREGATED.value)],
             ),
-            # Linear graph including augmenter and aggregator nodes
+            # Linear graph including augmentor and aggregator nodes
             (
                 [(0, 1), (1, 2), (2, 3)],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
                     1: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                    2: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                    2: DataFlowGraph.NodeType.DATA_AUGMENTOR,
                     3: DataFlowGraph.NodeType.DATA_AGGREGATOR,
                 },
                 [
@@ -194,14 +194,14 @@ class TestDataFlowGraph:
                     (2, DataFlowGraph.Partition.AGGREGATED),
                 ],
             ),
-            # Linear graph with multiple augmenters
+            # Linear graph with multiple augmentors
             (
                 [(0, 1), (1, 2), (2, 3)],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTER,
-                    2: DataFlowGraph.NodeType.DATA_AUGMENTER,
-                    3: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
+                    2: DataFlowGraph.NodeType.DATA_AUGMENTOR,
+                    3: DataFlowGraph.NodeType.DATA_AUGMENTOR,
                 },
                 [(DataFlowGraph.Partition.DEFAULT.value, 1), (1, 2), (2, 3)],
             ),
@@ -210,8 +210,8 @@ class TestDataFlowGraph:
                 [(0, 1), (0, 2), (1, 3), (2, 4)],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTER,
-                    2: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
+                    2: DataFlowGraph.NodeType.DATA_AUGMENTOR,
                     3: DataFlowGraph.NodeType.DATA_PROCESSOR,
                     4: DataFlowGraph.NodeType.DATA_AGGREGATOR,
                 },
@@ -250,15 +250,15 @@ class TestDataFlowGraph:
         nodes: dict[Hashable, DataFlowGraph.NodeType],
         partition_edges: list[tuple[PartitionId, PartitionId]],
     ) -> None:
-        mock_augmenter_nodes = {
+        mock_augmentor_nodes = {
             i: MagicMock(
-                __spec__=BaseDataAugmenter, infer_output_partition=MagicMock(return_value=i)
+                __spec__=BaseDataAugmentor, infer_output_partition=MagicMock(return_value=i)
             )
             for i, node_type in nodes.items()
-            if node_type == DataFlowGraph.NodeType.DATA_AUGMENTER
+            if node_type == DataFlowGraph.NodeType.DATA_AUGMENTOR
         }
 
-        graph = build_graph(edges, nodes, mock_augmenter_nodes)
+        graph = build_graph(edges, nodes, mock_augmentor_nodes)
         partition = graph.build_partition_graph()
 
         target_partition_graph = nx.DiGraph()
@@ -523,7 +523,7 @@ class TestDataFlowGraph:
         "node_cls, expected_node_type",
         [
             (BaseDataProcessor, DataFlowGraph.NodeType.DATA_PROCESSOR),
-            (BaseDataAugmenter, DataFlowGraph.NodeType.DATA_AUGMENTER),
+            (BaseDataAugmentor, DataFlowGraph.NodeType.DATA_AUGMENTOR),
             (BaseDataAggregator, DataFlowGraph.NodeType.DATA_AGGREGATOR),
         ],
     )
@@ -624,38 +624,38 @@ class TestDataFlowGraph:
                 DataFlowGraph.Partition.AGGREGATED,
                 False,
             ),
-            # Augmenters are not part of their own partition
+            # Augmentors are not part of their own partition
             (
                 [(0, 1), (1, 2)],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
                     2: DataFlowGraph.NodeType.DATA_PROCESSOR,
                 },
                 1,
                 DataFlowGraph.Partition.DEFAULT,
                 False,
             ),
-            # Augmenters introduce a new partition
+            # Augmentors introduce a new partition
             (
                 [(0, 1), (1, 2)],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
                     2: DataFlowGraph.NodeType.DATA_PROCESSOR,
                 },
                 2,
-                1,  # partition uses the same id as the augmenter node
+                1,  # partition uses the same id as the augmentor node
                 False,
             ),
-            # Chaining augmenters the latest augmenter partition wins
+            # Chaining augmentors the latest augmentor partition wins
             (
                 [(0, 1), (1, 2), (2, 3), (1, 3)],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTER,
-                    2: DataFlowGraph.NodeType.DATA_AUGMENTER,
-                    3: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
+                    2: DataFlowGraph.NodeType.DATA_AUGMENTOR,
+                    3: DataFlowGraph.NodeType.DATA_AUGMENTOR,
                 },
                 3,
                 2,
@@ -666,9 +666,9 @@ class TestDataFlowGraph:
                 [(0, 1), (0, 2), (2, 3), (1, 3)],
                 {
                     0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTER,
-                    2: DataFlowGraph.NodeType.DATA_AUGMENTER,
-                    3: DataFlowGraph.NodeType.DATA_AUGMENTER,
+                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
+                    2: DataFlowGraph.NodeType.DATA_AUGMENTOR,
+                    3: DataFlowGraph.NodeType.DATA_AUGMENTOR,
                 },
                 3,
                 None,
@@ -697,16 +697,16 @@ class TestDataFlowGraph:
         expected_partition: None | PartitionId,
         raises_error: bool,
     ) -> None:
-        mock_augmenter_nodes = {
+        mock_augmentor_nodes = {
             i: MagicMock(
-                __spec__=BaseDataAugmenter, infer_output_partition=MagicMock(return_value=i)
+                __spec__=BaseDataAugmentor, infer_output_partition=MagicMock(return_value=i)
             )
             for i, node_type in node_types.items()
-            if node_type == DataFlowGraph.NodeType.DATA_AUGMENTER
+            if node_type == DataFlowGraph.NodeType.DATA_AUGMENTOR
         }
 
         # build the data flow
-        graph = build_graph(edges, node_types, mock_augmenter_nodes, stop_at_node=node_id)
+        graph = build_graph(edges, node_types, mock_augmentor_nodes, stop_at_node=node_id)
 
         # get the node type and build the reference instances
         node_type = node_types[node_id]
