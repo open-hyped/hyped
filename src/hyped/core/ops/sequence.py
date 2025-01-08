@@ -9,8 +9,9 @@ These processors are registered as methods on the :class:`SequenceFeature` class
 to be applied directly to sequence features.
 """
 
-from typing import Annotated, Any, Generic, TypeVar
+from typing import Annotated, Any, Generic, TypeVar, overload
 
+import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 
@@ -18,7 +19,7 @@ from hyped.common._pyarrow import flatten_list_array, unflatten_list_array
 from hyped.core.typing import PartitionId
 
 from ..features.dtypes import UNDEFINED_SEQUENCE_LENGTH
-from ..features.features import Int32Feature, SequenceFeature
+from ..features.features import Feature, Int32Feature, SequenceFeature
 from ..features.reference import ConcreteReference
 from ..features.validators import FeatureResolver, Len
 from ..graph import DataFlowGraph
@@ -49,7 +50,7 @@ class SequenceLength(BaseDataProcessor[SequenceLengthConfig]):
         return pc.list_value_length(seq)
 
 
-NumericType = TypeVar("T", bound=Int | Float | UInt)
+NumericType = TypeVar("NumericType", bound=Int | Float | UInt)
 
 
 class SequenceMinConfig(BaseDataProcessorConfig):
@@ -197,6 +198,66 @@ class SequenceValueWithIndex(Mapping, Generic[ItemType]):
 
     index: Int32Feature
     """The index of the batch containing the sequence that the value originates from."""
+
+
+class SequenceZipConfig(BaseDataProcessorConfig):
+    """Configuration for SequenceZip operation."""
+
+
+SequenceType = TypeVar("SequenceType", bound=Feature)
+SequenceZipLength = Len()
+
+
+class SequenceZip(BaseDataProcessor[SequenceZipConfig]):
+    """Data Processor for zipping sequences."""
+
+    @process_mode(batched=True, backend="arrow")
+    def process(
+        self, ctx: RunContext, **seqs: Annotated[Sequence[SequenceType], SequenceZipLength]
+    ) -> Annotated[
+        Sequence[
+            Annotated[
+                Sequence[SequenceType],
+                FeatureResolver(lambda c, i, _: Annotated[Sequence[SequenceType], Len(len(i))]),
+            ]
+        ],
+        SequenceZipLength,
+    ]:
+        """Zip multiple sequences.
+
+        Args:
+            ctx (RunContext): Context object containing runtime information.
+            **seqs (Sequence[SequenceType]): Input sequences to zip. Zipped sequences are ordered
+                by their keys, which are converted to integers.
+
+        Returns:
+            Sequence[Sequence[SequenceType]]: The zipped sequences.
+        """
+        # sort the sequences
+        seqs_sorted = [seqs[key] for key in sorted(seqs.keys(), key=int)]
+        # flatten the sequences along the batch axis
+        # flat_seqs: [seq_1_flattened, seq_1_flattened, ...]
+        flat_seqs, offsets = zip(*[flatten_list_array(seq) for seq in seqs_sorted], strict=True)
+        # check that all sequences have the same lengths
+        assert all(offset == offsets[0] for offset in offsets), "Sequences must have same lengths!"
+        # concatenate the sequences
+        flat_concat = pa.chunked_array(flat_seqs).combine_chunks()
+        # get number of sequences and flattened sequence length
+        num_seqs = len(seqs_sorted)
+        flattened_seq_len = len(flat_seqs[0])
+        # create zip indices
+        # zip_indices: [[0, 5], [1, 6], [2, 7], ...]
+        zip_indices = np.add.outer(
+            np.arange(flattened_seq_len), flattened_seq_len * np.arange(num_seqs)
+        )
+        # interleave the flattened sequences with the zip indices
+        flat_interleave = pc.take(flat_concat, zip_indices.flatten())
+        # create an list-array of list-array
+        flat_zipped = pa.FixedSizeListArray.from_arrays(
+            flat_interleave, type=ctx.output_type.value_type.arrow_type
+        )
+        # unflatten to get back the batch axis
+        return unflatten_list_array(flat_zipped, offsets[0])
 
 
 class SequenceUnpackConfig(BaseDataAugmentorConfig):
@@ -421,6 +482,38 @@ def sequence_get_item(sequence: Sequence[ItemType], index: int | slice) -> ItemT
         return SequenceGetSlice(start=start, stop=stop, step=step).call(sequence)
 
     raise NotImplementedError(f"Index type not supported, got {index}")
+
+
+@overload
+def zip_(*args: Sequence) -> Sequence[Sequence]:
+    ...
+
+
+@overload
+def zip_(**kwargs: Sequence) -> Sequence[Mapping]:
+    ...
+
+
+def zip_(*args: Sequence, **kwargs: Sequence) -> Sequence[Sequence] | Sequence[Mapping]:
+    """Zip multiple sequences together.
+
+    Args:
+        *args (Sequence): Sequences to zip together. Must all have the same Value type.
+        **kwargs (Sequence): Sequences to zip together. Can have mixed value types.
+
+    Returns:
+        Sequence[Sequence] | Sequence[Mapping]: The zipped sequences. If the input is
+            a list of sequences the output will be a :code:`Sequence[Sequence]` too. If the input
+            is a dict of mixed-type sequences, the output will be a :code:`Sequence[Mapping]`.
+    """
+    if len(args) > 0 and len(kwargs) > 0:
+        raise ValueError("Must specify either sequences as *args or **kwargs, not both!")
+
+    if len(args):
+        proc_kwargs = {str(i): args[i] for i in range(len(args))}
+        return SequenceZip().call(**proc_kwargs)
+    else:
+        raise NotImplementedError()
 
 
 @SequenceFeature.register_method("pack")

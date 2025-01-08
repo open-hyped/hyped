@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock, patch
+
 from hyped.core.ops.sequence import (
     SequenceGetItem,
     SequenceGetSlice,
@@ -9,6 +11,8 @@ from hyped.core.ops.sequence import (
     SequenceUnpack,
     SequenceUnpackWithIndex,
     SequenceValueWithIndex,
+    SequenceZip,
+    zip_,
 )
 from hyped.core.testing.augmentor import BaseDataAugmentorTest
 from hyped.core.testing.processor import BaseDataProcessorTest
@@ -132,3 +136,102 @@ class TestSequencePackFixedLength(BaseDataAugmentorTest):
     expected_output_feature = Annotated[Sequence[Int], Len(3)]
     expected_output_data = [[0, 1, 2], [3, 4, 5]]
     expected_output_partition = "TEST_PARTITION"
+
+
+class TestSequenceZip(BaseDataAugmentorTest):
+    augmentor = SequenceZip()
+    input_features = {"0": Sequence[Int32], "1": Sequence[Int32]}
+    input_data = [
+        {
+            "0": [0, 1, 2, 3, 4],
+            "1": [5, 6, 7, 8, 9],
+        },
+        {
+            "0": [1, 2, 3],
+            "1": [1, 2, 3],
+        },
+    ]
+    expected_output_feature = Sequence[Annotated[Sequence[Int], Len(2)]]
+    expected_output_data = [
+        [[0, 5], [1, 6], [2, 7], [3, 8], [4, 9]],
+        [[1, 1], [2, 2], [3, 3]],
+    ]
+
+
+class TestSequenceZipMultipleInputs(BaseDataAugmentorTest):
+    augmentor = SequenceZip()
+    input_features = {"0": Sequence[Int32], "1": Sequence[Int32], "2": Sequence[Int32]}
+    input_data = [
+        {
+            "0": [0, 1, 2, 3, 4],
+            "1": [5, 6, 7, 8, 9],
+            "2": [10, 11, 12, 13, 14],
+        },
+    ]
+    expected_output_feature = Sequence[Annotated[Sequence[Int], Len(3)]]
+    expected_output_data = [
+        [[0, 5, 10], [1, 6, 11], [2, 7, 12], [3, 8, 13], [4, 9, 14]],
+    ]
+
+
+class TestSequenceZipSorting(BaseDataAugmentorTest):
+    augmentor = SequenceZip()
+    input_features = {"1": Sequence[Int32], "0": Sequence[Int32]}
+    input_data = [
+        {
+            "1": [5, 6, 7, 8, 9],
+            "0": [0, 1, 2, 3, 4],
+        },
+        {
+            "1": [1, 2, 3],
+            "0": [1, 2, 3],
+        },
+    ]
+    expected_output_feature = Sequence[Annotated[Sequence[Int], Len(2)]]
+    expected_output_data = [
+        [[0, 5], [1, 6], [2, 7], [3, 8], [4, 9]],
+        [[1, 1], [2, 2], [3, 3]],
+    ]
+
+
+class TestSequenceZipResolveLength(BaseDataAugmentorTest):
+    augmentor = SequenceZip()
+    input_features = {
+        "0": Annotated[Sequence[Int32], Len(3)],
+        "1": Annotated[Sequence[Int32], Len(3)],
+    }
+    input_data = [
+        {
+            "0": [0, 1, 2],
+            "1": [5, 6, 7],
+        },
+        {
+            "0": [1, 2, 3],
+            "1": [1, 2, 3],
+        },
+    ]
+    expected_output_feature = Annotated[
+        Sequence[Annotated[Sequence[Int], Len(2, strict=True)]],
+        Len(3, strict=True),
+    ]
+    expected_output_data = [
+        [[0, 5], [1, 6], [2, 7]],
+        [[1, 1], [2, 2], [3, 3]],
+    ]
+
+
+class TestSequenceZipLengthMismatch(BaseDataAugmentorTest):
+    augmentor = SequenceZip()
+    input_features = {
+        "0": Annotated[Sequence[Int32], Len(3)],
+        "1": Annotated[Sequence[Int32], Len(6)],
+    }
+    expected_verification_error = TypeError
+
+
+def test_zip_():
+    with patch("hyped.core.ops.sequence.SequenceZip") as SequenceZipMock:
+        seq_1 = MagicMock()
+        seq_2 = MagicMock()
+        zip_(seq_1, seq_2)
+        SequenceZipMock.return_value.call.assert_called_once_with(**{"0": seq_1, "1": seq_2})
