@@ -19,6 +19,7 @@ __all__ = [
     # modules
     "core",
     "typing",
+    "ops",
     # core
     "DataFlow",
     "plot_data_flow",
@@ -26,5 +27,5 @@ __all__ = [
     "setup_logging",
 ]
 
-from . import core, typing
+from . import core, ops, typing
 from .core.flow import DataFlow, plot_data_flow
