@@ -74,13 +74,13 @@ Now we can add processing steps by calling data processors on the features. In t
 
 ```python
 tokenizer = TransformersTokenizer(tokenizer="bert-base-uncased")
-tokenized_features = tokenizer.call(text=flow.src_features.text)
+tokenized_features = tokenizer.call(text=flow.source["text"])
 ```
 
 Finally, we can apply the data pipeline to your dataset using the `apply` method. Here we also need to specify the which features are to be collected into the output dataset:
 
 ```python
-ds, _ = flow.apply(ds, collect=tokenized_features)
+ds = flow.apply(ds, collect=tokenized_features)
 ```
 
 Now, your dataset has been processed according to the defined pipeline, and you can proceed with further analysis or downstream tasks in your application.
