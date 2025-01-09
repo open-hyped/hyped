@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pyarrow as pa
 import pytest
 
-from hyped.core.features.dtypes import Int32Type, Int64Type, MappingType, SequenceType, Type
+from hyped.core.features.dtypes import DType, Int32Type, Int64Type, MappingType, SequenceType
 from hyped.core.nodes.base import RunContext
 from hyped.core.nodes.collect import CollectNode
 from hyped.core.utils import NestedType
@@ -79,11 +79,11 @@ class TestCollectNode:
     def test_collect_node(
         self,
         collect: NestedType[str],
-        input_types: dict[str, Type],
+        input_types: dict[str, DType],
         input_objects: dict[str, Any],
-        expected_dtype: Type,
+        expected_dtype: DType,
         expected_object: pa.Array,
-        expected_required_casts: dict[str, Type],
+        expected_required_casts: dict[str, DType],
     ) -> None:
         # create a mock graph
         graph = MagicMock()

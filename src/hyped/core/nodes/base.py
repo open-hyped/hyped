@@ -28,7 +28,7 @@ from typing import (
 import pyarrow as pa
 
 from ..abstract import AbstractDataFlow, AbstractDataFlowGraph
-from ..features.dtypes import MappingType, Type
+from ..features.dtypes import DType, MappingType
 from ..features.engine import FeatureEngine
 from ..features.features import Feature as _Feature
 from ..features.features import build_feature_from_reference
@@ -78,7 +78,7 @@ class RunContext:
     should be processed.
     """
 
-    output_type: Type
+    output_type: DType
     """The type of data the processor will produce as output.
 
     This attribute defines the expected structure or type of the output that the processor will

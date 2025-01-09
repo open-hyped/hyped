@@ -5,7 +5,7 @@ import datasets
 import pytest
 from datasets.features.features import FeatureType
 
-from hyped.core.features.dtypes import Int32Type, MappingType, SequenceType, Type
+from hyped.core.features.dtypes import DType, Int32Type, MappingType, SequenceType
 from hyped.core.features.features import build_feature_from_annotation
 from hyped.core.utils import build_annotation_from_dtype, map_recursive, validate_hf_feature
 from hyped.typing import Int32, Int64, Len, Mapping, Sequence
@@ -68,7 +68,7 @@ def test_map_recursive() -> None:
         ),
     ],
 )
-def test_build_annotation_from_dtype(dtype: Type) -> None:
+def test_build_annotation_from_dtype(dtype: DType) -> None:
     # test reconstruct dtype from annotation
     annotation = build_annotation_from_dtype(dtype)
     assert dtype == build_feature_from_annotation(annotation).dtype

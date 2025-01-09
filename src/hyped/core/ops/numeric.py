@@ -14,13 +14,13 @@ import pyarrow.compute as pc
 
 from ..abstract import AbstractDataFlowGraph
 from ..features.dtypes import (
+    DType,
     Float32Type,
     Float64Type,
     Int8Type,
     Int16Type,
     Int32Type,
     Int64Type,
-    Type,
     UInt8Type,
     UInt16Type,
     UInt32Type,
@@ -73,7 +73,7 @@ def register_all(name: str, types: type[Feature]) -> Callable[[Fn], Fn]:
     return wrapper
 
 
-def add_constant(val: Any, candidate_dtype: Type, graph: AbstractDataFlowGraph) -> Feature:
+def add_constant(val: Any, candidate_dtype: DType, graph: AbstractDataFlowGraph) -> Feature:
     """Adds a constant value to a data flow graph as a node and returns it as a :class:`Feature`.
 
     This function evaluates the provided constant value's data type. If the candidate
@@ -83,7 +83,7 @@ def add_constant(val: Any, candidate_dtype: Type, graph: AbstractDataFlowGraph) 
 
     Args:
         val (Any): The constant value to be added to the graph.
-        candidate_dtype (Type): The candidate data type for the value, expected to
+        candidate_dtype (DType): The candidate data type for the value, expected to
             be a type like :code:`Float32Type` or :code:`Int64Type`.
         graph (AbstractDataFlowGraph): The data flow graph where the constant will
             be added.

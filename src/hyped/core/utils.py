@@ -14,10 +14,10 @@ from hyped.common._pydantic import TypeAdapterWithArbitraryTypesAllowed
 
 from .features.dtypes import (
     UNDEFINED_SEQUENCE_LENGTH,
+    DType,
     MappingType,
     PrimitiveType,
     SequenceType,
-    Type,
     build_dtype_from_hf_feature,
 )
 from .features.features import (
@@ -103,14 +103,14 @@ def validate_hf_feature(
         ) from e
 
 
-def build_annotation_from_dtype(dtype: Type) -> Any:
+def build_annotation_from_dtype(dtype: DType) -> Any:
     """Convert a dtype instance to a type annotation.
 
-    Maps a :class:`Type` object into a Python type annotation suitable
+    Maps a :class:`DType` object into a Python type annotation suitable
     for describing the structure of a dataset feature.
 
     Args:
-        dtype (Type): The data type to convert.
+        dtype (DType): The data type to convert.
 
     Returns:
         Any: A type annotation corresponding to the provided dtype.

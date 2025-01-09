@@ -31,7 +31,7 @@ from typing import Any
 import pyarrow as pa
 
 from .executor import DataFlowExecutor
-from .features.dtypes import BoolType, MappingType, Type
+from .features.dtypes import BoolType, DType, MappingType
 from .features.reference import ConcreteReference
 from .graph import DataFlowGraph
 from .ops.mapping import MappingGetItem
@@ -335,7 +335,7 @@ class DataFlowGraphOptimizer(object):
             graph (DataFlowGraph): The data flow graph to be optimized.
         """
 
-        def get_accessed_dtype(node_id: NodeId) -> Type:
+        def get_accessed_dtype(node_id: NodeId) -> DType:
             source_dtype = graph.nodes[node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
             # only apply to non-leaf nodes and to mapping types
             if (graph.out_degree(node_id) == 0) or (not isinstance(source_dtype, MappingType)):

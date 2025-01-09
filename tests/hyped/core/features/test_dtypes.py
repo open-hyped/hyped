@@ -9,6 +9,7 @@ from hyped.core.features.dtypes import (
     UNDEFINED_SEQUENCE_LENGTH,
     BoolType,
     ClassLabelType,
+    DType,
     Float16Type,
     Float32Type,
     Float64Type,
@@ -20,7 +21,6 @@ from hyped.core.features.dtypes import (
     PrimitiveType,
     SequenceType,
     StringType,
-    Type,
     UInt8Type,
     UInt16Type,
     UInt32Type,
@@ -84,7 +84,7 @@ def test_primitive_arrow_type(
         ),
     ],
 )
-def test_hf_feature(dtype: Type, hf_feature: FeatureType) -> None:
+def test_hf_feature(dtype: DType, hf_feature: FeatureType) -> None:
     assert dtype.hf_feature == hf_feature
 
 
@@ -98,7 +98,7 @@ class TestSequenceType:
         ],
     )
     def test_arrow_type(
-        self, length: int, value_type: Type, arrow_type_checker: Callable[[pa.DataType], bool]
+        self, length: int, value_type: DType, arrow_type_checker: Callable[[pa.DataType], bool]
     ) -> None:
         # create the sequence type
         sequence_type = SequenceType(value_type=value_type, length=length)
@@ -230,7 +230,7 @@ class TestMappingType:
         MappingType.construct({"field": SequenceType(BoolType)}),
     ],
 )
-def test_type_serialization(dtype: Type) -> None:
+def test_type_serialization(dtype: DType) -> None:
     assert build_type_from_dict(dtype.to_dict()) == dtype
 
 
@@ -278,7 +278,7 @@ def test_type_serialization(dtype: Type) -> None:
     ],
 )
 def test_cast_dtype(
-    src_dtype: Type, tgt_dtype: Type, result_dtype: None | Type, raises_error: bool
+    src_dtype: DType, tgt_dtype: DType, result_dtype: None | DType, raises_error: bool
 ) -> None:
     if raises_error:
         with pytest.raises(RuntimeError):
@@ -511,7 +511,7 @@ def test_cast_dtype(
         ),
     ],
 )
-def test_common_dtype(dtypes: tuple[Type], result_dtype: None | Type, raises_error: bool) -> None:
+def test_common_dtype(dtypes: tuple[DType], result_dtype: None | DType, raises_error: bool) -> None:
     if raises_error:
         with pytest.raises(RuntimeError):
             common_dtype(*dtypes)

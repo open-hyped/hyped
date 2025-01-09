@@ -5,7 +5,7 @@ import networkx as nx
 import pytest
 
 from hyped.core.features.dtypes import BoolType as MockType
-from hyped.core.features.dtypes import MappingType, Type
+from hyped.core.features.dtypes import DType, MappingType
 from hyped.core.features.reference import ConcreteReference
 from hyped.core.graph import DataFlowGraph
 from hyped.core.ops.mapping import MappingGetItem
@@ -275,8 +275,8 @@ class TestDataFlowGraphOptimizer:
     def test_accessed_src_dtype_property(
         self,
         edges_with_keys: list[tuple[Hashable, Hashable, str]],
-        src_dtype: Type,
-        accessed_src_dtype: Type,
+        src_dtype: DType,
+        accessed_src_dtype: DType,
     ) -> None:
         graph = DataFlowGraph()
         graph.add_source_node(src_dtype, 0)

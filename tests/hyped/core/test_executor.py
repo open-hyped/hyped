@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from hyped.core.executor import DataFlowExecutor, ExecutionState, LazyDataFlowExecutor
-from hyped.core.features.dtypes import BoolType, MappingType, Type
+from hyped.core.features.dtypes import BoolType, DType, MappingType
 from hyped.core.features.reference import ForwardReference
 from hyped.core.graph import DataFlowGraph
 from hyped.core.nodes.aggregator import BaseDataAggregator
@@ -28,7 +28,7 @@ def build_mock_node(node_type: DataFlowGraph.NodeType) -> MagicMock:
     if node_type == DataFlowGraph.NodeType.CONST:
         return MagicMock(spec=ConstNode)
     if node_type == DataFlowGraph.NodeType.CAST:
-        return MagicMock(spec=Type)
+        return MagicMock(spec=DType)
     if node_type == DataFlowGraph.NodeType.COLLECT:
         return MagicMock(spec=CollectNode, collect=MagicMock())
     if node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:

@@ -1,6 +1,6 @@
-"""Type Validators and Resolvers.
+"""Feature Validators and Resolvers.
 
-This module defines custom validators and resolvers for validating and resolving data types
+This module defines custom validators and resolvers for validating and resolving features
 using Pydantic's validation framework. These classes extend Pydantic's :class:`AfterValidator`
 and :class:`BeforeValidator` to enforce validation and type resolution logic.
 """
@@ -14,7 +14,7 @@ from pydantic import AfterValidator, BeforeValidator, ValidationInfo
 from pydantic_core import PydanticCustomError
 
 from ..registry.config import BaseConfig
-from .dtypes import UNDEFINED_SEQUENCE_LENGTH, Type
+from .dtypes import UNDEFINED_SEQUENCE_LENGTH, DType
 from .features import (
     Feature,
     SequenceFeature,
@@ -171,7 +171,7 @@ class FeatureResolver(BeforeValidator):
             resolver (ResolverFunction): The custom resolver function to use. The function
                 receives the node configuration, the input features and the session id and
                 returns the resolved feature type. The resolved feature type can be a feature
-                class or annotation, a typevar or an instance of a :class:`Type`.
+                class or annotation, a typevar or an instance of a :class:`DType`.
         """
 
         def wrapped_resolver(val: Any, info: ValidationInfo) -> Any:
@@ -200,7 +200,7 @@ class FeatureResolver(BeforeValidator):
             )
 
             # create feature from dtype
-            if isinstance(target_type, Type):
+            if isinstance(target_type, DType):
                 target_type = Annotated[
                     Feature,
                     BeforeValidator(

@@ -5,7 +5,7 @@ import networkx as nx
 import numpy as np
 
 from hyped.core.features.dtypes import BoolType as MockType
-from hyped.core.features.dtypes import Type
+from hyped.core.features.dtypes import DType
 from hyped.core.graph import DataFlowGraph, _build_dependency_graph
 
 
@@ -14,7 +14,7 @@ def build_graph(
     node_types: None | dict[Hashable, DataFlowGraph.NodeType] = None,
     node_objects: dict[Hashable, Any] = {},
     stop_at_node: None | Hashable = None,
-    output_type: Type = MockType,
+    output_type: DType = MockType,
 ) -> DataFlowGraph:
     """Helper function to construct a :class:`DataFlowGraph` from edges.
 
@@ -42,7 +42,7 @@ def build_graph(
         stop_at_node (None | Hashable, optional):
             A node identifier to limit graph construction to only nodes reachable
             up to (but excluding) this node.
-        output_type (Type, optional):
+        output_type (DType, optional):
             The output type of all nodes in the graph. Defaults to :code:`MockType`.
 
     Returns:

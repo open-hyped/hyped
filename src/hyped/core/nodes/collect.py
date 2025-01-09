@@ -16,9 +16,9 @@ import pyarrow.compute as pc
 from ..abstract import AbstractDataFlowGraph
 from ..features.dtypes import (
     UNDEFINED_SEQUENCE_LENGTH,
+    DType,
     MappingType,
     SequenceType,
-    Type,
     cast_dtype,
     common_dtype,
 )
@@ -48,7 +48,7 @@ class CollectNode(BaseNode[CollectNodeConfig]):
 
     def build_output_type(
         self, graph: AbstractDataFlowGraph, inputs: dict[str, ConcreteReference]
-    ) -> tuple[Type, dict[str, Type]]:
+    ) -> tuple[DType, dict[str, DType]]:
         """Construct the output data type based on the input structure.
 
         This method recursively determines the type of each element in the structure specified by
@@ -61,14 +61,14 @@ class CollectNode(BaseNode[CollectNodeConfig]):
                 within the graph.
 
         Returns:
-            tuple[Type, dict[str, Type]]: A tuple containing the constructed output type and a
+            tuple[DType, dict[str, DType]]: A tuple containing the constructed output type and a
                 lookup for inputs that need to be casted to a different data type before
                 collection.
         """
         # dictionary mapping inputs to the dtype they need to be casted to
-        required_casts: dict[str, Type] = {}
+        required_casts: dict[str, DType] = {}
 
-        def _cast(obj: NestedType[str], src_dtype: Type, tgt_dtype: Type) -> None:
+        def _cast(obj: NestedType[str], src_dtype: DType, tgt_dtype: DType) -> None:
             # trivial case: no type casting required
             if src_dtype == tgt_dtype:
                 return
@@ -143,7 +143,7 @@ class CollectNode(BaseNode[CollectNodeConfig]):
                 inputs.
         """
 
-        def _collect(struct: NestedType[str], dtype: Type) -> pa.Array:
+        def _collect(struct: NestedType[str], dtype: DType) -> pa.Array:
             if isinstance(struct, str):
                 # get the referenced input array
                 return inputs[struct]

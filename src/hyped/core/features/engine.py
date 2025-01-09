@@ -1,4 +1,4 @@
-"""Type Handling and Validation Module.
+"""DType Handling and Validation Module.
 
 This module provides utilities for type validation, type variable registration, and type checking
 within a data flow graph system. It allows dynamic handling of type annotations, argument
@@ -19,7 +19,7 @@ import pydantic.generics
 from hyped.common._pydantic import BaseModelWithArbitraryTypesAllowed
 
 from ..registry.config import BaseConfig
-from .dtypes import Type, build_dtype_from_python_object, common_dtype
+from .dtypes import DType, build_dtype_from_python_object, common_dtype
 from .features import Feature, build_feature_from_annotation
 from .reference import ConcreteReference
 from .session import ValidationSession
@@ -31,14 +31,14 @@ class TypeVarRegister(object):
     def __init__(self) -> None:
         """Initialize the TypeVarRegister."""
         self._registered_vars: dict[UUID, TypeVar] = {}
-        self._captured_vars: dict[TypeVar, set[Type]] = defaultdict(set)
+        self._captured_vars: dict[TypeVar, set[DType]] = defaultdict(set)
 
     def reset(self) -> None:
         """Reset the type var register."""
         self._captured_vars.clear()
 
     @property
-    def typevar_mapping(self) -> dict[TypeVar, Type]:
+    def typevar_mapping(self) -> dict[TypeVar, DType]:
         """Map captured TypeVars to their resolved types.
 
         Returns:
@@ -47,7 +47,7 @@ class TypeVarRegister(object):
         """
         return {var: self.solve_typevar(var) for var in self._captured_vars.keys()}
 
-    def solve_typevar(self, var: TypeVar) -> Type:
+    def solve_typevar(self, var: TypeVar) -> DType:
         """Resolve a TypeVar to its captured type.
 
         Args:
@@ -114,7 +114,7 @@ class TypeVarRegister(object):
         # capture the value type
         if (t not in self._captured_vars) or (
             # prefer features over constants
-            not isinstance(self._captured_vars[t], Type)
+            not isinstance(self._captured_vars[t], DType)
             and isinstance(val, Feature)
         ):
             dtype = val.dtype if isinstance(val, Feature) else build_dtype_from_python_object(val)
@@ -285,7 +285,7 @@ class FeatureEngine(object):
 
     def get_references_and_objects(
         self, *args: Any, **kwargs: Any
-    ) -> tuple[dict[str, ConcreteReference], dict[str, Any], dict[str, Type]]:
+    ) -> tuple[dict[str, ConcreteReference], dict[str, Any], dict[str, DType]]:
         """Separate input feature references and constants from the arguments.
 
         Args:
@@ -293,7 +293,7 @@ class FeatureEngine(object):
             **kwargs (Any): Keyword arguments.
 
         Returns:
-            tuple[dict[str, ConcreteReference], dict[str, Any], dict[str, Type]]: Tuple containing
+            tuple[dict[str, ConcreteReference], dict[str, Any], dict[str, DType]]: Tuple containing
             input features and objects.
         """
         # bind inputs to signature and extract the keyword arguments
@@ -327,7 +327,7 @@ class FeatureEngine(object):
         """Create a feature based on type annotation and inputs in a specific context.
 
         Args:
-            annotation (Any): Type annotation for the feature.
+            annotation (Any): DType annotation for the feature.
             inputs (None | dict[str, Feature]): Input features to build the feature, if any.
 
         Returns:

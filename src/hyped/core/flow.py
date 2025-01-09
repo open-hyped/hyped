@@ -31,8 +31,8 @@ from hyped.common._worker import get_worker_info
 from .abstract import AbstractDataFlow
 from .executor import DataFlowExecutor, LazyDataFlowExecutor
 from .features.dtypes import (
+    DType,
     MappingType,
-    Type,
     build_dtype_from_hf_feature,
     build_dtype_from_python_object,
     cast_dtype,
@@ -274,7 +274,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         src_type_annotation = self._source_annotation
         # infer the source data type from the hf
         # features and/or the source type annotation
-        src_dtype: Type
+        src_dtype: DType
 
         with ValidationSession() as session:
             if (src_type_annotation is not None) and (self._hf_source_features is not None):

@@ -1,4 +1,4 @@
-"""Type Mixins."""
+"""DType Mixins."""
 
 import inspect
 import logging

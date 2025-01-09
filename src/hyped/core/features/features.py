@@ -63,7 +63,7 @@ else:
 
 logger = logging.getLogger(__name__)
 
-DataType = TypeVar("DataType", bound=dtypes.Type)
+DataType = TypeVar("DataType", bound=dtypes.DType)
 
 
 @dataclass(eq=True, frozen=False)
@@ -128,7 +128,7 @@ class PrimitiveFeature(Feature[DataType]):
     with primitive data types.
     """
 
-    _expected_dtype: ClassVar[dtypes.Type]
+    _expected_dtype: ClassVar[dtypes.DType]
     """The expected data type for this feature.
 
     Subclasses should define this attribute to indicate the primitive data type
@@ -184,7 +184,7 @@ class PrimitiveFeature(Feature[DataType]):
                     return Int64Feature(inst.ref)
 
                 raise PydanticCustomError(
-                    "Type Mismatch",
+                    "DType Mismatch",
                     "Data type '{actual}' doesn't match expected data type '{expected}'",
                     {"actual": inst.dtype, "expected": cls._expected_dtype},
                 )
@@ -199,7 +199,7 @@ class PrimitiveFeature(Feature[DataType]):
 class BoolFeature(PrimitiveFeature[dtypes.BoolType]):
     """A primitive feature representing a boolean value."""
 
-    _expected_dtype: Final[dtypes.Type] = dtypes.BoolType
+    _expected_dtype: Final[dtypes.DType] = dtypes.BoolType
 
     def __invert__(self) -> BoolFeature:
         """Performs boolean negation ('~').
@@ -280,7 +280,7 @@ class BoolFeature(PrimitiveFeature[dtypes.BoolType]):
 class StringFeature(PrimitiveFeature[dtypes.StringType]):
     """A primitive feature representing a string value."""
 
-    _expected_dtype: Final[dtypes.Type] = dtypes.StringType
+    _expected_dtype: Final[dtypes.DType] = dtypes.StringType
 
     def __add__(self, other: Any) -> StringFeature:
         """Performs string concatenation ('+').
@@ -645,7 +645,7 @@ class Int8Feature(
 ):
     """A primitive feature representing a signed 8-bit integer."""
 
-    _expected_dtype: Final[dtypes.Type] = dtypes.Int8Type
+    _expected_dtype: Final[dtypes.DType] = dtypes.Int8Type
 
     def __abs__(self) -> Int8Feature:
         """Performs the absolute value operation ('abs').
@@ -1017,7 +1017,7 @@ class Int16Feature(
 ):
     """A primitive feature representing a signed 16-bit integer."""
 
-    _expected_dtype: Final[dtypes.Type] = dtypes.Int16Type
+    _expected_dtype: Final[dtypes.DType] = dtypes.Int16Type
 
     def __abs__(self) -> Int16Feature:
         """Performs the absolute value operation ('abs').
@@ -1389,7 +1389,7 @@ class Int32Feature(
 ):
     """A primitive feature representing a signed 32-bit integer."""
 
-    _expected_dtype: Final[dtypes.Type] = dtypes.Int32Type
+    _expected_dtype: Final[dtypes.DType] = dtypes.Int32Type
 
     def __abs__(self) -> Int32Feature:
         """Performs the absolute value operation ('abs').
@@ -1763,7 +1763,7 @@ class Int64Feature(
 ):
     """A primitive feature representing a signed 64-bit integer."""
 
-    _expected_dtype: Final[dtypes.Type] = dtypes.Int64Type
+    _expected_dtype: Final[dtypes.DType] = dtypes.Int64Type
 
     def __abs__(self) -> Int64Feature:
         """Performs the absolute value operation ('abs').
@@ -2135,7 +2135,7 @@ class UInt8Feature(
 ):
     """A primitive feature representing an unsigned 8-bit integer."""
 
-    _expected_dtype: Final[dtypes.Type] = dtypes.UInt8Type
+    _expected_dtype: Final[dtypes.DType] = dtypes.UInt8Type
 
     def __abs__(self) -> UInt8Feature:
         """Performs the absolute value operation ('abs').
@@ -2507,7 +2507,7 @@ class UInt16Feature(
 ):
     """A primitive feature representing an unsigned 16-bit integer."""
 
-    _expected_dtype: Final[dtypes.Type] = dtypes.UInt16Type
+    _expected_dtype: Final[dtypes.DType] = dtypes.UInt16Type
 
     def __abs__(self) -> UInt16Feature:
         """Performs the absolute value operation ('abs').
@@ -2879,7 +2879,7 @@ class UInt32Feature(
 ):
     """A primitive feature representing an unsigned 32-bit integer."""
 
-    _expected_dtype: Final[dtypes.Type] = dtypes.UInt32Type
+    _expected_dtype: Final[dtypes.DType] = dtypes.UInt32Type
 
     def __abs__(self) -> UInt32Feature:
         """Performs the absolute value operation ('abs').
@@ -3251,7 +3251,7 @@ class UInt64Feature(
 ):
     """A primitive feature representing an unsigned 64-bit integer."""
 
-    _expected_dtype: Final[dtypes.Type] = dtypes.UInt64Type
+    _expected_dtype: Final[dtypes.DType] = dtypes.UInt64Type
 
     def __abs__(self) -> UInt64Feature:
         """Performs the absolute value operation ('abs').
@@ -3623,7 +3623,7 @@ class Float32Feature(
 ):
     """A primitive feature representing a 32-bit floating-point number."""
 
-    _expected_dtype: Final[dtypes.Type] = dtypes.Float32Type
+    _expected_dtype: Final[dtypes.DType] = dtypes.Float32Type
 
     def mean(self) -> Float32Feature:
         """Calculates the mean (average) of the feature's values.
@@ -3858,7 +3858,7 @@ class Float64Feature(
 ):
     """A primitive feature representing a 64-bit floating-point number."""
 
-    _expected_dtype: Final[dtypes.Type] = dtypes.Float64Type
+    _expected_dtype: Final[dtypes.DType] = dtypes.Float64Type
 
     def __abs__(self) -> Float64Feature:
         """Performs the absolute value operation ('abs').
@@ -4868,7 +4868,7 @@ PRIMITIVE_FEATURE_MAPPING = {
 
 
 def build_feature_from_reference(
-    ref: BaseReference, fallback_dtype: None | dtypes.Type = None
+    ref: BaseReference, fallback_dtype: None | dtypes.DType = None
 ) -> Feature:
     """Build a feature from a given reference.
 
@@ -4877,7 +4877,7 @@ def build_feature_from_reference(
 
     Args:
         ref (BaseReference): The reference to the feature being created.
-        fallback_dtype (None | dtypes.Type): The fallback dtype used in case the dtype
+        fallback_dtype (None | dtypes.DType): The fallback dtype used in case the dtype
             cannot be inferred from the reference.
 
     Returns:
@@ -4910,7 +4910,7 @@ def build_feature_from_reference(
 
 def build_feature_from_annotation(
     annotation: Any,
-    typevar_mapping: dict[TypeVar, dtypes.Type] = {},
+    typevar_mapping: dict[TypeVar, dtypes.DType] = {},
     session: ValidationSession = ValidationSession(),
     context: dict[str, Any] = {"config": None},
 ) -> Feature:
@@ -4928,7 +4928,7 @@ def build_feature_from_annotation(
     Args:
         annotation (Any): The annotation that describes the feature's type, which can
             include type parameters or type variables.
-        typevar_mapping (dict[TypeVar, types.Type]): A mapping that associates
+        typevar_mapping (dict[TypeVar, types.DType]): A mapping that associates
             type variables with their corresponding types. Defaults to an empty dictionary.
         session (ValidationSession): The validation session.
         context (dict[str, Any]): A context dictionary that can provide additional
@@ -4940,7 +4940,7 @@ def build_feature_from_annotation(
     """
 
     def maybe_build_feature_from_reference(
-        inst: Feature | BaseReference, dtype: dtypes.Type
+        inst: Feature | BaseReference, dtype: dtypes.DType
     ) -> Feature:
         return (
             inst
@@ -4969,7 +4969,7 @@ def build_feature_from_annotation(
     if hasattr(builder, "__parameters__"):
         # lookup typevars in return annotation
         resolved_dtypes = [typevar_mapping[t] for t in builder.__parameters__]
-        assert all(isinstance(dtype, dtypes.Type) for dtype in resolved_dtypes)
+        assert all(isinstance(dtype, dtypes.DType) for dtype in resolved_dtypes)
         # create a feature annotation for each typevar
         # which resolves to the corresponding feature type
         features = [

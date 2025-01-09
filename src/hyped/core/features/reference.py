@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from ..abstract import AbstractDataFlowGraph
-from .dtypes import Type
+from .dtypes import DType
 
 NodeId: typing.TypeAlias = str
 """
@@ -34,11 +34,11 @@ class BaseReference(ABC):
     """
 
     @abstractmethod
-    def get_dtype(self) -> None | Type:
+    def get_dtype(self) -> None | DType:
         """Retrieve the data type associated with the reference.
 
         Returns:
-            Type: The data type corresponding to the reference.
+            DType: The data type corresponding to the reference.
         """
         ...
 
@@ -52,18 +52,18 @@ class ForwardReference(BaseReference):
     at a later stage in the graph construction process.
     """
 
-    dtype: Type | None = None
+    dtype: DType | None = None
     """The data type associated with the forward reference.
 
     Defaults to :code:`None` indicating that the data type of the referenced feature is not
     clear yet.
     """
 
-    def get_dtype(self) -> None | Type:
+    def get_dtype(self) -> None | DType:
         """Retrieve the data type associated with the forward reference.
 
         Returns:
-            None | Type: The data type corresponding to the forward reference.
+            None | DType: The data type corresponding to the forward reference.
         """
         return self.dtype
 
@@ -82,12 +82,12 @@ class ConcreteReference(BaseReference):
     _graph: AbstractDataFlowGraph
     """The data flow graph that contains the node."""
 
-    def get_dtype(self) -> Type:
+    def get_dtype(self) -> DType:
         """Retrieve the data type associated with the node referenced by this object.
 
         The data type is determined by querying the associated graph.
 
         Returns:
-            Type: The data type corresponding to the node.
+            DType: The data type corresponding to the node.
         """
         return self._graph.get_dtype_from_reference(self)

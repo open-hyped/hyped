@@ -4,11 +4,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from hyped.core.features.dtypes import (
+    DType,
     Float32Type,
     Int32Type,
     Int64Type,
     StringType,
-    Type,
     UInt8Type,
 )
 from hyped.core.features.features import Feature
@@ -47,7 +47,7 @@ from hyped.core.typing import Float, Float64, Int, UInt
     ],
 )
 @patch("hyped.core.ops.numeric.build_feature_from_reference", MagicMock())
-def test_add_constant(val: Any, candidate_dtype: Type, expected_dtype: Type) -> None:
+def test_add_constant(val: Any, candidate_dtype: DType, expected_dtype: DType) -> None:
     graph = MagicMock()
     # Call the add_constant function
     add_constant(val, candidate_dtype, graph)

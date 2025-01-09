@@ -1,4 +1,4 @@
-"""Data Type System Module.
+"""Data Type (DType) System Module.
 
 This module defines a comprehensive type system for representing data types used in a structured
 framework. It includes abstractions for primitive types as well as nested structures including
@@ -20,7 +20,7 @@ from pydantic_core import core_schema
 
 
 @dataclass(eq=True, frozen=True)
-class Type(ABC):
+class DType(ABC):
     """Abstract base class for types in the system.
 
     This class provides the foundation for defining types within the system.
@@ -86,7 +86,7 @@ class Type(ABC):
 
     @classmethod
     @abstractmethod
-    def from_dict(cls, data: dict) -> Type:
+    def from_dict(cls, data: dict) -> DType:
         """Constructs an object from its dictionary representation.
 
         Subclasses must implement this method to enable deserialization
@@ -96,13 +96,13 @@ class Type(ABC):
             data (dict): The dictionary representation of the object.
 
         Returns:
-            Type: An instance of the type reconstructed from the dictionary.
+            DType: An instance of the type reconstructed from the dictionary.
         """
         ...
 
 
 @dataclass(eq=True, frozen=True)
-class PrimitiveType(Type):
+class PrimitiveType(DType):
     """Represents a primitive type in the typing system.
 
     A primitive type corresponds directly to a PyArrow primitive data type such as
@@ -215,7 +215,7 @@ Float32Type = PrimitiveType(pa.float32())
 Float64Type = PrimitiveType(pa.float64())
 """64-bit floating point type."""
 
-ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING: dict[str, Type] = {
+ARROW_SCALAR_TYPE_TO_DTYPE_MAPPING: dict[str, DType] = {
     str(BoolType.arrow_type): BoolType,
     str(StringType.arrow_type): StringType,
     str(Int8Type.arrow_type): Int8Type,
@@ -312,10 +312,10 @@ class ClassLabelType(PrimitiveType):
 
 
 @dataclass(eq=True, frozen=True)
-class SequenceType(Type, typing.Sequence):
+class SequenceType(DType, typing.Sequence):
     """Represents a sequence type in the typing system."""
 
-    value_type: Type
+    value_type: DType
     """The type of elements within the sequence."""
 
     length: int = UNDEFINED_SEQUENCE_LENGTH
@@ -379,21 +379,21 @@ class SequenceType(Type, typing.Sequence):
         return self.length
 
     @typing.overload
-    def __getitem__(self, index: int) -> Type:
+    def __getitem__(self, index: int) -> DType:
         ...
 
     @typing.overload
     def __getitem__(self, index: slice) -> SequenceType:
         ...
 
-    def __getitem__(self, index: int | slice) -> Type:
+    def __getitem__(self, index: int | slice) -> DType:
         """Accesses an element or a subsequence of the sequence.
 
         Args:
             index (int | slice): The index or slice to access.
 
         Returns:
-            Type | SequenceType: The element type at the given index, or a new
+            DType | SequenceType: The element type at the given index, or a new
             :class:`SequenceType` representing the subsequence.
 
         Raises:
@@ -469,13 +469,13 @@ class SequenceType(Type, typing.Sequence):
 
 
 @dataclass(eq=True, frozen=True)
-class MappingType(Type, typing.Mapping[str, Type]):
+class MappingType(DType, typing.Mapping[str, DType]):
     """Represents a mapping type in the typing system.
 
     This type associates field names with their corresponding types.
     """
 
-    fields: tuple[tuple[str, Type]]
+    fields: tuple[tuple[str, DType]]
     """The fields in the mapping, represented as a tuple of key-type pairs."""
 
     @property
@@ -525,14 +525,14 @@ class MappingType(Type, typing.Mapping[str, Type]):
         """
         return (key for key, _ in self.fields)
 
-    def __getitem__(self, key: str) -> Type:
+    def __getitem__(self, key: str) -> DType:
         """Gets the type associated with a key in the mapping.
 
         Args:
             key (str): The key to look up.
 
         Returns:
-            Type: The type associated with the key.
+            DType: The type associated with the key.
 
         Raises:
             KeyError: If the key is not present in the mapping.
@@ -555,11 +555,11 @@ class MappingType(Type, typing.Mapping[str, Type]):
         return dict(self.fields) == dict(other.fields)
 
     @classmethod
-    def construct(cls, fields: dict[str, Type]) -> MappingType:
+    def construct(cls, fields: dict[str, DType]) -> MappingType:
         """Creates a :class:`MappingType` instance from a dictionary of fields.
 
         Args:
-            fields (dict[str, Type]): A dictionary mapping keys to their types.
+            fields (dict[str, DType]): A dictionary mapping keys to their types.
 
         Returns:
             MappingType: A new :class:`MappingType` instance.
@@ -608,21 +608,21 @@ class MappingType(Type, typing.Mapping[str, Type]):
         )
 
 
-def build_type_from_dict(data: dict) -> Type:
-    """Constructs a Type instance from a dictionary.
+def build_type_from_dict(data: dict) -> DType:
+    """Constructs a DType instance from a dictionary.
 
     This function determines the type of the serialized data and calls the appropriate
-    `from_dict` method to reconstruct the corresponding `Type` instance.
+    `from_dict` method to reconstruct the corresponding `DType` instance.
 
     Args:
-        data (dict): A dictionary representing the serialized form of a Type,
+        data (dict): A dictionary representing the serialized form of a DType,
                      containing a "type" field.
 
     Returns:
-        Type: An instance of the appropriate Type subclass.
+        DType: An instance of the appropriate DType subclass.
 
     Raises:
-        ValueError: If the "type" field does not correspond to a recognized Type subclass.
+        ValueError: If the "type" field does not correspond to a recognized DType subclass.
     """
     if data["type"] == "ClassLabelType":
         return ClassLabelType.from_dict(data)
@@ -636,14 +636,14 @@ def build_type_from_dict(data: dict) -> Type:
     raise ValueError(f"Unknown type for deserialization: {data['type']}")  # pragma: not covered
 
 
-def build_dtype_from_arrow_type(arrow_type: pa.DataType) -> Type:
+def build_dtype_from_arrow_type(arrow_type: pa.DataType) -> DType:
     """Build a data type from a given Arrow type.
 
     Arguments:
         arrow_type (pa.DataType): The Arrow type to convert.
 
     Returns:
-        Type: The corresponding data type.
+        DType: The corresponding data type.
 
     Raises:
         TypeError: If the Arrow type is unsupported.
@@ -673,14 +673,14 @@ def build_dtype_from_arrow_type(arrow_type: pa.DataType) -> Type:
     raise TypeError(f"Unsupported type: {arrow_type}")
 
 
-def build_dtype_from_hf_feature(feature: FeatureType) -> Type:
+def build_dtype_from_hf_feature(feature: FeatureType) -> DType:
     """Build a data type from a given Hugging Face feature.
 
     Arguments:
         feature (FeatureType): The Hugging Face feature to convert.
 
     Returns:
-        Type: The corresponding data type.
+        DType: The corresponding data type.
 
     Raises:
         TypeError: If the feature type is unsupported.
@@ -708,7 +708,7 @@ def build_dtype_from_hf_feature(feature: FeatureType) -> Type:
     raise TypeError(f"Unsupported feature: {feature}")
 
 
-PYTHON_PRIMITIVE_TO_DTYPE_MAPPING: dict[type, Type] = {
+PYTHON_PRIMITIVE_TO_DTYPE_MAPPING: dict[type, DType] = {
     bool: BoolType,
     str: StringType,
     int: Int32Type,
@@ -716,14 +716,14 @@ PYTHON_PRIMITIVE_TO_DTYPE_MAPPING: dict[type, Type] = {
 }
 
 
-def build_dtype_from_python_object(obj: Any) -> Type:
+def build_dtype_from_python_object(obj: Any) -> DType:
     """Build a data type from a Python object.
 
     Arguments:
         obj (Any): The object to derive the data type from.
 
     Returns:
-        Type: The corresponding data type.
+        DType: The corresponding data type.
 
     Raises:
         TypeError: If the object type is unsupported.
@@ -751,12 +751,12 @@ def build_dtype_from_python_object(obj: Any) -> Type:
     raise TypeError(f"Unsupported object: {obj}")
 
 
-def is_dtype_subset(dtype_a: Type, dtype_b: Type) -> bool:
+def is_dtype_subset(dtype_a: DType, dtype_b: DType) -> bool:
     """Recursively checks if dtype_a is a subset of dtype_b.
 
     Arguments:
-        dtype_a (Type): The type that should be a subset.
-        dtype_b (Type): The type that should be a superset.
+        dtype_a (DType): The type that should be a subset.
+        dtype_b (DType): The type that should be a superset.
 
     Returns:
         bool: True if dtype_a is a subset of dtype_b, False otherwise.
@@ -775,7 +775,7 @@ def is_dtype_subset(dtype_a: Type, dtype_b: Type) -> bool:
     return dtype_a == dtype_b
 
 
-def cast_dtype(src_dtype: Type, tgt_dtype: Type) -> Type:
+def cast_dtype(src_dtype: DType, tgt_dtype: DType) -> DType:
     """Perform type casting of a source to a target data type.
 
     This function attempts to cast a source data type (:code:`src_dtype`) to a target data type
@@ -806,11 +806,11 @@ def cast_dtype(src_dtype: Type, tgt_dtype: Type) -> Type:
         # MappingType.construct({"field": Int64Type, "other": BoolType})
 
     Args:
-        src_dtype (Type): The source data type.
-        tgt_dtype (Type): The target data type.
+        src_dtype (DType): The source data type.
+        tgt_dtype (DType): The target data type.
 
     Returns:
-        Type: The resulting data type after a successful cast.
+        DType: The resulting data type after a successful cast.
 
     Raises:
         RuntimeError: If the casting operation is not feasible due to type
@@ -869,7 +869,7 @@ def cast_dtype(src_dtype: Type, tgt_dtype: Type) -> Type:
     )
 
 
-def common_dtype(*dtypes: Type) -> Type:
+def common_dtype(*dtypes: DType) -> DType:
     """Determine the common dtype for a set of input dtypes.
 
     This function identifies a dtype to which all input dtypes can be cast
@@ -877,11 +877,11 @@ def common_dtype(*dtypes: Type) -> Type:
     It supports primitive types, sequences, and mappings.
 
     Args:
-        dtypes (Type): The input dtypes to compare. These can be :class:`PrimitiveType`,
+        dtypes (DType): The input dtypes to compare. These can be :class:`PrimitiveType`,
             :class:`SequenceType`, or :class:`MappingType` objects.
 
     Returns:
-        Type: The common dtype that can represent all input dtypes.
+        DType: The common dtype that can represent all input dtypes.
 
     Raises:
         AssertionError: If no dtypes are provided or the dtypes cannot be combined.

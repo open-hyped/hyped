@@ -13,6 +13,7 @@ from hyped.core.features.dtypes import (
     UNDEFINED_SEQUENCE_LENGTH,
     BoolType,
     ClassLabelType,
+    DType,
     Float32Type,
     Float64Type,
     Int8Type,
@@ -22,7 +23,6 @@ from hyped.core.features.dtypes import (
     MappingType,
     SequenceType,
     StringType,
-    Type,
     UInt8Type,
     UInt16Type,
     UInt32Type,
@@ -7632,7 +7632,7 @@ class TestMappingFeature:
         (MappingType(tuple()), MappingFeature),
     ],
 )
-def test_build_feature_from_reference(dtype: Type, expected_feature_type: type[Feature]) -> None:
+def test_build_feature_from_reference(dtype: DType, expected_feature_type: type[Feature]) -> None:
     assert isinstance(build_feature_from_reference(ForwardReference(dtype)), expected_feature_type)
     # type error on invalid data type
     with pytest.raises(TypeError):
@@ -7662,7 +7662,7 @@ def test_build_feature_from_reference(dtype: Type, expected_feature_type: type[F
         (int | Int32Feature, Int32Type),
     ],
 )
-def test_build_feature_from_annotation(annotation: Any, expected_dtype: Type) -> None:
+def test_build_feature_from_annotation(annotation: Any, expected_dtype: DType) -> None:
     feature = build_feature_from_annotation(annotation)
     assert isinstance(feature, Feature)
     assert feature.dtype == expected_dtype
