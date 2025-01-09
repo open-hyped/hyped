@@ -1149,13 +1149,14 @@ class ExecutableDataFlow(AbstractDataFlow):
             worker_info = get_worker_info()
             rank = 0 if worker_info is None else worker_info.rank
 
-        # create a new event loop to execute the flow in
-        loop = asyncio.new_event_loop()
+        # get or create an event loop to execute the flow in
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
         # schedule the execution for the current batch
         future = self._instance_executor.execute(batch.to_struct_array(), index, rank)
         out = loop.run_until_complete(future)
-        # close the event loop
-        loop.close()
 
         return pa.table(out, schema=self._collect_feature.dtype.arrow_schema)
 
