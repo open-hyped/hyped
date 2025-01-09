@@ -13,11 +13,11 @@ Hyped aims to offer an intuitive high-level interface for defining and executing
 ## Features
 
 - **Seamless Integration with Hugging Face Datasets**: Utilize the extensive collection of datasets available through [HuggingFace](https://huggingface.co/docs/datasets/en/index) with ease. Hyped handles data loading and preprocessing using HuggingFace's powerful tools.
-- **Flexible Data Processing**: Define complex data processing workflows by linking data processors in a DAG. Hyped comes with a set of general-purpose processors out of the box, allowing for a wide range of transformations and manipulations on your data.
-- **Configurable Data Processors**: Each data processor in Hyped is fully configurable, allowing users to fine-tune their behavior according to specific requirements. This flexibility enables users to customize data processing workflows and adapt them to different use cases seamlessly.
+- **Flexible Data Processing**: Define complex data processing workflows by linking data processors in a DAG. Each data processor in Hyped is fully configurable, allowing users to fine-tune their behavior according to specific requirements. Hyped comes with a set of general-purpose processors out of the box, allowing for a wide range of transformations and manipulations on your data.
+- **Modular Design**: Break down complex workflows into reusable components, improving code readability and maintainability. Hyped’s modular approach allows for the creation of clear and organized data processing pipelines. By designing data processors as reusable components, you can easily repurpose them across different pipelines, reducing redundancy and fostering efficient development practices.
 - **Custom Processor Support**: Implement custom data processors tailored to your specific requirements. Whether you need to apply domain-specific transformations or integrate with external libraries, Hyped provides the flexibility to extend its functionality as needed.
-- **Efficient Execution**: Execute your data pipelines efficiently, whether you're working with small datasets or processing large volumes of data. Hyped supports multiprocessing and data streaming out of the box, enabling efficient utilization of computational resources and avoiding memory limitations when processing large datasets.
-- **Scalability**: Hyped provides scalability to handle diverse workload demands, allowing you to seamlessly scale your data processing tasks as needed. Whether you're processing small datasets on a single machine or dealing with large volumes of data across distributed computing environments, Hyped adapts to your workload requirements, ensuring efficient execution and resource utilization.
+- **Efficient Execution**: Execute your data pipelines efficiently, whether you’re working with small datasets or processing large volumes of data. Hyped supports multiprocessing and data streaming out of the box, enabling efficient utilization of computational resources and avoiding memory limitations when processing large datasets.
+- **Scalability**: Hyped provides scalability to handle diverse workload demands, allowing you to seamlessly scale your data processing tasks as needed. Whether you’re processing small datasets on a single machine or dealing with large volumes of data across distributed computing environments, Hyped adapts to your workload requirements, ensuring efficient execution and resource utilization.
 
 ## Getting Started
 
@@ -50,14 +50,15 @@ Now you're ready to start using Hyped for managing and executing your data pipel
 
 ### Usage
 
-Start by importing the necessary modules and classes:
+Start by importing the necessary modules and classes. Note that the following example also requires the [hyped-extensions-nlp](https://github.com/open-hyped/hyped-extensions-nlp) extension:
+
 ```python
 import datasets
 from hyped import DataFlow
-from hyped.processors import TransformersTokenizer
+from hyped.extensions.nlp import TransformersTokenizer
 ```
 
-Next, load your dataset using the datasets library. In this example, we load the IMDb dataset:
+Next, load your dataset using the datasets library. In this example, we load the `IMDb` dataset:
 
 ```python
 ds = datasets.load_dataset("imdb", split="test")
@@ -69,7 +70,7 @@ With the dataset features available we can create a data flow instance:
 flow = DataFlow(features=ds.features)
 ```
 
-Now we can add processing steps by calling data processors on the features. In this example we add a tokenizer processor to tokenize the text input feature using a BERT tokenizer:
+Now we can add processing steps by calling data processors on the features. In this example we add a tokenizer processor to tokenize the text input feature using a `BERT` tokenizer:
 
 ```python
 tokenizer = TransformersTokenizer(tokenizer="bert-base-uncased")
@@ -84,49 +85,8 @@ ds, _ = flow.apply(ds, collect=tokenized_features)
 
 Now, your dataset has been processed according to the defined pipeline, and you can proceed with further analysis or downstream tasks in your application.
 
-For more examples and advanced usage scenarios, check out the [Hyped examples](https://github.com/open-hyped/examples) repository.
+For more examples and advanced usage scenarios, check out the [Tutorials](https://open-hyped.github.io/hyped/tutorials.html).
 
-## Configuration
-
-Hyped provides various configuration options that allow users to customize the behavior of the framework. Below are some of the key configuration options and how you can use them:
-
-### 1. Processor Configuration
-
-Each data processor in Hyped can be configured with specific parameters to tailor its behavior. For example, when using the `TransformersTokenizer`, you can specify the tokenizer model to use, the maximum sequence length, and other tokenizer-specific settings.
-
-```python
-config = TransformersTokenizer.Config(
-    tokenizer="bert-base-uncased",
-    max_length=128,
-    padding=True,
-    truncation=True
-)
-```
-
-### 2. Multiprocessing and Batch Processing
-
-Hyped supports data parallel multiprocessing to utilize multiple CPU cores for faster data processing. You can configure the number of processes to use and other multiprocessing options based on your system's specifications. Additionally, batch processing allows you to process data in batches, which can further improve performance and memory efficiency.
-
-```python
-ds, _ = pipe.apply(ds, num_proc=4, batch_size=32)
-```
-
-### 3. Data Streaming
-
-Hyped supports streaming data directly from and to disk, enabling efficient processing of large datasets that may not fit into memory. You can stream datasets using lazy processing, where examples are only processed when accessed.
-
-```python
-from hyped.io.writers.json import JsonDatasetWriter
-
-# Load dataset with streaming enabled
-ds = datasets.load_dataset("imdb", split="train", streaming=True)
-
-# Apply data pipeline (lazy processing for streamed datasets)
-ds, _ = flow.apply(ds)
-
-# Write processed examples to disk using 4 worker processes
-JsonDatasetWriter("dump/", num_proc=4).write(ds)
-```
 
 ## Running Tests
 
@@ -136,13 +96,19 @@ Hyped includes a suite of tests to ensure its functionality. You can run these t
 pytest tests
 ```
 
-Ensure that you have pytest installed in your environment. You can install it via pip:
+Ensure that you have pytest and the required testing packages installed in your environment. You can install them via pip:
 
 ```bash
-pip install pytest
+pip install hyped[tests]
 ```
 
 Running the tests will execute various test cases to validate the behavior of Hyped.
+
+If you want to include integration tests during your test runs, you can use the following command:
+
+```bash
+pytest tests --with-integration
+```
 
 ## Contribution Guidelines
 

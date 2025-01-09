@@ -16,16 +16,13 @@ authors = [
 requires-python = ">=3.10"
 license = {text = "Apache 2.0"}
 dependencies = [
-    "dill>=0.3.8",
-    "datasets>=3.0.0",
+    "datasets>=3.2.0",
     "fsspec<=2023.9.2",
-    "transformers>=4.36.2",
-    "networkx>=3.1",
+    "networkx>=3.4.2",
     "matplotlib>=3.8.2",
-    "pydantic>=2.6.4",
+    "pydantic>=2.10.4",
     "nest-asyncio>=1.6.0",
-    "scikit-learn>=1.5.1",
-    "aiofiles>=24.1.0"
+    "pyarrow!=18.0.0,!=18.1.0"  # bug in pyarrow 18.0.0 and 18.1.0
 ]
 
 [project.optional-dependencies]
@@ -34,12 +31,9 @@ tests = [
     "pytest",
     "pytest-cov",
     "pytest-asyncio",
-    "sharedmock@git+https://github.com/ScriptingSquirrel/python-sharedmock.git"
+    "pytest-integration",
 ]
-docs = ["sphinx", "sphinx_rtd_theme"]
-cas = ["dkpro-cassis>=0.8.0"]
-llm = ["openai>=1.23.6"]
-torch = ["torch>=2.2.1"]
+docs = ["sphinx", "furo", "nbsphinx", "nbsphinx-link"]
 
 [build-system]
 requires = ["setuptools >= 61.0.0", "setuptools_scm>=8.0.0"]
@@ -80,7 +74,7 @@ exclude_also = [
 version_file = "src/hyped/__version__.py"
 
 [tool.black]
-target-version = ["py311"]
+target-version = ["py310"]
 line-length = 100
 docstring-style = "google"
 
@@ -91,12 +85,13 @@ skip = ["docs/source/conf.py"]
 
 [tool.ruff]
 line-length = 100
-ignore = ["E741"]
+ignore = ["E741", "B028", "B006", "B008", "B023"]
+select = ["D", "E", "F", "W", "N", "B", "T"]
 
 [tool.ruff.pydocstyle]
 convention = "google"
 
 [tool.ruff.per-file-ignores]
 # Don't check docstrings of `tests` and `docs`
-"tests/**" = ["D"]
+"tests/**" = ["D", "N"]
 "docs/**" = ["D"]

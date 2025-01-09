@@ -4,7 +4,7 @@ from hyped.common._generic import _get_typevar_index, solve_typevar
 
 
 class TestResolveTypeVar:
-    def test_get_typevar_index(self):
+    def test_get_typevar_index(self) -> None:
         class A:
             pass
 
@@ -22,7 +22,7 @@ class TestResolveTypeVar:
         assert _get_typevar_index(C, U) == 1
         assert _get_typevar_index(C, V) == 2
 
-    def test_solve_typevar_unset(self):
+    def test_solve_typevar_unset(self) -> None:
         T = TypeVar("T")
 
         class A(Generic[T]):
@@ -30,7 +30,15 @@ class TestResolveTypeVar:
 
         assert solve_typevar(A, T) is None
 
-    def test_solve_typevar_easy(self):
+    def test_solve_typevar_fallback_to_bound(self) -> None:
+        T = TypeVar("T", bound=int)
+
+        class A(Generic[T]):
+            pass
+
+        assert solve_typevar(A, T) is int
+
+    def test_solve_typevar_easy(self) -> None:
         T = TypeVar("T")
 
         class A:
@@ -44,7 +52,7 @@ class TestResolveTypeVar:
 
         assert solve_typevar(C, T) == A
 
-    def test_solve_typevar_deep(self):
+    def test_solve_typevar_deep(self) -> None:
         T = TypeVar("T")
         U = TypeVar("U")
         V = TypeVar("V")
@@ -86,7 +94,7 @@ class TestResolveTypeVar:
         # resilve V
         assert solve_typevar(H, V) == G
 
-    def test_solve_typevar_chain(self):
+    def test_solve_typevar_chain(self) -> None:
         T = TypeVar("T")
         U = TypeVar("U")
         V = TypeVar("V")

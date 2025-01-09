@@ -1,137 +1,55 @@
 """Pydantic helper functionality."""
-import datetime
-from functools import partial
+from typing import TypeVar
 
-import datasets
 import pydantic
-from pydantic._internal._model_construction import ModelMetaclass
-from pydantic.fields import Field
-from typing_extensions import Annotated, dataclass_transform
-
-# map datasets value dtype to
-DATASETS_VALUE_TYPE_MAPPING = {
-    "bool": bool,
-    "int8": int,
-    "int16": int,
-    "int32": int,
-    "int64": int,
-    "uint8": int,
-    "uint16": int,
-    "uint32": int,
-    "uint64": int,
-    "float16": float,
-    "float32": float,
-    "float64": float,
-    "string": str,
-    "large_string": str,
-    "date32": datetime.datetime,
-    "date64": datetime.datetime,
-    "time32": datetime.time,
-    "time64": datetime.time,
-}
+from pydantic.type_adapter import _type_has_config
 
 
-def _class_label_validator(
-    v: str | int | None,
-    info: pydantic.ValidationInfo,
-    feature: datasets.ClassLabel,
-) -> int | None:
-    """Class Label validator.
+class BaseModelWithArbitraryTypesAllowed(pydantic.BaseModel):
+    """A Pydantic base model that allows arbitrary types for fields.
 
-    Converts string labels to their integer representations.
+    This base model sets :code:`arbitrary_types_allowed` to :code:`True` in
+    the configuration, enabling fields to accept custom or non-Pydantic types
+    without explicit type validation.
+    """
 
-    Arguments:
-        v (str | int | None): value to validate
-        info (pydantic.ValidationInfo): validation info
-        feature (datasets.ClassLabel): class label feature
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
+
+
+T = TypeVar("T")
+
+
+def TypeAdapterWithArbitraryTypesAllowed(  # noqa: N802
+    type: type[T],
+    *,
+    config: pydantic.ConfigDict | None = None,
+    _parent_depth: int = 2,
+    module: str | None = None,
+) -> pydantic.TypeAdapter[T]:
+    """Creates a Pydantic TypeAdapter with :code:`arbitrary_types_allowed` enabled.
+
+    This function allows for creating :class:`TypeAdapters` that support arbitrary
+    (non-Pydantic) types without explicit validation. If a configuration is provided,
+    it will be updated to include :code:`arbitrary_types_allowed=True`. If no
+    configuration is provided and the type lacks a configuration, a default configuration
+    with `arbitrary_types_allowed=True` is used.
+
+    Args:
+        type (type[T]): The type associated with the :class:`TypeAdapter`.
+        config (pydantic.ConfigDict | None): Configuration for the `TypeAdapter`, should be
+            a dictionary conforming to :class:`pydantic.ConfigDict`.
+        _parent_depth (int): The depth of the parent stack frame for module resolution.
+            Defaults to 2.
+        module (str | None):  The module that passes to plugin if provided.
+            Defaults to :code:`None`.
 
     Returns:
-        validated_v (int | None): validated value
+        pydantic.TypeAdapter[T]: A Pydantic :class:`TypeAdapter` configured to allow arbitrary
+        types.
     """
-    if (v is None) or isinstance(v, int):
-        return v
-    if isinstance(v, str):
-        return feature.str2int(v)
+    if config is None and not _type_has_config(type):
+        config = pydantic.ConfigDict(arbitrary_types_allowed=True)
+    elif config is not None:
+        config["arbitrary_types_allowed"] = True
 
-    raise TypeError("Invalid type for class label feature, expected str or int, got %s" % v)
-
-
-def pydantic_model_from_features(
-    features: datasets.Features,
-) -> pydantic.BaseModel:
-    """Create a pydantic model from dataset features.
-
-    Arguments:
-        features (Features): datasets features to build the pydantic model for
-
-    Returns:
-        model (pydantic.BaseModel):
-            pydantic model matching the structure of the dataset features.
-    """
-    fields = {}
-    for k, field_type in features.items():
-        if isinstance(field_type, datasets.Value):
-            # get data type for the given field
-            dtype = DATASETS_VALUE_TYPE_MAPPING.get(
-                field_type.dtype, field_type.pa_type.to_pandas_dtype()
-            )
-            # set field
-            fields[k] = (
-                dtype | None,
-                None,
-            )
-
-        elif isinstance(field_type, datasets.ClassLabel):
-            fields[k] = (
-                Annotated[
-                    int,
-                    pydantic.BeforeValidator(partial(_class_label_validator, feature=field_type)),
-                ]
-                | None,
-                None,
-            )
-            # fields[k] = (Literal[tuple(field_type.names)] | None, None)
-
-        elif isinstance(field_type, datasets.Sequence):
-            # infer dtype for sequence values
-            dtype = (
-                pydantic_model_from_features({"field": field_type.feature})
-                .model_fields["field"]
-                .annotation
-            )
-            # set field
-            fields[k] = (list[dtype], pydantic.Field(default_factory=list))
-
-        elif isinstance(field_type, (dict, datasets.Features)):
-            model = pydantic_model_from_features(field_type)
-            # set field
-            fields[k] = (
-                model,
-                pydantic.Field(default_factory=model),
-            )
-
-    return pydantic.create_model(
-        "Model",
-        **fields,
-        __config__=pydantic.ConfigDict(arbitrary_types_allowed=True, validate_assignment=True),
-    )
-
-
-@dataclass_transform(kw_only_default=True, field_specifiers=(Field,))
-class validate_type_meta(ModelMetaclass):
-    """Metaclass that calls the classes type_validator before creating the class."""
-
-    def __new__(cls, name, bases, attrs, **kwargs) -> type:
-        """Validates the class and creates it."""
-        T = super().__new__(cls, name, bases, attrs, **kwargs)
-        T.type_validator()
-        return T
-
-
-class BaseModelWithTypeValidation(pydantic.BaseModel, metaclass=validate_type_meta):
-    """BaseModel that validates type annotations before creation of the class."""
-
-    @classmethod
-    def type_validator(cls) -> None:
-        """This validator is called before creation of the class."""
-        pass
+    return pydantic.TypeAdapter(type, config=config, _parent_depth=_parent_depth, module=module)

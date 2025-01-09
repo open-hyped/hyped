@@ -1,0 +1,201 @@
+import json
+from copy import deepcopy
+from typing import TypeVar
+
+import pytest
+
+from hyped.core.registry.config import AutoConfig, AutoConfigurable, BaseConfig, BaseConfigurable
+from hyped.core.registry.registry import default_registry
+
+T = TypeVar("T")
+
+
+@pytest.fixture(autouse=True)
+def _reset_registry():
+    # get registry state before test execution
+    global_hash_register = default_registry.global_hash_register.copy()
+    global_type_register = default_registry.global_type_register.copy()
+    hash_tree = deepcopy(default_registry.hash_tree)
+
+    # execute test
+    yield
+
+    # recover registry state
+    default_registry.global_hash_register = global_hash_register
+    default_registry.global_type_register = global_type_register
+    default_registry.hash_tree = hash_tree
+
+
+class TestBaseConfig:
+    def test_dict_conversion(self):
+        class A(BaseConfig):
+            x: str = ""
+            y: str = ""
+
+        class B(A):
+            z: str = ""
+
+        a = A(x="x", y="y")
+        b = B(x="a", y="b", z="c")
+        # convert to dictionaties
+        a_dict = a.to_dict()
+        b_dict = b.to_dict()
+
+        # test reconstruction from type hash
+        assert a == AutoConfig.from_dict(a_dict)
+        assert b == AutoConfig.from_dict(b_dict)
+
+        # test reconstruction from type identifier
+        a_dict.pop("__type_hash__")
+        b_dict.pop("__type_hash__")
+        assert a == AutoConfig.from_dict(a_dict)
+        assert b == AutoConfig.from_dict(b_dict)
+
+        # test reconstruction by explicit class
+        a_dict.pop("type_id")
+        b_dict.pop("type_id")
+        assert a == A.from_dict(a_dict)
+        assert b == B.from_dict(b_dict)
+
+    def test_serialization(self):
+        class A(BaseConfig):
+            x: str = ""
+            y: str = ""
+
+        class B(A):
+            z: str = ""
+
+        a = A(x="x", y="y")
+        b = B(x="a", y="b", z="c")
+        # convert to dictionaties
+        a_json = a.to_json()
+        b_json = b.to_json()
+
+        # test reconstruction from type hash
+        assert a == AutoConfig.from_json(a_json)
+        assert b == AutoConfig.from_json(b_json)
+
+        # test reconstruction from type identifier
+        a_dict = json.loads(a_json)
+        b_dict = json.loads(b_json)
+        a_dict.pop("__type_hash__")
+        b_dict.pop("__type_hash__")
+        a_json = json.dumps(a_dict)
+        b_json = json.dumps(b_dict)
+        assert a == AutoConfig.from_json(a_json)
+        assert b == AutoConfig.from_json(b_json)
+
+        # test reconstruction by explicit class
+        a_dict.pop("type_id")
+        b_dict.pop("type_id")
+        a_json = json.dumps(a_dict)
+        b_json = json.dumps(b_dict)
+        assert a == A.from_json(a_json)
+        assert b == B.from_json(b_json)
+
+
+class TestBaseConfigurable:
+    def test_init(self):
+        class MockConfig(BaseConfig):
+            x: int
+
+        class MockConfigurable(BaseConfigurable[MockConfig]):
+            pass
+
+        # invalid config type
+        with pytest.raises(TypeError):
+            MockConfigurable(BaseConfig())
+
+        obj = MockConfigurable(MockConfig(x=3))
+        assert obj.config.x == 3
+
+        obj = MockConfigurable(MockConfig(x=3), x=4)
+        assert obj.config.x == 4
+
+        obj = MockConfigurable(x=5)
+        assert obj.config.x == 5
+
+    def test_config_type(self):
+        class aConfig(BaseConfig):
+            pass
+
+        class bConfig(BaseConfig):
+            pass
+
+        class cConfig(bConfig):
+            pass
+
+        class dConfig(bConfig):
+            pass
+
+        class A(BaseConfigurable[aConfig]):
+            pass
+
+        class B(BaseConfigurable[bConfig]):
+            pass
+
+        class C(B):
+            CONFIG_TYPE = cConfig
+
+        class D(C):
+            CONFIG_TYPE = dConfig
+
+        # check config types
+        assert A.config_type == aConfig
+        assert B.config_type == bConfig
+        assert C.config_type == cConfig
+        assert D.config_type == dConfig
+        # check type identifiers
+        assert A.type_id.startswith(aConfig.type_id)
+        assert B.type_id.startswith(bConfig.type_id)
+        assert C.type_id.startswith(cConfig.type_id)
+        assert D.type_id.startswith(dConfig.type_id)
+
+    def test_config_type_error(self):
+        class aConfig(BaseConfig):
+            pass
+
+        class bConfig(BaseConfig):
+            pass
+
+        class A(BaseConfigurable[aConfig]):
+            pass
+
+        # should raise type-error because config doesn't
+        # inherit generic configuration set in supertype
+        with pytest.raises(TypeError):
+
+            class B(A):
+                CONFIG_TYPE = bConfig
+
+    def test_auto_from_config(self):
+        class aConfig(BaseConfig):
+            pass
+
+        class bConfig(BaseConfig):
+            pass
+
+        class A(BaseConfigurable[aConfig]):
+            pass
+
+        class B(BaseConfigurable[bConfig]):
+            pass
+
+        class AutoA(AutoConfigurable[A]):
+            pass
+
+        class AutoB(AutoConfigurable[B]):
+            pass
+
+        # shared auto class
+        assert isinstance(AutoConfigurable.from_config(aConfig()), A)
+        assert isinstance(AutoConfigurable.from_config(bConfig()), B)
+        # non-shared auto class
+        assert isinstance(AutoA.from_config(aConfig()), A)
+        assert isinstance(AutoB.from_config(bConfig()), B)
+        # test target type out of scope
+        with pytest.raises(ValueError):
+            AutoB.from_config(aConfig())
+
+        with pytest.raises(ValueError):
+            AutoA.from_config(bConfig())

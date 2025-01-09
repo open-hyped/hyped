@@ -1,258 +1,384 @@
+from typing import Any, Hashable
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import networkx as nx
 import pytest
-from datasets import Features, Value
 
+from hyped.core.features.dtypes import BoolType as MockType
+from hyped.core.features.dtypes import DType, MappingType
+from hyped.core.features.reference import ConcreteReference
 from hyped.core.graph import DataFlowGraph
-from hyped.core.nodes.const import Const
+from hyped.core.ops.mapping import MappingGetItem
 from hyped.core.optim import DataFlowGraphOptimizer
-from hyped.core.refs.ref import FeatureRef
-from hyped.nodes._ops.collect import CollectFeatures, NestedContainer
 
-from .mock import MockProcessor, mock_input_refs_validator
+from .utils import build_graph
 
 
-def new_graph():
-    # create graph
-    graph = DataFlowGraph()
-    # add source node
-    src_features = Features({"x": Value("int64")})
-    src_node_id = graph.add_source_node(src_features)
-    # return graph and source node id
-    return graph, src_node_id
-
-
-def add_processor(graph, node_A, node_B, **kwargs):
-    # create processor
-    p = MockProcessor(**kwargs)
-    i = mock_input_refs_validator.validate(
-        a=graph.get_node_output_ref(node_A),
-        b=graph.get_node_output_ref(node_B),
+class TestDataFlowGraphOptimizer:
+    @pytest.mark.parametrize(
+        "graph, target_graph",
+        [
+            # simple graph without common sub-expressions
+            (
+                build_graph(
+                    [(0, 1)],
+                    {0: DataFlowGraph.NodeType.SOURCE, 1: DataFlowGraph.NodeType.DATA_PROCESSOR},
+                    {0: "SOURCE", 1: "PROC"},
+                ),
+                build_graph(
+                    [(0, 1)],
+                    {0: DataFlowGraph.NodeType.SOURCE, 1: DataFlowGraph.NodeType.DATA_PROCESSOR},
+                    {0: "SOURCE", 1: "PROC"},
+                ),
+            ),
+            # complex graph without common sub-expression
+            (
+                build_graph(
+                    [(0, 1, "x"), (0, 2, "y")],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        2: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                    },
+                    {0: "SOURCE", 1: "A", 2: "B"},
+                ),
+                build_graph(
+                    [(0, 1, "x"), (0, 2, "y")],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        2: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                    },
+                    {0: "SOURCE", 1: "A", 2: "B"},
+                ),
+            ),
+            # graph with simple common subexpression
+            (
+                build_graph(
+                    [(0, 1, "x"), (0, 2, "x"), (1, 3, "x"), (2, 3, "y")],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        2: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        3: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                    },
+                    {0: "SOURCE", 1: "A", 2: "A", 3: "C"},
+                ),
+                build_graph(
+                    [(0, 1, "x"), (1, 2, "x"), (1, 2, "y")],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        2: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                    },
+                    {0: "SOURCE", 1: "A", 2: "C"},
+                ),
+            ),
+            # graph with common sub-expression chain
+            (
+                build_graph(
+                    [
+                        (0, 1, "x"),
+                        (1, 2, "x"),
+                        (2, 3, "x"),
+                        (0, 4, "x"),
+                        (4, 5, "x"),
+                        (5, 6, "x"),
+                        (3, 7, "a"),
+                        (6, 7, "b"),
+                    ],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        2: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        3: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        4: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        5: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        6: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        7: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                    },
+                    {0: "SOURCE", 1: "A", 2: "B", 3: "C", 4: "A", 5: "B", 6: "C", 7: "OUT"},
+                ),
+                build_graph(
+                    [(0, 1, "x"), (1, 2, "x"), (2, 3, "x"), (3, 4, "a"), (3, 4, "b")],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        2: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        3: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        4: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                    },
+                    {0: "SOURCE", 1: "A", 2: "B", 3: "C", 4: "OUT"},
+                ),
+            ),
+        ],
     )
-    o = p._out_refs_type.build_features(p.config, i)
-    # add new processor to graph
-    return graph.add_processor_node(p, i, o)
+    def test_cse(self, graph: DataFlowGraph, target_graph: DataFlowGraph) -> None:
+        def node_match(
+            n1: dict[DataFlowGraph.NodeAttribute, Any], n2: dict[DataFlowGraph.NodeAttribute, Any]
+        ) -> bool:
+            # make sure the node type and objects match
+            return (
+                n1[DataFlowGraph.NodeAttribute.NODE_TYPE]
+                == n2[DataFlowGraph.NodeAttribute.NODE_TYPE]
+            ) and (
+                n1[DataFlowGraph.NodeAttribute.NODE_OBJ] == n2[DataFlowGraph.NodeAttribute.NODE_OBJ]
+            )
 
+        # apply common subexpression evaluation to the graph
+        # and compare to the target graph
+        optim_graph, _ = DataFlowGraphOptimizer().cse(graph)
+        assert nx.is_isomorphic(optim_graph, target_graph, node_match=node_match)
+        assert optim_graph.src_node_id == graph.src_node_id
 
-def cse_test_cases():
-    test_cases = []
+    @pytest.mark.parametrize(
+        "graph, target_graph, leaf_nodes",
+        [
+            # simple graph without constants
+            (
+                build_graph(
+                    [(0, 1)],
+                    {0: DataFlowGraph.NodeType.SOURCE, 1: DataFlowGraph.NodeType.DATA_PROCESSOR},
+                    {0: "SOURCE", 1: "PROC"},
+                ),
+                build_graph(
+                    [(0, 1)],
+                    {0: DataFlowGraph.NodeType.SOURCE, 1: DataFlowGraph.NodeType.DATA_PROCESSOR},
+                    {0: "SOURCE", 1: "PROC"},
+                ),
+                {1},
+            ),
+            # simple graph without constant expressions to evaluate
+            (
+                build_graph(
+                    [(0, 1, "x"), (2, 1, "y"), (3, 1, "z")],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        2: DataFlowGraph.NodeType.CONST,
+                        3: DataFlowGraph.NodeType.CONST,
+                    },
+                    {0: "SOURCE", 1: "PROC", 2: "A", 3: "B"},
+                ),
+                build_graph(
+                    [(0, 1, "x"), (2, 1, "y"), (3, 1, "z")],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        2: DataFlowGraph.NodeType.CONST,
+                        3: DataFlowGraph.NodeType.CONST,
+                    },
+                    {0: "SOURCE", 1: "PROC", 2: "A", 3: "B"},
+                ),
+                {1},
+            ),
+            # simple graph with constant expression
+            (
+                build_graph(
+                    [(0, 1, "x"), (2, 4, "y"), (3, 4, "z"), (4, 1, "y")],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        2: DataFlowGraph.NodeType.CONST,
+                        3: DataFlowGraph.NodeType.CONST,
+                        4: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                    },
+                    {0: "SOURCE", 1: "PROC", 2: "A", 3: "B", 4: "PROC"},
+                ),
+                build_graph(
+                    [(0, 1, "x"), (2, 1, "y")],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        2: DataFlowGraph.NodeType.CONST,
+                    },
+                    {0: "SOURCE", 1: "PROC", 2: "PROC"},
+                ),
+                {1},
+            ),
+            # graph with constant expression as leaf node
+            (
+                build_graph(
+                    [(0, 1, "x"), (2, 4, "y"), (3, 4, "z")],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        2: DataFlowGraph.NodeType.CONST,
+                        3: DataFlowGraph.NodeType.CONST,
+                        4: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                    },
+                    {0: "SOURCE", 1: "PROC", 2: "A", 3: "B", 4: "PROC"},
+                ),
+                build_graph(
+                    [(0, 1, "x")],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        2: DataFlowGraph.NodeType.CONST,
+                    },
+                    {0: "SOURCE", 1: "PROC", 2: "PROC"},
+                ),
+                {4},
+            ),
+        ],
+    )
+    def test_constant_evaluation(
+        self, graph: DataFlowGraph, target_graph: DataFlowGraph, leaf_nodes: set[Hashable]
+    ) -> None:
+        # this test only checks the morphology but not the actual values of the evaluated constants
+        # however this is done by the data flow executor which is tested in itself
 
-    # create trivial case
-    graph, src_node_id = new_graph()
-    add_processor(graph, src_node_id, src_node_id)
-    test_cases.append((graph, graph))
+        def node_match(
+            n1: dict[DataFlowGraph.NodeAttribute, Any], n2: dict[DataFlowGraph.NodeAttribute, Any]
+        ) -> bool:
+            node_type_1 = n1[DataFlowGraph.NodeAttribute.NODE_TYPE]
+            node_type_2 = n2[DataFlowGraph.NodeAttribute.NODE_TYPE]
+            # for constants only make sure both are constants
+            if node_type_1 == DataFlowGraph.NodeType.CONST:
+                return node_type_1 == node_type_2
+            # for other nodes make sure the node type and objects match
+            return (node_type_1 == node_type_2) and (
+                n1[DataFlowGraph.NodeAttribute.NODE_OBJ] == n2[DataFlowGraph.NodeAttribute.NODE_OBJ]
+            )
 
-    # create simple graph
-    graph, src_node_id = new_graph()
-    add_processor(graph, src_node_id, src_node_id)
-    add_processor(graph, src_node_id, src_node_id)
-    # create target to simple graph
-    target, src_node_id = new_graph()
-    add_processor(target, src_node_id, src_node_id)
-    # add test case
-    test_cases.append((graph, target))
+        with (
+            patch("hyped.core.graph.pa.array"),
+            patch("hyped.core.graph.ConstNode"),
+            patch("hyped.core.optim.DataFlowExecutor.execute", AsyncMock(return_value=MagicMock())),
+        ):
+            # apply constant evaluation to the graph and compare to the target graph
+            optim_graph = DataFlowGraphOptimizer().constant_evaluation(graph, leaf_nodes)
+            assert nx.is_isomorphic(optim_graph, target_graph, node_match=node_match)
 
-    # create slightly more complex graph
-    graph, src_node_id = new_graph()
-    node_id_1 = add_processor(graph, src_node_id, src_node_id)
-    node_id_2 = add_processor(graph, src_node_id, src_node_id)
-    add_processor(graph, node_id_1, node_id_2)
-    # create target to graph
-    target, src_node_id = new_graph()
-    node_id_1 = add_processor(target, src_node_id, src_node_id)
-    add_processor(target, node_id_1, node_id_1)
-    # add test case
-    test_cases.append((graph, target))
+    @pytest.mark.parametrize(
+        "edges_with_keys, src_dtype, accessed_src_dtype",
+        [
+            (
+                [(0, 1, "x"), (0, 2, "y")],
+                MappingType.construct({"x": MockType, "y": MockType}),
+                MappingType.construct({"x": MockType, "y": MockType}),
+            ),
+            (
+                [(0, 1, "x"), (0, 2, "x")],
+                MappingType.construct({"x": MockType, "y": MockType}),
+                MappingType.construct({"x": MockType}),
+            ),
+            (
+                [(0, 1, "y"), (0, 2, "x"), (2, 3, "a")],
+                MappingType.construct(
+                    {"x": MappingType.construct({"a": MockType, "b": MockType}), "y": MockType}
+                ),
+                MappingType.construct({"x": MappingType.construct({"a": MockType}), "y": MockType}),
+            ),
+        ],
+    )
+    def test_accessed_src_dtype_property(
+        self,
+        edges_with_keys: list[tuple[Hashable, Hashable, str]],
+        src_dtype: DType,
+        accessed_src_dtype: DType,
+    ) -> None:
+        graph = DataFlowGraph()
+        graph.add_source_node(src_dtype, 0)
+        # add all edges assuming that all non-source nodes
+        # are get-item nodes
+        for u, v, k in edges_with_keys:
+            graph.add_compute_node(
+                MappingGetItem(key=k), {"mapping": ConcreteReference(u, graph)}, v
+            )
+        # apply accessed fields
+        DataFlowGraphOptimizer().apply_accessed_fields(graph)
+        # check the accessed source data type
+        assert graph.src_dtype == accessed_src_dtype
 
-    # create graph with no redundant nodes
-    graph, src_node_id = new_graph()
-    node_id_1 = add_processor(graph, src_node_id, src_node_id, i=0)
-    node_id_2 = add_processor(graph, src_node_id, src_node_id, i=1)
-    # create target graph
-    target, src_node_id = new_graph()
-    node_id_1 = add_processor(target, src_node_id, src_node_id, i=0)
-    node_id_2 = add_processor(target, src_node_id, src_node_id, i=1)
-    # add test case
-    test_cases.append((graph, target))
+    @pytest.mark.parametrize(
+        "graph, target_graph, leaf_nodes",
+        [
+            # simple graph with nothing to optimize
+            (
+                build_graph(
+                    [(0, 1)],
+                    {0: DataFlowGraph.NodeType.SOURCE, 1: DataFlowGraph.NodeType.DATA_PROCESSOR},
+                    {0: "SOURCE", 1: "PROC"},
+                ),
+                build_graph(
+                    [(0, 1)],
+                    {0: DataFlowGraph.NodeType.SOURCE, 1: DataFlowGraph.NodeType.DATA_PROCESSOR},
+                    {0: "SOURCE", 1: "PROC"},
+                ),
+                {1},
+            ),
+            # graph with simple common subexpression
+            (
+                build_graph(
+                    [(0, 1, "x"), (0, 2, "x"), (1, 3, "x"), (2, 3, "y")],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        2: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        3: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                    },
+                    {0: "SOURCE", 1: "A", 2: "A", 3: "C"},
+                ),
+                build_graph(
+                    [(0, 1, "x"), (1, 2, "x"), (1, 2, "y")],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        2: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                    },
+                    {0: "SOURCE", 1: "A", 2: "C"},
+                ),
+                {3},
+            ),
+            # simple graph with constant expression
+            (
+                build_graph(
+                    [(0, 1, "x"), (2, 4, "y"), (3, 4, "z"), (4, 1, "y")],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        2: DataFlowGraph.NodeType.CONST,
+                        3: DataFlowGraph.NodeType.CONST,
+                        4: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                    },
+                    {0: "SOURCE", 1: "PROC", 2: "A", 3: "B", 4: "PROC"},
+                ),
+                build_graph(
+                    [(0, 1, "x"), (2, 1, "y")],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        2: DataFlowGraph.NodeType.CONST,
+                    },
+                    {0: "SOURCE", 1: "PROC", 2: "PROC"},
+                ),
+                {1},
+            ),
+        ],
+    )
+    def test_optimize(
+        self, graph: DataFlowGraph, target_graph: DataFlowGraph, leaf_nodes: set[Hashable]
+    ) -> None:
+        def node_match(
+            n1: dict[DataFlowGraph.NodeAttribute, Any], n2: dict[DataFlowGraph.NodeAttribute, Any]
+        ) -> bool:
+            node_type_1 = n1[DataFlowGraph.NodeAttribute.NODE_TYPE]
+            node_type_2 = n2[DataFlowGraph.NodeAttribute.NODE_TYPE]
+            # for constants only make sure both are constants
+            if node_type_1 == DataFlowGraph.NodeType.CONST:
+                return node_type_1 == node_type_2
+            # for other nodes make sure the node type and objects match
+            return (node_type_1 == node_type_2) and (
+                n1[DataFlowGraph.NodeAttribute.NODE_OBJ] == n2[DataFlowGraph.NodeAttribute.NODE_OBJ]
+            )
 
-    # create graph with no two branches including redundant nodes
-    graph, src_node_id = new_graph()
-    node_id_1 = add_processor(graph, src_node_id, src_node_id, i=0)
-    node_id_2 = add_processor(graph, src_node_id, node_id_1)
-    node_id_2 = add_processor(graph, src_node_id, node_id_1)
-    add_processor(graph, src_node_id, src_node_id, i=1)
-    # create target graph
-    target, src_node_id = new_graph()
-    node_id_1 = add_processor(target, src_node_id, src_node_id, i=0)
-    node_id_2 = add_processor(target, src_node_id, node_id_1)
-    add_processor(target, src_node_id, src_node_id, i=1)
-    # add test case
-    test_cases.append((graph, target))
-
-    # test constant nodes
-    graph, _ = new_graph()
-    Const(value=0).call(graph)
-    Const(value=0).call(graph)
-    Const(value=1).call(graph)
-    # create target graph
-    target, _ = new_graph()
-    Const(value=0).call(target)
-    Const(value=1).call(target)
-    # add test case
-    test_cases.append((graph, target))
-
-    # test collect nodes
-    graph, _ = new_graph()
-    ref_1 = Const(value=0).call(graph)
-    ref_2 = Const(value=1).call(graph)
-    CollectFeatures().call(collection=NestedContainer[FeatureRef](data={"a": ref_1, "b": ref_2}))
-    CollectFeatures().call(collection=NestedContainer[FeatureRef](data={"a": ref_1, "b": ref_2}))
-    # create target graph
-    target, _ = new_graph()
-    ref_1 = Const(value=0).call(target)
-    ref_2 = Const(value=1).call(target)
-    CollectFeatures().call(collection=NestedContainer[FeatureRef](data={"a": ref_1, "b": ref_2}))
-    # add test case
-    test_cases.append((graph, target))
-
-    return test_cases
-
-
-def constant_evaluation_test_cases():
-    test_cases = []
-
-    graph, src_node_id = new_graph()
-    # add processors
-    node_id_1 = add_processor(graph, src_node_id, src_node_id)
-    node_id_2 = add_processor(graph, src_node_id, src_node_id)
-
-    # no constants to evaluate
-    test_cases.append((graph, graph))
-
-    graph, src_node_id = new_graph()
-    # add a constant
-    const_node_id_1 = Const(value=5).call(graph).node_id_
-    # add processors
-    node_id_1 = add_processor(graph, src_node_id, const_node_id_1)
-    node_id_2 = add_processor(graph, src_node_id, src_node_id)
-
-    # there is a constant but nothing to optimize
-    test_cases.append((graph, graph))
-
-    graph, src_node_id = new_graph()
-    # add a constant
-    const_node_id_1 = Const(value=5).call(graph).node_id_
-    const_node_id_2 = Const(value=5).call(graph).node_id_
-    # add processors
-    node_id_1 = add_processor(graph, const_node_id_1, const_node_id_2)
-    node_id_2 = add_processor(graph, const_node_id_1, const_node_id_2)
-    add_processor(graph, src_node_id, node_id_1)
-    add_processor(graph, src_node_id, node_id_2)
-
-    target, src_node_id = new_graph()
-    # both processor nodes should be evaluated to constant nodes
-    const_node_id_1 = Const(value={"y": 0}).call(target).node_id_
-    const_node_id_2 = Const(value={"y": 0}).call(target).node_id_
-    add_processor(target, src_node_id, const_node_id_1)
-    add_processor(target, src_node_id, const_node_id_2)
-
-    test_cases.append((graph, target))
-
-    graph, src_node_id = new_graph()
-    # add a constant
-    const_node_id_1 = Const(value=5).call(graph).node_id_
-    const_node_id_2 = Const(value=5).call(graph).node_id_
-    # add processors
-    node_id_1 = add_processor(graph, const_node_id_1, const_node_id_2)
-    node_id_2 = add_processor(graph, const_node_id_1, const_node_id_2)
-    node_id_3 = add_processor(graph, node_id_2, node_id_1)
-    node_id_4 = add_processor(graph, src_node_id, src_node_id)
-    add_processor(graph, src_node_id, node_id_3)
-    add_processor(graph, node_id_4, const_node_id_1)
-
-    target, src_node_id = new_graph()
-    # both processor nodes should be evaluated to constant nodes
-    const_node_id_1 = Const(value={"y": 0}).call(target).node_id_  # original node_id_3
-    const_node_id_2 = Const(value={"value": 5}).call(target).node_id_  # original const_node_id_1
-    node_id_4 = add_processor(target, src_node_id, src_node_id)
-    add_processor(target, src_node_id, const_node_id_1)
-    add_processor(target, node_id_4, const_node_id_2)
-
-    test_cases.append((graph, target))
-
-    return test_cases
-
-
-def optimize_test_cases():
-    test_cases = []
-
-    # create trivial case
-    graph, src_node_id = new_graph()
-    node_id_1 = add_processor(graph, src_node_id, src_node_id)
-    test_cases.append((graph, graph, node_id_1))
-
-    # create simple graph
-    graph, src_node_id = new_graph()
-    node_id_1 = add_processor(graph, src_node_id, src_node_id)
-    node_id_2 = add_processor(graph, src_node_id, src_node_id)
-    # create target to simple graph
-    target, src_node_id = new_graph()
-    add_processor(target, src_node_id, src_node_id)
-    # add test case
-    test_cases.append((graph, target, node_id_1))
-    test_cases.append((graph, target, node_id_2))
-
-    # create simple graph
-    graph, src_node_id = new_graph()
-    node_id_1 = add_processor(graph, src_node_id, src_node_id)
-    node_id_2 = add_processor(graph, src_node_id, src_node_id)
-    add_processor(graph, src_node_id, src_node_id)
-    node_id_4 = add_processor(graph, node_id_1, node_id_2)
-    # create target to simple graph
-    target, src_node_id = new_graph()
-    node_id_1 = add_processor(target, src_node_id, src_node_id)
-    node_id_2 = add_processor(target, node_id_1, node_id_1)
-    # add test case
-    test_cases.append((graph, target, node_id_4))
-
-    return test_cases
-
-
-def node_match(n1, n2):
-    node_type_1 = n1[DataFlowGraph.NodeAttribute.NODE_TYPE]
-    node_type_2 = n2[DataFlowGraph.NodeAttribute.NODE_TYPE]
-
-    if node_type_1 != node_type_2:
-        return False
-
-    if node_type_1 == DataFlowGraph.NodeType.CONST:
-        node_obj_1 = n1[DataFlowGraph.NodeAttribute.NODE_OBJ]
-        node_obj_2 = n2[DataFlowGraph.NodeAttribute.NODE_OBJ]
-        return node_obj_1.config.value == node_obj_2.config.value
-
-    return True
-
-
-class TestOptimizer:
-    @pytest.mark.parametrize("graph, target", cse_test_cases())
-    def test_cse(self, graph, target):
-        # apply cse
-        optim = DataFlowGraphOptimizer()
-        cse_graph = optim.cse(graph)
-        # check topology of cse graph
-        assert nx.is_isomorphic(cse_graph, target, node_match=node_match)
-
-    @pytest.mark.parametrize("graph, target", constant_evaluation_test_cases())
-    def test_optimizer_constant_evaluation(self, graph, target):
-        # apply constant evaluation
-        optim = DataFlowGraphOptimizer()
-        optim_graph = optim.constant_evaluation(graph)
-        # check topology of the optimized graph
-        assert nx.is_isomorphic(optim_graph, target, node_match=node_match)
-
-    @pytest.mark.parametrize("graph, target, leaf_node", optimize_test_cases())
-    def test_optimize(self, graph, target, leaf_node):
-        # apply cse
-        optim = DataFlowGraphOptimizer()
-        optim_graph = optim.optimize(graph, {leaf_node})
-        # check topology of cse graph
-        assert nx.is_isomorphic(optim_graph, target, node_match=node_match)
+        with (
+            patch("hyped.core.graph.pa.array"),
+            patch("hyped.core.graph.ConstNode"),
+            patch("hyped.core.optim.DataFlowExecutor.execute", AsyncMock(return_value=MagicMock())),
+        ):
+            # apply constant evaluation to the graph and compare to the target graph
+            optim_graph = DataFlowGraphOptimizer().optimize(graph, leaf_nodes)
+            assert nx.is_isomorphic(optim_graph, target_graph, node_match=node_match)
+            assert optim_graph.src_node_id == graph.src_node_id

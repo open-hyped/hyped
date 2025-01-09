@@ -6,7 +6,7 @@ from hyped.common.lazy_module import LazyModule
 
 
 @pytest.fixture
-def lazy_module():
+def lazy_module() -> LazyModule:
     lazy_imports = {"foo": "module_foo", "bar": "module_bar"}
     lazy_modules = {"baz": "module_baz"}
     module_file = "/path/to/module.py"
@@ -22,7 +22,7 @@ def lazy_module():
 
 
 @patch("importlib.import_module")
-def test_lazy_import(mock_import_module, lazy_module):
+def test_lazy_import(mock_import_module: MagicMock, lazy_module: LazyModule) -> None:
     mock_module = MagicMock()
     mock_import_module.return_value = mock_module
     mock_module.foo = "foo_value"
@@ -38,7 +38,7 @@ def test_lazy_import(mock_import_module, lazy_module):
 
 
 @patch("importlib.import_module")
-def test_lazy_module(mock_import_module, lazy_module):
+def test_lazy_module(mock_import_module: MagicMock, lazy_module: LazyModule) -> None:
     mock_module = MagicMock()
     mock_import_module.return_value = mock_module
 
@@ -52,12 +52,12 @@ def test_lazy_module(mock_import_module, lazy_module):
     assert baz_module == mock_module
 
 
-def test_lazy_import_not_in_dict(lazy_module):
+def test_lazy_import_not_in_dict(lazy_module: LazyModule) -> None:
     with pytest.raises(AttributeError):
-        _ = getattr(lazy_module, "non_existent_attribute")
+        _ = lazy_module.non_existent_attribute
 
 
-def test_dir_includes_lazy_imports_and_modules(lazy_module):
+def test_dir_includes_lazy_imports_and_modules(lazy_module: LazyModule) -> None:
     dir_list = lazy_module.__dir__()
     assert "foo" in dir_list
     assert "bar" in dir_list

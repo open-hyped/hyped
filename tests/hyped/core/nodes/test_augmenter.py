@@ -1,64 +1,237 @@
-from unittest.mock import MagicMock, call
+from inspect import Parameter, Signature, _ParameterKind
+from itertools import chain
+from typing import AsyncIterable, Iterable
+from unittest.mock import AsyncMock, MagicMock, call, patch
+from uuid import uuid4
 
 import pytest
-from datasets import Features, Value
 
-from hyped.core.nodes.processor import IOContext
-from tests.hyped.core.mock import MockAugmenter
+from hyped.core.nodes.augmentor import BaseDataAugmentor, BaseDataAugmentorConfig
+from hyped.core.nodes.base import ProcessMode, RunContext, process_mode
+from hyped.core.typing import Bool, Int, TraceIndexList
 
 
-class TestDataAugmenter:
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("k", range(0, 5))
-    async def test_batch_process(self, k):
-        # create the mock instance
-        augmenter = MockAugmenter()
-        augmenter.process = MagicMock(return_value=[{"y": i} for i in range(k)])
+class MockConfig(BaseDataAugmentorConfig):
+    @classmethod
+    @property
+    def type_id(self) -> str:
+        return str(uuid4())
 
-        # create dummy inputs
-        rank = 0
-        index = list(range(10))
-        batch = {"x": index}
-        io_ctx = IOContext(
-            node_id=-1,
-            inputs=Features({"x": Value("int32")}),
-            outputs=Features({"y": Value("int32")}),
+
+class TestBaseDataProcessor:
+    def test_signature(self) -> None:
+        expected_signature = Signature(
+            parameters=[
+                Parameter(name="x", kind=_ParameterKind.POSITIONAL_OR_KEYWORD, annotation=Bool),
+                Parameter(name="y", kind=_ParameterKind.POSITIONAL_OR_KEYWORD, annotation=Int),
+            ],
+            return_annotation=Bool,
         )
-        # run batch process
-        out_batch, trace_index = await augmenter.batch_process(batch, index, rank, io_ctx)
-        # check output
-        assert out_batch == {"y": [i % k for i in range(10 * k)]}
-        assert all(i == j // k for j, i in enumerate(trace_index))
-        # make sure the process function was called for each input sample
-        calls = [call({"x": i}, i, rank, io_ctx) for i in index]
-        augmenter.process.assert_has_calls(calls, any_order=True)
+
+        class MockDataProcessor(BaseDataAugmentor[MockConfig]):
+            def process(self, ctx: RunContext, x: Bool, y: Int) -> Iterable[Bool]:
+                ...
+
+        processor: MockDataProcessor = MockDataProcessor()
+        assert processor.signature == expected_signature
+
+        class MockDataProcessor(BaseDataAugmentor[MockConfig]):
+            async def process(self, ctx: RunContext, x: Bool, y: Int) -> AsyncIterable[Bool]:
+                ...
+
+        processor: MockDataProcessor = MockDataProcessor()
+        assert processor.signature == expected_signature
+
+        class MockDataProcessor(BaseDataAugmentor[MockConfig]):
+            @process_mode(batched=True, backend="python")
+            async def process(
+                self, ctx: RunContext, x: Bool, y: Int
+            ) -> tuple[Bool, TraceIndexList]:
+                ...
+
+        processor: MockDataProcessor = MockDataProcessor()
+        assert processor.signature == expected_signature
+
+    def test_init_subclass(self) -> None:
+        # valid definition
+        class MockDataProcessor(BaseDataAugmentor[MockConfig]):
+            def process(self, ctx: RunContext, x: Bool, y: Int) -> Bool:
+                ...
+
+        # make sure the process mode default is set
+        ProcessMode.from_decorated_fn(MockDataProcessor.process)
+
+        with pytest.raises(TypeError):
+            # no process method specified
+            class MockDataProcessor(BaseDataAugmentor[MockConfig]):
+                ...
+
+        with pytest.raises(TypeError):
+            # missing context input
+            class MockDataProcessor(BaseDataAugmentor[MockConfig]):
+                def process(self, x: Bool, y: Int) -> Bool:
+                    ...
+
+        with pytest.raises(TypeError):
+            # wrong signature for batched process function
+            class MockDataProcessor(BaseDataAugmentor[MockConfig]):
+                @process_mode(batched=True, backend="python")
+                def process(self, ctx: RunContext, x: Bool, y: Int) -> Bool:
+                    ...
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("k", range(0, 5))
-    async def test_batch_process_with_async(self, k):
-        class AsyncMockAugmenter(MockAugmenter):
-            async def process(self, *args, **kwargs):
-                for i in range(k):
-                    yield {"y": i}
+    async def test_run_batched(self) -> None:
+        class MockDataProcessor(BaseDataAugmentor[MockConfig]):
+            def process(self, ctx: RunContext, a: Bool) -> Iterable[Bool]:
+                ...
 
-        # create the mock instance
-        augmenter = AsyncMockAugmenter()
-        augmenter.process = MagicMock(wraps=augmenter.process)
+        with patch("hyped.core.nodes.augmentor.ProcessMode") as mock_process_mode:
+            # set up process mode mock
+            mock_mode = MagicMock(spec=ProcessMode, batched=True)
+            mock_process_mode.from_decorated_fn.return_value = mock_mode
 
-        # create dummy inputs
-        rank = 0
-        index = list(range(10))
-        batch = {"x": index}
-        io_ctx = IOContext(
-            node_id=-1,
-            inputs=Features({"x": Value("int32")}),
-            outputs=Features({"y": Value("int32")}),
-        )
-        # run batch process
-        out_batch, trace_index = await augmenter.batch_process(batch, index, rank, io_ctx)
-        # check output
-        assert out_batch == {"y": [i % k for i in range(10 * k)]}
-        assert all(i == j // k for j, i in enumerate(trace_index))
-        # make sure the process function was called for each input sample
-        calls = [call({"x": i}, i, rank, io_ctx) for i in index]
-        augmenter.process.assert_has_calls(calls, any_order=True)
+            # set up process mode prepare mock
+            prepared_inputs = [(MagicMock(), {"x": MagicMock()}), (MagicMock(), {"x": MagicMock()})]
+            mock_mode.prepare.return_value = prepared_inputs
+
+            mock_output = MagicMock()
+            mock_trace_index = MagicMock()
+            # create mock context and input arrays
+            mock_context = MagicMock()
+            mock_arrays = {"x": MagicMock()}
+
+            # create a processor and mock the process method
+            processor: MockDataProcessor = MockDataProcessor()
+            processor.process = MagicMock(return_value=(mock_output, mock_trace_index))
+            # run the processor
+            await processor.run(mock_context, mock_arrays)
+            # make sure the arrays where prepared by the
+            mock_mode.prepare.assert_called_once_with(mock_context, **mock_arrays)
+            processor.process.assert_has_calls(
+                [call(ctx, **inputs) for ctx, inputs in prepared_inputs]
+            )
+            mock_mode.finalize.assert_called_once_with(
+                mock_context, (mock_output,) * len(prepared_inputs)
+            )
+
+    @pytest.mark.asyncio
+    async def test_run_batched_async(self) -> None:
+        class MockDataProcessor(BaseDataAugmentor[MockConfig]):
+            def process(self, ctx: RunContext, a: Bool) -> Iterable[Bool]:
+                ...
+
+        with patch("hyped.core.nodes.augmentor.ProcessMode") as mock_process_mode:
+            # set up process mode mock
+            mock_mode = MagicMock(spec=ProcessMode, batched=True)
+            mock_process_mode.from_decorated_fn.return_value = mock_mode
+
+            # set up process mode prepare mock
+            prepared_inputs = [(MagicMock(), {"x": MagicMock()}), (MagicMock(), {"x": MagicMock()})]
+            mock_mode.prepare.return_value = prepared_inputs
+
+            mock_output = MagicMock()
+            mock_trace_index = MagicMock()
+            # create mock context and input arrays
+            mock_context = MagicMock()
+            mock_arrays = {"x": MagicMock()}
+
+            # create a processor and mock the async process method
+            processor: MockDataProcessor = MockDataProcessor()
+            processor.process = AsyncMock(return_value=(mock_output, mock_trace_index))
+            processor._is_process_async = True
+            # run the processor
+            await processor.run(mock_context, mock_arrays)
+            # make sure the arrays where prepared by the
+            mock_mode.prepare.assert_called_once_with(mock_context, **mock_arrays)
+            processor.process.assert_has_calls(
+                [call(ctx, **inputs) for ctx, inputs in prepared_inputs]
+            )
+            mock_mode.finalize.assert_called_once_with(
+                mock_context, (mock_output,) * len(prepared_inputs)
+            )
+
+    @pytest.mark.asyncio
+    async def test_run_non_batched(self) -> None:
+        class MockDataProcessor(BaseDataAugmentor[MockConfig]):
+            def process(self, ctx: RunContext, a: Bool) -> Iterable[Bool]:
+                ...
+
+        with patch("hyped.core.nodes.augmentor.ProcessMode") as mock_process_mode, patch(
+            "hyped.core.nodes.augmentor.chain",
+            MagicMock(
+                side_effect=lambda *x: list(chain(*x)),
+                from_iterable=lambda x: list(chain.from_iterable(x)),
+            ),
+        ):
+            # set up process mode mock
+            mock_mode = MagicMock(spec=ProcessMode, batched=False)
+            mock_process_mode.from_decorated_fn.return_value = mock_mode
+
+            # set up process mode prepare mock
+            prepared_inputs = [(MagicMock(), {"x": MagicMock()}), (MagicMock(), {"x": MagicMock()})]
+            mock_mode.prepare.return_value = prepared_inputs
+
+            mock_output = MagicMock()
+            # create mock context and input arrays
+            mock_context = MagicMock()
+            mock_arrays = {"x": MagicMock()}
+
+            # create a processor and mock the process method
+            processor: MockDataProcessor = MockDataProcessor()
+            processor.process = MagicMock(return_value=[mock_output, mock_output])
+            # run the processor
+            await processor.run(mock_context, mock_arrays)
+            # make sure the arrays where prepared by the
+            mock_mode.prepare.assert_called_once_with(mock_context, **mock_arrays)
+            processor.process.assert_has_calls(
+                [call(ctx, **inputs) for ctx, inputs in prepared_inputs]
+            )
+            mock_mode.finalize.assert_called_once_with(
+                mock_context,
+                [mock_output] * len(prepared_inputs) * len(processor.process.return_value),
+            )
+
+    @pytest.mark.asyncio
+    async def test_run_non_batched_async(self) -> None:
+        class MockDataProcessor(BaseDataAugmentor[MockConfig]):
+            def process(self, ctx: RunContext, a: Bool) -> Iterable[Bool]:
+                ...
+
+        with patch("hyped.core.nodes.augmentor.ProcessMode") as mock_process_mode, patch(
+            "hyped.core.nodes.augmentor.chain",
+            MagicMock(
+                side_effect=lambda *x: list(chain(*x)),
+                from_iterable=lambda x: list(chain.from_iterable(x)),
+            ),
+        ):
+            # set up process mode mock
+            mock_mode = MagicMock(spec=ProcessMode, batched=False)
+            mock_process_mode.from_decorated_fn.return_value = mock_mode
+
+            # set up process mode prepare mock
+            prepared_inputs = [(MagicMock(), {"x": MagicMock()}), (MagicMock(), {"x": MagicMock()})]
+            mock_mode.prepare.return_value = prepared_inputs
+
+            mock_output = MagicMock()
+            # create mock context and input arrays
+            mock_context = MagicMock()
+            mock_arrays = {"x": MagicMock()}
+
+            async def async_process(*args, **kwargs) -> AsyncIterable:
+                yield mock_output
+                yield mock_output
+
+            # create a processor and mock the async process method
+            processor: MockDataProcessor = MockDataProcessor()
+            processor.process = MagicMock(side_effect=async_process)
+            processor._is_process_async = True
+            # run the processor
+            await processor.run(mock_context, mock_arrays)
+            # make sure the arrays where prepared by the
+            mock_mode.prepare.assert_called_once_with(mock_context, **mock_arrays)
+            processor.process.assert_has_calls(
+                [call(ctx, **inputs) for ctx, inputs in prepared_inputs]
+            )
+            mock_mode.finalize.assert_called_once_with(
+                mock_context, [mock_output] * len(prepared_inputs) * 2
+            )

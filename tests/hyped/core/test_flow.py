@@ -1,607 +1,565 @@
-from collections.abc import Mapping
-from types import MappingProxyType
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from typing import Hashable
+from unittest.mock import ANY, AsyncMock, MagicMock, PropertyMock, patch
 
 import datasets
 import matplotlib.pyplot as plt
+import networkx as nx
 import pytest
-from datasets import Features, Value
 
-from hyped.core.flow import DataFlow
+from hyped.core.executor import DataFlowExecutor
+from hyped.core.features.dtypes import BoolType, Int16Type, Int32Type, MappingType
+from hyped.core.features.features import Feature, MappingFeature
+from hyped.core.features.reference import ConcreteReference
+from hyped.core.flow import DataFlow, ExecutableDataFlow, plot_data_flow
 from hyped.core.graph import DataFlowGraph
-from hyped.core.nodes.base import IOContext
-from hyped.core.nodes.const import Const
+from hyped.core.optim import DataFlowGraphOptimizer
+from hyped.core.typing import Bool, Mapping
 
-from .mock import MockAggregator, MockInputRefs, MockProcessor
+from .utils import build_graph
+
+
+def test_plot_data_flow():
+    # build a graph
+    flow = DataFlow({"field": datasets.Value("bool")})
+    flow._graph = build_graph(
+        [(0, 1), (1, 2)],
+        {
+            0: DataFlowGraph.NodeType.SOURCE,
+            1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+            2: DataFlowGraph.NodeType.DATA_PROCESSOR,
+        },
+        {
+            0: MagicMock(),
+            1: MagicMock(__class__=MagicMock(__name__="A")),
+            2: MagicMock(__class__=MagicMock(__name__="A")),
+        },
+    )
+
+    # Ensure the plot function runs without errors and returns an Axes object
+    with patch("matplotlib.pyplot.show"):  # Mock plt.show to avoid displaying the plot during tests
+        ax = plot_data_flow(
+            flow,
+            src_node_label="[ROOT]",
+            node_font_size=1e-5,
+        )
+        assert isinstance(ax, plt.Axes)
+
+    # Check if node labels are correct
+    for node, data in flow._graph.nodes(data=True):
+        node_label = (
+            "[ROOT]"
+            if node == flow._graph.src_node_id
+            else type(data[DataFlowGraph.NodeAttribute.NODE_OBJ]).__name__
+        )
+        assert any(
+            node_label in text.get_text() for text in ax.texts
+        ), f"Node label {node_label} is missing in the plot."
+
+    # Check if edge labels are correct
+    for edge in flow._graph.edges(keys=True):
+        _, _, key = edge
+        edge_label = "{name}".format(name=key)
+
+        assert any(
+            edge_label in text.get_text() for text in ax.texts
+        ), f"Edge label {edge_label} is missing in the plot."
 
 
 class TestDataFlow:
-    @pytest.fixture(autouse=True)
-    def mock_manager(self):
-        with patch("hyped.core.flow.DataAggregationManager") as mock_manager:
-            mock_manager = mock_manager()
-            mock_manager.aggregate = AsyncMock()
-            mock_manager.values_proxy = MagicMock()
-            yield mock_manager
+    def test_initialize(self) -> None:
+        class SourceFeature(Mapping):
+            field: Bool
 
-    @pytest.fixture(autouse=True)
-    def mock_lazy_flow_output(self):
-        with patch("hyped.core.flow.LazyFlowOutput") as mock_lazy_vals:
-            mock_lazy_vals.return_value = {"y": 0}  # matches the output of the mock aggregator
-            yield mock_lazy_vals
+        hf_features = datasets.Features({"field": datasets.Value("bool")})
+        hyped_type = MappingType.construct({"field": BoolType})
 
-    @pytest.fixture
-    def setup_flow(self):
-        # create graph
-        graph = DataFlowGraph()
-        # add source node
-        src_features = Features({"x": Value("int64")})
-        src_node = graph.add_source_node(src_features)
-        # add constant node
-        c = Const(value=0)
-        co = c._out_refs_type.build_features(c.config, None)
-        const_node = graph.add_processor_node(c, None, co)
+        # initialize from huggingface features
+        flow = DataFlow(hf_features)
+        assert flow.source.dtype == hyped_type
 
-        # create nodes
-        p = MockProcessor()
-        a = MockAggregator()
+        # initialize from type annotation
+        flow = DataFlow[SourceFeature]()
+        assert flow.source.dtype == hyped_type
 
-        # create input refs from source features
-        i = MockInputRefs(
-            a=graph.get_node_output_ref(src_node).x,
-            b=graph.get_node_output_ref(const_node).value,
-        )
-        pi = p._in_refs_validator.validate(**i)
-        ai = p._in_refs_validator.validate(**i)
-        # build output features
-        po = p._out_refs_type.build_features(p.config, pi)
-        ao = a._out_refs_type.build_features(a.config, ai)
-        # add nodes
-        proc_node = graph.add_processor_node(p, pi, po)
-        agg_node = graph.add_processor_node(a, ai, ao)
+        # initialize from both
+        flow = DataFlow[SourceFeature](hf_features)
+        assert flow.source.dtype == hyped_type
 
-        flow = DataFlow(Features({"x": Value("int64")}))
-        flow._graph = graph
-        # return setup
-        return flow, graph, const_node, proc_node, agg_node
-
-    @pytest.fixture
-    def io_contexts(self, setup_flow):
-        flow, graph, const_node, proc_node, agg_node = setup_flow
-
-        return [
-            IOContext(
-                node_id=proc_node,
-                inputs=graph.nodes[proc_node][DataFlowGraph.NodeAttribute.IN_FEATURES],
-                outputs=graph.nodes[proc_node][DataFlowGraph.NodeAttribute.OUT_FEATURES],
-            ),
-            IOContext(
-                node_id=agg_node,
-                inputs=graph.nodes[agg_node][DataFlowGraph.NodeAttribute.IN_FEATURES],
-                outputs=graph.nodes[agg_node][DataFlowGraph.NodeAttribute.OUT_FEATURES],
-            ),
-        ]
-
-    def test_build_flow(self, setup_flow):
-        flow, graph, const_node, proc_node, agg_node = setup_flow
-
-        src_ref = graph.get_node_output_ref(graph.src_node_id)
-        graph.get_node_output_ref(const_node)
-        out_ref = graph.get_node_output_ref(proc_node)
-        agg_ref = graph.get_node_output_ref(agg_node)
-
-        # out features only set after build
         with pytest.raises(RuntimeError):
-            flow.out_features
-        # aggregates only set after build
+            # no input features specified
+            _ = DataFlow().source
+
         with pytest.raises(RuntimeError):
-            flow.aggregates
+            # hf features are not compatible with annotation
+            features = datasets.Features({"other": datasets.Value("bool")})
+            _ = DataFlow[SourceFeature](features).source
 
-        # build subflow with processor and aggregator
-        subflow, vals = flow.build(collect=out_ref, aggregate=agg_ref)
-        assert len(subflow._graph) == 4
-        assert subflow.out_features.key_ is out_ref.key_
-        assert subflow.out_features.feature_ is out_ref.feature_
-        assert vals == subflow.aggregates
+    @patch("hyped.core.flow.DataFlowGraph", MagicMock())
+    @patch("hyped.core.flow.build_feature_from_reference", MagicMock())
+    def test_const(self) -> None:
+        # create a data flow graph instance
+        flow = DataFlow()
 
-        # build subflow with processor only
-        subflow, _ = flow.build(collect=out_ref)
-        assert len(subflow._graph) == 3
-        assert subflow.out_features.key_ is out_ref.key_
-        assert subflow.out_features.feature_ is out_ref.feature_
-        # build subflow with no processors
-        subflow, _ = flow.build(collect=src_ref)
-        assert len(subflow._graph) == 1
-        assert subflow.out_features.key_ is src_ref.key_
-        assert subflow.out_features.feature_ is src_ref.feature_
+        # add constant without specifying the data type
+        with patch("hyped.core.flow.build_dtype_from_python_object") as mock_build_dtype:
+            flow.const(42)
+            # make sure the constant was added to the graph as expected
+            flow._graph.add_const_node.assert_called_once_with(42, mock_build_dtype.return_value)
 
-    def test_extract_lazy_flow(self, setup_flow, mock_manager, mock_lazy_flow_output):
-        flow, graph, const_node, proc_node, agg_node = setup_flow
+        # reset the mock graph
+        flow._graph.reset_mock()
 
-        cst_ref = graph.get_node_output_ref(const_node)
-        out_ref = graph.get_node_output_ref(proc_node)
-        agg_ref = graph.get_node_output_ref(agg_node)
-
-        # create processor
-        p = MockProcessor()
-        i = p._in_refs_validator.validate(a=agg_ref.y, b=agg_ref.y)
-        o = p._out_refs_type.build_features(p.config, i)
-        # add processor to graph
-        node_id = graph.add_processor_node(p, i, o)
-        val_ref = graph.get_node_output_ref(node_id)
-
-        i = p._in_refs_validator.validate(a=agg_ref.y, b=cst_ref.value)
-        o = p._out_refs_type.build_features(p.config, i)
-        # add processor to graph
-        node_id = graph.add_processor_node(p, i, o)
-        val_ref_w_const = graph.get_node_output_ref(node_id)
-
-        def get_feature(graph, ref):
-            return ref.key_.index_features(
-                graph.nodes[ref.node_id_][DataFlowGraph.NodeAttribute.OUT_FEATURES]
+        # add constant with specified data type
+        with patch("hyped.core.flow.TypeAdapterWithArbitraryTypesAllowed") as mock_type_adapter:
+            dtype = MagicMock()
+            flow.const(42, dtype)
+            # make sure the type adapter was called
+            mock_type_adapter.assert_called_once_with(dtype)
+            # make sure the constant was added to the graph as expected
+            flow._graph.add_const_node.assert_called_once_with(
+                42, mock_type_adapter.return_value.validate_python.return_value.dtype
             )
 
-        mock_lazy_flow_output.reset_mock()
-        # case A: aggregate is direct output of an aggregator
-        flow.build(collect=out_ref, aggregate=agg_ref)
-        # make sure the lazy flow output object is created correctly
-        mock_lazy_flow_output.assert_called_once()
-        assert mock_lazy_flow_output.call_args.kwargs["input_proxy"] is mock_manager.values_proxy
-        assert get_feature(graph, agg_ref) == get_feature(
-            mock_lazy_flow_output.call_args.kwargs["executor"].graph,
-            mock_lazy_flow_output.call_args.kwargs["executor"].collect,
-        )
-        # make sure the lazy graph only contains of a single source node
-        lazy_graph = mock_lazy_flow_output.call_args.kwargs["executor"].graph
-        assert lazy_graph.src_node_id in lazy_graph
-        assert len(lazy_graph.nodes) == 1
-        # make sure the source node contains the output of the aggregator node
-        assert (
-            agg_ref.node_id_
-            in lazy_graph.nodes[lazy_graph.src_node_id][DataFlowGraph.NodeAttribute.OUT_FEATURES]
-        )
+    @patch("hyped.core.flow.DataFlowGraph", MagicMock())
+    @patch("hyped.core.flow.build_feature_from_reference", MagicMock())
+    def test_collect(self) -> None:
+        # create a data flow instance and a mock feature
+        flow = DataFlow()
+        feature = MagicMock(spec=Feature, ref=MagicMock(spec=ConcreteReference))
 
-        mock_lazy_flow_output.reset_mock()
-        # case B: aggregate is part of aggregated partition without constants
-        flow.build(collect=out_ref, aggregate=val_ref)
-        # make sure the lazy flow output object is created correctly
-        mock_lazy_flow_output.assert_called_once()
-        assert mock_lazy_flow_output.call_args.kwargs["input_proxy"] is mock_manager.values_proxy
-        assert get_feature(graph, val_ref) == get_feature(
-            mock_lazy_flow_output.call_args.kwargs["executor"].graph,
-            mock_lazy_flow_output.call_args.kwargs["executor"].collect,
+        # test trivial case
+        assert feature == flow.collect(feature)
+
+        flow.collect({"x": feature})
+        flow._graph.add_collect_node_with_constants.assert_called_once_with({"x": feature.ref})
+
+    @patch("hyped.core.flow.DataFlowGraph")
+    @patch("hyped.core.flow.ExecutableDataFlow")
+    @patch("hyped.core.flow.build_feature_from_reference", MagicMock())
+    def test_build(self, mock_executable_flow: MagicMock, mock_graph: MagicMock) -> None:
+        # set source node id of mock graph to none
+        # to mimic the flow not being initialized
+        flow = DataFlow(datasets.Features({"field": datasets.Value("bool")}))
+        flow._graph.src_node_id = None
+
+        # create valid and invalid features
+        valid = MagicMock(
+            spec=Feature,
+            ref=ConcreteReference(_node_id=MagicMock(), _graph=mock_graph.return_value),
         )
-        # make sure the lazy graph contains only the source node and the processor node
-        lazy_graph = mock_lazy_flow_output.call_args.kwargs["executor"].graph
-        assert lazy_graph.src_node_id in lazy_graph
-        assert val_ref.node_id_ in lazy_graph
-        assert len(lazy_graph.nodes) == 2
-        # make sure the two nodes are connected correctly
-        assert lazy_graph.has_edge(lazy_graph.src_node_id, val_ref.node_id_, key="a")
-        assert lazy_graph.has_edge(lazy_graph.src_node_id, val_ref.node_id_, key="b")
-        # make sure the source node contains the output of the aggregator node
-        assert (
-            agg_ref.node_id_
-            in lazy_graph.nodes[lazy_graph.src_node_id][DataFlowGraph.NodeAttribute.OUT_FEATURES]
+        invalid = MagicMock(
+            spec=Feature, ref=ConcreteReference(_node_id=MagicMock(), _graph=MagicMock())
         )
 
-        mock_lazy_flow_output.reset_mock()
-        # case C: aggregate is part of aggregated partition with constants
-        flow.build(collect=out_ref, aggregate=val_ref_w_const)
-        # make sure the lazy flow output object is created correctly
-        mock_lazy_flow_output.assert_called_once()
-        assert mock_lazy_flow_output.call_args.kwargs["input_proxy"] is mock_manager.values_proxy
-        assert get_feature(graph, val_ref_w_const) == get_feature(
-            mock_lazy_flow_output.call_args.kwargs["executor"].graph,
-            mock_lazy_flow_output.call_args.kwargs["executor"].collect,
-        )
-        # make sure the lazy graph contains only the source node, the constant and the
-        # processor node
-        lazy_graph = mock_lazy_flow_output.call_args.kwargs["executor"].graph
-        assert lazy_graph.src_node_id in lazy_graph
-        assert cst_ref.node_id_ in lazy_graph
-        assert val_ref_w_const.node_id_ in lazy_graph
-        assert len(lazy_graph.nodes) == 3
-        # make sure the two nodes are connected correctly
-        assert lazy_graph.has_edge(lazy_graph.src_node_id, val_ref_w_const.node_id_, key="a")
-        assert lazy_graph.has_edge(cst_ref.node_id_, val_ref_w_const.node_id_, key="b")
-        # make sure the source node contains the output of the aggregator node
-        assert (
-            agg_ref.node_id_
-            in lazy_graph.nodes[lazy_graph.src_node_id][DataFlowGraph.NodeAttribute.OUT_FEATURES]
-        )
-
-    def test_batch_process(self, setup_flow, io_contexts, mock_manager):
-        flow, graph, const_node, proc_node, agg_node = setup_flow
-        proc_io_ctx, agg_io_ctx = io_contexts
-
-        out_ref = graph.get_node_output_ref(proc_node)
-        agg_ref = graph.get_node_output_ref(agg_node)
-
-        flow, vals = flow.build(collect=out_ref, aggregate=agg_ref)
-        assert isinstance(flow, DataFlow)
-        assert isinstance(vals, Mapping)
-
-        # run batch process
-        batch, index, rank = {"x": [1, 2, 3]}, [0, 1, 2], 0
-        flow.batch_process(batch, index, rank)
-
-        # make sure the processor is called correctly
-        p = graph.nodes[proc_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
-        p.process.assert_has_calls(
-            [
-                call({"a": 1, "b": 0}, 0, 0, proc_io_ctx),
-                call({"a": 2, "b": 0}, 1, 0, proc_io_ctx),
-                call({"a": 3, "b": 0}, 2, 0, proc_io_ctx),
-            ]
-        )
-        # make sure the aggregator is called correctly
-        a = graph.nodes[agg_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
-        mock_manager.aggregate.assert_called_with(
-            a, {"a": [1, 2, 3], "b": [0, 0, 0]}, [0, 1, 2], 0, agg_io_ctx
-        )
-
-    def test_apply_overload(self, setup_flow, mock_lazy_flow_output):
-        flow, graph, const_node, proc_node, agg_node = setup_flow
-        # get references
-        out_ref = graph.get_node_output_ref(proc_node)
-        agg_ref = graph.get_node_output_ref(agg_node)
-
-        # create dummy dataset
-        ds = datasets.Dataset.from_dict({"x": []}, features=flow.src_features.feature_)
-
-        # no output features specified
+        # invalid collect feature, not belonging to the graph
         with pytest.raises(RuntimeError):
-            flow.apply(ds)
+            flow.build(collect=invalid)
 
-        # apply flow to dataset
-        out_ds, _ = flow.apply(
-            ds,
-            collect=out_ref,
+        # invalid aggregate feature, not belonging to the graph
+        with pytest.raises(RuntimeError):
+            flow.build(collect=valid, aggregate=invalid)
+
+        manager = MagicMock()
+
+        with (
+            patch("hyped.core.flow.DataFlow._initialize"),
+            patch(
+                "hyped.core.flow.DataFlow._source_annotation", PropertyMock()
+            ) as mock_source_annotation,
+            patch("hyped.core.features.features.MappingFeature.__post_init__"),
+            patch("hyped.core.flow.nx.restricted_view") as mock_restricted_view,
+        ):
+            flow.build(collect=valid, aggregate=valid, aggregation_manager=manager)
+
+            mock_restricted_view.assert_called_once_with(mock_graph.return_value, [], [])
+            mock_executable_flow.assert_called_once_with(
+                mock_source_annotation.return_value,
+                mock_restricted_view.return_value,
+                ConcreteReference(valid.ref._node_id, mock_restricted_view.return_value),
+                ConcreteReference(valid.ref._node_id, mock_restricted_view.return_value),
+                manager,
+            )
+
+    @patch("hyped.core.flow.DataFlow.build")
+    def test_apply(self, mock_build: MagicMock) -> None:
+        ds = MagicMock()
+        collect = MagicMock()
+        aggregate = MagicMock()
+        # apply a data flow to a dataset
+        DataFlow().apply(ds, collect, aggregate)
+        # make sure the flow was build and the executable flow was applied
+        mock_build.assert_called_once_with(collect, aggregate)
+        mock_build.return_value.apply.assert_called_once_with(ds)
+
+
+class TestExecutableDataFlow:
+    def test_initialize_validation(self) -> None:
+        mock_feature_node = MagicMock()
+        mock_aggregate_node = MagicMock()
+
+        mock_graph = MagicMock(
+            spec=DataFlowGraph, nodes=[mock_feature_node._node_id, mock_aggregate_node._node_id]
         )
-        # check output types
-        assert isinstance(out_ds, datasets.Dataset)
+        mock_graph.get_node_output_partition.side_effect = {
+            mock_feature_node._node_id: DataFlowGraph.Partition.DEFAULT,
+            mock_aggregate_node._node_id: DataFlowGraph.Partition.AGGREGATED,
+        }.get
 
-        # apply flow to dataset with aggregators
-        out_ds, vals = flow.apply(
-            ds,
-            collect=out_ref,
-            aggregate=agg_ref,
-        )
-        # check output types
-        assert isinstance(out_ds, datasets.Dataset)
-        assert vals == dict(mock_lazy_flow_output())
+        with patch("hyped.core.flow.build_feature_from_reference", MagicMock(spec=MappingFeature)):
+            with pytest.raises(RuntimeError):
+                # invalid node id in collect reference
+                collect = MagicMock(spec=ConcreteReference, _graph=mock_graph, _node_id=MagicMock())
+                ExecutableDataFlow(None, mock_graph, collect, None, None)
 
-        built_flow, _ = flow.build(collect=out_ref)
-        # apply flow to dataset
-        out_ds, _ = built_flow.apply(ds)
-        assert isinstance(out_ds, datasets.Dataset)
-
-        built_flow, vals = flow.build(collect=out_ref, aggregate=agg_ref)
-        assert vals == mock_lazy_flow_output()
-        # apply flow to dataset
-        out_ds, vals = built_flow.apply(ds)
-        assert isinstance(out_ds, datasets.Dataset)
-        assert vals == MappingProxyType(mock_lazy_flow_output())
-
-    def test_apply_to_dataset(self, setup_flow, io_contexts, mock_manager, mock_lazy_flow_output):
-        flow, graph, const_node, proc_node, agg_node = setup_flow
-        proc_io_ctx, agg_io_ctx = io_contexts
-        # get references
-        out_ref = graph.get_node_output_ref(proc_node)
-        agg_ref = graph.get_node_output_ref(agg_node)
-        # get the processor and aggregator instance
-        p = graph.nodes[proc_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
-        a = graph.nodes[agg_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
-
-        # create dummy dataset
-        ds = datasets.Dataset.from_dict(
-            {"x": list(range(100))}, features=flow.src_features.feature_
-        )
-
-        # apply flow to dataset
-        out_ds, vals = flow.apply(ds, collect=out_ref, aggregate=agg_ref, batch_size=10)
-        # check output types
-        assert isinstance(out_ds, datasets.Dataset)
-        assert vals == mock_lazy_flow_output()
-
-        # make sure processor is called for all samples in the dataset
-        p.process.assert_has_calls([call({"a": i, "b": 0}, i, 0, proc_io_ctx) for i in range(100)])
-        # make sure the aggregator is called for all batches
-        mock_manager.aggregate.assert_has_calls(
-            [
-                call(
-                    a,
-                    {
-                        "a": list(range(i * 10, (i + 1) * 10)),
-                        "b": [0] * 10,
-                    },
-                    list(range(i * 10, (i + 1) * 10)),
-                    0,
-                    agg_io_ctx,
+            with pytest.raises(RuntimeError):
+                # collect node cannot be part of aggregated partition
+                collect = MagicMock(
+                    spec=ConcreteReference, _graph=mock_graph, _node_id=mock_aggregate_node._node_id
                 )
-                for i in range(10)
-            ]
-        )
+                ExecutableDataFlow(None, mock_graph, collect, None, None)
 
-    def test_apply_with_dict_collect_agg(
-        self, setup_flow, io_contexts, mock_manager, mock_lazy_flow_output
-    ):
-        flow, graph, _, proc_node, agg_node = setup_flow
-        proc_io_ctx, agg_io_ctx = io_contexts
-        # get references
-        out_ref = graph.get_node_output_ref(proc_node)
-        out_ref_dict = {k: out_ref[k] for k in out_ref.feature_.keys()}
-        agg_ref = graph.get_node_output_ref(agg_node)
-        agg_ref_dict = {k: agg_ref[k] for k in agg_ref.feature_.keys()}
-        # get the processor and aggregator instance
-        p = graph.nodes[proc_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
-        a = graph.nodes[agg_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
+            # valid collect reference
+            collect = MagicMock(
+                spec=ConcreteReference, _graph=mock_graph, _node_id=mock_feature_node._node_id
+            )
 
-        # create dummy dataset
-        ds = datasets.Dataset.from_dict(
-            {"x": list(range(100))}, features=flow.src_features.feature_
-        )
-
-        # apply flow to dataset
-        out_ds, vals = flow.apply(ds, collect=out_ref_dict, aggregate=agg_ref_dict, batch_size=10)
-        # check output types
-        assert isinstance(out_ds, datasets.Dataset)
-        assert vals == mock_lazy_flow_output()
-
-        # make sure processor is called for all samples in the dataset
-        p.process.assert_has_calls([call({"a": i, "b": 0}, i, 0, proc_io_ctx) for i in range(100)])
-        # make sure the aggregator is called for all batches
-        mock_manager.aggregate.assert_has_calls(
-            [
-                call(
-                    a,
-                    {
-                        "a": list(range(i * 10, (i + 1) * 10)),
-                        "b": [0] * 10,
-                    },
-                    list(range(i * 10, (i + 1) * 10)),
-                    0,
-                    agg_io_ctx,
+            with pytest.raises(RuntimeError):
+                # invalid node id in collect reference
+                aggregate = MagicMock(
+                    spec=ConcreteReference, _graph=mock_graph, _node_id=MagicMock()
                 )
-                for i in range(10)
-            ]
-        )
+                ExecutableDataFlow(None, mock_graph, collect, aggregate, None)
 
-    def test_apply_to_dataset_dict(
-        self, setup_flow, io_contexts, mock_manager, mock_lazy_flow_output
-    ):
-        flow, graph, const_node, proc_node, agg_node = setup_flow
-        proc_io_ctx, agg_io_ctx = io_contexts
-        # get references
-        out_ref = graph.get_node_output_ref(proc_node)
-        agg_ref = graph.get_node_output_ref(agg_node)
-        # get the processor and aggregator instance
-        p = graph.nodes[proc_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
-        a = graph.nodes[agg_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
-
-        # create dummy dataset
-        ds = datasets.DatasetDict(
-            {
-                "train": datasets.Dataset.from_dict(
-                    {"x": list(range(50))}, features=flow.src_features.feature_
-                ),
-                "test": datasets.Dataset.from_dict(
-                    {"x": list(range(50, 100))},
-                    features=flow.src_features.feature_,
-                ),
-            }
-        )
-
-        # apply flow to dataset
-        out_ds, vals = flow.apply(ds, collect=out_ref, aggregate=agg_ref, batch_size=10)
-        # check output types
-        assert isinstance(out_ds, datasets.DatasetDict)
-        assert out_ds.keys() == ds.keys()
-        assert vals == mock_lazy_flow_output()
-
-        # make sure processor is called for all samples in the dataset
-        p.process.assert_has_calls(
-            [call({"a": i, "b": 0}, i % 50, 0, proc_io_ctx) for i in range(100)]
-        )
-        # make sure the aggregator is called for all batches
-        mock_manager.aggregate.assert_has_calls(
-            [
-                call(
-                    a,
-                    {
-                        "a": list(range(i * 10, (i + 1) * 10)),
-                        "b": [0] * 10,
-                    },
-                    list(range((i % 5) * 10, ((i % 5) + 1) * 10)),
-                    0,
-                    agg_io_ctx,
+            with pytest.raises(RuntimeError):
+                # aggregate node must be part of aggregated partition
+                aggregate = MagicMock(
+                    spec=ConcreteReference, _graph=mock_graph, _node_id=mock_feature_node._node_id
                 )
-                for i in range(10)
-            ]
-        )
-
-    def test_apply_to_iterable_dataset(
-        self, setup_flow, io_contexts, mock_manager, mock_lazy_flow_output
-    ):
-        flow, graph, const_node, proc_node, agg_node = setup_flow
-        proc_io_ctx, agg_io_ctx = io_contexts
-        # get references
-        out_ref = graph.get_node_output_ref(proc_node)
-        agg_ref = graph.get_node_output_ref(agg_node)
-        # get the processor and aggregator instance
-        p = graph.nodes[proc_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
-        a = graph.nodes[agg_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
-
-        p.process.reset_mock()
-
-        # create dummy dataset
-        ds = datasets.Dataset.from_dict(
-            {"x": list(range(100))}, features=flow.src_features.feature_
-        ).to_iterable_dataset(num_shards=5)
-
-        # apply flow to dataset
-        out_ds, vals = flow.apply(ds, collect=out_ref, aggregate=agg_ref, batch_size=10)
-        # check output types
-        assert isinstance(out_ds, datasets.IterableDataset)
-        assert vals == mock_lazy_flow_output()
-
-        # at this point the processors shouldn't be called yet
-        assert not p.process.called
-        assert not mock_manager.aggregate.called
-
-        # consume iterable dataset
-        for _ in out_ds:
-            pass
-
-        # make sure processor is called for all samples in the dataset
-        p.process.assert_has_calls([call({"a": i, "b": 0}, i, 0, proc_io_ctx) for i in range(100)])
-        # make sure the aggregator is called for all batches
-        mock_manager.aggregate.assert_has_calls(
-            [
-                call(
-                    a,
-                    {
-                        "a": list(range(i * 10, (i + 1) * 10)),
-                        "b": [0] * 10,
-                    },
-                    list(range(i * 10, (i + 1) * 10)),
-                    0,
-                    agg_io_ctx,
-                )
-                for i in range(10)
-            ]
-        )
-
-    def test_apply_to_iterable_dataset_dict(
-        self, setup_flow, io_contexts, mock_manager, mock_lazy_flow_output
-    ):
-        flow, graph, const_node, proc_node, agg_node = setup_flow
-        proc_io_ctx, agg_io_ctx = io_contexts
-        # get references
-        out_ref = graph.get_node_output_ref(proc_node)
-        agg_ref = graph.get_node_output_ref(agg_node)
-        # get the processor and aggregator instance
-        p = graph.nodes[proc_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
-        a = graph.nodes[agg_node][DataFlowGraph.NodeAttribute.NODE_OBJ]
-
-        # create dummy dataset
-        ds = datasets.IterableDatasetDict(
-            {
-                "train": datasets.Dataset.from_dict(
-                    {"x": list(range(50))}, features=flow.src_features.feature_
-                ).to_iterable_dataset(num_shards=5),
-                "test": datasets.Dataset.from_dict(
-                    {"x": list(range(50, 100))},
-                    features=flow.src_features.feature_,
-                ).to_iterable_dataset(num_shards=5),
-            }
-        )
-
-        # apply flow to dataset
-        out_ds, vals = flow.apply(ds, collect=out_ref, aggregate=agg_ref, batch_size=10)
-        # check output types
-        assert isinstance(out_ds, datasets.IterableDatasetDict)
-        assert vals == mock_lazy_flow_output()
-        assert out_ds.keys() == ds.keys()
-
-        # at this point the processors shouldn't be called yet
-        assert not p.process.called
-        assert not mock_manager.aggregate.called
-
-        # consume train dataset
-        for _ in out_ds["train"]:
-            pass
-
-        # make sure processor is called for all samples in the train dataset
-        p.process.assert_has_calls(
-            [call({"a": i, "b": 0}, i % 50, 0, proc_io_ctx) for i in range(50)]
-        )
-        # make sure the aggregator is called for all batches in the train dataset
-        mock_manager.aggregate.assert_has_calls(
-            [
-                call(
-                    a,
-                    {"a": list(range(i * 10, (i + 1) * 10)), "b": [0] * 10},
-                    list(range((i % 5) * 10, ((i % 5) + 1) * 10)),
-                    0,
-                    agg_io_ctx,
-                )
-                for i in range(5)
-            ]
-        )
-
-        # consume train dataset
-        for _ in out_ds["test"]:
-            pass
-
-        # make sure processor is called for all samples in the train dataset
-        p.process.assert_has_calls(
-            [call({"a": 50 + i, "b": 0}, i, 0, proc_io_ctx) for i in range(50)]
-        )
-        # make sure the aggregator is called for all batches in the train dataset
-        mock_manager.aggregate.assert_has_calls(
-            [
-                call(
-                    a,
-                    {
-                        "a": list(range(50 + i * 10, 50 + (i + 1) * 10)),
-                        "b": [0] * 10,
-                    },
-                    list(range(i * 10, (i + 1) * 10)),
-                    0,
-                    agg_io_ctx,
-                )
-                for i in range(5)
-            ]
-        )
+                ExecutableDataFlow(None, mock_graph, collect, aggregate, None)
 
     @pytest.mark.parametrize(
-        "with_edge_labels, edge_label_format",
+        "graph, collect, aggregate, expected_instance_graph, expected_aggregates_graph",
         [
-            (False, "{name}={key}"),
-            (True, "{name}={key}"),
-            (True, "{name}"),
-            (True, "{key}"),
+            # Simple linear graph with no aggregators
+            (
+                build_graph(
+                    [(0, 1), (1, 2)],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        2: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                    },
+                    output_type=MappingType.construct({"x": BoolType}),
+                ),
+                2,
+                None,
+                build_graph([(0, 1), (1, 2)]),
+                None,
+            ),
+            # Simple linear graph with aggregators
+            (
+                build_graph(
+                    [(0, 1), (1, 2)],
+                    {
+                        0: DataFlowGraph.NodeType.SOURCE,
+                        1: DataFlowGraph.NodeType.DATA_AGGREGATOR,
+                        2: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                    },
+                    output_type=MappingType.construct({"x": BoolType}),
+                ),
+                0,
+                2,
+                build_graph([(0, 1)]),  # aggregator is contained in instance graph
+                build_graph([(0, 1), (1, 2)]),  # 1 is getitem operator
+            ),
         ],
     )
-    def test_plot(self, setup_flow, with_edge_labels, edge_label_format):
-        flow, graph, const_node, proc_node, agg_node = setup_flow
-        # Ensure the plot function runs without errors and returns an Axes object
-        with patch(
-            "matplotlib.pyplot.show"
-        ):  # Mock plt.show to avoid displaying the plot during tests
-            ax = flow.plot(
-                src_node_label="[ROOT]",
-                with_edge_labels=with_edge_labels,
-                node_font_size=1e-5,
-            )
-            assert isinstance(ax, plt.Axes)
+    def test_initialize(
+        self,
+        graph: DataFlowGraph,
+        collect: Hashable,
+        aggregate: Hashable,
+        expected_instance_graph: DataFlowGraph,
+        expected_aggregates_graph: DataFlowGraph,
+    ) -> None:
+        collect = ConcreteReference(_node_id=collect, _graph=graph) if collect is not None else None
+        aggregate = (
+            ConcreteReference(_node_id=aggregate, _graph=graph) if aggregate is not None else None
+        )
 
-        # Check if node labels are correct
-        for node, data in flow._graph.nodes(data=True):
-            node_label = (
-                "[ROOT]"
-                if node == graph.src_node_id
-                else type(data[DataFlowGraph.NodeAttribute.NODE_OBJ]).__name__
-            )
-            assert any(
-                node_label in text.get_text() for text in ax.texts
-            ), f"Node label {node_label} is missing in the plot."
+        mock_optimizer = MagicMock(spec=DataFlowGraphOptimizer)
+        mock_optimizer.optimize.return_value = graph
 
-        # Check if edge labels are correct
-        for edge in flow._graph.edges(data=True):
-            _, _, data = edge
-            edge_label = edge_label_format.format(
-                name=data[DataFlowGraph.EdgeAttribute.NAME],
-                key=data[DataFlowGraph.EdgeAttribute.KEY],
-            )
+        with (
+            patch("hyped.core.flow.DataFlowGraphOptimizer", MagicMock(return_value=mock_optimizer)),
+            patch("hyped.core.flow.DataFlowExecutor") as mock_executor,
+            patch("hyped.core.flow.LazyDataFlowExecutor") as mock_lazy_executor,
+            patch("hyped.core.flow.DataAggregationManager"),
+        ):
+            # create the executable flow
+            flow = ExecutableDataFlow(None, graph, collect, aggregate, None)
 
-            if with_edge_labels:
-                assert any(
-                    edge_label in text.get_text() for text in ax.texts
-                ), f"Edge label {edge_label} is missing in the plot."
+            # make sure the instance graph has the expected structure
+            assert nx.is_isomorphic(flow._instance_graph, expected_instance_graph)
+            assert flow._instance_executor == mock_executor.return_value
+
+            if expected_aggregates_graph is not None:
+                # make sure the aggregates graph has the expected structure
+                assert nx.is_isomorphic(flow._aggregates_graph, expected_aggregates_graph)
+                assert flow._aggregates_executor == mock_lazy_executor.return_value
             else:
-                assert all(
-                    edge_label not in text.get_text() for text in ax.texts
-                ), f"Edge label {edge_label} in the plot but shouldn't be included."
+                # make sure there is no aggregates graph
+                assert flow._aggregates_graph is None
+                assert flow._aggregates_executor is None
+
+    def test_arrow_process(self) -> None:
+        # create a simple data flow graph containing only a source node
+        graph = DataFlowGraph()
+        graph.add_source_node(MappingType.construct({"x": BoolType}))
+        # create the collect reference
+        collect = ConcreteReference(_node_id=graph.src_node_id, _graph=graph)
+
+        mock_executor = MagicMock(spec=DataFlowExecutor, execute=AsyncMock())
+        # mock the executor
+        with (
+            patch("hyped.core.flow.pa.table") as mock_table,
+            patch("hyped.core.flow.get_worker_info") as mock_get_worker_info,
+            patch("hyped.core.flow.DataFlowExecutor", MagicMock(return_value=mock_executor)),
+        ):
+            # create the executable data flow instance
+            flow = ExecutableDataFlow(None, graph, collect, None, None)
+
+            # create mock inputs to be processed
+            mock_batch = MagicMock()
+            mock_index = MagicMock()
+            mock_rank = MagicMock()
+
+            # test pyarrow process call
+            out = flow.arrow_process(mock_batch, mock_index, mock_rank)
+            mock_executor.execute.assert_called_once_with(
+                mock_batch.to_struct_array.return_value, mock_index, mock_rank
+            )
+            assert out == mock_table.return_value
+
+            # reset mocks
+            mock_get_worker_info.reset_mock()
+            mock_executor.reset_mock()
+
+            # test infer default rank from worker info
+            flow.arrow_process(mock_batch, mock_index, None)
+            mock_get_worker_info.assert_called_once()
+            # check execute function called correctly
+            mock_executor.execute.assert_called_once_with(
+                mock_batch.to_struct_array.return_value,
+                mock_index,
+                mock_get_worker_info.return_value.rank,
+            )
+            assert out == mock_table.return_value
+
+    @patch("hyped.core.flow.datasets.fingerprint.generate_fingerprint", MagicMock())
+    @patch("hyped.core.flow.datasets.fingerprint.update_fingerprint", MagicMock())
+    def test_apply(self) -> None:
+        # create a simple data flow graph containing only a source node
+        graph = DataFlowGraph()
+        graph.add_source_node(MappingType.construct({"x": BoolType}))
+        # create the collect reference
+        collect = ConcreteReference(_node_id=graph.src_node_id, _graph=graph)
+        # create the executable data flow instance
+        flow = ExecutableDataFlow(None, graph, collect, None, None)
+
+        with pytest.raises(ValueError):
+            # not a dataset
+            flow.apply(ds=MagicMock())
+
+        # create a mock dataset
+        hf_features = datasets.Features({"x": datasets.Value("bool")})
+        ds = MagicMock(spec=datasets.Dataset, features=hf_features)
+        # apply the flow to the mock dataset
+        flow.apply(ds)
+        # make sure the map function was called correctly
+        ds.with_format.assert_called_once_with(type="arrow", columns=["x"])
+        ds.with_format.return_value.map.assert_called_once_with(
+            flow.arrow_process,
+            with_indices=True,
+            with_rank=True,
+            batched=True,
+            batch_size=ANY,
+            drop_last_batch=ANY,
+            keep_in_memory=ANY,
+            load_from_cache_file=ANY,
+            writer_batch_size=ANY,
+            num_proc=ANY,
+            desc=ANY,
+            new_fingerprint=ANY,
+        )
+
+        ds.reset_mock()
+
+        # create a mock dataset dict
+        ds_dict = datasets.DatasetDict({"data": ds})
+        # apply the flow to the mock dataset
+        flow.apply(ds_dict)
+        # make sure the map function was called correctly
+        ds.with_format.assert_called_once_with(type="arrow", columns=["x"])
+        ds.with_format.return_value.map.assert_called_once_with(
+            flow.arrow_process,
+            with_indices=True,
+            with_rank=True,
+            batched=True,
+            batch_size=ANY,
+            drop_last_batch=ANY,
+            keep_in_memory=ANY,
+            load_from_cache_file=ANY,
+            writer_batch_size=ANY,
+            num_proc=ANY,
+            desc=ANY,
+            new_fingerprint=ANY,
+        )
+
+        # create a mock iterable dataset
+        it_ds = MagicMock(spec=datasets.IterableDataset, features=hf_features)
+        # apply the flow to the mock dataset
+        flow.apply(it_ds)
+        # make sure the map function was called correctly
+        it_ds.with_format.assert_called_once_with(type="arrow")
+        it_ds.with_format.return_value.map.assert_called_once_with(
+            flow.arrow_process,
+            with_indices=True,
+            batched=True,
+            batch_size=ANY,
+            drop_last_batch=ANY,
+            remove_columns=ANY,
+            features=ANY,
+        )
+
+        # create a mock iterable dataset
+        it_ds_dict = MagicMock(
+            spec=datasets.IterableDatasetDict, values=MagicMock(return_value=[it_ds])
+        )
+        # apply the flow to the mock dataset
+        flow.apply(it_ds_dict)
+        # make sure the map function was called correctly
+        it_ds_dict.with_format.assert_called_once_with(type="arrow")
+        it_ds_dict.with_format.return_value.map.assert_called_once_with(
+            flow.arrow_process,
+            with_indices=True,
+            batched=True,
+            batch_size=ANY,
+            drop_last_batch=ANY,
+            remove_columns=ANY,
+        )
+
+    @patch("hyped.core.flow.datasets.fingerprint.generate_fingerprint", MagicMock())
+    @patch("hyped.core.flow.datasets.fingerprint.update_fingerprint", MagicMock())
+    def test_apply_fallback_on_feature_mismatch(self) -> None:
+        # create two different but castable dtypes
+        dtype_A = MappingType.construct({"field": Int16Type})
+        dtype_B = MappingType.construct({"field": Int32Type})
+        # create a simple data flow graph containing only a source node
+        # using the first dtype and a single aggregator node
+        from hyped.core.ops.mapping import MappingGetItem
+        from hyped.core.ops.numeric import Sum
+
+        graph = DataFlowGraph()
+        src_ref = graph.add_source_node(dtype_A)
+        val_ref = graph.add_compute_node(MappingGetItem(key="field"), {"mapping": src_ref})
+        sum_ref = graph.add_compute_node(Sum(), {"val": val_ref})
+        agg_ref = graph.add_collect_node({"sum": sum_ref})
+        # create the executable data flow instance
+        mock_manager = MagicMock(
+            values_proxy={sum_ref._node_id: MagicMock(type=Int16Type.arrow_type)}
+        )
+        flow = ExecutableDataFlow(None, graph, src_ref, agg_ref, mock_manager)
+
+        # create a mock dataset with features matching the second data type
+        ds = MagicMock(spec=datasets.Dataset, features=dtype_B.hf_feature)
+
+        exec_flow_buffer: list[ExecutableDataFlow] = []
+
+        def capture_exec_flow_hook(*args, **kwargs):
+            exec_flow = ExecutableDataFlow(*args, **kwargs)
+            exec_flow_buffer.append(exec_flow)
+            return exec_flow
+
+        mock_exec_flow_class = MagicMock(side_effect=capture_exec_flow_hook)
+
+        with patch("hyped.core.flow.ExecutableDataFlow", mock_exec_flow_class):
+            flow.apply(ds)
+
+        # make sure a new data flow was build by the apply
+        mock_exec_flow_class.assert_called_once()
+        assert len(exec_flow_buffer) == 1
+        # check the structure of the exec
+        (exec_flow,) = exec_flow_buffer
+        # make sure the new flow uses the same aggregation manager
+        assert exec_flow._aggregation_manager == mock_manager
+        # make sure the source features match the features of the dataset
+        assert exec_flow._graph.src_dtype == dtype_B
+        # make sure there is exactly one node connecting to the source node
+        assert exec_flow._graph.out_degree(exec_flow._graph.src_node_id) == 1
+        edges = exec_flow._graph.out_edges(exec_flow._graph.src_node_id)
+        _, cast_node_id = next(iter(edges))
+        # make sure that node is the cast node
+        node_type = exec_flow._graph.nodes[cast_node_id][DataFlowGraph.NodeAttribute.NODE_TYPE]
+        out_dtype = exec_flow._graph.nodes[cast_node_id][
+            DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
+        ]
+        assert node_type == DataFlowGraph.NodeType.CAST
+        assert out_dtype == dtype_A
+
+    @patch("hyped.core.flow.datasets.fingerprint.generate_fingerprint", MagicMock())
+    @patch("hyped.core.flow.datasets.fingerprint.update_fingerprint", MagicMock())
+    def test_apply_exceptions(self) -> None:
+        # create two different and un-castable dtypes
+        dtype_A = MappingType.construct({"field": Int16Type})
+        dtype_B = MappingType.construct({"other": Int32Type})
+        # create a simple data flow graph containing only a source node
+        # using the first dtype
+        graph = DataFlowGraph()
+        graph.add_source_node(dtype_A)
+        # create the collect reference
+        collect = ConcreteReference(_node_id=graph.src_node_id, _graph=graph)
+        # create the executable data flow instance
+        flow = ExecutableDataFlow(None, graph, collect, None, None)
+
+        with pytest.raises(ValueError, match="Expected one of `datasets.Dataset`,"):
+            flow.apply(MagicMock())
+
+        # create a mock dataset with undefined dataset features
+        ds = MagicMock(spec=datasets.Dataset, features=None)
+        with pytest.raises(RuntimeError, match="Dataset features must not be None."):
+            flow.apply(ds)
+
+        # create a mock dataset with features matching the second data type
+        ds = MagicMock(spec=datasets.Dataset, features=dtype_B.hf_feature)
+        with pytest.raises(RuntimeError, match="Failed to cast dataset features"):
+            flow.apply(ds)
+
+        with (
+            pytest.raises(RuntimeError, match="Dataset features do not align with the expected"),
+            patch("hyped.core.flow.validate_hf_feature") as mock_validate_hf_feature,
+        ):
+            flow = ExecutableDataFlow(MagicMock(), graph, collect, None, None)
+            mock_validate_hf_feature.side_effect = Exception
+            flow.apply(ds)
+
+    def test_serialization(self) -> None:
+        class Inputs(Mapping):
+            x: Bool
+
+        # create a simple data flow graph containing only a source node
+        graph = DataFlowGraph()
+        graph.add_source_node(MappingType.construct({"x": BoolType}))
+        # create the collect reference
+        collect = ConcreteReference(_node_id=graph.src_node_id, _graph=graph)
+        # create the executable data flow instance
+        flow = ExecutableDataFlow(Inputs, graph, collect, None, None)
+
+        serialized = flow.serialize()
+        flow = DataFlow.deserialize(serialized)
+
+        assert collect._node_id == flow._instance_executor.collect._node_id
+
+        with pytest.raises(ValueError):
+            # deserialize from invalid string
+            DataFlow.deserialize("{}")

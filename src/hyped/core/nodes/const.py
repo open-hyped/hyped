@@ -1,114 +1,66 @@
-"""Provides classes for constant nodes in a data flow graph.
+"""This module defines the :class:`ConstNode`.
 
-This module defines the classes and configurations for constant nodes,
-which introduce constant values into the data flow. These nodes are
-source nodes that generate fixed values as their output. The module
-includes configurations, output references, and the constant node
-implementation itself.
-
-To add constants to the data flow, use the :code:`DataFlow.const` function. 
-This function provides a high-level interface to create and add constant
-nodes to the data flow graph.
-
-Classes:
-    - ConstConfig: Configuration class for constant nodes.
-    - ConstOutputRefs: Output references class for constant nodes.
-    - Const: Implementation of the constant node.
-
-Example:
-    Define and use a constant node in a data flow:
-
-    .. code-block:: python
-
-        from hyped.flow import DataFlow
-
-        flow = DataFlow(...)
-        const_ref = flow.const(value=42)
+The :class:`ConstNode` class is a specialized node that holds a constant value defined in its
+configuration. Unlike other nodes in the data flow graph, the :class:`ConstNode` does not process
+input or dynamically compute outputs. Instead, it serves as a static reference for constant data.
 """
-from __future__ import annotations
 
 from typing import Annotated, Any
 
-from datasets import Dataset
-from datasets.features.features import FeatureType
-from pydantic import model_validator
+import pyarrow as pa
+import pydantic
 
-from hyped.common.feature_checks import raise_object_matches_feature
-from hyped.core.refs.outputs import LambdaOutputFeature, OutputRefs
-from hyped.core.refs.ref import FeatureRef
-
+from ..features.dtypes import build_dtype_from_arrow_type, build_type_from_dict
 from .base import BaseNode, BaseNodeConfig
 
 
-class ConstConfig(BaseNodeConfig):
-    """Configuration class for constant nodes."""
+class ConstNodeConfig(BaseNodeConfig):
+    """Configuration for a constant node."""
 
-    value: Any
-    """The constant value to be introduced into the data flow."""
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
 
-    feature: None | FeatureType = None
-    """The type of the feature.
-    
-    If not provided, the feature type is inferred from the value.
+    value: Annotated[
+        pa.Array,
+        # serialize pyarrow array
+        pydantic.PlainSerializer(
+            lambda x: {
+                "value": x.to_pylist()[0],
+                "dtype": build_dtype_from_arrow_type(x.type).to_dict(),
+            }
+        ),
+        # parse pyarrow array
+        pydantic.BeforeValidator(
+            lambda x: x
+            if isinstance(x, pa.Array)
+            else (pa.array([x["value"]], type=build_type_from_dict(x["dtype"]).arrow_type))
+        ),
+    ]
+    """A PyArrow array representing the constant value.
+
+    This field supports custom serialization and deserialization logic:
+     - Serialization: Converts the array to a dictionary containing the
+       constant (:code:`value`) and its data type (:code:`dtype`).
+     - Deserialization: Parses input into a PyArrow array based on the
+       provided value and data type.
     """
 
-    @model_validator(mode="after")
-    def _validate_feature_type(self) -> ConstConfig:
-        """Validates and infers the feature type after the configuration is initialized.
 
-        If the feature type is not provided, it infers the feature type from the value.
-        If the feature type is provided, it ensures the value matches the feature type.
+class ConstNode(BaseNode[ConstNodeConfig]):
+    """A constant node in the processing pipeline."""
 
-        Returns:
-            ConstConfig: The validated and potentially modified configuration object.
-        """
-        if self.feature is None:
-            # infer feature type from value
-            ds = Dataset.from_dict({"x": [self.value]})
-            self.feature = ds.features["x"]
-
-        else:
-            # make sure feature type aligns with the value
-            raise_object_matches_feature(self.value, self.feature)
-
-        return self
-
-
-class ConstOutputRefs(OutputRefs):
-    """Output references for constant nodes."""
-
-    value: Annotated[FeatureRef, LambdaOutputFeature(lambda c, _: c.feature)]
-    """The output feature reference for the constant value."""
-
-
-class Const(BaseNode[ConstConfig, None, ConstOutputRefs]):
-    """Constant node class.
-
-    This type of node introduces a constant value into the data flow graph.
-    """
-
-    def get_const_batch(self, batch_size: int) -> list[Any]:
-        """Returns a batch of the constant value.
-
-        Args:
-            batch_size (int): The size of the batch to be generated.
+    def __str__(self) -> str:
+        """Returns the string representation of the constant node.
 
         Returns:
-            list[Any]: A list containing the constant value repeated
-            :code:`batch_size` times.
+            str: The class name of the node instance.
         """
-        return {"value": [self.config.value] * batch_size}
+        return str(self.config.value.to_pylist()[0])  # pragma: not covered
 
-    def call(self, flow: object) -> ConstOutputRefs:
-        """Adds the constant node to the data flow graph.
+    @property
+    def signature(self) -> Any:  # pragma: not covered
+        """Raises an error, as signature is not supported for this node."""
+        raise EnvironmentError("The `signature` property is not available for collect nodes.")
 
-        This method adds the constant node to the data flow graph
-        and returns the output feature reference.
-
-        Args:
-            flow (DataFlowGraph): The data flow graph object to which the node is added.
-
-        Returns:
-            ConstOutputRefs: The output feature reference for the constant node.
-        """
-        return super(Const, self).call(flow)
+    def call(self, *args: Any, **kwargs: Any) -> Any:  # pragma: not covered
+        """Raises an error, as direct calls are not supported for this node."""
+        raise EnvironmentError("The `call` method is not available for collect nodes.")

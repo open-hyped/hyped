@@ -14,7 +14,7 @@ Features
 --------
 
 - **Seamless Integration with Hugging Face Datasets**: Utilize the extensive collection of datasets available through HuggingFace. Hyped handles data loading and preprocessing using HuggingFace's powerful tools.
-- **Flexible Data Processing**: Flexible and Configurable Data Processing: Define complex data processing workflows by linking data processors in a DAG. Each data processor in Hyped is fully configurable, allowing users to fine-tune their behavior according to specific requirements. Hyped comes with a set of general-purpose processors out of the box, allowing for a wide range of transformations and manipulations on your data, while enabling users to customize workflows seamlessly.
+- **Flexible Data Processing**: Define complex data processing workflows by linking data processors in a DAG. Each data processor in Hyped is fully configurable, allowing users to fine-tune their behavior according to specific requirements. Hyped comes with a set of general-purpose processors out of the box, allowing for a wide range of transformations and manipulations on your data, while enabling users to customize workflows seamlessly.
 - **Modular Design**: Break down complex workflows into reusable components, improving code readability and maintainability. Hyped's modular approach allows for the creation of clear and organized data processing pipelines. By designing data processors as reusable components, you can easily repurpose them across different pipelines, reducing redundancy and fostering efficient development practices.
 - **Custom Processor Support**: Implement custom data processors tailored to your specific requirements. Whether you need to apply domain-specific transformations or integrate with external libraries, Hyped provides the flexibility to extend its functionality as needed.
 - **Efficient Execution**: Execute your data pipelines efficiently, whether you're working with small datasets or processing large volumes of data. Hyped supports multiprocessing and data streaming out of the box, enabling efficient utilization of computational resources and avoiding memory limitations when processing large datasets.
@@ -44,17 +44,23 @@ Content
 Below is a list of key sections in this documentation, guiding you through installation, basic usage, API references, and more.
 
 .. toctree::
+   :maxdepth: 2
 
    getting_started
-   data_flow
-   data_processors
-   data_augmenters
-   data_aggregators
-   operators
-   add_ons
+   tutorials
+   extensions
 
 .. toctree::
    :maxdepth: 2
+   :caption: Techincal Docs
+
+   _technical/data_flow
+   _technical/data_processors
+   _technical/data_augmentors
+   _technical/data_aggregators
+
+.. toctree::
+   :maxdepth: 3
    :caption: API References
 
    api/hyped

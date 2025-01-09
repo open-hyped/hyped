@@ -8,27 +8,56 @@ and edges (data flow between processors).
 
 from __future__ import annotations
 
-import uuid
+import operator
 from enum import Enum
 from functools import wraps
 from itertools import groupby
 from typing import Any, Hashable
+from uuid import UUID
 
-import datasets
 import networkx as nx
+import numpy as np
+import pyarrow as pa
 
-from hyped.common.typing import NodeId, PartitionId
-from hyped.core.nodes.aggregator import BaseDataAggregator
-from hyped.core.nodes.augmenter import BaseDataAugmenter
-from hyped.core.nodes.base import BaseNode
-from hyped.core.nodes.const import Const
-from hyped.core.nodes.processor import BaseDataProcessor
-from hyped.core.refs.inputs import InputRefsContainer
-from hyped.core.refs.outputs import OutputRefs
-from hyped.core.refs.ref import FeatureRef
+from .abstract import AbstractDataFlowGraph
+from .features.dtypes import (
+    DType,
+    MappingType,
+    SequenceType,
+    build_dtype_from_python_object,
+    build_type_from_dict,
+    cast_dtype,
+)
+from .features.engine import FeatureEngine
+from .features.features import build_feature_from_reference
+from .features.reference import ConcreteReference
+from .nodes.aggregator import BaseDataAggregator
+from .nodes.augmentor import BaseDataAugmentor
+from .nodes.base import BaseNode, RunContext
+from .nodes.collect import CollectNode
+from .nodes.const import ConstNode
+from .nodes.processor import BaseDataProcessor
+from .registry.config import AutoConfigurable
+from .typing import NodeId, PartitionId
+from .utils import NestedType, map_recursive
+
+rng = np.random.Generator(np.random.PCG64(42))
 
 
-def _compute_node_depth(G: nx.DiGraph) -> dict[Hashable, int]:
+def random_uuid() -> UUID:
+    """Generates a random UUID using a numpy random number generator.
+
+    This function uses the random number generator to produce 16 random bytes,
+    which are then used to create a UUID (version 4). The resulting UUID is
+    unique and reproducible based on the underlying random byte generation.
+
+    Returns:
+        UUID: A randomly generated UUID created from 16 random bytes.
+    """
+    return UUID(bytes=rng.bytes(16))
+
+
+def _compute_node_depth(g: nx.DiGraph) -> dict[Hashable, int]:
     """Compute the depth of each node in the graph.
 
     This function calculates the depth for each node in the provided networkx
@@ -37,7 +66,7 @@ def _compute_node_depth(G: nx.DiGraph) -> dict[Hashable, int]:
     (DAG), the root is typically a node with no incoming edges.
 
     Args:
-        G (nx.Graph): The networkx graph for which to compute node depths.
+        g (nx.Graph): The networkx graph for which to compute node depths.
 
     Returns:
         dict: A dictionary mapping each node to its depth in the graph.
@@ -46,49 +75,63 @@ def _compute_node_depth(G: nx.DiGraph) -> dict[Hashable, int]:
         ValueError: If the graph contains cycles.
         ValueError: If a root node cannot be determined.
     """
+    if not nx.is_directed_acyclic_graph(g):
+        raise ValueError("Graph contains a cycle.")
+
     node_depths = {}
     # trafers graph in topological order and compute the node depth
-    for partition_node in nx.topological_sort(G):
+    for partition_node in nx.topological_sort(g):
         node_depths[partition_node] = max(
-            (node_depths[parent] + 1 for parent in G.predecessors(partition_node)),
+            (node_depths[parent] + 1 for parent in g.predecessors(partition_node)),
             default=0,
         )
 
     return node_depths
 
 
-def _build_dependency_graph(G: nx.DiGraph, nodes: set[Hashable]) -> nx.DiGraph:
+def _build_dependency_graph(
+    g: nx.DiGraph, nodes: set[Hashable], stop_nodes: set[Hashable] = set()
+) -> nx.DiGraph:
     """Build a subgraph containing all dependencies for a given set of nodes.
 
     This function constructs a subgraph from a directed graph :code:`G` by including
-    all nodes that are dependencies (predecessors) of the specified :code:`nodes`.
-    The resulting subgraph consists of the nodes in :code:`nodes` and all their
-    upstream dependencies.
+    all nodes that are dependencies (predecessors) of the specified :code:`nodes`,
+    except those that reach any node in :code:`stop_nodes`. The resulting subgraph
+    consists of the nodes in :code:`nodes` and all their upstream dependencies, but
+    traversal stops at nodes in :code:`stop_nodes`.
 
     Args:
-        G (nx.DiGraph): The original directed graph.
+        g (nx.DiGraph): The original directed graph.
         nodes (set[Hashable]): A set of nodes for which to build the dependency subgraph.
+        stop_nodes (set[Hashable]): A set of nodes that serve as cut-off points in
+            the traversal. Dependencies beyond these nodes will not be included
+            in the subgraph.
 
     Returns:
-        nx.DiGraph: A subgraph of :code:`G` containing the specified nodes and their dependencies.
+        nx.DiGraph: A subgraph of :code:`G` containing the specified nodes and their dependencies,
+        with paths beyond :code:`stop_nodes` excluded.
 
     Raises:
         AssertionError: If any node in :code:`nodes` is not present in :code:`G`.
     """
-    assert all(node in G for node in nodes), "All nodes must be present in the graph 'G'."
+    assert all(node in g for node in nodes), "All nodes must be present in the graph 'G'."
 
     visited = set()
-    nodes = nodes.copy()
-    # search through dependency graph
-    while len(nodes) > 0:
-        node = nodes.pop()
-        visited.add(node)
-        nodes.update(G.predecessors(node))
+    to_visit = nodes.copy()
 
-    return G.subgraph(visited)
+    # Traverse dependencies
+    while to_visit:
+        node = to_visit.pop()
+        if node not in visited:
+            visited.add(node)
+            # Only add predecessors if the current node is not a stop node
+            if node not in stop_nodes:
+                to_visit.update(pred for pred in g.predecessors(node) if pred not in visited)
+
+    return g.subgraph(visited)
 
 
-class DataFlowGraph(nx.MultiDiGraph):
+class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
     """A multi-directed graph representing a data flow of data processors.
 
     This class is used internally to define a directed acyclic graph (DAG)
@@ -106,7 +149,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         This property identifies the source node ID of an edge in the graph.
         """
 
-    class PredefinedPartition(str, Enum):
+    class Partition(str, Enum):
         """Enum representing predefined partitions in the data flow graph."""
 
         CONST = "CONSTANT"
@@ -154,6 +197,25 @@ class DataFlowGraph(nx.MultiDiGraph):
         as fixed inputs to the subsequent processing stages.
         """
 
+        COLLECT = "COLLECT_NODE"
+        """
+        Represents a collect node in the data flow graph.
+
+        This type of node collects features from multiple upstream nodes into a single
+        (nested) feature. This enables the combination of outputs from various sources
+        or transformations into a unified structure, which can be further processed
+        downstream.
+        """
+
+        CAST = "CAST_NODE"
+        """
+        Represents a cast node in the data flow graph.
+
+        This type of node is responsible for type conversion within the data flow.
+        It transforms data from one type to another, ensuring compatibility between
+        different nodes or preparing the data for specific processing requirements.
+        """
+
         DATA_PROCESSOR = "DATA_PROCESSOR_NODE"
         """
         Represents a data processor node in the data flow graph.
@@ -171,13 +233,13 @@ class DataFlowGraph(nx.MultiDiGraph):
         nodes typically perform dataset-wide computations.
         """
 
-        DATA_AUGMENTER = "DATA_AUGMENTER_NODE"
+        DATA_AUGMENTOR = "DATA_AUGMENTOR_NODE"
         """
-        Represents a data augmenter node in the data flow graph.
+        Represents a data augmentor node in the data flow graph.
 
         This type of node is responsible for modifying the dataset by generating
-        new samples from existing ones or filtering out certain samples. Data 
-        augmenter nodes are used to expand or contract the dataset.
+        new samples from existing ones or filtering out certain samples. Data
+        augmentor nodes are used to expand or contract the dataset.
         """
 
     class NodeAttribute(str, Enum):
@@ -186,10 +248,10 @@ class DataFlowGraph(nx.MultiDiGraph):
         NODE_OBJ = "node_object"
         """
         The object associated with the node.
-        
+
         The value of this property is dependent on the type of node. For
         nodes of type :class:`NodeType.DATA_PROCESSOR`, this property
-        refers to the processor instance of the node. 
+        refers to the processor instance of the node.
         """
 
         NODE_TYPE = "node_type"
@@ -202,26 +264,26 @@ class DataFlowGraph(nx.MultiDiGraph):
         and identifying the nature of the processor in the data flow graph.
         """
 
-        IN_FEATURES = "in_features"
+        IN_FEATURE_TYPE = "in_feature_type"
         """
         Represents the input features associated with the node.
 
-        Type: :class:`datasets.Features`
+        Type: :class:`MappingType`
 
         This property contains the input features required by the data processor,
-        encapsulated in a HuggingFace `datasets.Features` instance. It defines the
-        structure and types of data that is expected by this node.
+        in the form of a mapping type instance. It defines the structure and types
+        of the inputs expected by the node.
         """
 
-        OUT_FEATURES = "out_features"
+        OUT_FEATURE_TYPE = "out_feature_type"
         """
         Represents the output features associated with the node.
 
-        Type: :class:`datasets.Features`
+        Type: :class:`DType`
 
-        This property contains the output features produced by the data processor,
-        encapsulated in a HuggingFace `datasets.Features` instance. It defines the
-        structure and types of data that are output by this node.
+        This property contains the output feature produced by the data processor,
+        as a :code:`DType` instance. It defines the structure and types of data that
+        is generated by this node.
         """
 
         PARTITION = "partition"
@@ -245,33 +307,6 @@ class DataFlowGraph(nx.MultiDiGraph):
         of the node relative to other nodes in the data flow.
         """
 
-    class EdgeAttribute(str, Enum):
-        """Enum representing properties of an edge in the data flow graph."""
-
-        NAME = "name"
-        """
-        Represents the name of the edge.
-
-        Type: :class:`str`
-
-        This property corresponds to the keyword of the argument used as an input
-        to the processor, linking the edge to a specific input parameter.
-
-        The name is also used by NetworkX as an identifier to distinguish multiedges
-        between a pair of nodes. It serves as a unique identifier for the edge.
-        """
-
-        KEY = "feature_key"
-        """
-        Represents the key of the feature associated with the edge.
-
-        Type: :class:`FeatureKey`
-
-        This property specifies which subfeature of the output of the source node
-        is flowing through the edge. It defines the particular feature that is being
-        transmitted from one node to another in the data flow graph.
-        """
-
     @wraps(nx.MultiDiGraph)
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize the DataFlowGraph.
@@ -291,16 +326,29 @@ class DataFlowGraph(nx.MultiDiGraph):
             self.graph[DataFlowGraph.GraphAttribute.SRC_NODE_ID] = None
 
     @property
-    def src_node_id(self) -> NodeId:
+    def src_node_id(self) -> None | NodeId:
         """Get the source node ID of the data flow graph.
 
         This property returns the source node ID associated with the data flow graph.
         The source node is the entrypoint for inputs to the data flow.
 
         Returns:
-            NodeId: The uuid of the source node.
+            None | NodeId: The uuid of the source node. :code:`None` if graph has no source node.
         """
         return self.graph[DataFlowGraph.GraphAttribute.SRC_NODE_ID]
+
+    @property
+    def src_dtype(self) -> MappingType:
+        """Get the source data type.
+
+        This property retrieves the data type of the source node in the data flow graph.
+        The source data type defines the structure and types of features expected by the
+        source node, which serve as the initial inputs to the data flow graph.
+
+        Returns:
+            MappingType: The data type of the source node.
+        """
+        return self.nodes[self.src_node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
 
     @property
     def depth(self) -> int:
@@ -340,6 +388,9 @@ class DataFlowGraph(nx.MultiDiGraph):
         these partitions. The resulting partition graph is required to have a tree
         structure, where each partition (except the root) has a single parent partition.
 
+        Note that while the data flow graph itself is asyclic, the partition graph
+        doesn't need to be.
+
         Note that while the partition graph includes the constant partition, it does not
         model the flow of constants to other partitions, i.e. the constant partition is
         not isolated from the remaining partition graph. Reason for this design choice is
@@ -350,13 +401,13 @@ class DataFlowGraph(nx.MultiDiGraph):
 
         Raises:
             AssertionError: If the resulting partition graph is not a tree (i.e., any node
-                            has more than one incoming edge).
+                has more than one incoming edge).
         """
-        G = nx.DiGraph()
-        G.add_nodes_from(
+        graph = nx.DiGraph()
+        graph.add_nodes_from(
             [
-                DataFlowGraph.PredefinedPartition.CONST.value,
-                DataFlowGraph.PredefinedPartition.DEFAULT.value,
+                DataFlowGraph.Partition.CONST.value,
+                DataFlowGraph.Partition.DEFAULT.value,
             ]
         )
 
@@ -370,44 +421,126 @@ class DataFlowGraph(nx.MultiDiGraph):
 
             # make sure the source partition is contained in the partition graph
             assert (
-                src_partition in G
+                src_partition in graph
             ), f"The source partition '{src_partition}' is not present in the partition graph."
 
             # don't include edges from the constant partition in partition graph
-            if src_partition == DataFlowGraph.PredefinedPartition.CONST:
+            if src_partition == DataFlowGraph.Partition.CONST:
                 continue
 
             # add the target partition to the partition graph
-            if tgt_partition not in G:
-                G.add_node(tgt_partition)
+            if tgt_partition not in graph:
+                graph.add_node(tgt_partition)
 
             # only add a connection if there is no path from the source to the
             # target partition yet
             if (src_partition != tgt_partition) and not nx.has_path(
-                G, src_partition, tgt_partition
+                graph, src_partition, tgt_partition
             ):
-                G.add_edge(src_partition, tgt_partition)
+                graph.add_edge(src_partition, tgt_partition)
 
-        # the partition graph needs to be a tree structure
-        assert max(dict(G.in_degree).values()) <= 1, (
-            "The partition graph must be a tree structure, but a node with more "
-            "than one incoming edge was found."
+        return graph
+
+    def add_node(
+        self,
+        node_obj: Any,
+        node_type: DataFlowGraph.NodeType,
+        inputs: dict[str, ConcreteReference],
+        output_type: DType,
+        node_id: None | NodeId = None,
+    ) -> ConcreteReference:
+        """Adds a new node to the data flow graph.
+
+        This function creates a node in the graph with specified attributes such as
+        type, inputs, and output data type. It computes the node's partition, depth,
+        and input type dynamically based on its inputs and ensures the graph remains
+        a Directed Acyclic Graph (DAG) after adding the node. The function also
+        establishes dependency edges between the new node and its input nodes.
+
+        Args:
+            node_obj (Any): The object associated with the node.
+            node_type (DataFlowGraph.NodeType): The type of the node.
+            inputs (dict[str, ConcreteReference]): A dictionary mapping input names to
+                :class:`ConcreteReference` instances that represent dependencies of this
+                node on other nodes in the graph.
+            output_type (DType): The output data type produced by this node.
+            node_id (None | NodeId): The unique identifier for the node. If :code:`None`,
+                a random UUID will be generated. Defaults to :code:`None`.
+
+        Returns:
+            ConcreteReference: A reference to the newly created node.
+
+        """
+        # infer the output partition of the node from the node type and input references
+        partition = self.infer_node_partition(node_type, list(inputs.values()))
+        # aggregated partition currently only supports processor type nodes
+        if (partition == DataFlowGraph.Partition.AGGREGATED) and (
+            node_type not in {DataFlowGraph.NodeType.COLLECT, DataFlowGraph.NodeType.DATA_PROCESSOR}
+        ):
+            raise NotImplementedError(
+                f"Aggregator outputs may only be processed by data processors "
+                f"or collect operations, got {node_type}."
+            )
+
+        # compute the depth of the node in the graph based on it's input references
+        depth = (
+            0
+            if inputs is None
+            else max(
+                (
+                    self.nodes[ref._node_id][DataFlowGraph.NodeAttribute.DEPTH] + 1
+                    for ref in inputs.values()
+                ),
+                default=0,
+            )
         )
 
-        return G
+        # build the input data type from the input references
+        input_type = MappingType.construct(
+            {key: self.get_dtype_from_reference(ref) for key, ref in inputs.items()}
+        )
 
-    def add_source_node(self, features: datasets.Features, node_id: None | str = None) -> NodeId:
+        # create a random node id if no was given
+        node_id = node_id if node_id is not None else str(random_uuid())
+        # add the node to the graph
+        super(DataFlowGraph, self).add_node(
+            node_id,
+            **{
+                DataFlowGraph.NodeAttribute.NODE_OBJ.value: node_obj,
+                DataFlowGraph.NodeAttribute.NODE_TYPE.value: node_type,
+                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE.value: input_type,
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE.value: output_type,
+                DataFlowGraph.NodeAttribute.PARTITION.value: partition,
+                DataFlowGraph.NodeAttribute.DEPTH.value: depth,
+            },
+        )
+
+        # add dependency edges to graph
+        for name, ref in inputs.items():
+            # add the edge
+            self.add_edge(
+                ref._node_id,
+                node_id,
+                key=name,
+            )
+
+        # make sure the graph is a DAG
+        assert nx.is_directed_acyclic_graph(self)
+
+        return ConcreteReference(node_id, self)
+
+    def add_source_node(self, data_type: DType, node_id: None | NodeId = None) -> ConcreteReference:
         """Add a the source node to the graph.
 
         This method adds a source node to the graph, which acts as the initial
         data provider for the data flow.
 
         Args:
-            features (datasets.Features): The features of the source node.
-            node_id (None | str): The id of the node, defaults to a random uuid.
+            data_type (DType): The data type representing the source features.
+            node_id (None | NodeId): The id of the node, defaults to a random uuid.
 
         Returns:
-            NodeId: The node id of the source node.
+            ConcreteReference: A reference object to the source node.
 
         Raises:
             AssertionError: If the graph already contains a source node
@@ -415,11 +548,286 @@ class DataFlowGraph(nx.MultiDiGraph):
         # make sure the graph has no source node yet
         if self.src_node_id is not None:
             raise RuntimeError("Graph already contains a source node.")
-        # add the source node and set the source node id in the graph properties
-        node_id = self.add_processor_node(None, None, features, node_id)
-        self.graph[DataFlowGraph.GraphAttribute.SRC_NODE_ID] = node_id
-        # return the source node id
-        return node_id
+
+        # add the node to the graph
+        ref = self.add_node(
+            node_obj=None,
+            node_type=DataFlowGraph.NodeType.SOURCE,
+            inputs={},
+            output_type=data_type,
+            node_id=node_id,
+        )
+        # save source node id as graph attribute
+        self.graph[DataFlowGraph.GraphAttribute.SRC_NODE_ID] = ref._node_id
+        # return the reference to the source node
+        return ref
+
+    def add_const_node(
+        self, value: Any, dtype: DType, node_id: None | NodeId = None
+    ) -> ConcreteReference:
+        """Adds a constant node to the data flow graph.
+
+        This function creates a node representing a constant value in the graph. The
+        value is wrapped in a :code:`PyArrow` array of the specified data type.
+
+        Args:
+            value (Any): The constant value to be added to the graph.
+            dtype (DType): The data type of the constant value.
+            node_id (None | NodeId): A unique identifier for the node. If :code:`None`,
+                a random UUID is generated. Defaults to :code:`None`.
+
+        Returns:
+            ConcreteReference: A reference to the newly created constant node.
+        """
+        # make sure the data type matches the value
+        array = pa.array([value], type=dtype.arrow_type)
+        # create a random node id if not provided
+        node_id = node_id if node_id is not None else str(random_uuid())
+
+        # add the node to the graph
+        return self.add_node(
+            node_obj=ConstNode(value=array),
+            node_type=DataFlowGraph.NodeType.CONST,
+            inputs={},
+            output_type=dtype,
+            node_id=node_id,
+        )
+
+    def add_collect_node(
+        self, collect: NestedType[ConcreteReference], node_id: None | NodeId = None
+    ) -> ConcreteReference:
+        """Adds a collect node to the data flow graph.
+
+        A collect node combines features from other nodes, organizing them into a nested
+        structure as specified by the :code:`collect` argument. It enables combining outputs
+        from multiple nodes into a single, structured output.
+
+        Args:
+            collect (NestedType[ConcreteReference]): A nested structure (e.g., lists, dictionaries)
+                containing :class:`ConcreteReference` objects that specify the features to collect.
+            node_id (None | NodeId): A unique identifier for the node.
+                If :code:`None`, a random UUID is generated. Defaults to :code:`None`.
+
+        Returns:
+            ConcreteReference: A reference to the newly created collect node.
+        """
+        inputs: dict[str, ConcreteReference] = {}
+        # extract flat inputs to collect node from structure
+        map_recursive(
+            lambda p, r: (
+                None
+                if not isinstance(r, ConcreteReference)
+                else operator.setitem(inputs, ".".join(map(str, p)), r)
+            ),
+            collect,
+        )
+
+        # build the nested value lookup structure
+        lookup: NestedType[str] = map_recursive(
+            lambda p, v: ".".join(map(str, p)) if isinstance(v, ConcreteReference) else v, collect
+        )
+
+        # create the collect node object
+        obj = CollectNode(lookup=lookup)
+
+        # build the output type of the collect operation
+        output_type, required_casts = obj.build_output_type(self, inputs)
+        # add required cast nodes to graph
+        for key, dtype in required_casts.items():
+            inputs[key] = self.add_cast_node(inputs[key], dtype)
+
+        # add the node object
+        return self.add_node(
+            node_obj=obj,
+            node_type=DataFlowGraph.NodeType.COLLECT,
+            inputs=inputs,
+            output_type=output_type,
+            node_id=node_id,
+        )
+
+    def add_collect_node_with_constants(
+        self,
+        collect: NestedType[ConcreteReference | Any],
+        dtype: None | DType = None,
+        node_id: None | NodeId = None,
+    ) -> ConcreteReference:
+        """Add a collect node and all contained constants to a data flow graph.
+
+        This function processes a nested structure of references and constants,
+        adding constants to the graph as nodes if necessary. It then combines the
+        resolved references and constants into a single :code:`collect` node, returning
+        a reference to this node.
+
+        Args:
+            graph (DataFlowGraph): The data flow graph to which the nodes will be added.
+            collect (NestedType[ConcreteReference | Any]): A nested structure containing constants
+                (e.g., integers, floats, or strings) and/or references to existing nodes in
+                the graph.
+            dtype (None | DType): The expected data type of the :code:`collect` structure. If
+                :code:`None`, the function attempts to infer the type where possible.
+            node_id (None | NodeId): A unique identifier for the node. If :code:`None`, a random
+                UUID is generated. Defaults to :code:`None`.
+
+        Returns:
+            ConcreteReference: A reference to the :code:`collect` node added to the graph.
+
+        Raises:
+            AssertionError: If the provided :code:`dtype` does not match the structure
+                of :code:`collect`.
+            TypeError: If an unsupported type is found in :code:`collect`.
+        """
+
+        def add_constants(
+            val: NestedType[ConcreteReference | str | int | float], dtype: None | DType = None
+        ) -> NestedType[ConcreteReference]:
+            if isinstance(val, dict):
+                assert (dtype is None) or isinstance(dtype, MappingType)
+
+                return {
+                    key: add_constants(item, dtype[key] if dtype is not None else None)
+                    for key, item in val.items()
+                }
+
+            elif isinstance(val, (list, tuple)):
+                assert (dtype is None) or isinstance(dtype, SequenceType)
+
+                if dtype is None:
+                    if len(val) == 0:
+                        raise NotImplementedError()
+                    # try to infer the dtype from the reference instances in the sequence
+                    if any(isinstance(r, ConcreteReference) for r in val):
+                        ref = next(r for r in val if isinstance(r, ConcreteReference))
+                        dtype = self.get_dtype_from_reference(ref)
+
+                else:
+                    # otherwise use the value type from the given dtype
+                    dtype = dtype.value_type
+
+                # recurse on all items in the sequence
+                return type(val)([add_constants(item, dtype) for item in val])
+
+            elif not isinstance(val, ConcreteReference):
+                # add the constant node
+                return self.add_const_node(
+                    val, dtype=dtype if dtype is not None else build_dtype_from_python_object(val)
+                )
+
+            elif isinstance(val, ConcreteReference):
+                return val
+
+            else:  # pragma: not covered
+                raise TypeError(f"Unsupported type encountered in 'collect': {val}.")
+
+        # add all constants to the graph
+        collect = add_constants(collect, dtype)
+
+        # add the collect node to the graph and return the reference to it
+        return self.add_collect_node(collect, node_id)
+
+    def add_cast_node(
+        self, ref: ConcreteReference, dtype: DType, node_id: None | NodeId = None
+    ) -> ConcreteReference:
+        """Add a cast node to the data flow graph.
+
+        This method adds a cast node, which transforms data from one type to another,
+        ensuring compatibility between nodes or preparing the data for specific processing
+        requirements. The method validates type compatibility and computes the resulting
+        type if the cast is feasible.
+
+        Args:
+            ref (ConcreteReference): A reference to the input data to be cast.
+            dtype (DType): The target type to which the input data should be cast.
+            node_id (None | NodeId): An optional unique identifier for the node. If not
+                provided, a random UUID is generated. Defaults to :code:`None`.
+
+        Returns:
+            ConcreteReference: A reference to the added cast node, allowing access to its output.
+
+        Raises:
+            RuntimeError: If the source and target types are incompatible or if other
+                casting constraints are violated.
+        """
+        try:
+            dtype = cast_dtype(self.get_dtype_from_reference(ref), dtype)
+        except RuntimeError as e:
+            raise RuntimeError(
+                f"Error while casting from {self.get_dtype_from_reference(ref)} to {dtype}."
+            ) from e
+
+        # create a random node id if not provided
+        node_id = node_id if node_id is not None else str(random_uuid())
+        # add the node to the graph
+        return self.add_node(
+            node_obj=None,
+            node_type=DataFlowGraph.NodeType.CAST,
+            inputs={"value": ref},
+            output_type=dtype,
+            node_id=node_id,
+        )
+
+    def add_compute_node(
+        self,
+        obj: BaseNode,
+        inputs: dict[str, ConcreteReference],
+        node_id: None | NodeId = None,
+    ) -> ConcreteReference:
+        """Add a compute node to the data flow graph.
+
+        This method adds a compute node, which performs a transformation or computation
+        on input features, to the data flow graph. The node type is dynamically determined
+        based on the class of the provided node object, and appropriate edges are created
+        to define the data flow.
+
+        Args:
+            obj (BaseNode): The compute node object, which defines the transformation logic.
+                Supported subclasses include :class:`BaseDataProcessor`,
+                :class:`BaseDataAggregator`, and :class:`BaseDataAugmentor`.
+            inputs (dict[str, ConcreteReference]): A mapping of input names to references for input
+                features consumed by this compute node.
+            node_id (None | NodeId): An optional unique identifier for the node. If not
+                provided, a random UUID is generated.
+
+        Returns:
+            ConcreteReference: A reference instance to the added compute node, allowing access
+            to its output features.
+
+        Raises:
+            AssertionError: If the node object is invalid or its type cannot be determined.
+            RuntimeError: If any input reference do not belong to this data flow.
+        """
+        # get processor type
+        node_type = (
+            DataFlowGraph.NodeType.SOURCE
+            if obj is None
+            else DataFlowGraph.NodeType.DATA_PROCESSOR
+            if isinstance(obj, BaseDataProcessor)
+            else DataFlowGraph.NodeType.DATA_AGGREGATOR
+            if isinstance(obj, BaseDataAggregator)
+            else DataFlowGraph.NodeType.DATA_AUGMENTOR
+            if isinstance(obj, BaseDataAugmentor)
+            else None
+        )
+        # make sure the object is valid
+        assert node_type is not None, f"Invalid node type {type(obj)}."
+
+        # build the input features
+        input_features = {key: build_feature_from_reference(ref) for key, ref in inputs.items()}
+        # create a type validation engine instance
+        name = f"DataFlowGraph.add_node({type(obj).__qualname__})"
+        with FeatureEngine(name, obj.config, obj.signature) as engine:
+            # validate the input features to the node
+            engine.validate_signature()
+            engine.validate_arguments(**input_features)
+            # get the output feature type of the node for the given inputs
+            feature_type = engine.build_return_feature(input_features).dtype
+
+        return self.add_node(
+            node_obj=obj,
+            node_type=node_type,
+            inputs=inputs,
+            output_type=feature_type,
+            node_id=node_id,
+        )
 
     def get_node_output_partition(self, node_id: NodeId) -> PartitionId:
         """Determine the output partition for a given node in the data flow graph.
@@ -431,8 +839,8 @@ class DataFlowGraph(nx.MultiDiGraph):
         - :code:`DATA_AGGREGATOR`: Outputs always point to the :code:`AGGREGATED` partition,
           even though the aggregator node itself is not part of this partition.
 
-        - :code:`DATA_AUGMENTER`: Outputs always point to their own partition, using the
-          node's ID as the partition name. Like aggregators, augmenters are not part of
+        - :code:`DATA_AUGMENTOR`: Outputs always point to their own partition, using the
+          node's ID as the partition name. Like aggregators, augmentors are not part of
           the partition they point to.
 
         - Other node types: Outputs remain within the partition specified by the
@@ -451,22 +859,28 @@ class DataFlowGraph(nx.MultiDiGraph):
             # data aggregator outputs always point into
             # the aggregated partition while the aggregator
             # node itself is not part of the aggregated partition
-            return DataFlowGraph.PredefinedPartition.AGGREGATED.value
+            return DataFlowGraph.Partition.AGGREGATED.value
 
-        elif input_node_type == DataFlowGraph.NodeType.DATA_AUGMENTER:
-            # data augmenters always point into their own partition
-            # we re-use the node-id of the augmenter as the partition
-            # note that while they point into their own partition, they
-            # are not part of them, similar to aggregators they point
-            # from outside the partition into it
-            return node_id
+        elif input_node_type == DataFlowGraph.NodeType.DATA_AUGMENTOR:
+            # build a mock run context
+            ctx = RunContext(
+                node_id=node_id,
+                index=[],
+                rank=0,
+                input_type=input_node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE],
+                output_type=input_node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
+            )
+            # infer the output partition of the aggregation operation
+            node_obj = input_node[DataFlowGraph.NodeAttribute.NODE_OBJ]
+            partition = input_node[DataFlowGraph.NodeAttribute.PARTITION]
+            return node_obj.infer_output_partition(ctx, partition)
 
         else:
             # other node types don't transition between partitions
             return input_node[DataFlowGraph.NodeAttribute.PARTITION]
 
     def infer_node_partition(
-        self, node_type: DataFlowGraph.NodeType, refs: list[FeatureRef]
+        self, node_type: DataFlowGraph.NodeType, refs: list[ConcreteReference]
     ) -> PartitionId:
         """Infer the appropriate partition for a given node.
 
@@ -496,7 +910,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         Args:
             node_type (DataFlowGraph.NodeType): The type of the node for which to infer
                 the partition.
-            refs (list[FeatureRef]): A list of input references associated with the node.
+            refs (list[ConcreteReference]): A list of input references associated with the node.
 
         Returns:
             PartitionId: The inferred partition for the node.
@@ -507,24 +921,24 @@ class DataFlowGraph(nx.MultiDiGraph):
         """
         if node_type == DataFlowGraph.NodeType.SOURCE:
             # source node is added to the default partition
-            return DataFlowGraph.PredefinedPartition.DEFAULT.value
+            return DataFlowGraph.Partition.DEFAULT.value
 
         if node_type == DataFlowGraph.NodeType.CONST:
             # contants are added to the constant partition
-            return DataFlowGraph.PredefinedPartition.CONST.value
+            return DataFlowGraph.Partition.CONST.value
 
         # partition could not be inferred
         assert len(refs) > 0, "Partition cannot be inferred for nodes without any input references."
 
         # get the input partitions
-        candidate_partitions = {self.get_node_output_partition(ref.node_id_) for ref in refs}
+        candidate_partitions = {self.get_node_output_partition(ref._node_id) for ref in refs}
 
-        if candidate_partitions == {DataFlowGraph.PredefinedPartition.CONST}:
+        if candidate_partitions == {DataFlowGraph.Partition.CONST}:
             # if all inputs come from the constant partition, then this node
             # is also part of the constant partition
-            return DataFlowGraph.PredefinedPartition.CONST.value
+            return DataFlowGraph.Partition.CONST.value
 
-        if DataFlowGraph.PredefinedPartition.AGGREGATED in candidate_partitions:
+        if DataFlowGraph.Partition.AGGREGATED in candidate_partitions:
             # if the inputs come directly from an aggregator or from the
             # aggregated partition, then stay in the aggregated partition
 
@@ -532,19 +946,19 @@ class DataFlowGraph(nx.MultiDiGraph):
                 len(
                     candidate_partitions
                     - {
-                        DataFlowGraph.PredefinedPartition.AGGREGATED,
-                        DataFlowGraph.PredefinedPartition.CONST,
+                        DataFlowGraph.Partition.AGGREGATED,
+                        DataFlowGraph.Partition.CONST,
                     }
                 )
                 != 0
             ):
                 raise RuntimeError("Cannot mix aggregated and non-aggregated features.")
 
-            return DataFlowGraph.PredefinedPartition.AGGREGATED.value
+            return DataFlowGraph.Partition.AGGREGATED.value
 
         # remove the constant partition from the set of candidates
         # if there is any other partition to select from
-        candidate_partitions -= {DataFlowGraph.PredefinedPartition.CONST}
+        candidate_partitions -= {DataFlowGraph.Partition.CONST}
 
         if len(candidate_partitions) == 1:
             return next(iter(candidate_partitions))
@@ -561,194 +975,57 @@ class DataFlowGraph(nx.MultiDiGraph):
         # build the set of allowed partitions
         # note that the constant partition is always allowed
         allowed_partitions = set(p_dep_graph.nodes())
-        allowed_partitions.add(DataFlowGraph.PredefinedPartition.CONST.value)
+        allowed_partitions.add(DataFlowGraph.Partition.CONST.value)
         # make sure only allowed partitions are used
         if not candidate_partitions.issubset(allowed_partitions):
             raise RuntimeError("Cannot mix independent partitions.")
 
         return candidate
 
-    # TODO: rename to more generic 'add_node'
-    def add_processor_node(
-        self,
-        obj: BaseNode,
-        inputs: None | InputRefsContainer,
-        output_features: datasets.Features,
-        node_id: None | str = None,
-    ) -> NodeId:
-        """Add a processor node to the data flow graph.
-
-        This method adds a processor node to the data flow graph and creates the
-        necessary edges to define the data flow from input nodes to this processor.
+    def get_dtype_from_reference(self, ref: ConcreteReference) -> DType:
+        """Helper function to get the data type of a referenced feature.
 
         Args:
-            obj (BaseNode): The node object.
-            inputs (None | InputRefs): The input references to the node. If None, the node will
-                be a source node.
-            output_features (datasets.Features): The output features generated by the node.
-            node_id (None | str): The id of the node, defaults to a random uuid.
+            ref (ConcreteReference): The reference for which to get the type.
 
         Returns:
-            NodeId: The uuid of the node within the data flow graph.
+            DType: The data type of the referenced feature.
 
         Raises:
-            AssertionError: If the processor type is invalid.
-            AssertionError: If the graph is cyclic after adding the new node.
-            AssertionError: If the partition cannot be inferred.
-            RuntimeError: If any input reference do not belong to this data flow.
-            RuntimeError: If the input references are a mix of aggregated and non-aggregated
-                features.
-            NotImplementedError: If the input to a non-data-processor node is an aggregated
-                feature.
+            RuntimeError: If the reference does not refer to this graph.
+            RuntimeError: If the reference's node ID is not contained in the graph.
         """
-        # get processor type
-        node_type = (
-            DataFlowGraph.NodeType.SOURCE
-            if obj is None
-            else DataFlowGraph.NodeType.CONST
-            if isinstance(obj, Const)
-            else DataFlowGraph.NodeType.DATA_PROCESSOR
-            if isinstance(obj, BaseDataProcessor)
-            else DataFlowGraph.NodeType.DATA_AGGREGATOR
-            if isinstance(obj, BaseDataAggregator)
-            else DataFlowGraph.NodeType.DATA_AUGMENTER
-            if isinstance(obj, BaseDataAugmenter)
-            else None
-        )
-        # make sure the object is valid
-        assert node_type is not None, f"Invalid processor type {type(obj)}."
+        if ref._graph is not self:
+            raise RuntimeError("ConcreteReference does not belong to this graph.")
 
-        # make sure all input references belong to this graph
-        if (inputs is not None) and any(ref.flow_ is not self for ref in inputs.refs):
-            raise RuntimeError("Input reference does not belong to this data flow.")
+        if ref._node_id not in self.nodes:
+            raise RuntimeError(f"Node with ID '{ref._node_id}' is not contained in the graph.")
 
-        # compute the depth of the node in the graph based
-        # on it's input references
-        depth = (
-            0
-            if inputs is None
-            else max(
-                (
-                    self.nodes[ref.node_id_][DataFlowGraph.NodeAttribute.DEPTH] + 1
-                    for ref in inputs.refs
-                ),
-                default=0,
-            )
-        )
+        # get the output type of the referenced node
+        return self.nodes[ref._node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
 
-        # infer partition of the node
-        refs = list(inputs.refs) if inputs is not None else []
-        partition = self.infer_node_partition(node_type, refs)
+    def dependency_graph(
+        self, nodes: set[NodeId], stop_nodes: set[NodeId] = set()
+    ) -> DataFlowGraph:
+        """Generate the dependency subgraph for a given set of nodes.
 
-        # aggregated partition currently only supports processor type nodes
-        if (partition == DataFlowGraph.PredefinedPartition.AGGREGATED) and (
-            node_type != DataFlowGraph.NodeType.DATA_PROCESSOR
-        ):
-            raise NotImplementedError(
-                f"Aggregator outputs may only be processed by data processors, got {node_type}."
-            )
-
-        # create the node id if it was not provided
-        if node_id is None:
-            node_id = str(uuid.uuid4())
-
-        # add the node to the graph
-        self.add_node(
-            node_id,
-            **{
-                DataFlowGraph.NodeAttribute.NODE_OBJ: obj,
-                DataFlowGraph.NodeAttribute.NODE_TYPE: node_type,
-                DataFlowGraph.NodeAttribute.IN_FEATURES: (
-                    None if inputs is None else inputs.features_
-                ),
-                DataFlowGraph.NodeAttribute.OUT_FEATURES: output_features,
-                DataFlowGraph.NodeAttribute.PARTITION: partition,
-                DataFlowGraph.NodeAttribute.DEPTH: depth,
-            },
-        )
-
-        if inputs is not None:
-            # add dependency edges to graph
-            for name, ref in inputs.named_refs.items():
-                # make sure the input is a valid output of the referred node
-                assert ref.node_id_ in self
-                assert (
-                    ref.key_.index_features(
-                        self.nodes[ref.node_id_][DataFlowGraph.NodeAttribute.OUT_FEATURES]
-                    )
-                    is not None
-                )
-                # add the edge
-                self.add_edge(
-                    ref.node_id_,
-                    node_id,
-                    key=name,
-                    **{
-                        DataFlowGraph.EdgeAttribute.NAME: name,
-                        DataFlowGraph.EdgeAttribute.KEY: ref.key_,
-                    },
-                )
-
-        # make sure the graph is a DAG
-        assert nx.is_directed_acyclic_graph(self)
-
-        return node_id
-
-    def get_node_output_ref(self, node_id: NodeId) -> FeatureRef | OutputRefs:
-        """Retrieves the output reference for a given node in the data flow graph.
-
-        This method returns an appropriate output reference based on the type of the node specified
-        by the given node ID. The method constructs the appropriate reference object based on the
-        node type:
-
-            - For source nodes, this method builds a feature reference using the output features
-              of the node.
-            - For data processor nodes, it retrieves the processor's output references type and
-              constructs the full output reference.
-            - For data aggregator nodes, it builds a data aggregation reference using the node's
-              value type.
-
-        Args:
-            node_id (NodeId): The ID of the node for which to retrieve the output reference.
-
-        Returns:
-            FeatureRef | OutputRefs: The output reference associated with the specified node.
-
-        Raises:
-            KeyError: If the node ID does not exist in the data flow graph.
-            TypeError: If the node type is not recognized.
-        """
-        if node_id not in self:
-            raise KeyError(f"Node ID {node_id} does not exist in the data flow graph.")
-
-        # get node properties
-        node = self.nodes[node_id]
-        node_obj = node[DataFlowGraph.NodeAttribute.NODE_OBJ]
-        node_type = node[DataFlowGraph.NodeAttribute.NODE_TYPE]
-        features = node[DataFlowGraph.NodeAttribute.OUT_FEATURES]
-
-        if node_type == DataFlowGraph.NodeType.SOURCE:
-            # build a feature reference to the source features of the graph
-            features = node[DataFlowGraph.NodeAttribute.OUT_FEATURES]
-            return FeatureRef(key_=tuple(), node_id_=node_id, flow_=self, feature_=features)
-
-        # build the output references object
-        assert isinstance(node_obj, BaseNode)
-        return node_obj._out_refs_type(self, node_id, features)
-
-    def dependency_graph(self, nodes: set[NodeId]) -> DataFlowGraph:
-        """Generate the dependency subgraph for a given node.
-
-        This method generates a subgraph containing all nodes that the given
-        set of nodes depend on directly or indirectly.
+        This method generates a subgraph that includes all nodes that the specified
+        :code:`nodes` depend on, either directly or indirectly, up to any defined cut-off
+        points.
 
         Args:
             nodes (set[NodeId]): The node IDs for which to generate the dependency graph.
+            stop_nodes (set[NodeId]): A set of node IDs that serve as cut-off points in
+                the traversal. When a dependency chain reaches any node in :node:`stop_nodes`,
+                it stops there, excluding that node's dependencies from the subgraph.
+                This allows limiting the scope of the dependency graph by excluding
+                deeper dependencies beyond these nodes.
 
         Returns:
-            DataFlowGraph: A subgraph representing the dependencies.
+            DataFlowGraph: A subgraph representing the dependencies of the specified
+            :code:`nodes`, excluding paths beyond any nodes in :code:`stop_nodes`.
         """
-        return _build_dependency_graph(self, nodes)
+        return _build_dependency_graph(self, nodes, stop_nodes)
 
     def get_partition(self, partition: PartitionId) -> DataFlowGraph:
         """Extract a subgraph containing only nodes from a specific partition.
@@ -792,9 +1069,7 @@ class DataFlowGraph(nx.MultiDiGraph):
         # build the sub-graph of only the provided partition
         return self.subgraph(remainder)
 
-    def subgraph_in_edges(
-        self, subgraph: DataFlowGraph, data: bool | EdgeAttribute = False
-    ) -> list[tuple[int, int, str] | tuple[int, int, str, Any]]:
+    def subgraph_in_edges(self, subgraph: DataFlowGraph) -> list[tuple[int, int, str]]:
         """Get incoming edges to a subgraph from nodes outside the subgraph.
 
         This method returns a list of edges that point to nodes within the
@@ -802,18 +1077,13 @@ class DataFlowGraph(nx.MultiDiGraph):
 
         Args:
             subgraph (DataFlowGraph): The subgraph of interest.
-            data (bool | EdgeAttribute): Whether to include edge data. If set to
-                :code:`True` or an :class:`EdgeAttribute`, the method returns edges with data.
 
         Returns:
-            list[tuple[int, int, str] | tuple[int, int, str, Any]]: The incoming edges
-            to the subgraph.
+            list[tuple[int, int, str]]: The incoming edges to the subgraph.
         """
-        return [e for e in self.in_edges(subgraph, keys=True, data=data) if e[0] not in subgraph]
+        return [e for e in self.in_edges(subgraph, keys=True) if e[0] not in subgraph]
 
-    def subgraph_out_edges(
-        self, subgraph: DataFlowGraph, data: bool | EdgeAttribute = False
-    ) -> list[tuple[int, int, str] | tuple[int, int, str, Any]]:
+    def subgraph_out_edges(self, subgraph: DataFlowGraph) -> list[tuple[int, int, str]]:
         """Get outgoing edges from a subgraph to nodes outside the subgraph.
 
         This method returns a list of edges that point from nodes within the
@@ -821,14 +1091,11 @@ class DataFlowGraph(nx.MultiDiGraph):
 
         Args:
             subgraph (DataFlowGraph): The subgraph of interest.
-            data (bool | EdgeAttribute): Whether to include edge data. If set to
-                :code:`True` or an :class:`EdgeAttribute`, the method returns edges with data.
 
         Returns:
-            list[tuple[int, int, str] | tuple[int, int, str, Any]]: The outgoing edges
-            from the subgraph.
+            list[tuple[int, int, str]]: The outgoing edges from the subgraph.
         """
-        return [e for e in self.out_edges(subgraph, keys=True, data=data) if e[1] not in subgraph]
+        return [e for e in self.out_edges(subgraph, keys=True) if e[1] not in subgraph]
 
     def recompute_depths(self) -> None:
         """Recompute the depth of all nodes in the data flow graph.
@@ -839,3 +1106,155 @@ class DataFlowGraph(nx.MultiDiGraph):
         """
         node_depths = _compute_node_depth(self)
         nx.set_node_attributes(self, node_depths, DataFlowGraph.NodeAttribute.DEPTH)
+
+    def attach_graph_to_node(self, node_id: NodeId, graph: DataFlowGraph) -> DataFlowGraph:
+        """Attach a data flow graph to a specific node within the current graph.
+
+        This method embeds a separate data flow graph (:code:`graph`) into the current graph by
+        attaching the source node of the :code:`graph` to the node identified by :code:`node_id`
+        in the current graph. During this process, the nodes and edges of the `graph` are
+        integrated into the current graph, preserving their relationships, configurations and
+        node ids.
+
+        Parameters:
+            node_id (NodeId): The ID of the target node in the current graph to which
+                the source node of the :code:`graph` will be attached.
+            graph (DataFlowGraph): The data flow graph to be attached to the current graph.
+
+        Returns:
+            DataFlowGraph: The updated graph after the attachment.
+
+        Raises:
+            RuntimeError: If :code:`node_id` is not present in the current graph.
+            NotImplementedError: If the method encounters an unsupported node type in the `graph`.
+        """
+        # TODO: implement tests
+
+        if node_id not in self.nodes:
+            raise RuntimeError(f"Node ID {node_id} does not exist in the current graph.")
+
+        # mapping node ids of the 'graph' to references in the new graph 'h'
+        node_id_mapping: dict[NodeId, ConcreteReference] = {
+            graph.src_node_id: ConcreteReference(node_id, _graph=self)
+        }
+
+        for node_id in nx.topological_sort(graph):
+            node_attrs = graph.nodes[node_id]
+            node_obj = node_attrs[DataFlowGraph.NodeAttribute.NODE_OBJ]
+            node_type = node_attrs[DataFlowGraph.NodeAttribute.NODE_TYPE]
+            # collect all input references to the current node
+            inputs = {
+                key: node_id_mapping[in_node_id]
+                for in_node_id, _, key in graph.in_edges(node_id, keys=True)
+            }
+
+            # handle different node types
+            if node_type == DataFlowGraph.NodeType.SOURCE:
+                pass
+
+            elif node_type == DataFlowGraph.NodeType.COLLECT:
+
+                def resolve(_, k):
+                    return inputs[k] if isinstance(k, str) else k
+
+                collect = map_recursive(resolve, node_obj.config.lookup)
+                node_id_mapping[node_id] = self.add_collect_node(collect, node_id=node_id)
+
+            elif node_type == DataFlowGraph.NodeType.CONST:
+                node_id_mapping[node_id] = self.add_const_node(
+                    node_obj.config.value.to_pylist()[0],
+                    dtype=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
+                    node_id=node_id,
+                )
+
+            elif node_type == DataFlowGraph.NodeType.CAST:
+                node_id_mapping[node_id] = self.add_cast_node(
+                    inputs["value"],
+                    dtype=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
+                    node_id=node_id,
+                )
+
+            elif node_type in {
+                DataFlowGraph.NodeType.DATA_PROCESSOR,
+                DataFlowGraph.NodeType.DATA_AUGMENTOR,
+                DataFlowGraph.NodeType.DATA_AGGREGATOR,
+            }:
+                node_id_mapping[node_id] = self.add_compute_node(node_obj, inputs, node_id=node_id)
+
+            else:
+                raise NotImplementedError(f"Unexpected node type: {node_type}")
+
+        return self
+
+    def to_dict(self) -> dict:
+        """Serializes the data flow graph into a dictionary representation.
+
+        This method generates a dictionary that represents the entire data flow graph,
+        including the nodes and edges. Each node is serialized based on its type,
+        with special handling for constants, casts, and various data processing nodes.
+        Additionally, the feature types for each node are serialized.
+
+        Returns:
+            dict: A dictionary representation of the data flow graph, including nodes
+                with their serialized objects and feature types, and links between them.
+        """
+        # get dictionary representation of data flow graph
+        data = nx.node_link_data(self, edges="edges")
+
+        for node in data["nodes"]:
+            # serialize node object
+            obj = node[DataFlowGraph.NodeAttribute.NODE_OBJ]
+            node[DataFlowGraph.NodeAttribute.NODE_OBJ] = (
+                None if obj is None else obj.config.to_dict()
+            )
+            # serialize feature types
+            node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] = node[
+                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE
+            ].to_dict()
+            node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] = node[
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
+            ].to_dict()
+
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict) -> DataFlowGraph:
+        """Deserializes a dictionary into a data flow graph.
+
+        This method converts a dictionary (typically one generated by :code:`to_dict`)
+        back into a :class:`DataFlowGraph` instance. It handles the deserialization of
+        node types, partitions, feature types, and node objects. For each node, the
+        method reconstructs its associated object based on the node's type. Additionally,
+        edge data is deserialized and used to re-establish links between the nodes.
+
+        Args:
+            data (dict): A dictionary representation of a data flow graph, including
+                node data and links between them.
+
+        Returns:
+            DataFlowGraph: The deserialized data flow graph.
+        """
+        for node in data["nodes"]:
+            # deserialize node types
+            node[DataFlowGraph.NodeAttribute.NODE_TYPE] = DataFlowGraph.NodeType(
+                node[DataFlowGraph.NodeAttribute.NODE_TYPE]
+            )
+            # deserialize partition
+            if node[DataFlowGraph.NodeAttribute.PARTITION] in set(DataFlowGraph.Partition):
+                node[DataFlowGraph.NodeAttribute.PARTITION] = DataFlowGraph.Partition(
+                    node[DataFlowGraph.NodeAttribute.PARTITION]
+                )
+            # deserialize feature types
+            node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] = build_type_from_dict(
+                node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE]
+            )
+            node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] = build_type_from_dict(
+                node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
+            )
+            # deserialize node objects
+            obj = node[DataFlowGraph.NodeAttribute.NODE_OBJ]
+            node[DataFlowGraph.NodeAttribute.NODE_OBJ] = (
+                None if obj is None else AutoConfigurable.from_config_dict(obj)
+            )
+
+        return DataFlowGraph(nx.node_link_graph(data, edges="edges"))
