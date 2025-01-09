@@ -12,11 +12,12 @@ from hyped.core.ops.sequence import (
     SequenceUnpackWithIndex,
     SequenceValueWithIndex,
     SequenceZip,
+    SequenceZipMapping,
     zip_,
 )
 from hyped.core.testing.augmentor import BaseDataAugmentorTest
 from hyped.core.testing.processor import BaseDataProcessorTest
-from hyped.typing import Annotated, Bool, Int, Int32, Len, Sequence
+from hyped.typing import Annotated, Bool, Float64, Int, Int32, Len, Mapping, Sequence, String
 
 
 class TestStringAdd(BaseDataProcessorTest):
@@ -138,8 +139,8 @@ class TestSequencePackFixedLength(BaseDataAugmentorTest):
     expected_output_partition = "TEST_PARTITION"
 
 
-class TestSequenceZip(BaseDataAugmentorTest):
-    augmentor = SequenceZip()
+class TestSequenceZip(BaseDataProcessorTest):
+    processor = SequenceZip()
     input_features = {"0": Sequence[Int32], "1": Sequence[Int32]}
     input_data = [
         {
@@ -158,8 +159,8 @@ class TestSequenceZip(BaseDataAugmentorTest):
     ]
 
 
-class TestSequenceZipMultipleInputs(BaseDataAugmentorTest):
-    augmentor = SequenceZip()
+class TestSequenceZipMultipleInputs(BaseDataProcessorTest):
+    processor = SequenceZip()
     input_features = {"0": Sequence[Int32], "1": Sequence[Int32], "2": Sequence[Int32]}
     input_data = [
         {
@@ -174,8 +175,8 @@ class TestSequenceZipMultipleInputs(BaseDataAugmentorTest):
     ]
 
 
-class TestSequenceZipSorting(BaseDataAugmentorTest):
-    augmentor = SequenceZip()
+class TestSequenceZipSorting(BaseDataProcessorTest):
+    processor = SequenceZip()
     input_features = {"1": Sequence[Int32], "0": Sequence[Int32]}
     input_data = [
         {
@@ -194,8 +195,8 @@ class TestSequenceZipSorting(BaseDataAugmentorTest):
     ]
 
 
-class TestSequenceZipResolveLength(BaseDataAugmentorTest):
-    augmentor = SequenceZip()
+class TestSequenceZipResolveLength(BaseDataProcessorTest):
+    processor = SequenceZip()
     input_features = {
         "0": Annotated[Sequence[Int32], Len(3)],
         "1": Annotated[Sequence[Int32], Len(3)],
@@ -220,11 +221,116 @@ class TestSequenceZipResolveLength(BaseDataAugmentorTest):
     ]
 
 
-class TestSequenceZipLengthMismatch(BaseDataAugmentorTest):
-    augmentor = SequenceZip()
+class TestSequenceZipLengthMismatch(BaseDataProcessorTest):
+    processor = SequenceZip()
     input_features = {
         "0": Annotated[Sequence[Int32], Len(3)],
         "1": Annotated[Sequence[Int32], Len(6)],
+    }
+    expected_verification_error = TypeError
+
+
+class ExpectedSequenceMapping(Mapping):
+    A: String
+    B: Int32
+
+
+class TestSequenceZipMapping(BaseDataProcessorTest):
+    processor = SequenceZipMapping()
+    input_features = {
+        "A": Sequence[String],
+        "B": Sequence[Int32],
+    }
+    input_data = [
+        {
+            "A": ["A", "B", "C"],
+            "B": [1, 2, 3],
+        },
+        {
+            "A": ["D", "E"],
+            "B": [4, 5],
+        },
+    ]
+    expected_output_feature = Sequence[ExpectedSequenceMapping]
+    expected_output_data = [
+        [
+            {"A": "A", "B": 1},
+            {"A": "B", "B": 2},
+            {"A": "C", "B": 3},
+        ],
+        [
+            {"A": "D", "B": 4},
+            {"A": "E", "B": 5},
+        ],
+    ]
+
+
+class ExpectedSequenceMappingMultipleInputs(Mapping):
+    A: String
+    B: Int32
+    C: Float64
+
+
+class TestSequenceZipMappingMultipleInputs(BaseDataProcessorTest):
+    processor = SequenceZipMapping()
+    input_features = {
+        "A": Sequence[String],
+        "B": Sequence[Int32],
+        "C": Sequence[Float64],
+    }
+    input_data = [
+        {
+            "A": ["A", "B", "C"],
+            "B": [1, 2, 3],
+            "C": [0.0, 2.2, 3.3],
+        },
+    ]
+    expected_output_feature = Sequence[ExpectedSequenceMappingMultipleInputs]
+    expected_output_data = [
+        [
+            {"A": "A", "B": 1, "C": 0.0},
+            {"A": "B", "B": 2, "C": 2.2},
+            {"A": "C", "B": 3, "C": 3.3},
+        ],
+    ]
+
+
+class TestSequenceZipMappingResolveLength(BaseDataProcessorTest):
+    processor = SequenceZipMapping()
+    input_features = {
+        "A": Annotated[Sequence[String], Len(3)],
+        "B": Annotated[Sequence[Int32], Len(3)],
+    }
+    input_data = [
+        {
+            "A": ["A", "B", "C"],
+            "B": [1, 2, 3],
+        },
+        {
+            "A": ["D", "E", "F"],
+            "B": [4, 5, 6],
+        },
+    ]
+    expected_output_feature = Annotated[Sequence[ExpectedSequenceMapping], Len(3, strict=True)]
+    expected_output_data = [
+        [
+            {"A": "A", "B": 1},
+            {"A": "B", "B": 2},
+            {"A": "C", "B": 3},
+        ],
+        [
+            {"A": "D", "B": 4},
+            {"A": "E", "B": 5},
+            {"A": "F", "B": 6},
+        ],
+    ]
+
+
+class TestSequenceZipMappingLengthMismatch(BaseDataProcessorTest):
+    processor = SequenceZipMapping()
+    input_features = {
+        "A": Annotated[Sequence[String], Len(3)],
+        "B": Annotated[Sequence[Int32], Len(2)],
     }
     expected_verification_error = TypeError
 
@@ -235,3 +341,11 @@ def test_zip_():
         seq_2 = MagicMock()
         zip_(seq_1, seq_2)
         SequenceZipMock.return_value.call.assert_called_once_with(**{"0": seq_1, "1": seq_2})
+
+
+def test_zip_kwargs():
+    with patch("hyped.core.ops.sequence.SequenceZipMapping") as SequenceZipMock:
+        seq_1 = MagicMock()
+        seq_2 = MagicMock()
+        zip_(A=seq_1, B=seq_2)
+        SequenceZipMock.return_value.call.assert_called_once_with(**{"A": seq_1, "B": seq_2})

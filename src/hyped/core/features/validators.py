@@ -438,3 +438,93 @@ class Len(FeatureValidator):
             return seq
 
         super(Len, self).__init__(length_validator)
+
+
+@dataclass(eq=True, frozen=True)
+class MatchFeatures(FeatureValidator):
+    """A :class:`MatchFeatures` that ensures features have matching data types.
+
+    The :class:`MatchFeatures` validator is designed to enforce that all features
+    annotated with this validator have the same data type (DType) within a validation
+    session. This is particularly useful when processing multiple features that need
+    to maintain consistency in their data types, such as when aggregating or performing
+    operations across features.
+
+    MatchingFeatures must be annotated with the same instance of this class.
+
+    **Usage Example**:
+
+    Example 1: **Ensuring Matching Data Types**
+
+    In this example, the :class:`MatchFeatures` validator ensures that two
+    features have the same data type.
+
+    .. code-block:: python
+
+        MatchFeat = MatchFeatures()
+
+        class Inputs(Mapping):
+            featureA: Annotated[Int, MatchFeat]
+            featureB: Annotated[Float, MatchFeat]
+
+        flow = DataFlow[Inputs]()
+
+    If `featureA` and `featureB` have different data types, a `TypeError` will
+    be raised during validation.
+
+    Example 2: **Validation Across Multiple Nodes**
+
+    The validator can also be used across multiple nodes in a data flow, ensuring
+    that features maintain consistent data types across processing steps. It can
+    also be used together with TypeVars to ensure the features annotated with the
+    TypeVar match, while the output feature is inferred via the TypeVar.
+
+    .. code-block:: python
+
+        MatchFeat = MatchFeatures()
+        T = TypeVar("T", bound=Int)
+
+        class CustomProcessor(BaseDataProcessor):
+            def process(
+                self,
+                ctx: RunContext,
+                a: Annotated[T, MatchFeat],
+                b: Annotated[T, MatchFeat],
+            ) -> T:
+                # Processing logic ensuring all inputs and outputs have the same DType
+                ...
+
+    **Behavior**:
+
+    - During validation, the first feature annotated with :class:`MatchFeatures`
+        captures its data type (`DType`) in the validation session.
+    - Subsequent features are validated against this captured data type. If their
+        data type does not match, a `TypeError` is raised.
+    - This behavior ensures that all features annotated with :class:`MatchFeatures`
+        are of the same data type.
+    """
+
+    def __init__(self) -> None:
+        """Initializes the :class:`MatchFeatures` validator.
+
+        MatchingFeatures must be annotated with the same instance of this class.
+        """
+
+        def match_feature_validator(
+            feature: Feature, config: BaseConfig, session: ValidationSession
+        ):
+            # capture data type of the feature in the validation session
+            if session.get_context(self) is None:
+                session.set_context(self, feature.dtype)
+
+            captured_dtype = session.get_context(self)
+            # compare the dtype of the feature with the captured dtype
+            if feature.dtype != captured_dtype:
+                raise TypeError(
+                    f"DType Mismatch during validation of matching feature types, "
+                    f"but got {feature.dtype}, expected {captured_dtype}. "
+                )
+
+            return feature
+
+        super().__init__(match_feature_validator)

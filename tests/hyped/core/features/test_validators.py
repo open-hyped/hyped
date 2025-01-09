@@ -5,12 +5,12 @@ import pydantic
 import pytest
 
 from hyped.common._pydantic import TypeAdapterWithArbitraryTypesAllowed
-from hyped.core.features.dtypes import Float32Type, Int32Type, SequenceType
-from hyped.core.features.features import SequenceFeature
+from hyped.core.features.dtypes import Float32Type, Int32Type, SequenceType, StringType
+from hyped.core.features.features import Int32Feature, SequenceFeature, StringFeature
 from hyped.core.features.reference import ForwardReference
 from hyped.core.features.session import ValidationSession
-from hyped.core.features.validators import FeatureResolver, FeatureValidator, Len
-from hyped.typing import Float, Int, Sequence
+from hyped.core.features.validators import FeatureResolver, FeatureValidator, Len, MatchFeatures
+from hyped.typing import Float, Int, Sequence, String
 
 
 class TestFeatureValidator:
@@ -229,3 +229,56 @@ class TestLenValidator:
         inst: SequenceFeature = adapter.validate_python(inst, context=context)
 
         assert inst.dtype.length == 20
+
+
+class TestMatchFeaturesValidator:
+    @pytest.fixture
+    def session(self) -> ValidationSession:
+        return ValidationSession()
+
+    @pytest.fixture
+    def context(self, session: ValidationSession) -> dict[str, Any]:
+        return {"config": MagicMock(), "session": session}
+
+    def test_check_feature_match(self, context: dict[str, Any]) -> None:
+        inst1 = Int32Feature(ForwardReference(dtype=Int32Type))
+        inst2 = Int32Feature(ForwardReference(dtype=Int32Type))
+
+        M = MatchFeatures()
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
+            Annotated[Int | String, M],
+            config=pydantic.ConfigDict(arbitrary_types_allowed=True),
+        )
+
+        adapter.validate_python(inst1, context=context)
+        adapter.validate_python(inst2, context=context)
+
+    def test_check_feature_mismatch(self, context: dict[str, Any]) -> None:
+        int_inst = Int32Feature(ForwardReference(dtype=Int32Type))
+        str_inst = StringFeature(ForwardReference(dtype=StringType))
+
+        M = MatchFeatures()
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
+            Annotated[Int | String, M],
+            config=pydantic.ConfigDict(arbitrary_types_allowed=True),
+        )
+
+        with pytest.raises(TypeError):
+            adapter.validate_python(int_inst, context=context)
+            adapter.validate_python(str_inst, context=context)
+
+    def test_check_feature_unrelated(self, context: dict[str, Any]) -> None:
+        int_inst = Int32Feature(ForwardReference(dtype=Int32Type))
+        str_inst = StringFeature(ForwardReference(dtype=StringType))
+
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
+            Annotated[Int | String, MatchFeatures()],
+            config=pydantic.ConfigDict(arbitrary_types_allowed=True),
+        )
+        adapter.validate_python(int_inst, context=context)
+
+        adapter = TypeAdapterWithArbitraryTypesAllowed(
+            Annotated[Int | String, MatchFeatures()],
+            config=pydantic.ConfigDict(arbitrary_types_allowed=True),
+        )
+        adapter.validate_python(str_inst, context=context)

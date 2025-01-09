@@ -18,10 +18,10 @@ import pyarrow.compute as pc
 from hyped.common._pyarrow import flatten_list_array, unflatten_list_array
 from hyped.core.typing import PartitionId
 
-from ..features.dtypes import UNDEFINED_SEQUENCE_LENGTH
+from ..features.dtypes import UNDEFINED_SEQUENCE_LENGTH, MappingType
 from ..features.features import Feature, Int32Feature, SequenceFeature
 from ..features.reference import ConcreteReference
-from ..features.validators import FeatureResolver, Len
+from ..features.validators import FeatureResolver, Len, MatchFeatures
 from ..graph import DataFlowGraph
 from ..nodes.augmentor import BaseDataAugmentor, BaseDataAugmentorConfig
 from ..nodes.base import RunContext, process_mode
@@ -204,7 +204,7 @@ class SequenceZipConfig(BaseDataProcessorConfig):
     """Configuration for SequenceZip operation."""
 
 
-SequenceType = TypeVar("SequenceType", bound=Feature)
+SequenceZipValType = TypeVar("SequenceZipValType", bound=Feature)
 SequenceZipLength = Len()
 
 
@@ -213,12 +213,18 @@ class SequenceZip(BaseDataProcessor[SequenceZipConfig]):
 
     @process_mode(batched=True, backend="arrow")
     def process(
-        self, ctx: RunContext, **seqs: Annotated[Sequence[SequenceType], SequenceZipLength]
+        self,
+        ctx: RunContext,
+        **seqs: Annotated[
+            Sequence[Annotated[SequenceZipValType, MatchFeatures()]], SequenceZipLength
+        ],
     ) -> Annotated[
         Sequence[
             Annotated[
-                Sequence[SequenceType],
-                FeatureResolver(lambda c, i, _: Annotated[Sequence[SequenceType], Len(len(i))]),
+                Sequence[SequenceZipValType],
+                FeatureResolver(
+                    lambda c, i, _: Annotated[Sequence[SequenceZipValType], Len(len(i))]
+                ),
             ]
         ],
         SequenceZipLength,
@@ -258,6 +264,52 @@ class SequenceZip(BaseDataProcessor[SequenceZipConfig]):
         )
         # unflatten to get back the batch axis
         return unflatten_list_array(flat_zipped, offsets[0])
+
+
+class SequenceZipMappingConfig(BaseDataProcessorConfig):
+    """Configuration for SequenceZip operation mapping mixed DTypes."""
+
+
+MixedSequenceType = TypeVar("MixedSequenceType", bound=Feature)
+
+
+class SequenceZipMapping(BaseDataProcessor[SequenceZipMappingConfig]):
+    """Data Processor for zipping mapping of sequences to sequence of mapping."""
+
+    @process_mode(batched=False, backend="python")
+    def process(
+        self, ctx: RunContext, **seqs: Annotated[Sequence[MixedSequenceType], SequenceZipLength]
+    ) -> Annotated[
+        Sequence[
+            Annotated[
+                Mapping,
+                FeatureResolver(
+                    lambda c, i, _: MappingType.construct(
+                        fields={k: f.dtype.value_type for k, f in i.items()}
+                    )
+                ),
+            ]
+        ],
+        SequenceZipLength,
+    ]:
+        """Zip a dict-of-sequences into a sequence-of-dicts.
+
+        Args:
+            ctx (RunContext): Context object containing runtime information.
+            **seqs (Sequence[MixedSequenceType]): Input sequences to zip. The output mapping
+                depends on the keys of this dictionary.
+
+        Returns:
+            Sequence[Mapping]: The zipped sequences.
+        """
+        lengths = {len(v) for v in seqs.values()}
+        if len(lengths) > 1:
+            raise ValueError("All lists in the dictionary must be of the same length.")
+
+        # Zip the lists into a list of dictionaries
+        keys = seqs.keys()
+        zipped_values = zip(*seqs.values(), strict=True)
+        return [dict(zip(keys, values, strict=True)) for values in zipped_values]
 
 
 class SequenceUnpackConfig(BaseDataAugmentorConfig):
@@ -511,9 +563,17 @@ def zip_(*args: Sequence, **kwargs: Sequence) -> Sequence[Sequence] | Sequence[M
 
     if len(args):
         proc_kwargs = {str(i): args[i] for i in range(len(args))}
-        return SequenceZip().call(**proc_kwargs)
+        try:
+            return SequenceZip().call(**proc_kwargs)
+        except TypeError as e:
+            raise TypeError(
+                "The value features of the sequences passed to `zip_` don't align! "
+                f"Got {[seq.dtype.value_type.arrow_type for seq in args]}. If you want to "
+                "zip sequences of mixed value types, pass kwargs to the zip_ function "
+                "instead, to create a sequence-of-mapping."
+            ) from e
     else:
-        raise NotImplementedError()
+        return SequenceZipMapping().call(**kwargs)
 
 
 @SequenceFeature.register_method("pack")
