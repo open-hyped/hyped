@@ -389,6 +389,7 @@ class TestDataFlowExecutor:
             "hyped.core.executor.pc.cast", mock_pyarrow_cast
         ):
             executor = DataFlowExecutor(graph, ForwardReference(), manager)
+            executor.session = MagicMock()
             await executor.execute_node(node, state)
 
         # Verify awaited dependencies

@@ -10,8 +10,10 @@ Classes:
       and collecting results.
 """
 import asyncio
+import logging
 import typing
 from collections import defaultdict
+from contextlib import nullcontext
 from types import MappingProxyType
 
 import networkx as nx
@@ -24,11 +26,13 @@ from .features.reference import ConcreteReference
 from .graph import DataFlowGraph
 from .nodes.aggregator import BaseDataAggregator, DataAggregationManager
 from .nodes.augmentor import BaseDataAugmentor
-from .nodes.base import RunContext
+from .nodes.base import BaseNode, RunContext, RunSession
 from .nodes.collect import CollectNode
 from .nodes.const import ConstNode
 from .nodes.processor import BaseDataProcessor
 from .typing import IndexList, NodeId, Rank, TraceIndexList
+
+logger = logging.getLogger(__name__)
 
 
 class ExecutionState(object):
@@ -275,6 +279,8 @@ class DataFlowExecutor(object):
         self.collect = collect
         self.aggregation_manager = aggregation_manager
 
+        self.session: None | RunSession = None
+
         if (aggregation_manager is None) and any(
             node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR
             for _, node_type in graph.nodes(data=DataFlowGraph.NodeAttribute.NODE_TYPE)
@@ -283,6 +289,28 @@ class DataFlowExecutor(object):
                 "The data flow graph includes one or more aggregator nodes, but no aggregation "
                 "manager was provided."
             )
+
+    def build_run_context(self, node_id: NodeId, index: IndexList, rank: Rank) -> RunContext:
+        """Build the run context for a specified node.
+
+        Args:
+            node_id (NodeId): The id of the node.
+            index (IndexList): The index list of the current batch.
+            rank (Rank): The multiprocess rank.
+
+        Returns:
+            RunContext: The context for the node execution.
+        """
+        node_attrs = self.graph.nodes[node_id]
+        # build the run context
+        return RunContext(
+            node_id=node_id,
+            index=index,
+            rank=rank,
+            input_type=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE],
+            output_type=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
+            session=self.session,
+        )
 
     async def execute_node(self, node_id: NodeId, state: ExecutionState) -> None:
         """Execute a single node in the data flow graph.
@@ -308,57 +336,56 @@ class DataFlowExecutor(object):
         node_type = node_attrs[DataFlowGraph.NodeAttribute.NODE_TYPE]
 
         # build the run context
-        ctx = RunContext(
-            node_id=node_id,
-            index=index,
-            rank=state.rank,
-            input_type=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE],
-            output_type=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
-        )
+        ctx = self.build_run_context(node_id, index, state.rank)
 
-        if node_type == DataFlowGraph.NodeType.CONST:
-            assert isinstance(node_obj, ConstNode)
-            # for constant nodes the node object is a pyarrow array
-            # of a single entry holding the value
-            state.capture_output(node_id, node_obj.config.value)
+        with (
+            node_obj.with_state(self.session.get_context(node_id))
+            if isinstance(node_obj, BaseNode)
+            else nullcontext()
+        ):
+            if node_type == DataFlowGraph.NodeType.CONST:
+                assert isinstance(node_obj, ConstNode)
+                # for constant nodes the node object is a pyarrow array
+                # of a single entry holding the value
+                state.capture_output(node_id, node_obj.config.value)
 
-        elif node_type == DataFlowGraph.NodeType.CAST:
-            # cast the value to the expected data type
-            cast_value = pc.cast(inputs["value"], ctx.output_type.arrow_type)
-            state.capture_output(node_id, cast_value)
+            elif node_type == DataFlowGraph.NodeType.CAST:
+                # cast the value to the expected data type
+                cast_value = pc.cast(inputs["value"], ctx.output_type.arrow_type)
+                state.capture_output(node_id, cast_value)
 
-        elif node_type == DataFlowGraph.NodeType.COLLECT:
-            assert isinstance(node_obj, CollectNode)
-            # collect values and capture values
-            values = node_obj.collect(ctx, inputs)
-            state.capture_output(node_id, values)
+            elif node_type == DataFlowGraph.NodeType.COLLECT:
+                assert isinstance(node_obj, CollectNode)
+                # collect values and capture values
+                values = node_obj.collect(ctx, inputs)
+                state.capture_output(node_id, values)
 
-        elif node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
-            assert isinstance(node_obj, BaseDataProcessor)
-            # run processor and check the output batch size
-            out = await node_obj.run(ctx, inputs)
-            assert out.type == ctx.output_type.arrow_type, "Unexpected output type"
-            assert len(out) == len(index), "Output values length does not match index length."
-            # capture output in execution state
-            state.capture_output(node_id, out)
+            elif node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
+                assert isinstance(node_obj, BaseDataProcessor)
+                # run processor and check the output batch size
+                out = await node_obj.run(ctx, inputs)
+                assert out.type == ctx.output_type.arrow_type, "Unexpected output type"
+                assert len(out) == len(index), "Output values length does not match index length."
+                # capture output in execution state
+                state.capture_output(node_id, out)
 
-        elif node_type == DataFlowGraph.NodeType.DATA_AUGMENTOR:
-            assert isinstance(node_obj, BaseDataAugmentor)
-            # run processor and check the output batch size
-            out, trace_index = await node_obj.run(ctx, inputs)
-            assert out.type == ctx.output_type.arrow_type, "Unexpected output type"
-            # register output partition and capture output in execution state
-            state.register_partition_trace(node_id, trace_index)
-            state.capture_output(node_id, out)
+            elif node_type == DataFlowGraph.NodeType.DATA_AUGMENTOR:
+                assert isinstance(node_obj, BaseDataAugmentor)
+                # run processor and check the output batch size
+                out, trace_index = await node_obj.run(ctx, inputs)
+                assert out.type == ctx.output_type.arrow_type, "Unexpected output type"
+                # register output partition and capture output in execution state
+                state.register_partition_trace(node_id, trace_index)
+                state.capture_output(node_id, out)
 
-        elif node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
-            assert isinstance(node_obj, BaseDataAggregator)
-            # run aggregator
-            assert self.aggregation_manager is not None
-            await self.aggregation_manager.aggregate(node_obj, ctx, inputs)
+            elif node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
+                assert isinstance(node_obj, BaseDataAggregator)
+                # run aggregator
+                assert self.aggregation_manager is not None
+                await self.aggregation_manager.aggregate(node_obj, ctx, inputs)
 
-        else:  # pragma: not covered
-            raise TypeError(f"Unsupported node type: {node_type}")
+            else:  # pragma: not covered
+                raise TypeError(f"Unsupported node type: {node_type}")
 
     async def execute(self, batch: pa.Array, index: IndexList, rank: Rank) -> pa.Array:
         """Execute the entire data flow graph.
@@ -383,6 +410,58 @@ class DataFlowExecutor(object):
         )
         # collect output values
         return state.collect_value(self.collect)
+
+    def run(self, batch: pa.Array, index: IndexList, rank: Rank) -> pa.Array:
+        """Run the executor for a given batch.
+
+        Args:
+            batch (pa.Array): The initial batch of data.
+            index (IndexList): The index of the batch.
+            rank (Rank): The rank of the process in a multiprocessing setting.
+
+        Returns:
+            pa.Array: The final collected batch of data.
+        """
+        if self.session is None:
+            self.init_run_session(rank)
+        # execute
+        future = self.execute(batch, index=index, rank=rank)
+        return self.session._loop.run_until_complete(future)
+
+    def init_run_session(self, rank: Rank) -> None:
+        """Initialize the :class:`RunSession`.
+
+        Args:
+            rank (Rank): The rank of the process in a multiprocessing setting.
+        """
+        assert self.session is None
+        # set the run session for the executor
+        self.session = RunSession()
+        # initialize all nodes
+        for node_id in self.graph.nodes():
+            node_obj = self.graph.nodes[node_id][DataFlowGraph.NodeAttribute.NODE_OBJ]
+            if isinstance(node_obj, BaseNode):
+                # get the node state and create a shallow copy
+                state = node_obj.get_state()
+                state = {
+                    "__dict__": state["__dict__"].copy(),
+                    "__slots__": tuple(state["__slots__"]),
+                }
+                # initialize the node and capture the state
+                with node_obj.with_state(state):
+                    ctx = self.build_run_context(node_id, [], rank)
+                    node_obj.initialize(ctx)
+                # capture the initialized state in the session
+                self.session.set_context(node_id, state)
+
+        logger.info(f"Set up run session instance {self.session.session_id}.")
+
+    def reset_run_session(self) -> None:
+        """Reset the run session."""
+        if self.session is not None:
+            # close the event loop and reset the session
+            self.session._loop.close()
+            self.session = None
 
 
 class LazyDataFlowExecutor(typing.Mapping, DataFlowExecutor):
@@ -416,6 +495,9 @@ class LazyDataFlowExecutor(typing.Mapping, DataFlowExecutor):
         self._proxy_snapshot: None | dict[str, pa.Array] = None
         self._value_snapshot: None | dict[str, pa.Scalar] = None
 
+        # create the run session
+        self.init_run_session(0)
+
     def keys(self) -> typing.Iterable[str]:
         """Get the keys of the output features.
 
@@ -439,12 +521,8 @@ class LazyDataFlowExecutor(typing.Mapping, DataFlowExecutor):
         if (self._proxy_snapshot is None) or (proxy_snapshot != self._proxy_snapshot):
             # convert pyarrow scalars to arrays for execution
             array = pa.table(proxy_snapshot, schema=self.graph.src_dtype.arrow_schema)
-            # execute the flow executor on the inputs
-            loop = asyncio.new_event_loop()
-            future = self.execute(array.to_struct_array(), index=[0], rank=0)
-            output = loop.run_until_complete(future)
-            # close the event loop
-            loop.close()
+            # run the executor
+            output = self.run(array.to_struct_array(), index=[0], rank=0)
             # parse the outputs and store them as the snapshot
             self._proxy_snapshot = proxy_snapshot
             self._out_snapshot = output[0].as_py()

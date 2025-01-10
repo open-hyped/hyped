@@ -69,6 +69,7 @@ class TestProcessMode:
 
         # create a run context
         ctx = RunContext(
+            session=MagicMock(),
             node_id=MagicMock(),
             index=[MagicMock(), MagicMock(), MagicMock()],
             rank=MagicMock(),
@@ -98,6 +99,7 @@ class TestProcessMode:
 
         # create a run context
         ctx = RunContext(
+            session=MagicMock(),
             node_id=MagicMock(),
             index=[MagicMock(), MagicMock(), MagicMock()],
             rank=MagicMock(),
@@ -151,6 +153,7 @@ class TestProcessMode:
     def test_registered_converters(self, mode: ProcessMode) -> None:
         # create a runcontext
         ctx = RunContext(
+            session=MagicMock(),
             node_id=0,
             index=[0, 1, 2, 3, 4],
             rank=0,

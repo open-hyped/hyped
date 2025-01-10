@@ -7,8 +7,10 @@ configurable input and output types.
 """
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, replace
+from contextlib import contextmanager
+from dataclasses import dataclass, field, replace
 from inspect import Signature
 from itertools import chain
 from typing import (
@@ -16,6 +18,7 @@ from typing import (
     Callable,
     ClassVar,
     Generic,
+    Hashable,
     Iterable,
     Literal,
     ParamSpec,
@@ -24,6 +27,7 @@ from typing import (
     TypeVar,
     overload,
 )
+from uuid import UUID, uuid4
 
 import pyarrow as pa
 
@@ -37,14 +41,69 @@ from ..registry.config import BaseConfig, BaseConfigurable
 from ..typing import Feature, Index, IndexList, NodeId, Rank
 
 
+@dataclass
+class RunSession:
+    """Run session for the node execution.
+
+    A :class:`RunSession` instance is shared along all nodes of a data flow
+    and lives for the whole execution of a data flow. It manages the event
+    loop that runs the data flow execution and allows to store context
+    information.
+    """
+
+    _session_id: UUID = field(default_factory=uuid4, init=False)
+    """A unique session ID."""
+
+    _loop: asyncio.BaseEventLoop = field(default_factory=asyncio.new_event_loop, init=False)
+    """The asyncio loop instance that runs the execution."""
+
+    _context: dict[Hashable, Any] = field(default_factory=dict, init=False)
+    """A dictionary to store the contextual data."""
+
+    @property
+    def session_id(self) -> UUID:
+        """The unique session ID.
+
+        Returns:
+            UUID: A unique identifier for the session.
+        """
+        return self._session_id
+
+    def set_context(self, key: Hashable, value: Any) -> None:
+        """Set a context value associated with a specific key.
+
+        Args:
+            key (Hashable): The key for the context entry.
+            value (Any): The value to associate with the key.
+        """
+        self._context[key] = value
+
+    def get_context(self, key: Hashable) -> Any:
+        """Retrieve the context value associated with a specific key.
+
+        Args:
+            key (Hashable): The key for the context entry to retrieve.
+
+        Returns:
+            Any: The value associated with the key, or None if the key is not found.
+        """
+        return self._context.get(key)
+
+
 @dataclass(frozen=True)
 class RunContext:
-    """Context information for the data processors execution.
+    """Context information for the node execution.
 
-    Serves as an identifier for the specific call to the processor within the data flow graph.
-    This is particularly useful when a single processor class is used multiple times in a data
-    flow, as :class:`RunContext` identifies the specific instance of the processor call, i.e.,
+    Serves as an identifier for the specific call to the node within the data flow graph.
+    This is particularly useful when a single node class is used multiple times in a data
+    flow, as :class:`RunContext` identifies the specific instance of the node call, i.e.,
     the specific node in the flow graph.
+    """
+
+    session: None | RunSession
+    """The run session instance.
+
+    This attribute
     """
 
     node_id: NodeId
@@ -371,6 +430,61 @@ class BaseNode(BaseConfigurable[C], ABC):
     flow. It provides methods for configuring the node's signature, and interacting with the
     underlying graph structure.
     """
+
+    def get_state(self) -> dict[str, Any]:
+        """Get the node state.
+
+        Returns:
+            dict[str, Any]: The node's state, including :code:`__dict__`
+            and :code:`__slots__` (if present).
+        """
+        state = {"__dict__": self.__dict__}
+        if hasattr(self, "__slots__"):
+            state["__slots__"] = self.__slots__
+        return state
+
+    def set_state(self, state: dict[str, Any]) -> None:
+        """Set the node state.
+
+        Args:
+            state (dict[str, Any]): A dictionary representing the state to restore,
+                containing :code:`__dict__` and :code:`__slots__` (if present).
+        """
+        self.__dict__ = state["__dict__"]
+        if hasattr(self, "__slots__"):
+            self.__slots__ = state["__slots__"]
+
+    @contextmanager
+    def with_state(self, state: dict[str, Any]) -> Iterable[None]:
+        """A context manager to temporarily set the node's state.
+
+        Args:
+            state (dict[str, Any]): A dictionary representing the state to temporarily set.
+        """
+        # capture the original state and overwrite with
+        original_state = self.get_state()
+        self.set_state(state)
+        yield
+        # reset to original state
+        self.set_state(original_state)
+
+    def initialize(self, ctx: RunContext) -> None:
+        """Initialize the node for execution.
+
+        This method is called before the data flow starts executing. It prepares
+        the node for the upcoming execution by setting up any necessary state.
+        Keep in mind that the node's state is reset after each execution,
+        and this method is called again for each new run.
+
+        The objects created in this method are managed by the :class:`RunSession`
+        instance, which ensures that objects that cannot be pickled can still be
+        used effectively in multiprocessing settings. In such settings, this method
+        is executed in the child processes.
+
+        Args:
+            ctx (RunContext): The context of the current run.
+        """
+        ...
 
     @classmethod
     @property

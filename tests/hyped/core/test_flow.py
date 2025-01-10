@@ -1,5 +1,5 @@
 from typing import Hashable
-from unittest.mock import ANY, AsyncMock, MagicMock, PropertyMock, patch
+from unittest.mock import ANY, MagicMock, PropertyMock, patch
 
 import datasets
 import matplotlib.pyplot as plt
@@ -319,7 +319,7 @@ class TestExecutableDataFlow:
         # create the collect reference
         collect = ConcreteReference(_node_id=graph.src_node_id, _graph=graph)
 
-        mock_executor = MagicMock(spec=DataFlowExecutor, execute=AsyncMock())
+        mock_executor = MagicMock(spec=DataFlowExecutor)
         # mock the executor
         with (
             patch("hyped.core.flow.pa.table") as mock_table,
@@ -335,8 +335,8 @@ class TestExecutableDataFlow:
             mock_rank = MagicMock()
 
             # test pyarrow process call
-            out = flow.arrow_process(mock_batch, mock_index, mock_rank)
-            mock_executor.execute.assert_called_once_with(
+            out = flow._arrow_process(mock_batch, mock_index, mock_rank)
+            mock_executor.run.assert_called_once_with(
                 mock_batch.to_struct_array.return_value, mock_index, mock_rank
             )
             assert out == mock_table.return_value
@@ -346,10 +346,10 @@ class TestExecutableDataFlow:
             mock_executor.reset_mock()
 
             # test infer default rank from worker info
-            flow.arrow_process(mock_batch, mock_index, None)
+            flow._arrow_process(mock_batch, mock_index, None)
             mock_get_worker_info.assert_called_once()
             # check execute function called correctly
-            mock_executor.execute.assert_called_once_with(
+            mock_executor.run.assert_called_once_with(
                 mock_batch.to_struct_array.return_value,
                 mock_index,
                 mock_get_worker_info.return_value.rank,
@@ -379,7 +379,7 @@ class TestExecutableDataFlow:
         # make sure the map function was called correctly
         ds.with_format.assert_called_once_with(type="arrow", columns=["x"])
         ds.with_format.return_value.map.assert_called_once_with(
-            flow.arrow_process,
+            flow._arrow_process,
             with_indices=True,
             with_rank=True,
             batched=True,
@@ -402,7 +402,7 @@ class TestExecutableDataFlow:
         # make sure the map function was called correctly
         ds.with_format.assert_called_once_with(type="arrow", columns=["x"])
         ds.with_format.return_value.map.assert_called_once_with(
-            flow.arrow_process,
+            flow._arrow_process,
             with_indices=True,
             with_rank=True,
             batched=True,
@@ -423,7 +423,7 @@ class TestExecutableDataFlow:
         # make sure the map function was called correctly
         it_ds.with_format.assert_called_once_with(type="arrow")
         it_ds.with_format.return_value.map.assert_called_once_with(
-            flow.arrow_process,
+            flow._arrow_process,
             with_indices=True,
             batched=True,
             batch_size=ANY,
@@ -441,7 +441,7 @@ class TestExecutableDataFlow:
         # make sure the map function was called correctly
         it_ds_dict.with_format.assert_called_once_with(type="arrow")
         it_ds_dict.with_format.return_value.map.assert_called_once_with(
-            flow.arrow_process,
+            flow._arrow_process,
             with_indices=True,
             batched=True,
             batch_size=ANY,

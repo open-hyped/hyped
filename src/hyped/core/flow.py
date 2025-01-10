@@ -70,10 +70,6 @@ except ValueError:  # pragma: not covered
     # TODO: log warning
     pass
 
-# define a global event loop that is used in each process
-# and will be set to None again after flow.apply
-_event_loop: None | asyncio.BaseEventLoop = None
-
 Dataset = TypeVar("Dataset", datasets.Dataset, datasets.DatasetDict)
 ItDataset = TypeVar("ItDataset", datasets.IterableDataset, datasets.IterableDatasetDict)
 
@@ -931,6 +927,7 @@ class ExecutableDataFlow(AbstractDataFlow):
         contexts = [
             RunContext(
                 node_id=node,
+                session=None,
                 index=[],
                 rank=0,
                 input_type=self._graph.nodes[node][DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE],
@@ -1134,7 +1131,7 @@ class ExecutableDataFlow(AbstractDataFlow):
             else None,
         )
 
-    def arrow_process(
+    def _arrow_process(
         self, batch: pa.Table, index: IndexList, rank: None | Rank = None
     ) -> pa.Table:
         """Process a batch of data in the form of a pyarrow table.
@@ -1155,13 +1152,8 @@ class ExecutableDataFlow(AbstractDataFlow):
             worker_info = get_worker_info()
             rank = 0 if worker_info is None else worker_info.rank
 
-        # get/set the processes's event loop
-        if _event_loop is None:
-            _event_loop = asyncio.new_event_loop()
-        # schedule the execution for the current batch
-        future = self._instance_executor.execute(batch.to_struct_array(), index, rank)
-        out = _event_loop.run_until_complete(future)
-
+        # run the instance executor and convert the output to a pyarrow table
+        out = self._instance_executor.run(batch.to_struct_array(), index, rank)
         return pa.table(out, schema=self._collect_feature.dtype.arrow_schema)
 
     def _internal_apply(
@@ -1210,7 +1202,7 @@ class ExecutableDataFlow(AbstractDataFlow):
                 # use pyarrow table as output format for in-memory
                 # datasets that support caching
                 transformed_ds = prepared_ds.map(
-                    self.arrow_process,
+                    self._arrow_process,
                     with_indices=True,
                     with_rank=True,
                     batched=True,
@@ -1261,7 +1253,7 @@ class ExecutableDataFlow(AbstractDataFlow):
                 # outputs in map function, but it also doesn't cache
                 # and thus doesn't need the features while processing
                 transformed_ds = prepared_ds.map(
-                    self.arrow_process,
+                    self._arrow_process,
                     with_indices=True,
                     batched=True,
                     batch_size=batch_size,
@@ -1281,7 +1273,7 @@ class ExecutableDataFlow(AbstractDataFlow):
                 # outputs in map function, but it also doesn't cache
                 # and thus doesn't need the features while processing
                 transformed_ds = prepared_ds.map(
-                    self.arrow_process,
+                    self._arrow_process,
                     with_indices=True,
                     batched=True,
                     batch_size=batch_size,
@@ -1298,13 +1290,8 @@ class ExecutableDataFlow(AbstractDataFlow):
                 return transformed_ds.with_format(type=None)
 
         finally:
-            global _event_loop
-            # if apply was executed single processed, we have to close the
-            # event loop
-            if _event_loop is not None:
-                _event_loop.close()
-            # reset the global variable to None again
-            _event_loop = None
+            # reset the run session
+            self._instance_executor.reset_run_session()
 
     def serialize(self, indent: None | int = None) -> str:
         """Serializes the executable data flow into a JSON string.
