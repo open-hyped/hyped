@@ -21,6 +21,8 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 
+from hyped.common._worker import get_worker_info
+
 from .features.dtypes import MappingType
 from .features.reference import ConcreteReference
 from .graph import DataFlowGraph
@@ -411,22 +413,30 @@ class DataFlowExecutor(object):
         # collect output values
         return state.collect_value(self.collect)
 
-    def run(self, batch: pa.Array, index: IndexList, rank: Rank) -> pa.Array:
+    def run(self, batch: pa.Table, index: IndexList, rank: Rank | None = None) -> pa.Table:
         """Run the executor for a given batch.
 
         Args:
-            batch (pa.Array): The initial batch of data.
+            batch (pa.Table): The initial batch of data.
             index (IndexList): The index of the batch.
-            rank (Rank): The rank of the process in a multiprocessing setting.
+            rank (Rank | None): The rank of the process in a multiprocessing setting.
 
         Returns:
-            pa.Array: The final collected batch of data.
+            pa.Table: The final collected batch of data.
         """
+        if rank is None:
+            # try to get multiprocessing rank from worker info
+            worker_info = get_worker_info()
+            rank = 0 if worker_info is None else worker_info.rank
+
         if self.session is None:
             self.init_run_session(rank)
+
         # execute
-        future = self.execute(batch, index=index, rank=rank)
-        return self.session._loop.run_until_complete(future)
+        future = self.execute(batch.to_struct_array(), index=index, rank=rank)
+        out = self.session._loop.run_until_complete(future)
+        # convert output to pyarrow table
+        return pa.table(out, schema=self.collect.get_dtype().arrow_schema)
 
     def init_run_session(self, rank: Rank) -> None:
         """Initialize the :class:`RunSession`.
@@ -522,7 +532,8 @@ class LazyDataFlowExecutor(typing.Mapping, DataFlowExecutor):
             # convert pyarrow scalars to arrays for execution
             array = pa.table(proxy_snapshot, schema=self.graph.src_dtype.arrow_schema)
             # run the executor
-            output = self.run(array.to_struct_array(), index=[0], rank=0)
+            future = self.execute(array.to_struct_array(), index=[0], rank=0)
+            output = self.session._loop.run_until_complete(future)
             # parse the outputs and store them as the snapshot
             self._proxy_snapshot = proxy_snapshot
             self._out_snapshot = output[0].as_py()

@@ -465,6 +465,33 @@ class TestDataFlowExecutor:
             # Assert that the output matches the return value of collect_value
             assert out == mock_state.collect_value.return_value
 
+    def test_run(self) -> None:
+        # create an executor instance
+        executor = DataFlowExecutor(MagicMock(), MagicMock(), None)
+        executor.execute = AsyncMock()
+        executor.init_run_session = MagicMock(side_effect=executor.init_run_session)
+
+        with (
+            patch("hyped.core.executor.pa.table") as mock_table,
+            patch("hyped.core.executor.get_worker_info") as mock_get_worker_info,
+        ):
+            # create mock inputs to be processed
+            mock_batch = MagicMock()
+            mock_index = MagicMock()
+
+            # run the executor
+            out = executor.run(mock_batch, mock_index, None)
+            assert out == mock_table.return_value
+
+            # make sure the session was initialized
+            executor.init_run_session.assert_called_once()
+            # make sure execute was called correctly
+            executor.execute.assert_called_once_with(
+                mock_batch.to_struct_array.return_value,
+                index=mock_index,
+                rank=mock_get_worker_info.return_value.rank,
+            )
+
 
 class TestLazyDataFlowExecutor:
     @pytest.fixture(scope="function")

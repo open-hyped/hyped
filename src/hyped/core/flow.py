@@ -22,11 +22,9 @@ import matplotlib.pyplot as plt
 import nest_asyncio
 import networkx as nx
 import numpy as np
-import pyarrow as pa
 from matplotlib import colormaps
 
 from hyped.common._pydantic import TypeAdapterWithArbitraryTypesAllowed
-from hyped.common._worker import get_worker_info
 
 from .abstract import AbstractDataFlow
 from .executor import DataFlowExecutor, LazyDataFlowExecutor
@@ -55,7 +53,7 @@ from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
 from .optim import DataFlowGraphOptimizer
-from .typing import IndexList, NodeId, Rank, cast
+from .typing import NodeId, cast
 from .utils import NestedType, build_annotation_from_dtype, map_recursive, validate_hf_feature
 
 logger = logging.getLogger(__name__)
@@ -1131,31 +1129,6 @@ class ExecutableDataFlow(AbstractDataFlow):
             else None,
         )
 
-    def _arrow_process(
-        self, batch: pa.Table, index: IndexList, rank: None | Rank = None
-    ) -> pa.Table:
-        """Process a batch of data in the form of a pyarrow table.
-
-        Args:
-            batch (pa.Table): The batch of data to process.
-            index (IndexList): The index of the batch.
-            rank (None | Rank): The rank of the process in a distributed setting.
-
-        Returns:
-            pa.Table: The processed batch of data as a PyArrow Table.
-        """
-        # get the event loop of this worker process
-        global _event_loop
-
-        if rank is None:
-            # try to get multiprocessing rank from worker info
-            worker_info = get_worker_info()
-            rank = 0 if worker_info is None else worker_info.rank
-
-        # run the instance executor and convert the output to a pyarrow table
-        out = self._instance_executor.run(batch.to_struct_array(), index, rank)
-        return pa.table(out, schema=self._collect_feature.dtype.arrow_schema)
-
     def _internal_apply(
         self,
         ds: Dataset | ItDataset,
@@ -1202,7 +1175,7 @@ class ExecutableDataFlow(AbstractDataFlow):
                 # use pyarrow table as output format for in-memory
                 # datasets that support caching
                 transformed_ds = prepared_ds.map(
-                    self._arrow_process,
+                    self._instance_executor.run,
                     with_indices=True,
                     with_rank=True,
                     batched=True,
@@ -1253,7 +1226,7 @@ class ExecutableDataFlow(AbstractDataFlow):
                 # outputs in map function, but it also doesn't cache
                 # and thus doesn't need the features while processing
                 transformed_ds = prepared_ds.map(
-                    self._arrow_process,
+                    self._instance_executor.run,
                     with_indices=True,
                     batched=True,
                     batch_size=batch_size,
@@ -1273,7 +1246,7 @@ class ExecutableDataFlow(AbstractDataFlow):
                 # outputs in map function, but it also doesn't cache
                 # and thus doesn't need the features while processing
                 transformed_ds = prepared_ds.map(
-                    self._arrow_process,
+                    self._instance_executor.run,
                     with_indices=True,
                     batched=True,
                     batch_size=batch_size,
