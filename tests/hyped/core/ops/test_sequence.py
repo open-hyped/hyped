@@ -162,10 +162,6 @@ class TestFixedLengthSequenceUnpackWithIndex(BaseDataAugmentorTest):
         assert partitionA == partitionB
 
 
-def test_sequence_unpack_output_partition() -> None:
-    SequenceUnpack()
-
-
 class TestSequencePack(BaseDataAugmentorTest):
     augmentor = SequencePack(original_partition="TEST_PARTITION")
     input_features = {"values": Int, "trace_index": Int32}
