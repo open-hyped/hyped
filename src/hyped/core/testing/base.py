@@ -123,6 +123,9 @@ class BaseNodeTest(ABC):
             InvalidTestSetup: If input data is not provided when expected output data
             or execution errors are defined.
         """
+        if type(self).input_features is None:
+            raise InvalidTestSetupError("No input features specified.")
+
         if type(self).input_data is None:
             if type(self).expected_output_data is not None:
                 raise InvalidTestSetupError(
@@ -164,12 +167,6 @@ class BaseNodeTest(ABC):
         """
         if cls.input_data is None:
             return None
-        if cls.input_features is None:
-            raise InvalidTestSetupError(
-                "Input type is required when input data is provided. "
-                "Ensure that 'input_features' is set to correctly process "
-                "'input_data'."
-            )
         try:
             return pa.Table.from_pylist(cls.input_data, schema=cls.build_input_dtype().arrow_schema)
         except pa.ArrowTypeError as e:

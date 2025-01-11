@@ -62,15 +62,17 @@ class BaseDataAggregatorTest(BaseNodeTest):
         specified errors or mismatches.
 
         Returns:
-            output_feature, output_data: tuple[Feature, list[dict[str, Any]]]: The output feature
-                that the aggregator call returns, as well as the aggregated data.
+            tuple[Feature, None | list[dict[str, Any]]]: The output feature that the aggregator
+                call returns, as well as the aggregted data if present. Aggregated data is not
+                present when the test doesn't specify any input data.
         """
         # call node and build flow
         flow, output_feature = self.call_node(type(self).aggregator)
         flow = flow.build(collect=flow.source, aggregate={"output": output_feature})
         # execute the flow and check the output data
-        _ = self.execute_flow(flow)
-        aggregate_data = flow.aggregates["output"]
-        type(self).check_output_data_matches_expectation(aggregate_data)
-
-        return output_feature, aggregate_data
+        if self.execute_flow(flow) is not None:
+            aggregate_data = flow.aggregates["output"]
+            type(self).check_output_data_matches_expectation(aggregate_data)
+            return output_feature, aggregate_data
+        else:
+            return output_feature, None
