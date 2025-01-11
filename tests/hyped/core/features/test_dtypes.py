@@ -530,7 +530,12 @@ def test_common_dtype(dtypes: tuple[DType], result_dtype: None | DType, raises_e
         # Struct type conversion
         (
             pa.struct([("field1", pa.int32()), ("field2", pa.float64())]),
-            MappingType.construct({"field1": Int32Type, "field2": Float64Type}),
+            MappingType((("field1", Int32Type), ("field2", Float64Type))),
+            False,
+        ),
+        (
+            pa.struct([("field2", pa.int32()), ("field1", pa.float64())]),
+            MappingType((("field2", Int32Type), ("field1", Float64Type))),
             False,
         ),
         # List type conversion
@@ -570,7 +575,14 @@ def test_build_dtype_from_arrow_type(arrow_type, expected_output, expect_excepti
             datasets.Features(
                 {"field1": datasets.Value("int32"), "field2": datasets.Value("float64")}
             ),
-            MappingType.construct({"field1": Int32Type, "field2": Float64Type}),
+            MappingType((("field1", Int32Type), ("field2", Float64Type))),
+            False,
+        ),
+        (
+            datasets.Features(
+                {"field2": datasets.Value("int32"), "field1": datasets.Value("float64")}
+            ),
+            MappingType((("field2", Int32Type), ("field1", Float64Type))),
             False,
         ),
         # Sequence type conversion (fixed length)

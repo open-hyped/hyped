@@ -650,8 +650,8 @@ def build_dtype_from_arrow_type(arrow_type: pa.DataType) -> DType:
     """
     if pa.types.is_struct(arrow_type):
         fields = map(arrow_type.field, range(arrow_type.num_fields))
-        fields = {field.name: build_dtype_from_arrow_type(field.type) for field in fields}
-        return MappingType.construct(fields)
+        fields = tuple((field.name, build_dtype_from_arrow_type(field.type)) for field in fields)
+        return MappingType(fields)
 
     elif pa.types.is_list(arrow_type):
         return SequenceType(
@@ -686,8 +686,9 @@ def build_dtype_from_hf_feature(feature: FeatureType) -> DType:
         TypeError: If the feature type is unsupported.
     """
     if isinstance(feature, (datasets.Features, dict)):
-        fields = {key: build_dtype_from_hf_feature(field) for key, field in feature.items()}
-        return MappingType.construct(fields)
+        return MappingType(
+            tuple((key, build_dtype_from_hf_feature(field)) for key, field in feature.items())
+        )
 
     if isinstance(feature, (datasets.Sequence, list)):
         value_type = feature.feature if isinstance(feature, datasets.Sequence) else feature[0]
