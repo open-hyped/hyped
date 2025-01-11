@@ -51,7 +51,7 @@ class BaseNodeTest(ABC):
     This abstract base class provides methods to set up test configurations,
     validate input data, build expected outputs, and check the execution of nodes.
 
-    Test subclasses must define the `execute_test` method, which contains the
+    Test subclasses must define the :func:`execute_test` method, which contains the
     specific test logic for a node.
     """
 
