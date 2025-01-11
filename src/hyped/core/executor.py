@@ -26,12 +26,9 @@ from hyped.common._worker import get_worker_info
 from .features.dtypes import MappingType
 from .features.reference import ConcreteReference
 from .graph import DataFlowGraph
-from .nodes.aggregator import BaseDataAggregator, DataAggregationManager
-from .nodes.augmentor import BaseDataAugmentor
+from .nodes.aggregator import DataAggregationManager
 from .nodes.base import BaseNode, RunContext, RunSession
-from .nodes.collect import CollectNode
 from .nodes.const import ConstNode
-from .nodes.processor import BaseDataProcessor
 from .typing import IndexList, NodeId, Rank, TraceIndexList
 
 logger = logging.getLogger(__name__)
@@ -357,13 +354,11 @@ class DataFlowExecutor(object):
                 state.capture_output(node_id, cast_value)
 
             elif node_type == DataFlowGraph.NodeType.COLLECT:
-                assert isinstance(node_obj, CollectNode)
                 # collect values and capture values
                 values = node_obj.collect(ctx, inputs)
                 state.capture_output(node_id, values)
 
             elif node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
-                assert isinstance(node_obj, BaseDataProcessor)
                 # run processor and check the output batch size
                 out = await node_obj.run(ctx, inputs)
                 assert out.type == ctx.output_type.arrow_type, "Unexpected output type"
@@ -372,7 +367,6 @@ class DataFlowExecutor(object):
                 state.capture_output(node_id, out)
 
             elif node_type == DataFlowGraph.NodeType.DATA_AUGMENTOR:
-                assert isinstance(node_obj, BaseDataAugmentor)
                 # run processor and check the output batch size
                 out, trace_index = await node_obj.run(ctx, inputs)
                 assert out.type == ctx.output_type.arrow_type, "Unexpected output type"
@@ -381,7 +375,6 @@ class DataFlowExecutor(object):
                 state.capture_output(node_id, out)
 
             elif node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
-                assert isinstance(node_obj, BaseDataAggregator)
                 # run aggregator
                 assert self.aggregation_manager is not None
                 await self.aggregation_manager.aggregate(node_obj, ctx, inputs)
