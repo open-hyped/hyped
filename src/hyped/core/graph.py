@@ -18,6 +18,7 @@ from uuid import UUID
 import networkx as nx
 import numpy as np
 import pyarrow as pa
+from jinja2 import Template
 
 from .abstract import AbstractDataFlowGraph
 from .features.dtypes import (
@@ -42,6 +43,15 @@ from .typing import NodeId, PartitionId
 from .utils import NestedType, map_recursive
 
 rng = np.random.Generator(np.random.PCG64(42))
+
+
+DEFAULT_NODE_FORMAT = (
+    "{% if node_type == 'SOURCE_NODE' %}"
+    "Source"
+    "{% else %}"
+    "[{{ node_id[:4] }}] {{ node_object }}"
+    "{% endif %}"
+)
 
 
 def random_uuid() -> UUID:
@@ -324,6 +334,72 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         # reset source node id for subgraphs
         if (self.src_node_id is not None) and (self.src_node_id not in self):
             self.graph[DataFlowGraph.GraphAttribute.SRC_NODE_ID] = None
+
+    def format(self, format: str | Template = DEFAULT_NODE_FORMAT) -> nx.MultiDiGraph:
+        """Creates a formatted copy with node labels generated using a Jinja2 template.
+
+        This method applies a user-specified format to the attributes of each node in the graph,
+        producing a new graph where each node has a :code:`label` attribute rendered from the
+        provided template. The edges in the graph are copied without modification.
+
+        Attributes available in the template are specified by the :class:`NodeAttribute` enum.
+
+        Parameters:
+            format (str | Template): A Jinja2 template string or a precompiled Jinja2
+                :class:`Template` object. The template can reference any of the node
+                attributes, as well as the :code:`node_id`.
+                Defaults to :code:`DEFAULT_NODE_FORMAT`.
+
+        Returns:
+            nx.MultiDiGraph: A new graph where nodes have a :code:`label` attribute generated
+                from the provided template, and edges are identical to those in the original
+                graph.
+        """
+        # compile the jinja template
+        template = Template(format) if not isinstance(format, Template) else format
+        # apply the template to each node in the graph
+        format_graph = nx.MultiDiGraph()
+        for node_id, attrs in self.nodes(data=True):
+            format_graph.add_node(node_id, label=template.render(**attrs, node_id=node_id))
+        # add all edges
+        format_graph.add_edges_from(self.edges)
+        return format_graph
+
+    def to_string(
+        self,
+        format: str = DEFAULT_NODE_FORMAT,
+        ascii_only: bool = True,
+        vertical_chains: bool = True,
+    ) -> str:
+        """Generates a string representation of the graph.
+
+        This method provides a textual representation of the graph, with nodes and edges displayed
+        in a human-readable format. Nodes are labeled according to the specified format string, and
+        additional options allow customization of the output style.
+
+        Attributes available in the template are specified by the :class:`NodeAttribute` enum.
+
+        Parameters:
+            format (str): A Jinja2 template string used to generate labels for the nodes.
+                The template can reference any of the node attributes defined by the
+                :class:`NodeAttribute` enum, as well as the :code:`node_id`. Defaults to
+                :code:`DEFAULT_NODE_FORMAT`.
+            ascii_only (bool): If :code:`True`, the output will use only ASCII characters.
+                Defaults to :code:`True`.
+            vertical_chains (bool): If :code:`True`, the output will display chains of nodes
+                in a vertical layout for better readability. Defaults to :code:`True`.
+
+        Returns:
+            str: A string representation of the graph, formatted according to the
+            specified options.
+        """
+        lines = nx.generate_network_text(
+            self.format(format),
+            with_labels=True,
+            ascii_only=ascii_only,
+            vertical_chains=vertical_chains,
+        )
+        return "\n".join(lines)
 
     @property
     def src_node_id(self) -> None | NodeId:

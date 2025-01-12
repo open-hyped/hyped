@@ -15,15 +15,17 @@ import pickle
 import re
 from dataclasses import replace
 from itertools import groupby
-from typing import Any, Generic, Literal, Mapping, TypeVar, get_args, overload
+from typing import Any, Generic, Mapping, TypeVar, get_args, overload
 
 import datasets
-import matplotlib.pyplot as plt
 import nest_asyncio
 import networkx as nx
 import numpy as np
 import pyarrow as pa
+from jinja2 import Template
 from matplotlib import colormaps
+from matplotlib import lines as mlines
+from matplotlib import pyplot as plt
 
 from hyped.common._pydantic import TypeAdapterWithArbitraryTypesAllowed
 from hyped.common._worker import get_worker_info
@@ -51,7 +53,7 @@ from .features.features import (
 )
 from .features.reference import ConcreteReference, ForwardReference
 from .features.session import ValidationSession
-from .graph import DataFlowGraph
+from .graph import DEFAULT_NODE_FORMAT, DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
 from .optim import DataFlowGraphOptimizer
@@ -79,37 +81,31 @@ T = TypeVar("T", bound=MappingFeature)
 
 def plot_data_flow(
     flow: DataFlow,
+    node_format: str | Template = DEFAULT_NODE_FORMAT,
     with_edge_labels: bool = True,
-    edge_label_format: str = "{name}",
-    src_node_label: str = "[ROOT]",
     edge_font_size: int = 6,
     node_font_size: int = 6,
     node_size: int = 5_000,
     arrowsize: int = 25,
-    color_map: dict[
-        Literal[
-            DataFlowGraph.NodeType.SOURCE,
-            DataFlowGraph.NodeType.DATA_PROCESSOR,
-            DataFlowGraph.NodeType.DATA_AUGMENTOR,
-            DataFlowGraph.NodeType.DATA_AGGREGATOR,
-        ],
-        str,
-    ] = {},
+    color_map: dict[DataFlowGraph.NodeType, str] = {},
+    legend: bool = True,
+    legend_fontsize: int = 6,
     ax: None | plt.Axes = None,
 ) -> plt.Axes:
     """Plot a data flow graph.
 
     Args:
         flow (DataFlow): The data flow to plot.
+        node_format (str | Template): The jinja template used to generate node labels.
         with_edge_labels (bool): Whether to include labels on the edges. Defaults to True.
-        edge_label_format (str): Format string for edge labels. Defaults to "{name}".
-        src_node_label (str): Label for the source node. Defaults to "[ROOT]".
         edge_font_size (int): The font size for edge labels. Defaults to 6.
         node_font_size (int): The font size for node labels. Defaults to 6.
         node_size (int): The size of the nodes. Defaults to 5_000.
         arrowsize (int): The size of the arrows on the edges. Defaults to 25.
         color_map (dict[None | type, str]): indicate custom color scheme based on the processor
             type. `None` refers to the source node.
+        legend (bool): Whether to add a legend of the node types to the axes. Defaults to True.
+        legend_fontsize (int): The font size for the legend. Defaults to 6.
         ax (Optional[plt.Axes]): Matplotlib axes object to draw the plot on. Defaults to None.
 
     Returns:
@@ -117,10 +113,9 @@ def plot_data_flow(
     """
     # create a plot axes
     if ax is None:
-        _, ax = plt.subplots(1, 1, figsize=(flow._graph.depth * 2, flow._graph.width * 2.5))
-
-    # compute the node positions
-    pos = nx.multipartite_layout(flow._graph, subset_key=DataFlowGraph.NodeAttribute.DEPTH)
+        _, ax = plt.subplots(
+            figsize=(flow._graph.depth * 2, flow._graph.width * 2.5), tight_layout=True
+        )
 
     # build color map
     cmap = colormaps.get_cmap("Pastel1")
@@ -141,6 +136,9 @@ def plot_data_flow(
         for _, data in flow._graph.nodes(data=True)
     ]
 
+    # compute the node positions
+    pos = nx.multipartite_layout(flow._graph, subset_key=DataFlowGraph.NodeAttribute.DEPTH)
+
     # plot the raw graph
     nx.draw(
         flow._graph,
@@ -152,33 +150,43 @@ def plot_data_flow(
         ax=ax,
     )
 
+    if isinstance(flow, ExecutableDataFlow):
+        # get the output node ids from the executable data flow
+        output_nodes = (
+            [
+                flow.collect_feature.ref._node_id,
+                flow.aggregates_feature.ref._node_id,
+            ]
+            if flow.aggregates_feature is not None
+            else [
+                flow.collect_feature.ref._node_id,
+            ]
+        )
+        # draw the outlines of the output nodes
+        nx.draw_networkx_nodes(
+            flow._graph,
+            pos,
+            nodelist=output_nodes,
+            node_size=node_size,
+            edgecolors="black",
+            node_color="none",
+            linewidths=2,
+            ax=ax,
+        )
+
     # limit the maximum number of character in a single line in nodes
     max_line_length = node_size // (node_font_size * 65)
 
     node_labels = {}
     # build node labels
-    for node, data in flow._graph.nodes(data=True):
-        if node == flow._graph.src_node_id:
-            # add root node label
-            node_labels[node] = src_node_label
-
-        else:
-            # build the node label of this node
-            obj = data[DataFlowGraph.NodeAttribute.NODE_OBJ]
-            if data[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.CAST:
-                node_label = f"Cast[{str(data[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE])}]"
-            else:
-                node_label = str(obj)
-            # split string into words
-            words = re.split(r"(?<=[a-z])(?=[A-Z])", node_label)
-            # group words such that each group has a limited number of
-            # characers
-            lengths = np.cumsum(list(map(len, words))) // max_line_length
-            groups = groupby(range(len(words)), key=lengths.__getitem__)
-            # join groups with newlines inbetween
-            node_labels[node] = "\n".join(
-                ["".join([words[i] for i in group]) for _, group in groups]
-            )
+    for node, data in flow._graph.format(format=node_format).nodes(data=True):
+        # split string into words
+        words = re.split(r" |(?<=[a-z])(?=[A-Z])", data["label"])
+        # group words such that each group has a limited number of characers
+        lengths = np.cumsum(list(map(len, words))) // max_line_length
+        groups = groupby(range(len(words)), key=lengths.__getitem__)
+        # join groups with newlines inbetween
+        node_labels[node] = "\n".join(["".join([words[i] for i in group]) for _, group in groups])
 
     # add node labels
     nx.draw_networkx_labels(
@@ -200,9 +208,7 @@ def plot_data_flow(
         edge_labels = {}
         # build edge labels
         for edge, group in grouped_edges:
-            edge_labels[edge] = "\n".join(
-                [edge_label_format.format(name=key) for _, _, key in group]
-            )
+            edge_labels[edge] = ", ".join([key for _, _, key in group])
 
         # draw the edge labels
         nx.draw_networkx_edge_labels(
@@ -211,6 +217,31 @@ def plot_data_flow(
             edge_labels=edge_labels,
             font_size=edge_font_size,
             ax=ax,
+        )
+
+    if legend:
+        # get a set of the node types that are present in the graph
+        present_node_types = set(
+            nx.get_node_attributes(flow._graph, DataFlowGraph.NodeAttribute.NODE_TYPE).values()
+        )
+        # generate legend handles for all present node types
+        handles = [
+            mlines.Line2D(
+                [],
+                [],
+                color=color,
+                marker="o",
+                linestyle="None",
+                markersize=legend_fontsize,
+                label=" ".join(map(str.capitalize, node_type.value.split("_"))),
+            )
+            for node_type, color in color_map.items()
+            if node_type in present_node_types
+        ]
+        # add the legend to the axis
+        ax.legend(
+            handles=handles,
+            fontsize=legend_fontsize,
         )
 
     return ax
@@ -241,6 +272,10 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         # save source features
         self._hf_source_features = features
         self._source_feature: None | T = None
+
+    def __str__(self) -> str:
+        """String representation of the data flow instance."""
+        return f"DataFlow\n{self._graph.to_string()}"
 
     @property
     def _is_initialized(self) -> None:
@@ -761,6 +796,20 @@ class ExecutableDataFlow(AbstractDataFlow):
         self._instance_executor = DataFlowExecutor(
             self._instance_graph, collect, aggregation_manager=self._aggregation_manager
         )
+
+    def __str__(self) -> str:
+        """String representation of the data flow instance."""
+        # mark the collect node with a collect prefix
+        template = f"{{% if node_id == '{self.collect_feature.ref._node_id}' %}}" "(Collect) "
+        # mark the aggregate node with an aggregate prefix
+        if self.aggregates_feature is not None:
+            template += (
+                f"{{% elif node_id == '{self.aggregates_feature.ref._node_id}' %}}" "(Aggregate) "
+            )
+        # add the default node format to the template
+        template += "{% endif %}" + DEFAULT_NODE_FORMAT
+        # build the string representation of the node
+        return f"ExecutableDataFlow\n{self._graph.to_string(format=template)}"
 
     @property
     def depth(self) -> int:
