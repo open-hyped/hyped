@@ -464,7 +464,7 @@ class SequenceType(DType, typing.Sequence):
         if data["type"] != "SequenceType":  # pragma: not covered
             raise ValueError("Invalid type for deserialization")
         return SequenceType(
-            value_type=build_type_from_dict(data["value_type"]), length=data["length"]
+            value_type=build_dtype_from_dict(data["value_type"]), length=data["length"]
         )
 
 
@@ -585,7 +585,7 @@ class MappingType(DType, typing.Mapping[str, DType]):
         """
         return {
             "type": "MappingType",
-            "fields": {key: field.to_dict() for key, field in self.items()},
+            "fields": [{"key": key, "dtype": field.to_dict()} for key, field in self.fields],
         }
 
     @classmethod
@@ -603,12 +603,12 @@ class MappingType(DType, typing.Mapping[str, DType]):
         """
         if data["type"] != "MappingType":  # pragma: not covered
             raise ValueError("Invalid type for deserialization")
-        return MappingType.construct(
-            {key: build_type_from_dict(field) for key, field in data["fields"].items()}
+        return MappingType(
+            tuple((field["key"], build_dtype_from_dict(field["dtype"])) for field in data["fields"])
         )
 
 
-def build_type_from_dict(data: dict) -> DType:
+def build_dtype_from_dict(data: dict) -> DType:
     """Constructs a DType instance from a dictionary.
 
     This function determines the type of the serialized data and calls the appropriate

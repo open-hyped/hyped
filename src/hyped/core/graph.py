@@ -24,8 +24,8 @@ from .features.dtypes import (
     DType,
     MappingType,
     SequenceType,
+    build_dtype_from_dict,
     build_dtype_from_python_object,
-    build_type_from_dict,
     cast_dtype,
 )
 from .features.engine import FeatureEngine
@@ -1245,10 +1245,10 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                     node[DataFlowGraph.NodeAttribute.PARTITION]
                 )
             # deserialize feature types
-            node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] = build_type_from_dict(
+            node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] = build_dtype_from_dict(
                 node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE]
             )
-            node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] = build_type_from_dict(
+            node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] = build_dtype_from_dict(
                 node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
             )
             # deserialize node objects

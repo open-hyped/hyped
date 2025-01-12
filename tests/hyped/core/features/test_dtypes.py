@@ -26,9 +26,9 @@ from hyped.core.features.dtypes import (
     UInt32Type,
     UInt64Type,
     build_dtype_from_arrow_type,
+    build_dtype_from_dict,
     build_dtype_from_hf_feature,
     build_dtype_from_python_object,
-    build_type_from_dict,
     cast_dtype,
     common_dtype,
     is_dtype_subset,
@@ -231,7 +231,7 @@ class TestMappingType:
     ],
 )
 def test_type_serialization(dtype: DType) -> None:
-    assert build_type_from_dict(dtype.to_dict()) == dtype
+    assert build_dtype_from_dict(dtype.to_dict()) == dtype
 
 
 @pytest.mark.parametrize(
