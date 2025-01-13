@@ -10,7 +10,7 @@ from typing import Annotated, Any
 import pyarrow as pa
 import pydantic
 
-from ..features.dtypes import build_dtype_from_arrow_type, build_type_from_dict
+from ..features.dtypes import build_dtype_from_arrow_type, build_dtype_from_dict
 from .base import BaseNode, BaseNodeConfig
 
 
@@ -32,7 +32,7 @@ class ConstNodeConfig(BaseNodeConfig):
         pydantic.BeforeValidator(
             lambda x: x
             if isinstance(x, pa.Array)
-            else (pa.array([x["value"]], type=build_type_from_dict(x["dtype"]).arrow_type))
+            else (pa.array([x["value"]], type=build_dtype_from_dict(x["dtype"]).arrow_type))
         ),
     ]
     """A PyArrow array representing the constant value.

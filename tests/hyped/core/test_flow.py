@@ -18,41 +18,34 @@ from .utils import build_graph
 
 
 def test_plot_data_flow():
-    # build a graph
-    flow = DataFlow({"field": datasets.Value("bool")})
-    flow._graph = build_graph(
+    graph = build_graph(
         [(0, 1), (1, 2)],
         {
             0: DataFlowGraph.NodeType.SOURCE,
             1: DataFlowGraph.NodeType.DATA_PROCESSOR,
             2: DataFlowGraph.NodeType.DATA_PROCESSOR,
         },
-        {
-            0: MagicMock(),
-            1: MagicMock(__class__=MagicMock(__name__="A")),
-            2: MagicMock(__class__=MagicMock(__name__="A")),
-        },
+        output_type=MappingType.construct({"x": BoolType}),
     )
 
+    collect = ConcreteReference(2, graph)
+    flow = ExecutableDataFlow(None, graph, collect, None, None)
+
     # Ensure the plot function runs without errors and returns an Axes object
-    with patch("matplotlib.pyplot.show"):  # Mock plt.show to avoid displaying the plot during tests
+    # Mock plt.show to avoid displaying the plot during tests
+    with patch("matplotlib.pyplot.show"):
         ax = plot_data_flow(
             flow,
-            src_node_label="[ROOT]",
+            node_format="{{ node_id }}",
             node_font_size=1e-5,
         )
         assert isinstance(ax, plt.Axes)
 
     # Check if node labels are correct
-    for node, data in flow._graph.nodes(data=True):
-        node_label = (
-            "[ROOT]"
-            if node == flow._graph.src_node_id
-            else type(data[DataFlowGraph.NodeAttribute.NODE_OBJ]).__name__
-        )
+    for node, _data in flow._graph.nodes(data=True):
         assert any(
-            node_label in text.get_text() for text in ax.texts
-        ), f"Node label {node_label} is missing in the plot."
+            str(node) == text.get_text() for text in ax.texts
+        ), f"Node label '{node}' is missing in the plot."
 
     # Check if edge labels are correct
     for edge in flow._graph.edges(keys=True):
@@ -92,6 +85,10 @@ class TestDataFlow:
             # hf features are not compatible with annotation
             features = datasets.Features({"other": datasets.Value("bool")})
             _ = DataFlow[SourceFeature](features).source
+
+    def test_str(self) -> None:
+        hf_features = datasets.Features({"field": datasets.Value("bool")})
+        str(DataFlow(hf_features))
 
     @patch("hyped.core.flow.DataFlowGraph", MagicMock())
     @patch("hyped.core.flow.build_feature_from_reference", MagicMock())
@@ -235,6 +232,30 @@ class TestExecutableDataFlow:
                     spec=ConcreteReference, _graph=mock_graph, _node_id=mock_feature_node._node_id
                 )
                 ExecutableDataFlow(None, mock_graph, collect, aggregate, None)
+
+    @patch("hyped.core.flow.DataAggregationManager", MagicMock())
+    def test_str(self) -> None:
+        graph = build_graph(
+            [("0", "1"), ("1", "2"), ("2", "3"), ("3", "4")],
+            {
+                "0": DataFlowGraph.NodeType.SOURCE,
+                "1": DataFlowGraph.NodeType.DATA_PROCESSOR,
+                "2": DataFlowGraph.NodeType.DATA_PROCESSOR,
+                "3": DataFlowGraph.NodeType.DATA_AGGREGATOR,
+                "4": DataFlowGraph.NodeType.DATA_PROCESSOR,
+            },
+            output_type=MappingType.construct({"x": BoolType}),
+        )
+        # create collect and aggregate references
+        collect = ConcreteReference("2", graph)
+        aggregate = ConcreteReference("4", graph)
+
+        # create an executable data flow
+        flow = ExecutableDataFlow(None, graph, collect, aggregate, None)
+        string = str(flow)
+
+        assert "(Collect)" in string
+        assert "(Aggregate)" in string
 
     @pytest.mark.parametrize(
         "graph, collect, aggregate, expected_instance_graph, expected_aggregates_graph",
