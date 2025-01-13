@@ -10,6 +10,7 @@ to be applied directly to sequence features.
 """
 
 from typing import Annotated, Any, Generic, TypeVar, overload
+from uuid import UUID, uuid5
 
 import numpy as np
 import pyarrow as pa
@@ -319,6 +320,27 @@ class SequenceUnpackConfig(BaseDataAugmentorConfig):
 class SequenceUnpack(BaseDataAugmentor[SequenceUnpackConfig]):
     """Augmentor to unpack a sequence."""
 
+    def infer_output_partition(self, ctx: RunContext, partition: PartitionId) -> PartitionId:
+        """Determine the output partition of the unpack operation.
+
+        For fixed-length sequences the output partition is deterministically computed
+        from the node partition and the length of the sequence. This allows to combine
+        elements from different unpacked sequences.
+
+        Args:
+            ctx (RunContext): Execution context for the node.
+            partition (PartitionId): The ID of the input partition, i.e. the partition that the
+                node is assigned to.
+
+        Returns:
+            PartitionId: The output partition ID, corresponding to the node ID of the augmentor.
+        """
+        length: int = ctx.input_type["seq"].length
+        if length != UNDEFINED_SEQUENCE_LENGTH:
+            return str(uuid5(UUID(partition), length.to_bytes(4)))
+
+        return super(SequenceUnpack, self).infer_output_partition(ctx, partition)
+
     @process_mode(batched=True, backend="arrow")
     def process(self, ctx: RunContext, seq: Sequence[ItemType]) -> tuple[ItemType, TraceIndexList]:
         """Unpack the sequence.
@@ -343,6 +365,27 @@ class SequenceUnpackWithIndexConfig(BaseDataAugmentorConfig):
 
 class SequenceUnpackWithIndex(BaseDataAugmentor[SequenceUnpackWithIndexConfig]):
     """Augmentor to unpack a sequence and compute trace indices."""
+
+    def infer_output_partition(self, ctx: RunContext, partition: PartitionId) -> PartitionId:
+        """Determine the output partition of the unpack operation.
+
+        For fixed-length sequences the output partition is deterministically computed
+        from the node partition and the length of the sequence. This allows to combine
+        elements from different unpacked sequences.
+
+        Args:
+            ctx (RunContext): Execution context for the node.
+            partition (PartitionId): The ID of the input partition, i.e. the partition that the
+                node is assigned to.
+
+        Returns:
+            PartitionId: The output partition ID, corresponding to the node ID of the augmentor.
+        """
+        length: int = ctx.input_type["seq"].length
+        if length != UNDEFINED_SEQUENCE_LENGTH:
+            return str(uuid5(UUID(partition), length.to_bytes(4)))
+
+        return super(SequenceUnpackWithIndex, self).infer_output_partition(ctx, partition)
 
     @process_mode(batched=True, backend="arrow")
     def process(

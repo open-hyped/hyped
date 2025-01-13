@@ -89,6 +89,33 @@ class TestSequenceUnpack(BaseDataAugmentorTest):
     expected_output_feature = Int
     expected_output_data = [1, 2, 3, 4, 5, 6]
 
+    def test_output_partition(self) -> None:
+        # call the node and capture the output partiton
+        flow, feature = self.call_node(type(self).augmentor)
+        partitionA = flow._graph.get_node_output_partition(feature.ref._node_id)
+        # call it again and capture the second output partition
+        flow, feature = self.call_node(type(self).augmentor)
+        partitionB = flow._graph.get_node_output_partition(feature.ref._node_id)
+        # for sequences of undefined length the output partition
+        # is different
+        assert partitionA != partitionB
+
+
+class TestFixedLengthSequenceUnpack(BaseDataAugmentorTest):
+    augmentor = SequenceUnpack()
+    input_features = {"seq": Annotated[Sequence[Int], Len(3)]}
+
+    def test_output_partition(self) -> None:
+        # call the node and capture the output partiton
+        flow, feature = self.call_node(type(self).augmentor)
+        partitionA = flow._graph.get_node_output_partition(feature.ref._node_id)
+        # call it again and capture the second output partition
+        flow, feature = self.call_node(type(self).augmentor)
+        partitionB = flow._graph.get_node_output_partition(feature.ref._node_id)
+        # for sequences of undefined length the output partition
+        # is different
+        assert partitionA == partitionB
+
 
 class TestSequenceUnpackWithIndex(BaseDataAugmentorTest):
     augmentor = SequenceUnpackWithIndex()
@@ -106,6 +133,33 @@ class TestSequenceUnpackWithIndex(BaseDataAugmentorTest):
         {"value": 5, "index": 1},
         {"value": 6, "index": 1},
     ]
+
+    def test_output_partition(self) -> None:
+        # call the node and capture the output partiton
+        flow, feature = self.call_node(type(self).augmentor)
+        partitionA = flow._graph.get_node_output_partition(feature.ref._node_id)
+        # call it again and capture the second output partition
+        flow, feature = self.call_node(type(self).augmentor)
+        partitionB = flow._graph.get_node_output_partition(feature.ref._node_id)
+        # for sequences of undefined length the output partition
+        # is different
+        assert partitionA != partitionB
+
+
+class TestFixedLengthSequenceUnpackWithIndex(BaseDataAugmentorTest):
+    augmentor = SequenceUnpackWithIndex()
+    input_features = {"seq": Annotated[Sequence[Int], Len(3)]}
+
+    def test_output_partition(self) -> None:
+        # call the node and capture the output partiton
+        flow, feature = self.call_node(type(self).augmentor)
+        partitionA = flow._graph.get_node_output_partition(feature.ref._node_id)
+        # call it again and capture the second output partition
+        flow, feature = self.call_node(type(self).augmentor)
+        partitionB = flow._graph.get_node_output_partition(feature.ref._node_id)
+        # for sequences of undefined length the output partition
+        # is different
+        assert partitionA == partitionB
 
 
 class TestSequencePack(BaseDataAugmentorTest):

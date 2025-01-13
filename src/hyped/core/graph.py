@@ -162,7 +162,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
     class Partition(str, Enum):
         """Enum representing predefined partitions in the data flow graph."""
 
-        CONST = "CONSTANT"
+        CONST = str(random_uuid())
         """
         Represents the partition containing all constant nodes.
 
@@ -172,7 +172,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         values.
         """
 
-        DEFAULT = "DEFAULT"
+        DEFAULT = str(random_uuid())
         """
         Represents the default partition for nodes.
 
@@ -180,7 +180,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         its sub-graph.
         """
 
-        AGGREGATED = "AGGREGATED"
+        AGGREGATED = str(random_uuid())
         """
         Represents the partition containing aggregated values.
 

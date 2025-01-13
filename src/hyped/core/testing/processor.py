@@ -36,7 +36,7 @@ class BaseDataProcessorTest(BaseNodeTest):
     validated in the test.
     """
 
-    def execute_test(self) -> tuple[Feature, list[dict[str, Any]]]:
+    def execute_test(self) -> tuple[Feature, None | list[dict[str, Any]]]:
         """Executes the test for the data processor node.
 
         This method performs the following steps to test the behavior of the processor node:
@@ -54,15 +54,18 @@ class BaseDataProcessorTest(BaseNodeTest):
         specified errors or mismatches.
 
         Returns:
-            output_feature, output_data: tuple[Feature, list[dict[str, Any]]]: The output feature
-                that the processor call returns, as well as the processed data.
+            tuple[Feature, None | list[dict[str, Any]]]: The output feature that the processor
+                call returns, as well as the processed data if present. Output data is not present
+                when the test doesn't specify any input data.
         """
         # call node and build flow
         flow, output_feature = self.call_node(type(self).processor)
         flow = flow.build(collect={"output": output_feature})
         # execute the flow and check the output data
-        output_arrow = self.execute_flow(flow)
-        output_data = output_arrow["output"].to_pylist()
-        type(self).check_output_data_matches_expectation(output_data)
-
-        return output_feature, output_data
+        if (output_arrow := self.execute_flow(flow)) is not None:
+            output_data = output_arrow["output"].to_pylist()
+            type(self).check_output_data_matches_expectation(output_data)
+            return output_feature, output_data
+        else:
+            # return only the output feature and None for the output data
+            return output_feature, None

@@ -66,8 +66,9 @@ class BaseDataAugmentorTest(BaseNodeTest):
         the predefined expectations.
 
         Returns:
-            output_feature, output_data: tuple[Feature, list[dict[str, Any]]]: The output feature
-                that the augmentor call returns, as well as the processed data.
+            tuple[Feature, None | list[dict[str, Any]]]: The output feature that the augmentor
+                call returns, as well as the processed data if present. Output data is not present
+                when the test doesn't specify any input data.
         """
         cls = type(self)
         # call node and build flow
@@ -81,8 +82,10 @@ class BaseDataAugmentorTest(BaseNodeTest):
                 f"but got {partition}."
             )
         # execute the flow and check the output data
-        output_arrow = self.execute_flow(flow)
-        output_data = output_arrow["output"].to_pylist()
-        cls.check_output_data_matches_expectation(output_data)
-
-        return output_feature, output_data
+        if (output_arrow := self.execute_flow(flow)) is not None:
+            output_data = output_arrow["output"].to_pylist()
+            type(self).check_output_data_matches_expectation(output_data)
+            return output_feature, output_data
+        else:
+            # return only the output feature and None for the output data
+            return output_feature, None
