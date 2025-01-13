@@ -544,7 +544,7 @@ class Sum(BaseDataAggregator[SumConfig]):
     @process_mode(batched=False, backend="python")
     async def update(
         self, ctx: RunContext, val: ScalarType, state: None, extracted: ScalarType
-    ) -> tuple[ScalarType, bool]:
+    ) -> tuple[ScalarType, None]:
         """Update the aggregator's state with a new value.
 
         Args:
@@ -554,8 +554,8 @@ class Sum(BaseDataAggregator[SumConfig]):
             extracted (ScalarType): The extracted value from the input.
 
         Returns:
-            tuple[ScalarType, bool]: A tuple containing the updated state value
-            (sum) and a boolean indicating whether the state is initialized.
+            tuple[ScalarType, None]: A tuple containing the updated value
+            (sum) and the state (None).
         """
         return extracted + val, None
 

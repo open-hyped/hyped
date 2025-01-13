@@ -54,6 +54,7 @@ from .features.session import ValidationSession
 from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
+from .ops.mapping import MappingGetItem
 from .optim import DataFlowGraphOptimizer
 from .typing import IndexList, NodeId, Rank, cast
 from .utils import NestedType, build_annotation_from_dtype, map_recursive, validate_hf_feature
@@ -860,6 +861,19 @@ class ExecutableDataFlow(AbstractDataFlow):
         )
         source_ref = h.add_source_node(source_type)
         source = build_feature_from_reference(source_ref)
+
+        if len(g.nodes) == 0:
+            # catch edge case where the aggregates graph is empty this happend when the
+            # aggregate feature is the direct output of an aggregator, in that case the
+            # aggregator itself is not part of the aggregated partition, but its output
+            # is
+            assert len(aggregator_nodes) == 1
+            node_id = next(iter(aggregator_nodes))
+            # forward the output of the aggregator node
+            h.add_compute_node(
+                MappingGetItem(key=node_id), inputs={"mapping": source_ref}, node_id=node_id
+            )
+            return h
 
         # rebuild the aggregates graph
         for node_id in nx.topological_sort(g):
