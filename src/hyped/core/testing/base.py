@@ -307,7 +307,7 @@ class BaseNodeTest(ABC):
                 else nullcontext()
             ):
                 # execute data flow while cathcing potential execution error
-                output_data = flow.arrow_process(input_array, input_index, cls.input_rank)
+                output_data = flow._instance_executor.run(input_array, input_index, cls.input_rank)
 
             if cls.expected_execution_error is not None:
                 # successfully catched execution error

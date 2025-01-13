@@ -28,7 +28,6 @@ from matplotlib import lines as mlines
 from matplotlib import pyplot as plt
 
 from hyped.common._pydantic import TypeAdapterWithArbitraryTypesAllowed
-from hyped.common._worker import get_worker_info
 
 from .abstract import AbstractDataFlow
 from .executor import DataFlowExecutor, LazyDataFlowExecutor
@@ -57,7 +56,7 @@ from .graph import DEFAULT_NODE_FORMAT, DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
 from .optim import DataFlowGraphOptimizer
-from .typing import IndexList, NodeId, Rank, cast
+from .typing import NodeId, cast
 from .utils import NestedType, build_annotation_from_dtype, map_recursive, validate_hf_feature
 
 logger = logging.getLogger(__name__)
@@ -71,7 +70,6 @@ try:
 except ValueError:  # pragma: not covered
     # TODO: log warning
     pass
-
 
 Dataset = TypeVar("Dataset", datasets.Dataset, datasets.DatasetDict)
 ItDataset = TypeVar("ItDataset", datasets.IterableDataset, datasets.IterableDatasetDict)
@@ -977,6 +975,7 @@ class ExecutableDataFlow(AbstractDataFlow):
         contexts = [
             RunContext(
                 node_id=node,
+                session=None,
                 index=[],
                 rank=0,
                 input_type=self._graph.nodes[node][DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE],
@@ -1180,33 +1179,6 @@ class ExecutableDataFlow(AbstractDataFlow):
             else None,
         )
 
-    def arrow_process(
-        self, batch: pa.Table, index: IndexList, rank: None | Rank = None
-    ) -> pa.Table:
-        """Process a batch of data in the form of a pyarrow table.
-
-        Args:
-            batch (pa.Table): The batch of data to process.
-            index (IndexList): The index of the batch.
-            rank (None | Rank): The rank of the process in a distributed setting.
-
-        Returns:
-            pa.Table: The processed batch of data as a PyArrow Table.
-        """
-        if rank is None:
-            # try to get multiprocessing rank from worker info
-            worker_info = get_worker_info()
-            rank = 0 if worker_info is None else worker_info.rank
-
-        # create a new event loop to execute the flow in
-        loop = asyncio.new_event_loop()
-        # schedule the execution for the current batch
-        future = self._instance_executor.execute(batch.to_struct_array(), index, rank)
-        out = loop.run_until_complete(future)
-        # close the event loop
-        loop.close()
-        return pa.table(out, schema=self._collect_feature.dtype.arrow_schema)
-
     def _internal_apply(
         self,
         ds: Dataset | ItDataset,
@@ -1238,102 +1210,111 @@ class ExecutableDataFlow(AbstractDataFlow):
         Returns:
             Dataset | ItDataset: The processed dataset.
         """
-        if isinstance(ds, datasets.Dataset):
-            # use arrow formatter and only the required input columns
-            prepared_ds = ds.with_format(type="arrow", columns=list(self._source_feature.keys()))
+        try:
+            if isinstance(ds, datasets.Dataset):
+                # use arrow formatter and only the required input columns
+                prepared_ds = ds.with_format(
+                    type="arrow", columns=list(self._source_feature.keys())
+                )
 
-            # compute the new fingerprint
-            fingerprint = datasets.fingerprint.generate_fingerprint(prepared_ds)
-            fingerprint = datasets.fingerprint.update_fingerprint(
-                fingerprint, transform=self.serialize(), transform_args={}
-            )
-            # use pyarrow table as output format for in-memory
-            # datasets that support caching
-            transformed_ds = prepared_ds.map(
-                self.arrow_process,
-                with_indices=True,
-                with_rank=True,
-                batched=True,
-                batch_size=batch_size,
-                drop_last_batch=drop_last_batch,
-                keep_in_memory=keep_in_memory,
-                load_from_cache_file=load_from_cache_file,
-                writer_batch_size=writer_batch_size,
-                num_proc=num_proc,
-                desc=desc,
-                new_fingerprint=fingerprint,
-            )
-            # get the format of the input dataset
-            input_format = (
-                ds.format if isinstance(ds, datasets.Dataset) else next(iter(ds.values())).format
-            )
-            transformed_ds.set_format(
-                type=input_format["type"],
-                format_kwargs=input_format["format_kwargs"],
-                output_all_columns=True,
-            )
-            return transformed_ds
+                # compute the new fingerprint
+                fingerprint = datasets.fingerprint.generate_fingerprint(prepared_ds)
+                fingerprint = datasets.fingerprint.update_fingerprint(
+                    fingerprint, transform=self.serialize(), transform_args={}
+                )
+                # use pyarrow table as output format for in-memory
+                # datasets that support caching
+                transformed_ds = prepared_ds.map(
+                    self._instance_executor.run,
+                    with_indices=True,
+                    with_rank=True,
+                    batched=True,
+                    batch_size=batch_size,
+                    drop_last_batch=drop_last_batch,
+                    keep_in_memory=keep_in_memory,
+                    load_from_cache_file=load_from_cache_file,
+                    writer_batch_size=writer_batch_size,
+                    num_proc=num_proc,
+                    desc=desc,
+                    new_fingerprint=fingerprint,
+                )
+                # get the format of the input dataset
+                input_format = (
+                    ds.format
+                    if isinstance(ds, datasets.Dataset)
+                    else next(iter(ds.values())).format
+                )
+                transformed_ds.set_format(
+                    type=input_format["type"],
+                    format_kwargs=input_format["format_kwargs"],
+                    output_all_columns=True,
+                )
+                return transformed_ds
 
-        elif isinstance(ds, datasets.DatasetDict):
-            # apply to each dataset in the dataset dict
-            return datasets.DatasetDict(
-                {
-                    key: self._internal_apply(
-                        ds=val,
-                        batch_size=batch_size,
-                        drop_last_batch=drop_last_batch,
-                        keep_in_memory=keep_in_memory,
-                        load_from_cache_file=load_from_cache_file,
-                        writer_batch_size=writer_batch_size,
-                        num_proc=num_proc,
-                        desc=desc or key,
-                    )
-                    for key, val in ds.items()
-                }
-            )
+            elif isinstance(ds, datasets.DatasetDict):
+                # apply to each dataset in the dataset dict
+                return datasets.DatasetDict(
+                    {
+                        key: self._internal_apply(
+                            ds=val,
+                            batch_size=batch_size,
+                            drop_last_batch=drop_last_batch,
+                            keep_in_memory=keep_in_memory,
+                            load_from_cache_file=load_from_cache_file,
+                            writer_batch_size=writer_batch_size,
+                            num_proc=num_proc,
+                            desc=desc or key,
+                        )
+                        for key, val in ds.items()
+                    }
+                )
 
-        elif isinstance(ds, datasets.IterableDataset):
-            # use arrow formatter and only the required input columns
-            prepared_ds = ds.with_format(type="arrow")
-            # iterable dataset class doesn't support pyarrow
-            # outputs in map function, but it also doesn't cache
-            # and thus doesn't need the features while processing
-            transformed_ds = prepared_ds.map(
-                self.arrow_process,
-                with_indices=True,
-                batched=True,
-                batch_size=batch_size,
-                drop_last_batch=drop_last_batch,
-                remove_columns=(
-                    set(self._source_feature.keys()) - set(self._collect_feature.keys())
-                ),
-                features=self._collect_feature.dtype.hf_feature,
-            )
-            # unset the dataset format
-            return transformed_ds.with_format(type=None)
+            elif isinstance(ds, datasets.IterableDataset):
+                # use arrow formatter and only the required input columns
+                prepared_ds = ds.with_format(type="arrow")
+                # iterable dataset class doesn't support pyarrow
+                # outputs in map function, but it also doesn't cache
+                # and thus doesn't need the features while processing
+                transformed_ds = prepared_ds.map(
+                    self._instance_executor.run,
+                    with_indices=True,
+                    batched=True,
+                    batch_size=batch_size,
+                    drop_last_batch=drop_last_batch,
+                    remove_columns=(
+                        set(self._source_feature.keys()) - set(self._collect_feature.keys())
+                    ),
+                    features=self._collect_feature.dtype.hf_feature,
+                )
+                # unset the dataset format
+                return transformed_ds.with_format(type=None)
 
-        elif isinstance(ds, datasets.IterableDatasetDict):
-            # use arrow formatter and only the required input columns
-            prepared_ds = ds.with_format(type="arrow")
-            # iterable dataset class doesn't support pyarrow
-            # outputs in map function, but it also doesn't cache
-            # and thus doesn't need the features while processing
-            transformed_ds = prepared_ds.map(
-                self.arrow_process,
-                with_indices=True,
-                batched=True,
-                batch_size=batch_size,
-                drop_last_batch=drop_last_batch,
-                remove_columns=(
-                    set(self._source_feature.keys()) - set(self._collect_feature.keys())
-                ),
-            )
-            # iterable dataset dict doesn't support features argument to map function
-            for split in ds.values():
-                split.info.features = self._collect_feature.dtype.hf_feature
+            elif isinstance(ds, datasets.IterableDatasetDict):
+                # use arrow formatter and only the required input columns
+                prepared_ds = ds.with_format(type="arrow")
+                # iterable dataset class doesn't support pyarrow
+                # outputs in map function, but it also doesn't cache
+                # and thus doesn't need the features while processing
+                transformed_ds = prepared_ds.map(
+                    self._instance_executor.run,
+                    with_indices=True,
+                    batched=True,
+                    batch_size=batch_size,
+                    drop_last_batch=drop_last_batch,
+                    remove_columns=(
+                        set(self._source_feature.keys()) - set(self._collect_feature.keys())
+                    ),
+                )
+                # iterable dataset dict doesn't support features argument to map function
+                for split in ds.values():
+                    split.info.features = self._collect_feature.dtype.hf_feature
 
-            # unset the dataset format
-            return transformed_ds.with_format(type=None)
+                # unset the dataset format
+                return transformed_ds.with_format(type=None)
+
+        finally:
+            # reset the run session
+            self._instance_executor.reset_run_session()
 
     def serialize(self, indent: None | int = None) -> str:
         """Serializes the executable data flow into a JSON string.

@@ -51,8 +51,11 @@ class TestTypeRegistry:
 
         with pytest.raises(RuntimeError):
             # test overwriting registered type ids
-            class C(D):
-                pass
+            class C(RegisterTypeMixin):
+                @property
+                @classmethod
+                def type_hash(cls):
+                    return "NEW TYPE HASH"
 
     def test_subtype_registers(self):
         types = set(RegisterTypeMixin.type_registry.types)

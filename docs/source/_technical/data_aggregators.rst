@@ -25,10 +25,10 @@ The figure below illustrates the workings of the extraction and update phase. It
 
 This logic is implemented by the :doc:`DataAggregationManager <api/hyped.core.nodes.aggregator>`.
 
-Initialization Phase
+Seeding Phase
 ~~~~~~~~~~~~~~~~~~~~
 
-Before the aggregation process begins, data aggregators undergo an initialization phase to set up their internal state. During this phase, the aggregator initializes its state, which includes any parameters or configurations specified by the user. This phase ensures that the aggregator is ready to start processing data and can maintain consistent behavior throughout the aggregation process.
+Before the aggregation process begins, data aggregators undergo a seeding phase to set up their internal state. During this phase, the aggregator initializes its state, which includes any parameters or configurations specified by the user. This phase ensures that the aggregator is ready to start processing data and can maintain consistent behavior throughout the aggregation process.
 
 Extraction Phase
 ~~~~~~~~~~~~~~~~

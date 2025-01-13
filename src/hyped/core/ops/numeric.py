@@ -408,7 +408,7 @@ class MinConfig(BaseDataAggregatorConfig):
 class Min(BaseDataAggregator[MinConfig]):
     """Data Aggregator implementing minimum value computation."""
 
-    def initialize(self, ctx: RunContext) -> tuple[ScalarType, bool]:
+    def seed(self, ctx: RunContext) -> tuple[ScalarType, bool]:
         """Initialize the aggregator's state.
 
         Args:
@@ -462,7 +462,7 @@ class MaxConfig(BaseDataAggregatorConfig):
 class Max(BaseDataAggregator[MaxConfig]):
     """Data Aggregator implementing maximum value computation."""
 
-    def initialize(self, ctx: RunContext) -> tuple[ScalarType, bool]:
+    def seed(self, ctx: RunContext) -> tuple[ScalarType, bool]:
         """Initialize the aggregator's state.
 
         Args:
@@ -516,7 +516,7 @@ class SumConfig(BaseDataAggregatorConfig):
 class Sum(BaseDataAggregator[SumConfig]):
     """Data Aggregator implementing sum value computation."""
 
-    def initialize(self, ctx: RunContext) -> tuple[ScalarType, None]:
+    def seed(self, ctx: RunContext) -> tuple[ScalarType, None]:
         """Initialize the aggregator's state.
 
         Args:
@@ -575,7 +575,7 @@ class Mean(BaseDataAggregator[MeanConfig]):
 
     StateType: TypeAlias = tuple[ScalarType, int]
 
-    def initialize(self, ctx: RunContext) -> tuple[ScalarType, StateType]:
+    def seed(self, ctx: RunContext) -> tuple[ScalarType, StateType]:
         """Initializes the state for the mean calculation.
 
         Args:

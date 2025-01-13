@@ -13,6 +13,7 @@ from hyped.core.features.reference import ForwardReference
 from hyped.core.graph import DataFlowGraph
 from hyped.core.nodes.aggregator import BaseDataAggregator
 from hyped.core.nodes.augmentor import BaseDataAugmentor
+from hyped.core.nodes.base import BaseNode, BaseNodeConfig
 from hyped.core.nodes.collect import CollectNode
 from hyped.core.nodes.const import ConstNode
 from hyped.core.nodes.processor import BaseDataProcessor
@@ -389,6 +390,7 @@ class TestDataFlowExecutor:
             "hyped.core.executor.pc.cast", mock_pyarrow_cast
         ):
             executor = DataFlowExecutor(graph, ForwardReference(), manager)
+            executor.session = MagicMock()
             await executor.execute_node(node, state)
 
         # Verify awaited dependencies
@@ -463,6 +465,89 @@ class TestDataFlowExecutor:
 
             # Assert that the output matches the return value of collect_value
             assert out == mock_state.collect_value.return_value
+
+    def test_run(self) -> None:
+        # create an executor instance
+        executor = DataFlowExecutor(MagicMock(), MagicMock(), None)
+        executor.execute = AsyncMock()
+        executor.init_run_session = MagicMock(side_effect=executor.init_run_session)
+
+        with (
+            patch("hyped.core.executor.pa.table") as mock_table,
+            patch("hyped.core.executor.get_worker_info") as mock_get_worker_info,
+        ):
+            # create mock inputs to be processed
+            mock_batch = MagicMock()
+            mock_index = MagicMock()
+
+            # run the executor
+            out = executor.run(mock_batch, mock_index, None)
+            assert out == mock_table.return_value
+
+            # make sure the session was initialized
+            executor.init_run_session.assert_called_once()
+            # make sure execute was called correctly
+            executor.execute.assert_called_once_with(
+                mock_batch.to_struct_array.return_value,
+                index=mock_index,
+                rank=mock_get_worker_info.return_value.rank,
+            )
+
+    @pytest.mark.asyncio
+    async def test_state_stored_in_session(self) -> None:
+        mock_variable = MagicMock()
+
+        class MockConfig(BaseNodeConfig):
+            ...
+
+        class MockNode(BaseNode[MockConfig]):
+            @property
+            def signature(self):
+                ...
+
+            def initialize(self, ctx):
+                self.variable = mock_variable
+
+            async def run(self, ctx, inputs):
+                # make sure the variable is present
+                # when executing the node
+                assert hasattr(self, "variable")
+                assert self.variable == mock_variable
+                return MagicMock(type=BoolType.arrow_type)
+
+        # build a mock data flow graph
+        mock_graph = nx.MultiDiGraph()
+        mock_graph.add_node(
+            "node_id",
+            **{
+                DataFlowGraph.NodeAttribute.NODE_OBJ: MockNode(),
+                DataFlowGraph.NodeAttribute.NODE_TYPE: DataFlowGraph.NodeType.DATA_PROCESSOR,
+                DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE: MagicMock(),
+                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE: BoolType,
+                DataFlowGraph.NodeAttribute.PARTITION: DataFlowGraph.Partition.DEFAULT,
+                DataFlowGraph.NodeAttribute.DEPTH: 0,
+            },
+        )
+        mock_graph.build_partition_graph = MagicMock()
+
+        # initialize the session
+        executor = DataFlowExecutor(mock_graph, MagicMock(), None)
+        executor.init_run_session(0)
+
+        # make sure initialize has no effect on the node state
+        assert not hasattr(executor, "variable")
+        # make sure the initialized node state is stored in the session
+        state = executor.session.get_context("node_id")
+        assert state is not None
+        assert state["__dict__"]["variable"] == mock_variable
+
+        # make sure the state is set when executing the node
+        mock_state = MagicMock(collect_inputs=MagicMock(return_value=(MagicMock(), MagicMock())))
+        await executor.execute_node("node_id", mock_state)
+
+        # reset the session
+        executor.reset_run_session()
+        assert executor.session is None
 
 
 class TestLazyDataFlowExecutor:

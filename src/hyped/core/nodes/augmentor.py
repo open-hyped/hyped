@@ -126,6 +126,10 @@ class BaseDataAugmentor(BaseNode[C], ABC):
         By default, data augmentors point to their own partition. This method
         reuses the node ID of the augmentor as the output partition ID.
 
+        Note that this function is not part of the data flow execution but of
+        the initialization process. Therefore, it is called before :func:`initialize`
+        of the node and the :code:`ctx.session` will be :code:`None`.
+
         Args:
             ctx (RunContext): Execution context for the node.
             partition (PartitionId): The ID of the input partition, i.e. the partition that the
