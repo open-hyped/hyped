@@ -26,15 +26,15 @@ class TestDataAggregationManager:
         mock_aggregators = [
             MagicMock(
                 spec=BaseDataAggregator,
-                initialize=MagicMock(return_value=(initial_values[0], initial_states[0])),
+                seed=MagicMock(return_value=(initial_values[0], initial_states[0])),
             ),
             MagicMock(
                 spec=BaseDataAggregator,
-                initialize=MagicMock(return_value=(initial_values[1], initial_states[1])),
+                seed=MagicMock(return_value=(initial_values[1], initial_states[1])),
             ),
             MagicMock(
                 spec=BaseDataAggregator,
-                initialize=MagicMock(return_value=(initial_values[2], initial_states[2])),
+                seed=MagicMock(return_value=(initial_values[2], initial_states[2])),
             ),
         ]
         mock_run_contexts = [MagicMock(), MagicMock(), MagicMock()]
@@ -65,7 +65,7 @@ class TestDataAggregationManager:
 
         mock_aggregator = MagicMock(
             spec=BaseDataAggregator,
-            initialize=MagicMock(return_value=(mock_value, mock_state)),
+            seed=MagicMock(return_value=(mock_value, mock_state)),
             update=AsyncMock(return_value=(mock_new_value, mock_new_state)),
         )
         mock_run_context = MagicMock()
@@ -150,7 +150,7 @@ class MockConfig(BaseDataAggregatorConfig):
 class TestBaseDataAggregator:
     def test_signature(self):
         class MockDataAggregator(BaseDataAggregator[MockConfig]):
-            def initialize(self, ctx: RunContext) -> tuple[Int, int]:
+            def seed(self, ctx: RunContext) -> tuple[Int, int]:
                 ...
 
             def extract(self, ctx: RunContext, x: Bool, y: Int) -> object:

@@ -43,7 +43,7 @@ class Registrable(ABC):  # noqa: B024
             # TODO: include base class in hash computation
             src = inspect.getsource(cls)
             src_lines = src.splitlines()
-        except OSError:
+        except (OSError, TypeError):
             src_lines = [cls.__module__, cls.__name__]
         return _hash_python_lines(src_lines)
 
@@ -80,6 +80,10 @@ class TypeRegistry(object):
 
         # make sure type is not registered yet
         if var.type_id in self.global_hash_register:
+            if var.type_hash == self.global_hash_register[var.type_id]:
+                logger.debug(f"Skipped re-registering {var.type_id} with same type hash.")
+                return
+
             raise RuntimeError(f"Type with id '{var.type_id}' already registered!")
 
         h = var.type_hash

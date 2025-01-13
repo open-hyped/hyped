@@ -55,7 +55,7 @@ class DataAggregationManager(object):
         Args:
             aggregators (dict[str, BaseDataAggregator]): A list of aggregators.
             run_contexts (list[RunContext]): A list of contexts correspoding to the aggregators.
-                Only used for call to :func:`initialize` function of each aggregator instance.
+                Only used for call to :func:`seed` function of each aggregator instance.
         """
         manager = mp.Manager()
         # create buffers
@@ -63,7 +63,7 @@ class DataAggregationManager(object):
         state_buffer = {}
         # fill buffers with initial values from aggregators
         for agg, ctx in zip(aggregators, run_contexts, strict=True):
-            val, state = agg.initialize(ctx)
+            val, state = agg.seed(ctx)
             val = pa.array([val], type=ctx.output_type.arrow_type)
             # write values to buffers
             value_buffer[ctx.node_id] = val
@@ -309,11 +309,16 @@ class BaseDataAggregator(BaseNode[C], ABC):
     Extracted = TypeVar("Extract")
 
     @abstractmethod
-    def initialize(self, ctx: RunContext) -> tuple[Value, State]:
-        """Initialize the aggregator with the given features.
+    def seed(self, ctx: RunContext) -> tuple[Value, State]:
+        """Compute the seed aggregation value and state.
+
+        Note that the :func:`seed` function is not part of the data flow
+        execution but of the initialization process. Therefore, it is called
+        before :func:`initialize` of the node and the :code:`ctx.session`
+        will be :code:`None`.
 
         Args:
-            ctx (RunContext): The run context object.
+            ctx (RunContext): The run context object with :code:`session=None`.
 
         Returns:
             tuple[Value, State]: The initial value and state for the aggregator.

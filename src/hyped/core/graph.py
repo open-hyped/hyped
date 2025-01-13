@@ -869,6 +869,7 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 rank=0,
                 input_type=input_node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE],
                 output_type=input_node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
+                session=None,
             )
             # infer the output partition of the aggregation operation
             node_obj = input_node[DataFlowGraph.NodeAttribute.NODE_OBJ]

@@ -97,6 +97,7 @@ class TestCollectNode:
 
         # build a run context with the expected input and output types
         ctx = RunContext(
+            session=MagicMock(),
             node_id=0,
             index=[0],
             rank=0,

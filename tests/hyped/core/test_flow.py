@@ -1,12 +1,11 @@
 from typing import Hashable
-from unittest.mock import ANY, AsyncMock, MagicMock, PropertyMock, patch
+from unittest.mock import ANY, MagicMock, PropertyMock, patch
 
 import datasets
 import matplotlib.pyplot as plt
 import networkx as nx
 import pytest
 
-from hyped.core.executor import DataFlowExecutor
 from hyped.core.features.dtypes import BoolType, Int16Type, Int32Type, MappingType
 from hyped.core.features.features import Feature, MappingFeature
 from hyped.core.features.reference import ConcreteReference
@@ -312,50 +311,6 @@ class TestExecutableDataFlow:
                 assert flow._aggregates_graph is None
                 assert flow._aggregates_executor is None
 
-    def test_arrow_process(self) -> None:
-        # create a simple data flow graph containing only a source node
-        graph = DataFlowGraph()
-        graph.add_source_node(MappingType.construct({"x": BoolType}))
-        # create the collect reference
-        collect = ConcreteReference(_node_id=graph.src_node_id, _graph=graph)
-
-        mock_executor = MagicMock(spec=DataFlowExecutor, execute=AsyncMock())
-        # mock the executor
-        with (
-            patch("hyped.core.flow.pa.table") as mock_table,
-            patch("hyped.core.flow.get_worker_info") as mock_get_worker_info,
-            patch("hyped.core.flow.DataFlowExecutor", MagicMock(return_value=mock_executor)),
-        ):
-            # create the executable data flow instance
-            flow = ExecutableDataFlow(None, graph, collect, None, None)
-
-            # create mock inputs to be processed
-            mock_batch = MagicMock()
-            mock_index = MagicMock()
-            mock_rank = MagicMock()
-
-            # test pyarrow process call
-            out = flow.arrow_process(mock_batch, mock_index, mock_rank)
-            mock_executor.execute.assert_called_once_with(
-                mock_batch.to_struct_array.return_value, mock_index, mock_rank
-            )
-            assert out == mock_table.return_value
-
-            # reset mocks
-            mock_get_worker_info.reset_mock()
-            mock_executor.reset_mock()
-
-            # test infer default rank from worker info
-            flow.arrow_process(mock_batch, mock_index, None)
-            mock_get_worker_info.assert_called_once()
-            # check execute function called correctly
-            mock_executor.execute.assert_called_once_with(
-                mock_batch.to_struct_array.return_value,
-                mock_index,
-                mock_get_worker_info.return_value.rank,
-            )
-            assert out == mock_table.return_value
-
     @patch("hyped.core.flow.datasets.fingerprint.generate_fingerprint", MagicMock())
     @patch("hyped.core.flow.datasets.fingerprint.update_fingerprint", MagicMock())
     def test_apply(self) -> None:
@@ -379,7 +334,7 @@ class TestExecutableDataFlow:
         # make sure the map function was called correctly
         ds.with_format.assert_called_once_with(type="arrow", columns=["x"])
         ds.with_format.return_value.map.assert_called_once_with(
-            flow.arrow_process,
+            flow._instance_executor.run,
             with_indices=True,
             with_rank=True,
             batched=True,
@@ -402,7 +357,7 @@ class TestExecutableDataFlow:
         # make sure the map function was called correctly
         ds.with_format.assert_called_once_with(type="arrow", columns=["x"])
         ds.with_format.return_value.map.assert_called_once_with(
-            flow.arrow_process,
+            flow._instance_executor.run,
             with_indices=True,
             with_rank=True,
             batched=True,
@@ -423,7 +378,7 @@ class TestExecutableDataFlow:
         # make sure the map function was called correctly
         it_ds.with_format.assert_called_once_with(type="arrow")
         it_ds.with_format.return_value.map.assert_called_once_with(
-            flow.arrow_process,
+            flow._instance_executor.run,
             with_indices=True,
             batched=True,
             batch_size=ANY,
@@ -441,7 +396,7 @@ class TestExecutableDataFlow:
         # make sure the map function was called correctly
         it_ds_dict.with_format.assert_called_once_with(type="arrow")
         it_ds_dict.with_format.return_value.map.assert_called_once_with(
-            flow.arrow_process,
+            flow._instance_executor.run,
             with_indices=True,
             batched=True,
             batch_size=ANY,
