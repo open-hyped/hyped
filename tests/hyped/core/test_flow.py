@@ -292,6 +292,22 @@ class TestExecutableDataFlow:
                 build_graph([(0, 1)]),  # aggregator is contained in instance graph
                 build_graph([(0, 1), (1, 2)]),  # 1 is getitem operator
             ),
+            # Simple linear graph with aggregator at the end
+            (
+                build_graph(
+                    [("0", "1"), ("1", "2")],
+                    {
+                        "0": DataFlowGraph.NodeType.SOURCE,
+                        "1": DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        "2": DataFlowGraph.NodeType.DATA_AGGREGATOR,
+                    },
+                    output_type=MappingType.construct({"x": BoolType}),
+                ),
+                "1",
+                "2",
+                build_graph([("0", "1"), ("1", "2")]),  # aggregator is contained in instance graph
+                build_graph([("0", "1")]),  # 1 is getitem operator
+            ),
         ],
     )
     def test_initialize(

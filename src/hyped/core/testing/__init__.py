@@ -2,5 +2,5 @@
 
 from hyped.common.utils import is_package_installed
 
-if not is_package_installed("pytest"):
+if not is_package_installed("pytest"):  # pragma: not covered
     raise EnvironmentError("PyTest not installed!")
