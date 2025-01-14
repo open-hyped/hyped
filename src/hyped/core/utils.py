@@ -6,7 +6,9 @@ feature mappings, and nested structures in the core module.
 from __future__ import annotations
 
 from typing import Annotated, Any, Callable, TypeAlias, TypeVar
+from uuid import UUID
 
+import numpy as np
 import pydantic
 from datasets.features.features import FeatureType
 
@@ -31,19 +33,22 @@ from .features.reference import ForwardReference
 from .features.session import ValidationSession
 from .features.validators import Len
 
+rng = np.random.Generator(np.random.PCG64(42))
+
 T = TypeVar("T")
 NestedType: TypeAlias = dict[str, "NestedType"] | list["NestedType"] | tuple["NestedType"] | T
 
 
 def map_recursive(
-    fn: Callable[[NestedType[Any]], None | NestedType[Any]],
+    fn: Callable[[tuple[int | str], NestedType[Any]], None | NestedType[Any]],
     obj: NestedType[Any],
     path: tuple[str | int] = (),
 ) -> NestedType[Any]:
     """Apply a function recursively on a nested object.
 
     Arguments:
-        fn (Callable[[NestedType[Any]], None | NestedType[Any]]): The function to apply.
+        fn (Callable[[tuple[int, str], NestedType[Any]], None | NestedType[Any]]):
+            The function to apply.
         obj (NestedType[Any]): The nested object to apply the function to.
         path (tuple[str | int], optional): The current path in the object
             (default is an empty tuple).
@@ -132,3 +137,16 @@ def build_annotation_from_dtype(dtype: DType) -> Any:
         return type(
             f"DynamicMapping({annotations})", (MappingFeature,), {"__annotations__": annotations}
         )
+
+
+def random_uuid() -> UUID:
+    """Generates a random UUID using a numpy random number generator.
+
+    This function uses the random number generator to produce 16 random bytes,
+    which are then used to create a UUID (version 4). The resulting UUID is
+    unique and reproducible based on the underlying random byte generation.
+
+    Returns:
+        UUID: A randomly generated UUID created from 16 random bytes.
+    """
+    return UUID(bytes=rng.bytes(16))

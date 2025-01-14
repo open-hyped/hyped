@@ -9,6 +9,7 @@ import pytest
 
 from hyped.common._pydantic import TypeAdapterWithArbitraryTypesAllowed
 from hyped.common.utils import is_python_version_less_than
+from hyped.core.builder import DataFlowGraphBuilder
 from hyped.core.features.dtypes import (
     UNDEFINED_SEQUENCE_LENGTH,
     BoolType,
@@ -51,7 +52,6 @@ from hyped.core.features.features import _MappingFeature as MappingFeature
 from hyped.core.features.features import build_feature_from_annotation, build_feature_from_reference
 from hyped.core.features.reference import ForwardReference
 from hyped.core.features.session import ValidationSession
-from hyped.core.graph import DataFlowGraph
 from hyped.core.nodes.base import BaseNode, BaseNodeConfig
 from hyped.core.ops import boolean, mapping, numeric, sequence, string
 
@@ -68,14 +68,14 @@ def _test_call_to_registered_method(
     expected_node_config: None | BaseNodeConfig = None,
 ) -> None:
     # create a data flow graph
-    graph = DataFlowGraph()
-    graph.add_node = MagicMock(side_effect=graph.add_node)
+    builder = DataFlowGraphBuilder()
+    builder._add_node_to_graph = MagicMock(side_effect=builder._add_node_to_graph)
     # add all feature arguments to the source node
     source_dtype = MappingType.construct(
         {"feature": feature.dtype}
         | {str(i): f.dtype for i, f in enumerate(args) if isinstance(f, Feature)}
     )
-    source = graph.add_source_node(source_dtype)
+    source = builder.source_node(source_dtype)
     source = MappingFeature(source)
 
     # get the feature and mock the get method function to check execution later
@@ -100,8 +100,8 @@ def _test_call_to_registered_method(
     type(feature).get_method.assert_called_once_with(registered_fn_name)
 
     if expected_node_config is not None:
-        graph.add_node.assert_called()
-        node: BaseNode = graph.add_node.mock_calls[-1].kwargs["node_obj"]
+        builder._add_node_to_graph.assert_called()
+        node: BaseNode = builder._add_node_to_graph.mock_calls[-1].kwargs["node_obj"]
         assert node.config == expected_node_config
 
 

@@ -1,13 +1,14 @@
-from unittest.mock import ANY, MagicMock, patch
+from inspect import Parameter, Signature
+from unittest.mock import MagicMock, patch
 
 import pyarrow as pa
 import pytest
 
+from hyped.core.builder import DataFlowGraphBuilder
 from hyped.core.features.dtypes import Int32Type, MappingType
 from hyped.core.features.features import Feature
 from hyped.core.features.reference import ConcreteReference
 from hyped.core.flow import DataFlow
-from hyped.core.graph import DataFlowGraph
 from hyped.core.nodes.base import BaseNode, BaseNodeConfig, ProcessMode, RunContext, process_mode
 
 
@@ -73,8 +74,8 @@ class TestProcessMode:
             node_id=MagicMock(),
             index=[MagicMock(), MagicMock(), MagicMock()],
             rank=MagicMock(),
-            input_type=MagicMock(),
-            output_type=MagicMock(),
+            input_dtype=MagicMock(),
+            output_dtype=MagicMock(),
         )
 
         # create mock keyword arguments and prepare them
@@ -86,7 +87,7 @@ class TestProcessMode:
         # context should stay unchanged in batched mode
         assert prepared_ctx == ctx
         # inputs should be passed through the converter
-        from_arrow_converter.assert_called_once_with(ctx.input_type.arrow_schema, **inputs)
+        from_arrow_converter.assert_called_once_with(ctx.input_dtype.arrow_schema, **inputs)
         assert from_arrow_converter.return_value == prepared_inputs
 
     def test_prepare_non_batched(self) -> None:
@@ -103,8 +104,8 @@ class TestProcessMode:
             node_id=MagicMock(),
             index=[MagicMock(), MagicMock(), MagicMock()],
             rank=MagicMock(),
-            input_type=MagicMock(),
-            output_type=MagicMock(),
+            input_dtype=MagicMock(),
+            output_dtype=MagicMock(),
         )
 
         # create mock keyword arguments and prepare them
@@ -112,15 +113,15 @@ class TestProcessMode:
         prepare_output = list(mode.prepare(ctx, **inputs))
         assert len(prepare_output) == len(ctx.index) == 3
         # make sure converter was called correctly
-        from_arrow_converter.assert_called_once_with(ctx.input_type.arrow_schema, **inputs)
+        from_arrow_converter.assert_called_once_with(ctx.input_dtype.arrow_schema, **inputs)
 
         for i, (prepared_ctx, prepared_inputs) in enumerate(prepare_output):
             # check prepared context
             assert prepared_ctx.index == ctx.index[i]
             assert prepared_ctx.node_id == ctx.node_id
             assert prepared_ctx.rank == ctx.rank
-            assert prepared_ctx.input_type == ctx.input_type
-            assert prepared_ctx.output_type == ctx.output_type
+            assert prepared_ctx.input_dtype == ctx.input_dtype
+            assert prepared_ctx.output_dtype == ctx.output_dtype
             # check prepared input sample
             assert prepared_inputs == from_arrow_converter.return_value[i]
 
@@ -139,7 +140,7 @@ class TestProcessMode:
         # finalize mock outputs
         finalized_outputs = mode.finalize(ctx, outputs)
         # check finalized outputs
-        to_arrow_converter.assert_called_once_with(ctx.output_type.arrow_type, outputs)
+        to_arrow_converter.assert_called_once_with(ctx.output_dtype.arrow_type, outputs)
         assert finalized_outputs == to_arrow_converter.return_value
 
     @pytest.mark.parametrize(
@@ -157,8 +158,8 @@ class TestProcessMode:
             node_id=0,
             index=[0, 1, 2, 3, 4],
             rank=0,
-            input_type=MappingType.construct({"field": Int32Type}),
-            output_type=Int32Type,
+            input_dtype=MappingType.construct({"field": Int32Type}),
+            output_dtype=Int32Type,
         )
         # create an array
         arr = pa.array([0, 1, 2, 3, 4], type=Int32Type.arrow_type)
@@ -176,69 +177,25 @@ class MockConfig(BaseNodeConfig):
 class MockNode(BaseNode[MockConfig]):
     @property
     def signature(self):
-        return None
+        return Signature(
+            parameters=[
+                Parameter(name="x", kind=Parameter.POSITIONAL_OR_KEYWORD),
+                Parameter(name="y", kind=Parameter.POSITIONAL_OR_KEYWORD),
+            ],
+        )
 
 
 class TestBaseNode:
-    @patch("hyped.core.nodes.base.FeatureEngine")
     @patch("hyped.core.nodes.base.build_feature_from_reference", MagicMock())
-    @patch("hyped.core.nodes.base.replace", MagicMock())
-    def test_call(self, mock_feature_engine: MagicMock) -> None:
-        obj = MagicMock()
-        obj_dtype = MagicMock()
-        mock_feature_engine.return_value.__enter__ = MagicMock(
-            return_value=mock_feature_engine.return_value
-        )
-        mock_feature_engine.return_value.get_references_and_objects.return_value = (
-            MagicMock(),
-            {"obj": obj},
-            {"obj": obj_dtype},
-        )
-
-        # create mock graph and inputs
-        flow = MagicMock(spec=DataFlow, _graph=MagicMock(spec=DataFlowGraph))
-        x = MagicMock(spec=Feature, ref=MagicMock(spec=ConcreteReference, _graph=flow._graph))
-        y = MagicMock(spec=Feature, ref=MagicMock(spec=ConcreteReference, _graph=flow._graph))
-
+    def test_call(self) -> None:
+        # create mock flow and builder
+        builder = MagicMock(spec=DataFlowGraphBuilder)
+        flow = MagicMock(spec=DataFlow, _builder=builder)
+        # create mock inputs
+        x = MagicMock(spec=Feature, ref=MagicMock(spec=ConcreteReference, _builder=flow._builder))
+        y = MagicMock(spec=Feature, ref=MagicMock(spec=ConcreteReference, _builder=flow._builder))
         # call the node with only positional arguments
         node = MockNode()
         node.call(flow, x, y)
-        # check calls to feature engine
-        mock_feature_engine.return_value.validate_signature.assert_called_once()
-        mock_feature_engine.return_value.validate_arguments.assert_called_once_with(x, y)
-        # make sure objects were collected as expected
-        flow._graph.add_collect_node_with_constants.assert_called_with(obj, obj_dtype)
-        # make sure the node was added to the graph
-        flow._graph.add_compute_node.assert_called_once_with(node, ANY)
-
-        # reset mocks
-        mock_feature_engine.reset_mock()
-        flow.reset_mock()
-        # call the node and provide flow as keyword argument
-        node = MockNode()
-        node.call(x, y=y, flow=flow)
-        # check calls to feature engine
-        mock_feature_engine.return_value.validate_signature.assert_called_once()
-        mock_feature_engine.return_value.validate_arguments.assert_called_once_with(x, y=y)
-        # make sure objects were collected as expected
-        flow._graph.add_collect_node_with_constants.assert_called_with(obj, obj_dtype)
-        # make sure the node was added to the graph
-        flow._graph.add_compute_node.assert_called_once_with(node, ANY)
-
-        # reset mocks
-        mock_feature_engine.reset_mock()
-        flow.reset_mock()
-        # call the node and provide flow by reference
-        node = MockNode()
-        node.call(x, y)
-        # check calls to feature engine
-        mock_feature_engine.return_value.validate_signature.assert_called_once()
-        mock_feature_engine.return_value.validate_arguments.assert_called_once_with(x, y)
-        # make sure objects were collected as expected
-        flow._graph.add_collect_node_with_constants.assert_called_with(obj, obj_dtype)
-        # make sure the node was added to the graph
-        flow._graph.add_compute_node.assert_called_once_with(node, ANY)
-
-        with pytest.raises(RuntimeError):
-            # cannot infer data flow graph
-            MockNode().call()
+        # make sure the compute node was added correctly
+        builder.compute_node.assert_called_once_with(node, {"x": x.ref, "y": y.ref})

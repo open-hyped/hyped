@@ -6,6 +6,7 @@ testing data :class:`BaseDataAugmentor` nodes.
 """
 from typing import Any, ClassVar
 
+from hyped.core.graph import DataFlowGraph
 from hyped.core.nodes.augmentor import BaseDataAugmentor
 from hyped.core.typing import PartitionId
 from hyped.typing import Feature
@@ -76,7 +77,9 @@ class BaseDataAugmentorTest(BaseNodeTest):
         flow = flow.build(collect={"output": output_feature})
         # check the output partition of the node call
         if cls.expected_output_partition is not None:
-            partition = flow._graph.get_node_output_partition(output_feature.ref._node_id)
+            partition = flow._graph.nodes[output_feature.ref._node_id][
+                DataFlowGraph.NodeAttribute.OUT_PARTITION
+            ]
             assert cls.expected_output_partition == partition, (
                 f"Expected output partition {cls.expected_output_partition}, "
                 f"but got {partition}."

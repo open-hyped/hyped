@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import networkx as nx
 import pytest
 
+from hyped.core.builder import DataFlowGraphBuilder
 from hyped.core.features.dtypes import BoolType as MockType
 from hyped.core.features.dtypes import DType, MappingType
 from hyped.core.features.reference import ConcreteReference
@@ -222,6 +223,8 @@ class TestDataFlowGraphOptimizer:
             ),
         ],
     )
+    @patch("hyped.core.builder.pa", MagicMock())
+    @patch("hyped.core.builder.ConstNode", MagicMock())
     def test_constant_evaluation(
         self, graph: DataFlowGraph, target_graph: DataFlowGraph, leaf_nodes: set[Hashable]
     ) -> None:
@@ -241,10 +244,8 @@ class TestDataFlowGraphOptimizer:
                 n1[DataFlowGraph.NodeAttribute.NODE_OBJ] == n2[DataFlowGraph.NodeAttribute.NODE_OBJ]
             )
 
-        with (
-            patch("hyped.core.graph.pa.array"),
-            patch("hyped.core.graph.ConstNode"),
-            patch("hyped.core.optim.DataFlowExecutor.execute", AsyncMock(return_value=MagicMock())),
+        with patch(
+            "hyped.core.optim.DataFlowGraphExecutor.execute", AsyncMock(return_value=MagicMock())
         ):
             # apply constant evaluation to the graph and compare to the target graph
             optim_graph = DataFlowGraphOptimizer().constant_evaluation(graph, leaf_nodes)
@@ -278,18 +279,18 @@ class TestDataFlowGraphOptimizer:
         src_dtype: DType,
         accessed_src_dtype: DType,
     ) -> None:
-        graph = DataFlowGraph()
-        graph.add_source_node(src_dtype, 0)
+        builder = DataFlowGraphBuilder()
+        builder.source_node(src_dtype, 0)
         # add all edges assuming that all non-source nodes
         # are get-item nodes
         for u, v, k in edges_with_keys:
-            graph.add_compute_node(
-                MappingGetItem(key=k), {"mapping": ConcreteReference(u, graph)}, v
+            builder.compute_node(
+                MappingGetItem(key=k), {"mapping": ConcreteReference(u, builder.graph, builder)}, v
             )
         # apply accessed fields
-        DataFlowGraphOptimizer().apply_accessed_fields(graph)
+        DataFlowGraphOptimizer().apply_accessed_fields(builder.graph)
         # check the accessed source data type
-        assert graph.src_dtype == accessed_src_dtype
+        assert builder.graph.src_dtype == accessed_src_dtype
 
     @pytest.mark.parametrize(
         "graph, target_graph, leaf_nodes",
@@ -357,6 +358,8 @@ class TestDataFlowGraphOptimizer:
             ),
         ],
     )
+    @patch("hyped.core.builder.pa", MagicMock())
+    @patch("hyped.core.builder.ConstNode", MagicMock())
     def test_optimize(
         self, graph: DataFlowGraph, target_graph: DataFlowGraph, leaf_nodes: set[Hashable]
     ) -> None:
@@ -373,10 +376,8 @@ class TestDataFlowGraphOptimizer:
                 n1[DataFlowGraph.NodeAttribute.NODE_OBJ] == n2[DataFlowGraph.NodeAttribute.NODE_OBJ]
             )
 
-        with (
-            patch("hyped.core.graph.pa.array"),
-            patch("hyped.core.graph.ConstNode"),
-            patch("hyped.core.optim.DataFlowExecutor.execute", AsyncMock(return_value=MagicMock())),
+        with patch(
+            "hyped.core.optim.DataFlowGraphExecutor.execute", AsyncMock(return_value=MagicMock())
         ):
             # apply constant evaluation to the graph and compare to the target graph
             optim_graph = DataFlowGraphOptimizer().optimize(graph, leaf_nodes)

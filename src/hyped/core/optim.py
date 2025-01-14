@@ -30,7 +30,8 @@ from typing import Any
 
 import pyarrow as pa
 
-from .executor import DataFlowExecutor
+from .builder import DataFlowGraphBuilder
+from .executor import DataFlowGraphExecutor
 from .features.dtypes import BoolType, DType, MappingType
 from .features.reference import ConcreteReference
 from .graph import DataFlowGraph
@@ -123,6 +124,8 @@ class DataFlowGraphOptimizer(object):
                 node_data = graph.nodes[node_id]
                 node_type = node_data[DataFlowGraph.NodeAttribute.NODE_TYPE]
                 node_obj = node_data[DataFlowGraph.NodeAttribute.NODE_OBJ]
+                partition = node_data[DataFlowGraph.NodeAttribute.PARTITION]
+                out_partition = node_data[DataFlowGraph.NodeAttribute.OUT_PARTITION]
                 # create cse node identifier
                 identifier = NodeIdentifier(
                     node_type=node_type,
@@ -143,24 +146,25 @@ class DataFlowGraphOptimizer(object):
                     out_feature_type = node_data[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
 
                     # build input references object from in-edge identifiers
-                    inputs: dict[str, ConcreteReference] = {
-                        name: ConcreteReference(node_mapping[src_node_id], cse_graph)
-                        for src_node_id, name in in_edge_identifiers
+                    inputs: dict[str, NodeId] = {
+                        name: node_mapping[src_node_id] for src_node_id, name in in_edge_identifiers
                     }
 
                     if identifier.node_type == DataFlowGraph.NodeType.SOURCE:
                         identifier.node_id = cse_graph.add_source_node(
                             out_feature_type, node_id=node_id
-                        )._node_id
+                        )
 
                     else:
                         identifier.node_id = cse_graph.add_node(
                             node_obj=node_obj,
                             node_type=node_type,
                             inputs=inputs,
-                            output_type=out_feature_type,
+                            output_dtype=out_feature_type,
+                            partition=partition,
+                            out_partition=out_partition,
                             node_id=node_id,
-                        )._node_id
+                        )
 
                     # make sure the input feature type
                     assert (
@@ -224,12 +228,11 @@ class DataFlowGraphOptimizer(object):
             dummy_type = MappingType.construct({"field": BoolType})
             dummy_array = pa.array([{"field": True}], type=dummy_type.arrow_type)
 
-            # create a new graph from the view
-            # and add a source node with a dummy feature
+            # create a new graph from the view and apply common
+            # sub-expression evaluation
             const_graph = DataFlowGraph(const_graph)
-            const_graph.add_source_node(dummy_type)
-            # apply common subexpression evaluation to constant partition
             const_graph, node_mapping = self.cse(const_graph)
+
             # map constant node ids and leaf nodes to potentially new values
             leaf_nodes = [
                 node_mapping[node_id] if node_id in const_node_ids else node_id
@@ -237,16 +240,22 @@ class DataFlowGraphOptimizer(object):
             ]
             const_node_ids = [node_mapping[node_id] for node_id in const_node_ids]
 
+            # create a builder instance and add a dummy source node
+            const_builder = DataFlowGraphBuilder(const_graph)
+            const_builder.source_node(dummy_type)
+
             # collect all outputs of all constant nodes in the graph
-            collect = const_graph.add_collect_node(
+            collect = const_builder.collect_node(
                 {
-                    node_id: ConcreteReference(_node_id=node_id, _graph=const_graph)
+                    node_id: ConcreteReference(
+                        _node_id=node_id, _graph=const_graph, _builder=const_builder
+                    )
                     for node_id in const_node_ids
                 }
             )
 
             # create an executor for the constant partition
-            executor = DataFlowExecutor(
+            executor = DataFlowGraphExecutor(
                 graph=const_graph, collect=collect, aggregation_manager=None
             )
 
@@ -261,8 +270,8 @@ class DataFlowGraphOptimizer(object):
             const_edges = graph.subgraph_out_edges(const_graph)
 
             # drop the constant partition in the original graph
-            graph = graph.drop_partition(DataFlowGraph.Partition.CONST)
-            graph = DataFlowGraph(graph)
+            graph = DataFlowGraph(graph.drop_partition(DataFlowGraph.Partition.CONST))
+            builder = DataFlowGraphBuilder(graph)
 
             const_lookup: dict[NodeId, ConcreteReference] = {}
             # add constant leaf nodes
@@ -270,7 +279,7 @@ class DataFlowGraphOptimizer(object):
                 # get the expected data type of the constant value
                 dtype = const_graph.nodes[node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
                 # add the constant node and track it
-                ref = graph.add_const_node(out.field(node_id)[0], dtype, node_id)
+                ref = builder.const_node(out.field(node_id)[0], dtype, node_id)
                 const_lookup[node_id] = ref
 
             # add all required constants
@@ -281,7 +290,7 @@ class DataFlowGraphOptimizer(object):
                         DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
                     ]
                     # add the constant node to the graph
-                    ref = graph.add_const_node(out.field(const_node_id)[0], dtype, const_node_id)
+                    ref = builder.const_node(out.field(const_node_id)[0], dtype, const_node_id)
                     const_lookup[const_node_id] = ref
 
                 # get the reference object from the lookup

@@ -12,7 +12,7 @@ from typing import Annotated, Any, Callable, TypeAlias, TypeVar
 
 import pyarrow.compute as pc
 
-from ..abstract import AbstractDataFlowGraph
+from ..abc import AbstractDataFlowGraphBuilder
 from ..features.dtypes import (
     DType,
     Float32Type,
@@ -41,6 +41,7 @@ from ..features.features import (
     UInt64Feature,
     build_feature_from_reference,
 )
+from ..features.reference import ConcreteReference
 from ..features.validators import FeatureResolver
 from ..nodes.aggregator import BaseDataAggregator, BaseDataAggregatorConfig
 from ..nodes.base import RunContext, process_mode
@@ -73,7 +74,9 @@ def register_all(name: str, types: type[Feature]) -> Callable[[Fn], Fn]:
     return wrapper
 
 
-def add_constant(val: Any, candidate_dtype: DType, graph: AbstractDataFlowGraph) -> Feature:
+def add_constant(
+    val: Any, candidate_dtype: DType, builder: AbstractDataFlowGraphBuilder
+) -> Feature:
     """Adds a constant value to a data flow graph as a node and returns it as a :class:`Feature`.
 
     This function evaluates the provided constant value's data type. If the candidate
@@ -85,8 +88,7 @@ def add_constant(val: Any, candidate_dtype: DType, graph: AbstractDataFlowGraph)
         val (Any): The constant value to be added to the graph.
         candidate_dtype (DType): The candidate data type for the value, expected to
             be a type like :code:`Float32Type` or :code:`Int64Type`.
-        graph (AbstractDataFlowGraph): The data flow graph where the constant will
-            be added.
+        builder (AbstractDataFlowGraphBuilder): The data flow graph builder to add the constant.
 
     Returns:
         Feature: A :class:`Feature` object representing the constant added to the graph.
@@ -115,7 +117,7 @@ def add_constant(val: Any, candidate_dtype: DType, graph: AbstractDataFlowGraph)
         dtype = build_dtype_from_python_object(val)
 
     # add the constant node to the graph
-    ref = graph.add_const_node(val, dtype)
+    ref = builder.const_node(val, dtype)
     return build_feature_from_reference(ref)
 
 
@@ -140,12 +142,14 @@ def handle_constant_for_binary_operation(
     """
 
     def wrapper(a: Any, b: Any) -> Feature:
-        # one must be a feature
+        # one must be a feature and if its a feature then the reference should be concrete
         assert isinstance(a, Feature) or isinstance(b, Feature)
+        assert not isinstance(b, Feature) or isinstance(b.ref, ConcreteReference)
+        assert not isinstance(a, Feature) or isinstance(a.ref, ConcreteReference)
         # add constant if required and call function
         return f(
-            a if isinstance(a, Feature) else add_constant(a, b.dtype, b.ref._graph),
-            b if isinstance(b, Feature) else add_constant(b, a.dtype, a.ref._graph),
+            a if isinstance(a, Feature) else add_constant(a, b.dtype, b.ref._builder),
+            b if isinstance(b, Feature) else add_constant(b, a.dtype, a.ref._builder),
         )
 
     return wrapper
@@ -211,7 +215,7 @@ class Negate(BaseDataProcessor[NegateConfig]):
         Returns:
             T: The negated value of the input data.
         """
-        return pc.negate(pc.cast(x, ctx.output_type.arrow_type))
+        return pc.negate(pc.cast(x, ctx.output_dtype.arrow_type))
 
 
 class AddConfig(BaseDataProcessorConfig):
@@ -330,7 +334,7 @@ class TrueDiv(BaseDataProcessor[TrueDivConfig]):
             Float: The quotient of :code:`x` and :code:`y`.
         """
         return pc.divide(
-            pc.cast(x, ctx.output_type.arrow_type), pc.cast(y, ctx.output_type.arrow_type)
+            pc.cast(x, ctx.output_dtype.arrow_type), pc.cast(y, ctx.output_dtype.arrow_type)
         )
 
 
@@ -395,7 +399,7 @@ class FloorDiv(BaseDataProcessor[FloorDivConfig]):
         Returns:
             Float: The integer quotient of :code:`x` and :code:`y`.
         """
-        return pc.cast(pc.floor(pc.divide(x, y)), ctx.output_type.arrow_type)
+        return pc.cast(pc.floor(pc.divide(x, y)), ctx.output_dtype.arrow_type)
 
 
 class MinConfig(BaseDataAggregatorConfig):

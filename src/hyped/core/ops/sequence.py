@@ -261,7 +261,7 @@ class SequenceZip(BaseDataProcessor[SequenceZipConfig]):
         flat_interleave = pc.take(flat_concat, zip_indices.flatten())
         # create an list-array of list-array
         flat_zipped = pa.FixedSizeListArray.from_arrays(
-            flat_interleave, type=ctx.output_type.value_type.arrow_type
+            flat_interleave, type=ctx.output_dtype.value_type.arrow_type
         )
         # unflatten to get back the batch axis
         return unflatten_list_array(flat_zipped, offsets[0])
@@ -335,7 +335,7 @@ class SequenceUnpack(BaseDataAugmentor[SequenceUnpackConfig]):
         Returns:
             PartitionId: The output partition ID, corresponding to the node ID of the augmentor.
         """
-        length: int = ctx.input_type["seq"].length
+        length: int = ctx.input_dtype["seq"].length
         if length != UNDEFINED_SEQUENCE_LENGTH:
             return str(uuid5(UUID(partition), length.to_bytes(4)))
 
@@ -381,7 +381,7 @@ class SequenceUnpackWithIndex(BaseDataAugmentor[SequenceUnpackWithIndexConfig]):
         Returns:
             PartitionId: The output partition ID, corresponding to the node ID of the augmentor.
         """
-        length: int = ctx.input_type["seq"].length
+        length: int = ctx.input_dtype["seq"].length
         if length != UNDEFINED_SEQUENCE_LENGTH:
             return str(uuid5(UUID(partition), length.to_bytes(4)))
 
@@ -408,7 +408,7 @@ class SequenceUnpackWithIndex(BaseDataAugmentor[SequenceUnpackWithIndexConfig]):
         #       could use StructArray.from_arrays instead but chunked
         #       array inputs must be handled manually then
         output = pa.table(
-            {"value": flattened, "index": trace_indices}, schema=ctx.output_type.arrow_schema
+            {"value": flattened, "index": trace_indices}, schema=ctx.output_dtype.arrow_schema
         ).to_struct_array()
 
         return output, trace_indices.to_pylist()

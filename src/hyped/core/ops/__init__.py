@@ -2,6 +2,7 @@
 
 __all__ = [
     "zip_",
+    "cast",
     "boolean",
     "string",
     "numeric",
@@ -11,4 +12,5 @@ __all__ = [
 
 # import all to register all methods
 from . import boolean, mapping, numeric, sequence, string
+from .cast import cast
 from .sequence import zip_

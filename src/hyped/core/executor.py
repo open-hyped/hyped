@@ -1,13 +1,8 @@
 """Manages the execution of data flow graphs.
 
-This module provides the :code:`DataFlowExecutor` class, which is responsible for executing
+This module provides the :code:`DataFlowGraphExecutor` class, which is responsible for executing
 a data flow graph. It manages the execution state, ensures that data processors
 are executed in the correct order, and collects the results.
-
-Classes:
-    - :class:`ExecutionState`: Tracks the state during the execution of a data flow graph.
-    - :class:`DataFlowExecutor`: Executes a data flow graph, managing the execution of each node
-      and collecting results.
 """
 import asyncio
 import logging
@@ -23,6 +18,7 @@ import pyarrow.compute as pc
 
 from hyped.common._worker import get_worker_info
 
+from .builder import DataFlowGraphBuilder
 from .features.dtypes import MappingType
 from .features.reference import ConcreteReference
 from .graph import DataFlowGraph
@@ -153,7 +149,7 @@ class ExecutionState(object):
             AssertionError: If the source partition is not registered yet.
         """
         u = self.graph.nodes[node_id][DataFlowGraph.NodeAttribute.PARTITION]
-        v = self.graph.get_node_output_partition(node_id)
+        v = self.graph.nodes[node_id][DataFlowGraph.NodeAttribute.OUT_PARTITION]
 
         if u != v:
             # must be an edge in the partition graph
@@ -209,7 +205,7 @@ class ExecutionState(object):
             # get the requestest values
             inputs[name] = self.outputs[u]
             # keep track of the source partition
-            partition = self.graph.get_node_output_partition(u)
+            partition = self.graph.nodes[u][DataFlowGraph.NodeAttribute.OUT_PARTITION]
             src_partitions[partition].append(name)
 
         # get the node partition and the partition info
@@ -248,7 +244,7 @@ class ExecutionState(object):
         self.ready[node_id].set()
 
 
-class DataFlowExecutor(object):
+class DataFlowGraphExecutor(object):
     """Executes a data flow graph.
 
     This class provides the low-level functionality for executing a data flow
@@ -274,7 +270,7 @@ class DataFlowExecutor(object):
             TypeError: If the collect feature is not of type datasets.Features.
         """
         self.graph = graph
-        self.p_graph = graph.build_partition_graph()
+        self.p_graph = DataFlowGraphBuilder(graph)._build_partition_graph()
         self.collect = collect
         self.aggregation_manager = aggregation_manager
 
@@ -306,8 +302,8 @@ class DataFlowExecutor(object):
             node_id=node_id,
             index=index,
             rank=rank,
-            input_type=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE],
-            output_type=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
+            input_dtype=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE],
+            output_dtype=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
             session=self.session,
         )
 
@@ -350,7 +346,7 @@ class DataFlowExecutor(object):
 
             elif node_type == DataFlowGraph.NodeType.CAST:
                 # cast the value to the expected data type
-                cast_value = pc.cast(inputs["value"], ctx.output_type.arrow_type)
+                cast_value = pc.cast(inputs["value"], ctx.output_dtype.arrow_type)
                 state.capture_output(node_id, cast_value)
 
             elif node_type == DataFlowGraph.NodeType.COLLECT:
@@ -361,7 +357,7 @@ class DataFlowExecutor(object):
             elif node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
                 # run processor and check the output batch size
                 out = await node_obj.run(ctx, inputs)
-                assert out.type == ctx.output_type.arrow_type, "Unexpected output type"
+                assert out.type == ctx.output_dtype.arrow_type, "Unexpected output type"
                 assert len(out) == len(index), "Output values length does not match index length."
                 # capture output in execution state
                 state.capture_output(node_id, out)
@@ -369,7 +365,7 @@ class DataFlowExecutor(object):
             elif node_type == DataFlowGraph.NodeType.DATA_AUGMENTOR:
                 # run processor and check the output batch size
                 out, trace_index = await node_obj.run(ctx, inputs)
-                assert out.type == ctx.output_type.arrow_type, "Unexpected output type"
+                assert out.type == ctx.output_dtype.arrow_type, "Unexpected output type"
                 # register output partition and capture output in execution state
                 state.register_partition_trace(node_id, trace_index)
                 state.capture_output(node_id, out)
@@ -467,12 +463,12 @@ class DataFlowExecutor(object):
             self.session = None
 
 
-class LazyDataFlowExecutor(typing.Mapping, DataFlowExecutor):
+class LazyDataFlowGraphExecutor(typing.Mapping, DataFlowGraphExecutor):
     """A lazy executor for a data flow graph.
 
-    This class extends the :class:`DataFlowExecutor` to compute outputs only when
-    requested and when the inputs have changed. It implements a mapping interface
-    to provide read-only access to the output values of the data flow.
+    This class extends the :class:`DataFlowGraphExecutor` to compute outputs only
+    when requested and when the inputs have changed. It implements a mapping
+    interface to provide read-only access to the output values of the data flow.
 
     The execution is triggered lazily upon accessing an output feature, ensuring
     that the computation is performed only when necessary. The inputs are cached
@@ -492,7 +488,7 @@ class LazyDataFlowExecutor(typing.Mapping, DataFlowExecutor):
             collect (ConcreteReference): The feature reference to collect results.
             input_proxy (MappingProxyType[str, Any]): A read-only proxy for the input data.
         """
-        DataFlowExecutor.__init__(self, graph, collect, None)
+        DataFlowGraphExecutor.__init__(self, graph, collect, None)
 
         self._proxy = input_proxy
         self._proxy_snapshot: None | dict[str, pa.Array] = None
@@ -508,7 +504,7 @@ class LazyDataFlowExecutor(typing.Mapping, DataFlowExecutor):
             Iterable[Hashable]: An iterable of the output feature keys.
         """
         # get the data type of the collect feature
-        dtype = self.graph.get_dtype_from_reference(self.collect)
+        dtype = self.graph.get_output_dtype(self.collect._node_id)
         assert isinstance(dtype, MappingType)
 
         return dtype.keys()

@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+from hyped.core.graph import DataFlowGraph
 from hyped.core.ops.sequence import (
     SequenceGetItem,
     SequenceGetSlice,
@@ -92,10 +93,14 @@ class TestSequenceUnpack(BaseDataAugmentorTest):
     def test_output_partition(self) -> None:
         # call the node and capture the output partiton
         flow, feature = self.call_node(type(self).augmentor)
-        partitionA = flow._graph.get_node_output_partition(feature.ref._node_id)
+        partitionA = flow._graph.nodes[feature.ref._node_id][
+            DataFlowGraph.NodeAttribute.OUT_PARTITION
+        ]
         # call it again and capture the second output partition
         flow, feature = self.call_node(type(self).augmentor)
-        partitionB = flow._graph.get_node_output_partition(feature.ref._node_id)
+        partitionB = flow._graph.nodes[feature.ref._node_id][
+            DataFlowGraph.NodeAttribute.OUT_PARTITION
+        ]
         # for sequences of undefined length the output partition
         # is different
         assert partitionA != partitionB
@@ -108,10 +113,14 @@ class TestFixedLengthSequenceUnpack(BaseDataAugmentorTest):
     def test_output_partition(self) -> None:
         # call the node and capture the output partiton
         flow, feature = self.call_node(type(self).augmentor)
-        partitionA = flow._graph.get_node_output_partition(feature.ref._node_id)
+        partitionA = flow._graph.nodes[feature.ref._node_id][
+            DataFlowGraph.NodeAttribute.OUT_PARTITION
+        ]
         # call it again and capture the second output partition
         flow, feature = self.call_node(type(self).augmentor)
-        partitionB = flow._graph.get_node_output_partition(feature.ref._node_id)
+        partitionB = flow._graph.nodes[feature.ref._node_id][
+            DataFlowGraph.NodeAttribute.OUT_PARTITION
+        ]
         # for sequences of undefined length the output partition
         # is different
         assert partitionA == partitionB
@@ -137,10 +146,14 @@ class TestSequenceUnpackWithIndex(BaseDataAugmentorTest):
     def test_output_partition(self) -> None:
         # call the node and capture the output partiton
         flow, feature = self.call_node(type(self).augmentor)
-        partitionA = flow._graph.get_node_output_partition(feature.ref._node_id)
+        partitionA = flow._graph.nodes[feature.ref._node_id][
+            DataFlowGraph.NodeAttribute.OUT_PARTITION
+        ]
         # call it again and capture the second output partition
         flow, feature = self.call_node(type(self).augmentor)
-        partitionB = flow._graph.get_node_output_partition(feature.ref._node_id)
+        partitionB = flow._graph.nodes[feature.ref._node_id][
+            DataFlowGraph.NodeAttribute.OUT_PARTITION
+        ]
         # for sequences of undefined length the output partition
         # is different
         assert partitionA != partitionB
@@ -153,10 +166,14 @@ class TestFixedLengthSequenceUnpackWithIndex(BaseDataAugmentorTest):
     def test_output_partition(self) -> None:
         # call the node and capture the output partiton
         flow, feature = self.call_node(type(self).augmentor)
-        partitionA = flow._graph.get_node_output_partition(feature.ref._node_id)
+        partitionA = flow._graph.nodes[feature.ref._node_id][
+            DataFlowGraph.NodeAttribute.OUT_PARTITION
+        ]
         # call it again and capture the second output partition
         flow, feature = self.call_node(type(self).augmentor)
-        partitionB = flow._graph.get_node_output_partition(feature.ref._node_id)
+        partitionB = flow._graph.nodes[feature.ref._node_id][
+            DataFlowGraph.NodeAttribute.OUT_PARTITION
+        ]
         # for sequences of undefined length the output partition
         # is different
         assert partitionA == partitionB
