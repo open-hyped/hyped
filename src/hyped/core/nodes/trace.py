@@ -59,7 +59,7 @@ class TraceNode(BaseNode[TraceNodeConfig]):
                 according to the trace indices along the specified path.
         """
         if self.config.path[0] == DataFlowGraph.Partition.CONST:
-            return pa.chunked_array([values] * target_batch_size, type=ctx.output_dtype.arrow_type)
+            return pa.chunked_array([values] * target_batch_size)
 
         trace_index = np.arange(len(ctx.index))
         # follow the path from partition u to partition v and apply the trace
