@@ -31,14 +31,14 @@ from uuid import UUID, uuid4
 
 import pyarrow as pa
 
-from ..abstract import AbstractDataFlow, AbstractDataFlowGraph
+from ..abc import AbstractDataFlow, AbstractDataFlowGraphBuilder
 from ..features.dtypes import DType, MappingType
-from ..features.engine import FeatureEngine
 from ..features.features import Feature as _Feature
 from ..features.features import build_feature_from_reference
 from ..features.reference import ConcreteReference
 from ..registry.config import BaseConfig, BaseConfigurable
 from ..typing import Feature, Index, IndexList, NodeId, Rank
+from ..utils import map_recursive
 
 
 @dataclass
@@ -129,15 +129,15 @@ class RunContext:
     order or responsibility for a portion of the data during execution.
     """
 
-    input_type: MappingType
-    """The expected input type for the processor.
+    input_dtype: MappingType
+    """The expected input data type for the processor.
 
     This attribute defines the type of the data that the processor is designed to handle as input.
     It typically maps the input data's structure or schema, providing context for how the data
     should be processed.
     """
 
-    output_type: DType
+    output_dtype: DType
     """The type of data the processor will produce as output.
 
     This attribute defines the expected structure or type of the output that the processor will
@@ -301,11 +301,11 @@ class ProcessMode:
 
         if self.batched:
             # apply the converter to the inputs
-            yield ctx, converter(ctx.input_type.arrow_schema, **kwargs)
+            yield ctx, converter(ctx.input_dtype.arrow_schema, **kwargs)
 
         else:
             # apply the converter to the inputs and yield samples with corresponding run contexts
-            samples = converter(ctx.input_type.arrow_schema, **kwargs)
+            samples = converter(ctx.input_dtype.arrow_schema, **kwargs)
             yield from (
                 (replace(ctx, index=i), sample)
                 for i, sample in zip(ctx.index, samples, strict=True)
@@ -325,7 +325,7 @@ class ProcessMode:
         """
         # apply the converter function
         converter = ProcessMode.to_arrow_converters[self]
-        return converter(ctx.output_type.arrow_type, outputs)
+        return converter(ctx.output_dtype.arrow_type, outputs)
 
 
 @ProcessMode.register_from_arrow_converter(ProcessMode(batched=False, backend="python"))
@@ -522,14 +522,14 @@ class BaseNode(BaseConfigurable[C], ABC):
         """
         return type(self).__name__
 
-    def _extract_graph_from_args(
+    def _extract_builder_from_args(
         self, args: tuple[AbstractDataFlow | Feature], kwargs: dict[str, AbstractDataFlow | Feature]
-    ) -> tuple[AbstractDataFlowGraph, tuple[Feature], dict[str, Feature]]:
-        """Extract the data flow graph from the arguments.
+    ) -> tuple[AbstractDataFlowGraphBuilder, tuple[Feature], dict[str, Feature]]:
+        """Extract the data flow graph builder from the arguments.
 
-        This method attempts to extract the data flow graph from either the positional or
+        This method attempts to extract the data flow graph builder from either the positional or
         keyword arguments passed to the node. The method searches for an :code:`AbstractDataFlow`
-        or :code:`Feature` to infer the associated graph. If a flow cannot be determined, a
+        or :code:`Feature` to infer the associated graph builder from. If no flow is found, a
         runtime error is raised.
 
         Args:
@@ -539,12 +539,12 @@ class BaseNode(BaseConfigurable[C], ABC):
                 the data flow or references to features.
 
         Returns:
-            tuple[AbstractDataFlowGraph, tuple[Feature], dict[str, Feature]]:
-                A tuple containing the data flow graph, remaining positional arguments, and
-                keyword arguments with extracted features.
+            tuple[AbstractDataFlowGraphBuilder, tuple[Feature], dict[str, Feature]]:
+                A tuple containing the data flow graph builder and the remaining positional
+                and keyword arguments.
 
         Raises:
-            RuntimeError: If the flow cannot be inferred from the arguments.
+            RuntimeError: If the builder cannot be inferred from the arguments.
         """
         # try to extract the data flow from
         # the positional arguments
@@ -558,12 +558,12 @@ class BaseNode(BaseConfigurable[C], ABC):
 
         if flow is not None:
             # flow was found
-            return flow._graph, args[1:], kwargs
+            return flow._builder, args[1:], kwargs
 
         # try to extract the flow from the keyword arguments
         if "flow" in kwargs.keys():
             flow: AbstractDataFlow = kwargs.pop("flow")
-            return flow._graph, args, kwargs
+            return flow._builder, args, kwargs
 
         # try to infer the flow from any feature argument
         all_args = chain(args, kwargs.values())
@@ -576,7 +576,7 @@ class BaseNode(BaseConfigurable[C], ABC):
 
         # get the flow from the reference
         assert isinstance(first.ref, ConcreteReference)
-        return first.ref._graph, args, kwargs
+        return first.ref._builder, args, kwargs
 
     @overload
     def call(self, *args: Feature, **kwargs: Feature) -> Feature:
@@ -607,29 +607,18 @@ class BaseNode(BaseConfigurable[C], ABC):
         Raises:
             RuntimeError: If the flow cannot be inferred from the arguments.
         """
-        # extract the data flow graph from the given arguments
-        graph, args, kwargs = self._extract_graph_from_args(args, kwargs)
+        # extract the graph builder and prepare the input arguments
+        builder, args, kwargs = self._extract_builder_from_args(args, kwargs)
 
-        # create the type engine from the node signature
-        name = f"{type(self).__qualname__}.call"
+        # bind arguments to signature and unpack dynamic keyword arguments
+        bound_args = self.signature.bind(*args, **kwargs).arguments
+        for param in self.signature.parameters.values():
+            if param.kind == param.VAR_KEYWORD:
+                bound_args.update(bound_args.pop(param.name, {}))
+                break
 
-        with FeatureEngine(name, self.config, self.signature) as engine:
-            # validate the node signature and input arguments
-            engine.validate_signature()
-            engine.validate_arguments(*args, **kwargs)
-            # split the input features from the input constants
-            references, objects, object_dtypes = engine.get_references_and_objects(*args, **kwargs)
-
-            # collect all objects
-            for key, val in objects.items():
-                references[key] = graph.add_collect_node_with_constants(val, object_dtypes[key])
-
-            # build the return feature of the node
-            input_features = {
-                key: build_feature_from_reference(ref) for key, ref in references.items()
-            }
-            return_feature = engine.build_return_feature(input_features)
-
-        # add the node and return the output feature
-        ref = graph.add_compute_node(self, references)
-        return replace(return_feature, ref=ref)
+        # extract reference instances from all features in the inputs
+        inputs = map_recursive(lambda _, x: x.ref if isinstance(x, _Feature) else x, bound_args)
+        # add the compute node to the graph and build the output feature instance
+        ref = builder.compute(self, inputs)
+        return build_feature_from_reference(ref)

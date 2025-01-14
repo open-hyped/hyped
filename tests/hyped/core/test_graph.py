@@ -1,22 +1,18 @@
 from itertools import chain
 from typing import Hashable
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import networkx as nx
 import pytest
 
 from hyped.core.features.dtypes import BoolType as MockType
-from hyped.core.features.dtypes import MappingType, SequenceType
-from hyped.core.features.reference import ConcreteReference
+from hyped.core.features.dtypes import MappingType
 from hyped.core.graph import (
     DataFlowGraph,
     _build_dependency_graph,
     _compute_node_depth,
     random_uuid,
 )
-from hyped.core.nodes.aggregator import BaseDataAggregator
-from hyped.core.nodes.augmentor import BaseDataAugmentor
-from hyped.core.nodes.const import ConstNode
 from hyped.core.nodes.processor import BaseDataProcessor
 from hyped.core.typing import PartitionId
 
@@ -155,123 +151,30 @@ class TestDataFlowGraph:
         else:
             assert G.width == expected_width
 
-    @pytest.mark.parametrize(
-        "edges, nodes, partition_edges",
-        [
-            # Linear graph of data processors
-            (
-                [(0, 1), (1, 2), (2, 3)],
-                {
-                    0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                    2: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                    3: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                },
-                [],
-            ),
-            # Linear graph including aggregator nodes
-            (
-                [(0, 1), (1, 2), (2, 3)],
-                {
-                    0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                    2: DataFlowGraph.NodeType.DATA_AGGREGATOR,
-                    3: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                },
-                [(DataFlowGraph.Partition.DEFAULT.value, DataFlowGraph.Partition.AGGREGATED.value)],
-            ),
-            # Linear graph including augmentor and aggregator nodes
-            (
-                [(0, 1), (1, 2), (2, 3)],
-                {
-                    0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                    2: DataFlowGraph.NodeType.DATA_AUGMENTOR,
-                    3: DataFlowGraph.NodeType.DATA_AGGREGATOR,
-                },
-                [
-                    (DataFlowGraph.Partition.DEFAULT.value, 2),
-                    (2, DataFlowGraph.Partition.AGGREGATED),
-                ],
-            ),
-            # Linear graph with multiple augmentors
-            (
-                [(0, 1), (1, 2), (2, 3)],
-                {
-                    0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
-                    2: DataFlowGraph.NodeType.DATA_AUGMENTOR,
-                    3: DataFlowGraph.NodeType.DATA_AUGMENTOR,
-                },
-                [(DataFlowGraph.Partition.DEFAULT.value, 1), (1, 2), (2, 3)],
-            ),
-            # Tree with two branches
-            (
-                [(0, 1), (0, 2), (1, 3), (2, 4)],
-                {
-                    0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
-                    2: DataFlowGraph.NodeType.DATA_AUGMENTOR,
-                    3: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                    4: DataFlowGraph.NodeType.DATA_AGGREGATOR,
-                },
-                [
-                    (DataFlowGraph.Partition.DEFAULT, 1),
-                    (DataFlowGraph.Partition.DEFAULT, 2),
-                    (2, DataFlowGraph.Partition.AGGREGATED),
-                ],
-            ),
-            # DAG with only default partition
-            (
-                [(0, 1), (0, 2), (2, 3), (1, 3)],
-                {
-                    0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                    2: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                    3: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                },
-                [],
-            ),
-            # DAG with constant node
-            (
-                [(0, 1), (2, 1)],
-                {
-                    0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                    2: DataFlowGraph.NodeType.CONST,
-                },
-                [],  # constant partition is not connected to other partitions
-            ),
-        ],
-    )
-    def test_build_partition_graph(
-        self,
-        edges: list[tuple[Hashable, Hashable]],
-        nodes: dict[Hashable, DataFlowGraph.NodeType],
-        partition_edges: list[tuple[PartitionId, PartitionId]],
-    ) -> None:
-        mock_augmentor_nodes = {
-            i: MagicMock(
-                __spec__=BaseDataAugmentor, infer_output_partition=MagicMock(return_value=i)
-            )
-            for i, node_type in nodes.items()
-            if node_type == DataFlowGraph.NodeType.DATA_AUGMENTOR
-        }
+    def test_add_source_node(self) -> None:
+        # create a data flow graph
+        graph = DataFlowGraph()
+        src_node_id = graph.add_source_node(MockType, "SOURCE_NODE_ID")
+        # make sure the source node was added to the graph
+        assert graph.src_node_id is not None
+        assert graph.src_node_id in graph
+        assert graph.src_node_id in src_node_id
+        assert graph.src_dtype == MockType
 
-        graph = build_graph(edges, nodes, mock_augmentor_nodes)
-        partition = graph.build_partition_graph()
+        # cannot add another source node
+        with pytest.raises(RuntimeError):
+            graph.add_source_node(MockType, "NEW_SOURCE_NODE_ID")
 
-        target_partition_graph = nx.DiGraph()
-        target_partition_graph.add_nodes_from(
-            [
-                DataFlowGraph.Partition.CONST.value,
-                DataFlowGraph.Partition.DEFAULT.value,
-            ]
-        )
+        # new graph containing source node keeps the source node
+        new_graph = DataFlowGraph(graph)
+        assert new_graph.src_node_id is not None
+        assert new_graph.src_node_id in new_graph
+        assert new_graph.src_node_id == graph.src_node_id
+        assert new_graph.src_dtype == MockType
 
-        target_partition_graph.add_edges_from(partition_edges)
-
-        assert nx.utils.misc.graphs_equal(partition, target_partition_graph)
+        # sub-graph not containing source node resets source node
+        sub_graph = DataFlowGraph(graph.subgraph([]))
+        assert sub_graph.src_node_id is None
 
     @pytest.mark.parametrize(
         "edges, in_nodes, expected_depth",
@@ -300,14 +203,17 @@ class TestDataFlowGraph:
             else DataFlowGraph.NodeType.CONST
         )
 
-        ref = graph.add_node(
+        node_id = graph.add_node(
             node_obj=node_obj,
             node_type=node_type,
-            inputs={str(u): ConcreteReference(_node_id=u, _graph=graph) for u in in_nodes},
-            output_type=MockType,
+            inputs={str(u): u for u in in_nodes},
+            output_dtype=MockType,
+            partition=DataFlowGraph.Partition.DEFAULT,
+            out_partition=DataFlowGraph.Partition.DEFAULT,
+            node_id="NODE_ID",
         )
 
-        attrs = graph.nodes[ref._node_id]
+        attrs = graph.nodes[node_id]
         # check expected node attributes
         assert attrs[DataFlowGraph.NodeAttribute.NODE_OBJ] == node_obj
         assert attrs[DataFlowGraph.NodeAttribute.NODE_TYPE] == node_type
@@ -319,417 +225,15 @@ class TestDataFlowGraph:
 
         # check input edges
         for u in in_nodes:
-            assert (u, ref._node_id, str(u)) in graph.edges
+            assert (u, node_id, str(u)) in graph.edges
 
-    def test_add_source_node(self) -> None:
-        # create a data flow graph
-        graph = DataFlowGraph()
-        ref = graph.add_source_node(MockType)
-        # make sure the source node was added to the graph
-        assert graph.src_node_id in graph
-        assert graph.src_node_id == ref._node_id
-        assert graph.src_dtype == MockType
-
-        # cannot add another source node
-        with pytest.raises(RuntimeError):
-            graph.add_source_node(MockType)
-
-        # new graph containing source node keeps the source node
-        new_graph = DataFlowGraph(graph)
-        assert new_graph.src_node_id is not None
-        assert new_graph.src_node_id in new_graph
-        assert new_graph.src_node_id == graph.src_node_id
-        assert new_graph.src_dtype == MockType
-
-        # sub-graph not containing source node resets source node
-        sub_graph = DataFlowGraph(graph.subgraph([]))
-        assert sub_graph.src_node_id is None
-
-    def test_add_const_node(self) -> None:
-        graph = DataFlowGraph()
-
-        # add the node to the graph
-        ref = graph.add_const_node(False, MockType)
-
-        # make sure node was added as expected
-        attrs = graph.nodes[ref._node_id]
-        assert isinstance(attrs[DataFlowGraph.NodeAttribute.NODE_OBJ], ConstNode)
-        assert attrs[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.CONST
-        assert attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] == MockType
-        assert attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] == MappingType.construct({})
-
-    def test_add_cast_node(self) -> None:
-        graph = DataFlowGraph()
-        src_ref = graph.add_source_node(MockType)
-        # add cast node to graph
-        ref = graph.add_cast_node(src_ref, MockType)
-        # make sure node was added as expected
-        attrs = graph.nodes[ref._node_id]
-        assert attrs[DataFlowGraph.NodeAttribute.NODE_OBJ] is None
-        assert attrs[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.CAST
-        assert attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] == MockType
-        assert attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] == MappingType.construct(
-            {"value": MockType}
-        )
-        # check error handling when type casting is invalid
-        with patch("hyped.core.graph.cast_dtype", MagicMock(side_effect=RuntimeError)):
-            with pytest.raises(RuntimeError):
-                graph.add_cast_node(src_ref, MockType)
-
-    def test_add_collect_node(self) -> None:
-        # create simple linear graph
-        graph = build_graph([(0, 1), (1, 2), (2, 3)])
-
-        ref = graph.add_collect_node(
-            {
-                "a": ConcreteReference(_node_id=0, _graph=graph),
-                "b": ConcreteReference(_node_id=1, _graph=graph),
-            }
-        )
-        # check node attributes
-        attrs = graph.nodes[ref._node_id]
-        assert attrs[DataFlowGraph.NodeAttribute.NODE_OBJ].config.lookup == {"a": "a", "b": "b"}
-        assert attrs[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.COLLECT
-        assert (
-            attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE]
-            == attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
-            == MappingType.construct(
-                {
-                    "a": graph.nodes[0][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
-                    "b": graph.nodes[1][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
-                }
-            )
-        )
-        # check edges
-        assert (0, ref._node_id, "a") in graph.edges
-        assert (1, ref._node_id, "b") in graph.edges
-
-        ref = graph.add_collect_node(
-            {
-                "a": {
-                    "b": ConcreteReference(_node_id=0, _graph=graph),
-                    "c": ConcreteReference(_node_id=1, _graph=graph),
-                },
-            }
-        )
-        # check node attributes
-        attrs = graph.nodes[ref._node_id]
-        assert attrs[DataFlowGraph.NodeAttribute.NODE_OBJ].config.lookup == {
-            "a": {"b": "a.b", "c": "a.c"}
-        }
-        assert attrs[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.COLLECT
-        assert attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] == MappingType.construct(
-            {
-                "a.b": graph.nodes[0][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
-                "a.c": graph.nodes[1][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
-            }
-        )
-        assert attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] == MappingType.construct(
-            {
-                "a": MappingType.construct(
-                    {
-                        "b": graph.nodes[0][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
-                        "c": graph.nodes[1][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
-                    }
-                )
-            }
-        )
-        # check edges
-        assert (0, ref._node_id, "a.b") in graph.edges
-        assert (1, ref._node_id, "a.c") in graph.edges
-
-        ref = graph.add_collect_node(
-            {
-                "a": [
-                    ConcreteReference(_node_id=0, _graph=graph),
-                    ConcreteReference(_node_id=1, _graph=graph),
-                ]
-            }
-        )
-        # check node attributes
-        attrs = graph.nodes[ref._node_id]
-        assert attrs[DataFlowGraph.NodeAttribute.NODE_OBJ].config.lookup == {"a": ["a.0", "a.1"]}
-        assert attrs[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.COLLECT
-        assert attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] == MappingType.construct(
-            {
-                "a.0": graph.nodes[0][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
-                "a.1": graph.nodes[1][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
-            }
-        )
-        assert attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] == MappingType.construct(
-            {
-                "a": SequenceType(
-                    graph.nodes[0][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE], length=2
-                )
-            }
-        )
-        # check edges
-        assert (0, ref._node_id, "a.0") in graph.edges
-        assert (1, ref._node_id, "a.1") in graph.edges
-
-    def test_add_collect_node_with_constants(self) -> None:
-        # create a data flow instance and a mock feature
-        graph = DataFlowGraph()
-        ref = graph.add_source_node(MagicMock(spec=MappingType))
-
-        # mock graph functions
-        graph.add_collect_node = MagicMock()
-        graph.add_const_node = MagicMock()
-        # test collect dictionary structure
-        graph.add_collect_node_with_constants({"x": ref})
-        graph.add_collect_node.assert_called_once_with({"x": ref}, None)
-
-        # reset the mock graph
-        graph.add_collect_node.reset_mock()
-        graph.add_const_node.reset_mock()
-        # test collect list structure
-        graph.add_collect_node_with_constants([ref, ref])
-        graph.add_collect_node.assert_called_once_with([ref, ref], None)
-
-        with patch("hyped.core.graph.build_dtype_from_python_object") as mock_build_dtype:
-            # reset the mock graph
-            graph.add_collect_node.reset_mock()
-            graph.add_const_node.reset_mock()
-            # test collect with constants
-            graph.add_collect_node_with_constants({"x": ref, "y": 42})
-            graph.add_const_node.assert_called_once_with(42, dtype=mock_build_dtype.return_value)
-            graph.add_collect_node.assert_called_once_with(
-                {"x": ref, "y": graph.add_const_node.return_value}, None
-            )
-
-            # reset the mock graph
-            graph.add_collect_node.reset_mock()
-            graph.add_const_node.reset_mock()
-            # test collect with constants
-            graph.add_collect_node_with_constants([42, 42, 42])
-            assert graph.add_const_node.call_count == 3
-            graph.add_const_node.assert_has_calls(
-                [
-                    call(42, dtype=mock_build_dtype.return_value),
-                    call(42, dtype=mock_build_dtype.return_value),
-                    call(42, dtype=mock_build_dtype.return_value),
-                ]
-            )
-            graph.add_collect_node.assert_called_once_with(
-                [
-                    graph.add_const_node.return_value,
-                    graph.add_const_node.return_value,
-                    graph.add_const_node.return_value,
-                ],
-                None,
-            )
-
-    @pytest.mark.parametrize(
-        "node_cls, expected_node_type",
-        [
-            (BaseDataProcessor, DataFlowGraph.NodeType.DATA_PROCESSOR),
-            (BaseDataAugmentor, DataFlowGraph.NodeType.DATA_AUGMENTOR),
-            (BaseDataAggregator, DataFlowGraph.NodeType.DATA_AGGREGATOR),
-        ],
-    )
-    @patch("hyped.core.graph.FeatureEngine")
-    def test_add_compute_node(
-        self,
-        mock_feature_engine: MagicMock,
-        node_cls: type,
-        expected_node_type: DataFlowGraph.NodeType,
-    ) -> None:
-        # create a graph with a source node
-        graph = DataFlowGraph()
-        src_ref = graph.add_source_node(MockType)
-        # add a node of the specified type to the graph
-        node = MagicMock(spec=node_cls)
-        ref = graph.add_compute_node(node, {"x": src_ref})
-        # check the added node type
-        attrs = graph.nodes[ref._node_id]
-        assert attrs[DataFlowGraph.NodeAttribute.NODE_TYPE] == expected_node_type
-
-    @pytest.mark.parametrize(
-        "edges,, node_types, node_id, expected_partition, raises_error",
-        [
-            # Source node is always in default partition
-            (
-                [(0, 1)],
-                {0: DataFlowGraph.NodeType.SOURCE, 1: DataFlowGraph.NodeType.DATA_PROCESSOR},
-                0,
-                DataFlowGraph.Partition.DEFAULT,
-                False,
-            ),
-            # Data Processors don't change the partition
-            (
-                [(0, 1)],
-                {0: DataFlowGraph.NodeType.SOURCE, 1: DataFlowGraph.NodeType.DATA_PROCESSOR},
-                1,
-                DataFlowGraph.Partition.DEFAULT,
-                False,
-            ),
-            # Constants are always in the constant partition
-            (
-                [(0, 1), (2, 1)],
-                {
-                    0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                    2: DataFlowGraph.NodeType.CONST,
-                },
-                2,
-                DataFlowGraph.Partition.CONST,
-                False,
-            ),
-            # Default partition wins when mixing with the constant partition
-            (
-                [(0, 1), (2, 1)],
-                {
-                    0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                    2: DataFlowGraph.NodeType.CONST,
-                },
-                1,
-                DataFlowGraph.Partition.DEFAULT,
-                False,
-            ),
-            # Any node with only constant inputs is in the constant partition
-            (
-                [(0, 1), (2, 3)],
-                {
-                    0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                    2: DataFlowGraph.NodeType.CONST,
-                    3: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                },
-                3,
-                DataFlowGraph.Partition.CONST,
-                False,
-            ),
-            # Aggregators are not part of the aggregated partition
-            (
-                [(0, 1), (1, 2)],
-                {
-                    0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AGGREGATOR,
-                    2: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                },
-                1,
-                DataFlowGraph.Partition.DEFAULT,
-                False,
-            ),
-            # Aggregators always map into the aggregated partition
-            (
-                [(0, 1), (1, 2)],
-                {
-                    0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AGGREGATOR,
-                    2: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                },
-                2,
-                DataFlowGraph.Partition.AGGREGATED,
-                False,
-            ),
-            # Augmentors are not part of their own partition
-            (
-                [(0, 1), (1, 2)],
-                {
-                    0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
-                    2: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                },
-                1,
-                DataFlowGraph.Partition.DEFAULT,
-                False,
-            ),
-            # Augmentors introduce a new partition
-            (
-                [(0, 1), (1, 2)],
-                {
-                    0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
-                    2: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                },
-                2,
-                1,  # partition uses the same id as the augmentor node
-                False,
-            ),
-            # Chaining augmentors the latest augmentor partition wins
-            (
-                [(0, 1), (1, 2), (2, 3), (1, 3)],
-                {
-                    0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
-                    2: DataFlowGraph.NodeType.DATA_AUGMENTOR,
-                    3: DataFlowGraph.NodeType.DATA_AUGMENTOR,
-                },
-                3,
-                2,
-                False,
-            ),
-            # Cannot mix independent augmentator partitions
-            (
-                [(0, 1), (0, 2), (2, 3), (1, 3)],
-                {
-                    0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AUGMENTOR,
-                    2: DataFlowGraph.NodeType.DATA_AUGMENTOR,
-                    3: DataFlowGraph.NodeType.DATA_AUGMENTOR,
-                },
-                3,
-                None,
-                True,
-            ),
-            # Cannot mix aggregated with non-aggregated features
-            (
-                [(0, 1), (0, 2), (2, 3), (1, 3)],
-                {
-                    0: DataFlowGraph.NodeType.SOURCE,
-                    1: DataFlowGraph.NodeType.DATA_AGGREGATOR,
-                    2: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                    3: DataFlowGraph.NodeType.DATA_PROCESSOR,
-                },
-                3,
-                None,
-                True,
-            ),
-        ],
-    )
-    def test_infer_node_partition(
-        self,
-        edges: list[tuple[Hashable, Hashable]],
-        node_types: dict[Hashable, DataFlowGraph.NodeType],
-        node_id: Hashable,
-        expected_partition: None | PartitionId,
-        raises_error: bool,
-    ) -> None:
-        mock_augmentor_nodes = {
-            i: MagicMock(
-                __spec__=BaseDataAugmentor, infer_output_partition=MagicMock(return_value=i)
-            )
-            for i, node_type in node_types.items()
-            if node_type == DataFlowGraph.NodeType.DATA_AUGMENTOR
-        }
-
-        # build the data flow
-        graph = build_graph(edges, node_types, mock_augmentor_nodes, stop_at_node=node_id)
-
-        # get the node type and build the reference instances
-        node_type = node_types[node_id]
-        refs = [ConcreteReference(_node_id=u, _graph=graph) for u, v in edges if v == node_id]
-
-        if raises_error:
-            with pytest.raises(RuntimeError):
-                graph.infer_node_partition(node_type, refs)
-        else:
-            partition = graph.infer_node_partition(node_type, refs)
-            assert partition == expected_partition
-
-    def test_get_dtype_from_reference(self) -> None:
+    def test_get_output_dtype(self) -> None:
         graph = build_graph([(0, 1), (1, 2)])
-
         # works fine
-        graph.get_dtype_from_reference(ConcreteReference(_node_id=0, _graph=graph))
-        # wrong graph
+        graph.get_output_dtype(0)
+        # invalid node id
         with pytest.raises(RuntimeError):
-            graph.get_dtype_from_reference(ConcreteReference(_node_id=0, _graph=MagicMock()))
-        # wrong node id
-        with pytest.raises(RuntimeError):
-            graph.get_dtype_from_reference(ConcreteReference(_node_id="INVALID", _graph=graph))
+            graph.get_output_dtype("INVALID")
 
     @pytest.mark.parametrize(
         "edges, subgraph_nodes, expected_edges",

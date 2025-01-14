@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import pytest
 
+from hyped.core.builder import DataFlowGraphBuilder
 from hyped.core.features.dtypes import BoolType, Int16Type, Int32Type, MappingType
 from hyped.core.features.features import Feature, MappingFeature
 from hyped.core.features.reference import ConcreteReference
@@ -28,7 +29,7 @@ def test_plot_data_flow():
         output_type=MappingType.construct({"x": BoolType}),
     )
 
-    collect = ConcreteReference(2, graph)
+    collect = ConcreteReference(2, graph, None)
     flow = ExecutableDataFlow(None, graph, collect, None, None)
 
     # Ensure the plot function runs without errors and returns an Axes object
@@ -90,7 +91,7 @@ class TestDataFlow:
         hf_features = datasets.Features({"field": datasets.Value("bool")})
         str(DataFlow(hf_features))
 
-    @patch("hyped.core.flow.DataFlowGraph", MagicMock())
+    @patch("hyped.core.flow.DataFlowGraphBuilder", MagicMock())
     @patch("hyped.core.flow.build_feature_from_reference", MagicMock())
     def test_const(self) -> None:
         # create a data flow graph instance
@@ -100,10 +101,10 @@ class TestDataFlow:
         with patch("hyped.core.flow.build_dtype_from_python_object") as mock_build_dtype:
             flow.const(42)
             # make sure the constant was added to the graph as expected
-            flow._graph.add_const_node.assert_called_once_with(42, mock_build_dtype.return_value)
+            flow._builder.const.assert_called_once_with(42, mock_build_dtype.return_value)
 
         # reset the mock graph
-        flow._graph.reset_mock()
+        flow._builder.reset_mock()
 
         # add constant with specified data type
         with patch("hyped.core.flow.TypeAdapterWithArbitraryTypesAllowed") as mock_type_adapter:
@@ -112,11 +113,11 @@ class TestDataFlow:
             # make sure the type adapter was called
             mock_type_adapter.assert_called_once_with(dtype)
             # make sure the constant was added to the graph as expected
-            flow._graph.add_const_node.assert_called_once_with(
+            flow._builder.const.assert_called_once_with(
                 42, mock_type_adapter.return_value.validate_python.return_value.dtype
             )
 
-    @patch("hyped.core.flow.DataFlowGraph", MagicMock())
+    @patch("hyped.core.flow.DataFlowGraphBuilder", MagicMock())
     @patch("hyped.core.flow.build_feature_from_reference", MagicMock())
     def test_collect(self) -> None:
         # create a data flow instance and a mock feature
@@ -127,24 +128,27 @@ class TestDataFlow:
         assert feature == flow.collect(feature)
 
         flow.collect({"x": feature})
-        flow._graph.add_collect_node_with_constants.assert_called_once_with({"x": feature.ref})
+        flow._builder.collect.assert_called_once_with({"x": feature.ref})
 
-    @patch("hyped.core.flow.DataFlowGraph")
+    @patch("hyped.core.flow.DataFlowGraphBuilder")
     @patch("hyped.core.flow.ExecutableDataFlow")
     @patch("hyped.core.flow.build_feature_from_reference", MagicMock())
-    def test_build(self, mock_executable_flow: MagicMock, mock_graph: MagicMock) -> None:
+    def test_build(self, mock_executable_flow: MagicMock, mock_builder: MagicMock) -> None:
         # set source node id of mock graph to none
         # to mimic the flow not being initialized
         flow = DataFlow(datasets.Features({"field": datasets.Value("bool")}))
-        flow._graph.src_node_id = None
+        mock_builder.return_value._graph.src_node_id = None
+        mock_builder.return_value.graph = mock_builder.return_value._graph
 
         # create valid and invalid features
         valid = MagicMock(
             spec=Feature,
-            ref=ConcreteReference(_node_id=MagicMock(), _graph=mock_graph.return_value),
+            ref=ConcreteReference(
+                MagicMock(), mock_builder.return_value._graph, mock_builder.return_value
+            ),
         )
         invalid = MagicMock(
-            spec=Feature, ref=ConcreteReference(_node_id=MagicMock(), _graph=MagicMock())
+            spec=Feature, ref=ConcreteReference(MagicMock(), MagicMock(), MagicMock())
         )
 
         # invalid collect feature, not belonging to the graph
@@ -167,12 +171,12 @@ class TestDataFlow:
         ):
             flow.build(collect=valid, aggregate=valid, aggregation_manager=manager)
 
-            mock_restricted_view.assert_called_once_with(mock_graph.return_value, [], [])
+            mock_restricted_view.assert_called_once_with(mock_builder.return_value._graph, [], [])
             mock_executable_flow.assert_called_once_with(
                 mock_source_annotation.return_value,
                 mock_restricted_view.return_value,
-                ConcreteReference(valid.ref._node_id, mock_restricted_view.return_value),
-                ConcreteReference(valid.ref._node_id, mock_restricted_view.return_value),
+                ConcreteReference(valid.ref._node_id, mock_restricted_view.return_value, None),
+                ConcreteReference(valid.ref._node_id, mock_restricted_view.return_value, None),
                 manager,
             )
 
@@ -196,10 +200,14 @@ class TestExecutableDataFlow:
         mock_graph = MagicMock(
             spec=DataFlowGraph, nodes=[mock_feature_node._node_id, mock_aggregate_node._node_id]
         )
-        mock_graph.get_node_output_partition.side_effect = {
-            mock_feature_node._node_id: DataFlowGraph.Partition.DEFAULT,
-            mock_aggregate_node._node_id: DataFlowGraph.Partition.AGGREGATED,
-        }.get
+        mock_graph.nodes = {
+            mock_feature_node._node_id: {
+                DataFlowGraph.NodeAttribute.OUT_PARTITION: DataFlowGraph.Partition.DEFAULT
+            },
+            mock_aggregate_node._node_id: {
+                DataFlowGraph.NodeAttribute.OUT_PARTITION: DataFlowGraph.Partition.AGGREGATED
+            },
+        }
 
         with patch("hyped.core.flow.build_feature_from_reference", MagicMock(spec=MappingFeature)):
             with pytest.raises(RuntimeError):
@@ -247,8 +255,8 @@ class TestExecutableDataFlow:
             output_type=MappingType.construct({"x": BoolType}),
         )
         # create collect and aggregate references
-        collect = ConcreteReference("2", graph)
-        aggregate = ConcreteReference("4", graph)
+        collect = ConcreteReference("2", graph, None)
+        aggregate = ConcreteReference("4", graph, None)
 
         # create an executable data flow
         flow = ExecutableDataFlow(None, graph, collect, aggregate, None)
@@ -318,18 +326,16 @@ class TestExecutableDataFlow:
         expected_instance_graph: DataFlowGraph,
         expected_aggregates_graph: DataFlowGraph,
     ) -> None:
-        collect = ConcreteReference(_node_id=collect, _graph=graph) if collect is not None else None
-        aggregate = (
-            ConcreteReference(_node_id=aggregate, _graph=graph) if aggregate is not None else None
-        )
+        collect = ConcreteReference(collect, graph, None) if collect is not None else None
+        aggregate = ConcreteReference(aggregate, graph, None) if aggregate is not None else None
 
         mock_optimizer = MagicMock(spec=DataFlowGraphOptimizer)
         mock_optimizer.optimize.return_value = graph
 
         with (
             patch("hyped.core.flow.DataFlowGraphOptimizer", MagicMock(return_value=mock_optimizer)),
-            patch("hyped.core.flow.DataFlowExecutor") as mock_executor,
-            patch("hyped.core.flow.LazyDataFlowExecutor") as mock_lazy_executor,
+            patch("hyped.core.flow.DataFlowGraphExecutor") as mock_executor,
+            patch("hyped.core.flow.LazyDataFlowGraphExecutor") as mock_lazy_executor,
             patch("hyped.core.flow.DataAggregationManager"),
         ):
             # create the executable flow
@@ -353,9 +359,9 @@ class TestExecutableDataFlow:
     def test_apply(self) -> None:
         # create a simple data flow graph containing only a source node
         graph = DataFlowGraph()
-        graph.add_source_node(MappingType.construct({"x": BoolType}))
+        graph.add_source_node(MappingType.construct({"x": BoolType}), "SOURCE_NODE_ID")
         # create the collect reference
-        collect = ConcreteReference(_node_id=graph.src_node_id, _graph=graph)
+        collect = ConcreteReference(graph.src_node_id, graph, None)
         # create the executable data flow instance
         flow = ExecutableDataFlow(None, graph, collect, None, None)
 
@@ -452,16 +458,16 @@ class TestExecutableDataFlow:
         from hyped.core.ops.mapping import MappingGetItem
         from hyped.core.ops.numeric import Sum
 
-        graph = DataFlowGraph()
-        src_ref = graph.add_source_node(dtype_A)
-        val_ref = graph.add_compute_node(MappingGetItem(key="field"), {"mapping": src_ref})
-        sum_ref = graph.add_compute_node(Sum(), {"val": val_ref})
-        agg_ref = graph.add_collect_node({"sum": sum_ref})
+        builder = DataFlowGraphBuilder()
+        src_ref = builder.source(dtype_A)
+        val_ref = builder.compute(MappingGetItem(key="field"), {"mapping": src_ref})
+        sum_ref = builder.compute(Sum(), {"val": val_ref})
+        agg_ref = builder.collect({"sum": sum_ref})
         # create the executable data flow instance
         mock_manager = MagicMock(
             values_proxy={sum_ref._node_id: MagicMock(type=Int16Type.arrow_type)}
         )
-        flow = ExecutableDataFlow(None, graph, src_ref, agg_ref, mock_manager)
+        flow = ExecutableDataFlow(None, builder.graph, src_ref, agg_ref, mock_manager)
 
         # create a mock dataset with features matching the second data type
         ds = MagicMock(spec=datasets.Dataset, features=dtype_B.hf_feature)
@@ -508,9 +514,9 @@ class TestExecutableDataFlow:
         # create a simple data flow graph containing only a source node
         # using the first dtype
         graph = DataFlowGraph()
-        graph.add_source_node(dtype_A)
+        graph.add_source_node(dtype_A, "SOURCE_NODE_ID")
         # create the collect reference
-        collect = ConcreteReference(_node_id=graph.src_node_id, _graph=graph)
+        collect = ConcreteReference(graph.src_node_id, graph, None)
         # create the executable data flow instance
         flow = ExecutableDataFlow(None, graph, collect, None, None)
 
@@ -541,9 +547,9 @@ class TestExecutableDataFlow:
 
         # create a simple data flow graph containing only a source node
         graph = DataFlowGraph()
-        graph.add_source_node(MappingType.construct({"x": BoolType}))
+        graph.add_source_node(MappingType.construct({"x": BoolType}), "SOURCE_NODE_ID")
         # create the collect reference
-        collect = ConcreteReference(_node_id=graph.src_node_id, _graph=graph)
+        collect = ConcreteReference(graph.src_node_id, graph, None)
         # create the executable data flow instance
         flow = ExecutableDataFlow(Inputs, graph, collect, None, None)
 

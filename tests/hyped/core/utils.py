@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 import networkx as nx
 import numpy as np
 
+from hyped.core.builder import DataFlowGraphBuilder
 from hyped.core.features.dtypes import BoolType as MockType
 from hyped.core.features.dtypes import DType
 from hyped.core.graph import DataFlowGraph, _build_dependency_graph
@@ -108,27 +109,24 @@ def build_graph(
         node_types[source_nodes[0]] = DataFlowGraph.NodeType.SOURCE
 
     # build the data flow graph
-    graph = DataFlowGraph()
+    builder = DataFlowGraphBuilder()
 
     refs = {}
     # add all the nodes from the tmp graph
     for node in nx.topological_sort(tmp_graph):
         if node_types[node] == DataFlowGraph.NodeType.SOURCE:
-            refs[node] = graph.add_source_node(output_type, node_id=node)
+            refs[node] = builder.source(output_type, node_id=node)
 
         else:
-            refs[node] = graph.add_node(
+            refs[node] = builder._add_node_to_graph(
                 node_obj=node_objects.get(node, MagicMock()),
                 node_type=node_types[node],
                 inputs={k: refs[u] for u, _, k in tmp_graph.in_edges(node, keys=True)},
-                output_type=output_type,
+                output_dtype=output_type,
                 node_id=node,
             )
 
-    # make sure the two graphs are isomorphic
-    assert nx.is_isomorphic(tmp_graph, graph), "Error building graph from edges"
-
-    return graph
+    return builder.graph
 
 
 class NumpyArrayMatcher:

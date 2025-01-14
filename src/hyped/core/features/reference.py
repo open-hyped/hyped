@@ -11,7 +11,7 @@ import typing
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from ..abstract import AbstractDataFlowGraph
+from ..abc import AbstractDataFlowGraph, AbstractDataFlowGraphBuilder
 from .dtypes import DType
 
 NodeId: typing.TypeAlias = str
@@ -82,6 +82,12 @@ class ConcreteReference(BaseReference):
     _graph: AbstractDataFlowGraph
     """The data flow graph that contains the node."""
 
+    _builder: None | AbstractDataFlowGraphBuilder
+    """The data flow graph builder to the graph.
+
+    Set to :code:`None` for immutable graphs.
+    """
+
     def get_dtype(self) -> DType:
         """Retrieve the data type associated with the node referenced by this object.
 
@@ -90,4 +96,4 @@ class ConcreteReference(BaseReference):
         Returns:
             DType: The data type corresponding to the node.
         """
-        return self._graph.get_dtype_from_reference(self)
+        return self._graph.get_output_dtype(self._node_id)

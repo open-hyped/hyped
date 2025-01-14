@@ -1,18 +1,12 @@
 """Manages the execution of data flow graphs.
 
-This module provides the :code:`DataFlowExecutor` class, which is responsible for executing
+This module provides the :code:`DataFlowGraphExecutor` class, which is responsible for executing
 a data flow graph. It manages the execution state, ensures that data processors
 are executed in the correct order, and collects the results.
-
-Classes:
-    - :class:`ExecutionState`: Tracks the state during the execution of a data flow graph.
-    - :class:`DataFlowExecutor`: Executes a data flow graph, managing the execution of each node
-      and collecting results.
 """
 import asyncio
 import logging
 import typing
-from collections import defaultdict
 from contextlib import nullcontext
 from types import MappingProxyType
 
@@ -29,7 +23,7 @@ from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import BaseNode, RunContext, RunSession
 from .nodes.const import ConstNode
-from .typing import IndexList, NodeId, Rank, TraceIndexList
+from .typing import IndexList, NodeId, PartitionId, Rank, TraceIndexList
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +38,6 @@ class ExecutionState(object):
     def __init__(
         self,
         graph: DataFlowGraph,
-        p_graph: nx.DiGraph,
         batch: pa.Array,
         index: IndexList,
         rank: Rank,
@@ -53,14 +46,12 @@ class ExecutionState(object):
 
         Args:
             graph (DataFlowGraph): The data flow graph being executed.
-            p_graph (nx.DiGraph): The partition graph to the data flow graph.
             batch (pa.Array): The initial batch of data.
             index (IndexList): The index of the batch.
             rank (Rank): The rank of the process in a distributed setting.
         """
         self.rank = rank
         self.graph = graph
-        self.p_graph = p_graph
 
         # partition graph attributes
         self.index = {
@@ -69,71 +60,45 @@ class ExecutionState(object):
         }
         self.traces: dict[tuple[str, str], np.ndarray] = {}
 
-        # execution graph attributes
+        # buffer to capture all node outputs
         self.outputs = {graph.src_node_id: batch}
-        self.ready = {
-            node_id: asyncio.Event()
-            for node_id, attrs in graph.nodes(data=True)
-            if (
-                (node_id != graph.src_node_id)
-                and (
-                    attrs[DataFlowGraph.NodeAttribute.NODE_TYPE]
-                    != DataFlowGraph.NodeType.DATA_AGGREGATOR
-                )
-            )
+        # create an event for each executable nodes
+        nodes = self.graph.nodes(data=DataFlowGraph.NodeAttribute.NODE_TYPE)
+        self.node_done_event = {
+            n: asyncio.Event()
+            for n, t in nodes
+            if t not in {DataFlowGraph.NodeType.DATA_AGGREGATOR, DataFlowGraph.NodeType.SOURCE}
+        }
+        # create an event capturing if a non-default partition is initialized
+        partitions = nx.get_node_attributes(graph, DataFlowGraph.NodeAttribute.OUT_PARTITION)
+        self.partition_registered_event = {
+            p: asyncio.Event()
+            for p in set(partitions.values())
+            if p
+            not in {
+                DataFlowGraph.Partition.DEFAULT,
+                DataFlowGraph.Partition.CONST,
+                DataFlowGraph.Partition.AGGREGATED,
+            }
         }
 
     async def wait_for(self, node_id: str) -> None:
-        """Wait until the specified node is ready.
+        """Wait until the specified node finished its execution.
 
         Args:
             node_id (str): The ID of the node to wait for.
         """
-        if node_id in self.ready:
-            await self.ready[node_id].wait()
+        if node_id in self.node_done_event:
+            await self.node_done_event[node_id].wait()
 
-    def trace_through_partition_path(
-        self, values: list[pa.Array], src: str, tgt: str
-    ) -> list[pa.Array]:
-        """Apply trace indices through the partition path to transform the provided values.
-
-        This method traces the path in the partition graph from the source partition to the
-        target partition. It applies the trace indices of each partition transition to transform
-        the provided values. This transformation might involve reordering, filtering, or otherwise
-        modifying the values according to the computed trace indices.
+    async def wait_for_partition_registered(self, partition_id: PartitionId) -> None:
+        """Wait until a partition is registered.
 
         Args:
-            values (list[list[Any]]): A list of lists where each inner list contains values
-                that are transformed based on the computed trace indices.
-            src (str): The identifier of the source partition in the partition graph.
-            tgt (str): The identifier of the target partition in the partition graph.
-
-        Returns:
-            list[list[Any]]: A list of lists where each inner list has been transformed
-                according to the computed trace indices, reflecting the path from the source
-                to the target partition.
-
-        Raises:
-            AssertionError: If either the source or target partitions are not present in
-                the partition graph, or if the lengths of the inner lists in `values` do not
-                match the length of the index associated with the source partition.
+            partition_id (PartitionId): The ID of the partition to wait for.
         """
-        # make sure the partitions are valid nodes in the partition graph
-        assert src in self.p_graph, f"Source partition '{src}' not included in partition graph."
-        assert tgt in self.p_graph, f"Target partition '{tgt}' not included in partition graph."
-        # get the index to the source partition
-        index = self.index[src]
-        assert all(len(vals) == len(index) for vals in values)
-
-        trace_index = np.arange(len(index))
-        # follow the path from partition u to partition v and apply the trace
-        # of each partition transition to build the final trace index
-        path = nx.shortest_path(self.p_graph, src, tgt)
-        for edge in zip(path[:-1], path[1:], strict=True):
-            trace_index = trace_index[self.traces[edge]]
-
-        # apply the final trace index to the given values
-        return [vals.take(trace_index) for vals in values]
+        if partition_id in self.partition_registered_event:
+            await self.partition_registered_event[partition_id].wait()
 
     def register_partition_trace(self, node_id: NodeId, trace_index: TraceIndexList) -> None:
         """Register trace and index mappings for the transition between partitions.
@@ -153,20 +118,16 @@ class ExecutionState(object):
             AssertionError: If the source partition is not registered yet.
         """
         u = self.graph.nodes[node_id][DataFlowGraph.NodeAttribute.PARTITION]
-        v = self.graph.get_node_output_partition(node_id)
+        v = self.graph.nodes[node_id][DataFlowGraph.NodeAttribute.OUT_PARTITION]
 
         if u != v:
-            # must be an edge in the partition graph
-            assert self.p_graph.has_edge(
-                u, v
-            ), f"No edge between partitions '{u}' and '{v}' in the partition graph."
             # register the trace
             self.traces[(u, v)] = np.asarray(trace_index)
             # get the index of the source partition and transform it
             assert u in self.index, f"Partition {u} not registered yet!"
-            self.index[v] = self.trace_through_partition_path(
-                [pa.array(self.index[u])], src=u, tgt=v
-            )[0].to_pylist()
+            self.index[v] = np.asarray(self.index[u])[trace_index].tolist()
+            # mark partition as registered
+            self.partition_registered_event[v].set()
 
     def collect_value(self, ref: ConcreteReference) -> pa.Array:
         """Collect the values requested by the feature reference.
@@ -193,41 +154,12 @@ class ExecutionState(object):
         Returns:
             tuple[dict[str, pa.Array], IndexList]: The collected inputs to the processor
                 and the corresponding index
-
-        Raises:
-            AssertionError: If inputs are collected from a node that is not ready.
-            AssertionError: If the collected values are not of the expected type.
         """
-        inputs = {}
-        src_partitions = defaultdict(list)
-        # TODO: first group edges by reference to the same feature
-        #       then collect the feature only once
-        for u, _, name in self.graph.in_edges(node_id, keys=True):
-            assert (u == self.graph.src_node_id) or self.ready[
-                u
-            ].is_set(), f"Node {u} is not ready."
-            # get the requestest values
-            inputs[name] = self.outputs[u]
-            # keep track of the source partition
-            partition = self.graph.get_node_output_partition(u)
-            src_partitions[partition].append(name)
-
-        # get the node partition and the partition info
-        tgt_partition = self.graph.nodes[node_id][DataFlowGraph.NodeAttribute.PARTITION]
-        index = self.index[tgt_partition]
-
-        # we dont need to trace the values of the target partition
-        src_partitions.pop(tgt_partition, None)
-        # handle the constant partition as an edge case
-        for name in src_partitions.pop(DataFlowGraph.Partition.CONST, []):
-            inputs[name] = pa.chunked_array([inputs[name]] * len(index))
-
-        for src, names in src_partitions.items():
-            # trace values from their origin partition to the target partition
-            values = [inputs[name] for name in names]
-            values = self.trace_through_partition_path(values, src=src, tgt=tgt_partition)
-            # update the values in the inputs
-            inputs.update(dict(zip(names, values, strict=True)))
+        # collect all inputs from the incoming edges
+        inputs = {key: self.outputs[u] for u, _, key in self.graph.in_edges(node_id, keys=True)}
+        # get the index
+        partition = self.graph.nodes[node_id][DataFlowGraph.NodeAttribute.PARTITION]
+        index = self.index[partition]
 
         return inputs, index
 
@@ -241,14 +173,14 @@ class ExecutionState(object):
         Raises:
             AssertionError: If the node is already set
         """
-        assert not self.ready[node_id].is_set(), f"Node {node_id} is already set."
+        assert not self.node_done_event[node_id].is_set(), f"Node {node_id} is already set."
         # apply indexing wrapper to array, required for feature key
         # indexing of arrow arrays
         self.outputs[node_id] = output
-        self.ready[node_id].set()
+        self.node_done_event[node_id].set()
 
 
-class DataFlowExecutor(object):
+class DataFlowGraphExecutor(object):
     """Executes a data flow graph.
 
     This class provides the low-level functionality for executing a data flow
@@ -274,7 +206,6 @@ class DataFlowExecutor(object):
             TypeError: If the collect feature is not of type datasets.Features.
         """
         self.graph = graph
-        self.p_graph = graph.build_partition_graph()
         self.collect = collect
         self.aggregation_manager = aggregation_manager
 
@@ -306,8 +237,8 @@ class DataFlowExecutor(object):
             node_id=node_id,
             index=index,
             rank=rank,
-            input_type=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE],
-            output_type=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
+            input_dtype=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE],
+            output_dtype=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
             session=self.session,
         )
 
@@ -350,7 +281,7 @@ class DataFlowExecutor(object):
 
             elif node_type == DataFlowGraph.NodeType.CAST:
                 # cast the value to the expected data type
-                cast_value = pc.cast(inputs["value"], ctx.output_type.arrow_type)
+                cast_value = pc.cast(inputs["value"], ctx.output_dtype.arrow_type)
                 state.capture_output(node_id, cast_value)
 
             elif node_type == DataFlowGraph.NodeType.COLLECT:
@@ -358,10 +289,22 @@ class DataFlowExecutor(object):
                 values = node_obj.collect(ctx, inputs)
                 state.capture_output(node_id, values)
 
+            elif node_type == DataFlowGraph.NodeType.TRACE:
+                # wait for the target partition to be registered before tracing to it
+                target_partition = node_attrs[DataFlowGraph.NodeAttribute.OUT_PARTITION]
+                await state.wait_for_partition_registered(target_partition)
+                # get the target batch size
+                target_batch_size = len(state.index[target_partition])
+                # trace the value through to the target partition
+                values = node_obj.trace_values_through_partition_path(
+                    ctx, inputs["value"], target_batch_size, state.traces
+                )
+                state.capture_output(node_id, values)
+
             elif node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
                 # run processor and check the output batch size
                 out = await node_obj.run(ctx, inputs)
-                assert out.type == ctx.output_type.arrow_type, "Unexpected output type"
+                assert out.type == ctx.output_dtype.arrow_type, "Unexpected output type"
                 assert len(out) == len(index), "Output values length does not match index length."
                 # capture output in execution state
                 state.capture_output(node_id, out)
@@ -369,7 +312,7 @@ class DataFlowExecutor(object):
             elif node_type == DataFlowGraph.NodeType.DATA_AUGMENTOR:
                 # run processor and check the output batch size
                 out, trace_index = await node_obj.run(ctx, inputs)
-                assert out.type == ctx.output_type.arrow_type, "Unexpected output type"
+                assert out.type == ctx.output_dtype.arrow_type, "Unexpected output type"
                 # register output partition and capture output in execution state
                 state.register_partition_trace(node_id, trace_index)
                 state.capture_output(node_id, out)
@@ -394,7 +337,7 @@ class DataFlowExecutor(object):
             pa.Array: The final collected batch of data.
         """
         # create an execution state
-        state = ExecutionState(self.graph, self.p_graph, batch, index, rank)
+        state = ExecutionState(self.graph, batch, index, rank)
         # execute all processors in the flow
         await asyncio.gather(
             *[
@@ -467,12 +410,12 @@ class DataFlowExecutor(object):
             self.session = None
 
 
-class LazyDataFlowExecutor(typing.Mapping, DataFlowExecutor):
+class LazyDataFlowGraphExecutor(typing.Mapping, DataFlowGraphExecutor):
     """A lazy executor for a data flow graph.
 
-    This class extends the :class:`DataFlowExecutor` to compute outputs only when
-    requested and when the inputs have changed. It implements a mapping interface
-    to provide read-only access to the output values of the data flow.
+    This class extends the :class:`DataFlowGraphExecutor` to compute outputs only
+    when requested and when the inputs have changed. It implements a mapping
+    interface to provide read-only access to the output values of the data flow.
 
     The execution is triggered lazily upon accessing an output feature, ensuring
     that the computation is performed only when necessary. The inputs are cached
@@ -492,7 +435,7 @@ class LazyDataFlowExecutor(typing.Mapping, DataFlowExecutor):
             collect (ConcreteReference): The feature reference to collect results.
             input_proxy (MappingProxyType[str, Any]): A read-only proxy for the input data.
         """
-        DataFlowExecutor.__init__(self, graph, collect, None)
+        DataFlowGraphExecutor.__init__(self, graph, collect, None)
 
         self._proxy = input_proxy
         self._proxy_snapshot: None | dict[str, pa.Array] = None
@@ -508,7 +451,7 @@ class LazyDataFlowExecutor(typing.Mapping, DataFlowExecutor):
             Iterable[Hashable]: An iterable of the output feature keys.
         """
         # get the data type of the collect feature
-        dtype = self.graph.get_dtype_from_reference(self.collect)
+        dtype = self.graph.get_output_dtype(self.collect._node_id)
         assert isinstance(dtype, MappingType)
 
         return dtype.keys()

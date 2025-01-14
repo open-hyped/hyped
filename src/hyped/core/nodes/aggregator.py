@@ -64,7 +64,7 @@ class DataAggregationManager(object):
         # fill buffers with initial values from aggregators
         for agg, ctx in zip(aggregators, run_contexts, strict=True):
             val, state = agg.seed(ctx)
-            val = pa.array([val], type=ctx.output_type.arrow_type)
+            val = pa.array([val], type=ctx.output_dtype.arrow_type)
             # write values to buffers
             value_buffer[ctx.node_id] = val
             state_buffer[ctx.node_id] = state
@@ -108,11 +108,11 @@ class DataAggregationManager(object):
         state = self._state_buffer[ctx.node_id]
 
         # prepare the value for the update
-        value_type = MappingType.construct({"value": ctx.output_type})
-        inputs = mode.prepare(replace(ctx, input_type=value_type), value=value)
+        value_type = MappingType.construct({"value": ctx.output_dtype})
+        inputs = mode.prepare(replace(ctx, input_dtype=value_type), value=value)
         # should only contain a single input tuple
         update_ctx, update_kw = next(iter(inputs))
-        update_ctx = replace(update_ctx, input_type=ctx.input_type)
+        update_ctx = replace(update_ctx, input_dtype=ctx.input_dtype)
         # run the aggregator update function
         value, state = await aggregator.update(update_ctx, update_kw["value"], state, extracted)
 

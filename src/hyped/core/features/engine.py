@@ -283,17 +283,17 @@ class FeatureEngine(object):
                 f"Invalid argument types provided in the call to '{self.name}'. "
             ) from e
 
-    def get_references_and_objects(
-        self, *args: Any, **kwargs: Any
-    ) -> tuple[dict[str, ConcreteReference], dict[str, Any], dict[str, DType]]:
+    def get_features_and_objects(
+        self, *args: Feature | Any, **kwargs: Feature | Any
+    ) -> tuple[dict[str, Feature], dict[str, Any], dict[str, DType]]:
         """Separate input feature references and constants from the arguments.
 
         Args:
-            *args (Any): Positional arguments.
-            **kwargs (Any): Keyword arguments.
+            *args (Feature | Any): Positional arguments.
+            **kwargs (Feature | Any): Keyword arguments.
 
         Returns:
-            tuple[dict[str, ConcreteReference], dict[str, Any], dict[str, DType]]: Tuple containing
+            tuple[dict[str, Feature], dict[str, Any], dict[str, DType]]: Tuple containing
             input features and objects.
         """
         # bind inputs to signature and extract the keyword arguments
@@ -303,10 +303,10 @@ class FeatureEngine(object):
         arguments.update(kwargs)
 
         # separate all feature and constant inputs
-        inputs = {key: val.ref for key, val in arguments.items() if isinstance(val, Feature)}
+        inputs = {key: val for key, val in arguments.items() if isinstance(val, Feature)}
         consts = {key: val for key, val in arguments.items() if not isinstance(val, Feature)}
         # make sure all references are concrete references
-        assert all(isinstance(val, ConcreteReference) for val in inputs.values())
+        assert all(isinstance(val.ref, ConcreteReference) for val in inputs.values())
 
         # infer the data types of the constant inputs from the signature
         const_dtypes = {
@@ -314,7 +314,7 @@ class FeatureEngine(object):
                 annotation=self.signature.parameters[
                     key if key not in kwargs else self.kwargs_param.name
                 ].annotation,
-                inputs=None,
+                inputs=inputs,
             ).dtype
             for key in consts.keys()
         }

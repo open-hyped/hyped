@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from hyped.core.builder import DataFlowGraphBuilder
 from hyped.core.features.dtypes import (
     DType,
     Float32Type,
@@ -12,6 +13,7 @@ from hyped.core.features.dtypes import (
     UInt8Type,
 )
 from hyped.core.features.features import Feature
+from hyped.core.features.reference import ConcreteReference
 from hyped.core.ops.numeric import (
     Abs,
     Add,
@@ -48,16 +50,16 @@ from hyped.core.typing import Float, Float64, Int, UInt
 )
 @patch("hyped.core.ops.numeric.build_feature_from_reference", MagicMock())
 def test_add_constant(val: Any, candidate_dtype: DType, expected_dtype: DType) -> None:
-    graph = MagicMock()
+    builder = MagicMock(spec=DataFlowGraphBuilder)
     # Call the add_constant function
-    add_constant(val, candidate_dtype, graph)
-    graph.add_const_node.assert_called_once_with(val, expected_dtype)
+    add_constant(val, candidate_dtype, builder)
+    builder.const.assert_called_once_with(val, expected_dtype)
 
 
 @patch("hyped.core.ops.numeric.add_constant")
 def test_handle_constant_for_binary_operation(mock_add_constant: MagicMock) -> None:
-    a = Feature(MagicMock())
-    b = Feature(MagicMock())
+    a = Feature(MagicMock(spec=ConcreteReference, _builder=MagicMock()))
+    b = Feature(MagicMock(spec=ConcreteReference, _builder=MagicMock()))
     c = MagicMock()
     f = MagicMock()
     # apply decorator to mock function
@@ -67,11 +69,11 @@ def test_handle_constant_for_binary_operation(mock_add_constant: MagicMock) -> N
     f.assert_called_with(a, b)
     # call wrapped function with constant right input
     wrapped(a, c)
-    mock_add_constant.assert_called_with(c, a.dtype, a.ref._graph)
+    mock_add_constant.assert_called_with(c, a.dtype, a.ref._builder)
     f.assert_called_with(a, mock_add_constant.return_value)
     # call wrapped function with constant left input
     wrapped(c, b)
-    mock_add_constant.assert_called_with(c, b.dtype, b.ref._graph)
+    mock_add_constant.assert_called_with(c, b.dtype, b.ref._builder)
     f.assert_called_with(mock_add_constant.return_value, b)
 
 

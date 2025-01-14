@@ -85,13 +85,10 @@ class TestCollectNode:
         expected_object: pa.Array,
         expected_required_casts: dict[str, DType],
     ) -> None:
-        # create a mock graph
-        graph = MagicMock()
-        graph.get_dtype_from_reference.side_effect = lambda x: x
         # create the collect node instance
         node = CollectNode(lookup=collect)
         # build the output type and check it
-        dtype, required_casts = node.build_output_type(graph, input_types)
+        dtype, required_casts = node.build_output_type(input_types)
         assert dtype == expected_dtype
         assert required_casts == expected_required_casts
 
@@ -101,13 +98,13 @@ class TestCollectNode:
             node_id=0,
             index=[0],
             rank=0,
-            input_type=MappingType.construct(input_types | required_casts),
-            output_type=dtype,
+            input_dtype=MappingType.construct(input_types | required_casts),
+            output_dtype=dtype,
         )
 
         # convert the input objects to pyarrow arrays
         input_arrays = {
-            k: pa.array([v], type=ctx.input_type[k].arrow_type) for k, v in input_objects.items()
+            k: pa.array([v], type=ctx.input_dtype[k].arrow_type) for k, v in input_objects.items()
         }
 
         # apply the collect operation on the arrays
@@ -119,4 +116,4 @@ class TestCollectNode:
     def test_empty_sequences_not_supported(self) -> None:
         node = CollectNode(lookup=[])
         with pytest.raises(RuntimeError):
-            node.build_output_type(MagicMock(), {})
+            node.build_output_type({})

@@ -122,17 +122,17 @@ class TestFeatureEngine:
             ...
 
         engine = FeatureEngine("name", MagicMock(), inspect.signature(fn))
-        refs, vals, dtypes = engine.get_references_and_objects(a=True, b=False)
+        refs, vals, dtypes = engine.get_features_and_objects(a=True, b=False)
 
         assert len(refs) == 0
         assert vals == {"a": True, "b": False}
         assert dtypes == {"a": BoolType, "b": BoolType}
 
-        a = PrimitiveFeature(ConcreteReference(MagicMock(), MagicMock()))
+        a = PrimitiveFeature(ConcreteReference(MagicMock(), MagicMock(), MagicMock()))
 
         engine = FeatureEngine("name", MagicMock(), inspect.signature(fn))
-        refs, vals, dtypes = engine.get_references_and_objects(a=True, b=a)
+        refs, vals, dtypes = engine.get_features_and_objects(a=True, b=a)
 
-        assert refs == {"b": a.ref}
+        assert refs == {"b": a}
         assert vals == {"a": True}
         assert dtypes == {"a": BoolType}

@@ -13,7 +13,6 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 
-from ..abstract import AbstractDataFlowGraph
 from ..features.dtypes import (
     UNDEFINED_SEQUENCE_LENGTH,
     DType,
@@ -22,7 +21,6 @@ from ..features.dtypes import (
     cast_dtype,
     common_dtype,
 )
-from ..features.reference import ConcreteReference
 from ..utils import NestedType
 from .base import BaseNode, BaseNodeConfig, RunContext
 
@@ -47,7 +45,8 @@ class CollectNode(BaseNode[CollectNodeConfig]):
     """
 
     def build_output_type(
-        self, graph: AbstractDataFlowGraph, inputs: dict[str, ConcreteReference]
+        self,
+        input_dtypes: dict[str, DType],
     ) -> tuple[DType, dict[str, DType]]:
         """Construct the output data type based on the input structure.
 
@@ -56,9 +55,7 @@ class CollectNode(BaseNode[CollectNodeConfig]):
         input references to map strings in :code:`lookup` to actual data types from the graph.
 
         Args:
-            graph (AbstractDataFlowGraph): The data flow graph containing the input references.
-            inputs (dict[str, ConcreteReference]): Dictionary mapping input names to references
-                within the graph.
+            input_dtypes (dict[str, DType]): A dictionary mapping input names to their data types.
 
         Returns:
             tuple[DType, dict[str, DType]]: A tuple containing the constructed output type and a
@@ -90,8 +87,7 @@ class CollectNode(BaseNode[CollectNodeConfig]):
 
         def _build_type(obj: NestedType[str]):
             if isinstance(obj, str):
-                # get the data type from the graph
-                return graph.get_dtype_from_reference(inputs[obj])
+                return input_dtypes[obj]
 
             elif isinstance(obj, dict):
                 return MappingType.construct({key: _build_type(item) for key, item in obj.items()})
@@ -192,7 +188,7 @@ class CollectNode(BaseNode[CollectNodeConfig]):
                     f"{type(struct).__name__} with dtype {dtype}."
                 )
 
-        return _collect(self.config.lookup, ctx.output_type)
+        return _collect(self.config.lookup, ctx.output_dtype)
 
     @property
     def signature(self) -> Any:  # pragma: not covered
