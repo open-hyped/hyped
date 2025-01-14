@@ -226,15 +226,15 @@ class DataFlowGraphOptimizer(object):
         # trace nodes in the constant partition should be leaf nodes
         assert all(const_graph.out_degree(node_id) == 0 for node_id in trace_node_ids)
         # drop the trace nodes
-        reduced_const_graph = nx.restricted_view(const_graph, trace_node_ids, [])
+        const_graph = nx.restricted_view(const_graph, trace_node_ids, [])
 
         # check if there is anything to optimize in the constant partition
         # there are operations to collapse only if there are any edges within
         # the constant graph, otherwise the constant graph is either empty or
         # all nodes in the constant partition are source nodes which cannot
         # be optimized further
-        if len(reduced_const_graph.edges) > 0:
-            const_node_ids = list(reduced_const_graph.nodes)
+        if len(const_graph.edges) > 0:
+            const_node_ids = list(const_graph.nodes)
 
             # create a dummy input feature for execution
             dummy_type = MappingType.construct({"field": BoolType})
@@ -242,8 +242,8 @@ class DataFlowGraphOptimizer(object):
 
             # create a new graph from the view and apply common
             # sub-expression evaluation
-            reduced_const_graph = DataFlowGraph(reduced_const_graph)
-            reduced_const_graph, node_mapping = self.cse(reduced_const_graph)
+            const_graph = DataFlowGraph(const_graph)
+            const_graph, node_mapping = self.cse(const_graph)
 
             # map constant node ids and leaf nodes to potentially new values
             leaf_nodes = [
@@ -253,14 +253,14 @@ class DataFlowGraphOptimizer(object):
             const_node_ids = [node_mapping[node_id] for node_id in const_node_ids]
 
             # create a builder instance and add a dummy source node
-            const_builder = DataFlowGraphBuilder(reduced_const_graph)
+            const_builder = DataFlowGraphBuilder(const_graph)
             const_builder.source(dummy_type)
 
             # collect all outputs of all constant nodes in the graph
             collect = const_builder.collect(
                 {
                     node_id: ConcreteReference(
-                        _node_id=node_id, _graph=reduced_const_graph, _builder=const_builder
+                        _node_id=node_id, _graph=const_graph, _builder=const_builder
                     )
                     for node_id in const_node_ids
                 }
@@ -268,19 +268,16 @@ class DataFlowGraphOptimizer(object):
 
             # create an executor for the constant partition
             executor = DataFlowGraphExecutor(
-                graph=reduced_const_graph, collect=collect, aggregation_manager=None
+                graph=const_graph, collect=collect, aggregation_manager=None
             )
 
             # execute the constant partition
-            out = executor.run(dummy_table, index=[0], rank=0).to_struct_array()
+            out = executor.run(dummy_table, index=[0], rank=0)
             # get usage of constants in the graph
             const_edges = graph.subgraph_out_edges(const_graph)
 
-            # TODO: make sure trace nodes are present in reconstructed graph
-            raise NotImplementedError
-
             # drop the constant partition in the original graph
-            graph = DataFlowGraph(graph.drop_partition(DataFlowGraph.Partition.CONST))
+            graph = DataFlowGraph(nx.restricted_view(graph, const_graph, []))
             builder = DataFlowGraphBuilder(graph)
 
             const_lookup: dict[NodeId, ConcreteReference] = {}
@@ -289,7 +286,7 @@ class DataFlowGraphOptimizer(object):
                 # get the expected data type of the constant value
                 dtype = const_graph.nodes[node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
                 # add the constant node and track it
-                ref = builder.const(out.field(node_id)[0], dtype, node_id)
+                ref = builder.const(out[node_id][0], dtype, node_id)
                 const_lookup[node_id] = ref
 
             # add all required constants
@@ -300,7 +297,7 @@ class DataFlowGraphOptimizer(object):
                         DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
                     ]
                     # add the constant node to the graph
-                    ref = builder.const(out.field(const_node_id)[0], dtype, const_node_id)
+                    ref = builder.const(out[const_node_id][0], dtype, const_node_id)
                     const_lookup[const_node_id] = ref
 
                 # get the reference object from the lookup
