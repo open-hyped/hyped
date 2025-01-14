@@ -75,7 +75,7 @@ def _test_call_to_registered_method(
         {"feature": feature.dtype}
         | {str(i): f.dtype for i, f in enumerate(args) if isinstance(f, Feature)}
     )
-    source = builder.source_node(source_dtype)
+    source = builder.source(source_dtype)
     source = MappingFeature(source)
 
     # get the feature and mock the get method function to check execution later

@@ -366,7 +366,7 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
                 # try to infer the dtype from the reference instances in the sequence
                 if any(isinstance(r, ConcreteReference) for r in val):
                     ref = next(r for r in val if isinstance(r, ConcreteReference))
-                    dtype = self._graph.get_dtype_from_reference(ref)
+                    dtype = self._graph.get_output_dtype(ref._node_id)
 
             else:
                 # otherwise use the value type from the given dtype
@@ -377,7 +377,7 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
 
         elif not isinstance(val, ConcreteReference):
             # add the constant node
-            return self.const_node(
+            return self.const(
                 val, dtype=dtype if dtype is not None else build_dtype_from_python_object(val)
             )
 
@@ -387,7 +387,7 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
         else:  # pragma: not covered
             raise TypeError(f"Unsupported type encountered in 'collect': {val}.")
 
-    def source_node(self, dtype: DType, node_id: NodeId | None = None) -> ConcreteReference:
+    def source(self, dtype: DType, node_id: NodeId | None = None) -> ConcreteReference:
         """Add a the source node to the graph.
 
         Args:
@@ -404,9 +404,7 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
         # build the concrete reference to the source node
         return ConcreteReference(node_id, self._graph, self)
 
-    def const_node(
-        self, value: Any, dtype: DType, node_id: None | NodeId = None
-    ) -> ConcreteReference:
+    def const(self, value: Any, dtype: DType, node_id: None | NodeId = None) -> ConcreteReference:
         """Adds a constant node to the data flow graph.
 
         This function creates a node representing a constant value in the graph. The
@@ -432,7 +430,7 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
             node_id=node_id,
         )
 
-    def cast_node(
+    def cast(
         self, ref: ConcreteReference, dtype: DType, node_id: None | NodeId = None
     ) -> ConcreteReference:
         """Add a cast node to the data flow graph.
@@ -471,7 +469,7 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
             node_id=node_id,
         )
 
-    def collect_node(
+    def collect(
         self,
         collect: NestedType[ConcreteReference | Any],
         dtype: None | DType = None,
@@ -523,7 +521,7 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
         # add required cast nodes to graph
         # TODO: autocast
         for key, dtype in required_casts.items():
-            inputs[key] = self.cast_node(inputs[key], dtype)
+            inputs[key] = self.cast(inputs[key], dtype)
 
         return self._add_node_to_graph(
             node_obj=obj,
@@ -533,7 +531,7 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
             node_id=node_id,
         )
 
-    def compute_node(
+    def compute(
         self,
         obj: BaseNode,
         inputs: dict[str, ConcreteReference | Any],
@@ -599,7 +597,7 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
             for key, val in objects.items():
                 # convert all features in the collect object to references for the collect
                 # node to catch them
-                ref = self.collect_node(map_recursive(convert_to_ref, val), object_dtypes[key])
+                ref = self.collect(map_recursive(convert_to_ref, val), object_dtypes[key])
                 features[key] = build_feature_from_reference(ref)
             # build the output feature of the node
             output_dtype = engine.build_return_feature(features).dtype
@@ -665,17 +663,17 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
                     return inputs[k] if isinstance(k, str) else k
 
                 collect = map_recursive(resolve, node_obj.config.lookup)
-                node_id_mapping[node_id] = self.collect_node(collect, node_id=node_id)
+                node_id_mapping[node_id] = self.collect(collect, node_id=node_id)
 
             elif node_type == DataFlowGraph.NodeType.CONST:
-                node_id_mapping[node_id] = self.const_node(
+                node_id_mapping[node_id] = self.const(
                     node_obj.config.value.to_pylist()[0],
                     dtype=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
                     node_id=node_id,
                 )
 
             elif node_type == DataFlowGraph.NodeType.CAST:
-                node_id_mapping[node_id] = self.cast_node(
+                node_id_mapping[node_id] = self.cast(
                     inputs["value"],
                     dtype=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
                     node_id=node_id,
@@ -686,7 +684,7 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
                 DataFlowGraph.NodeType.DATA_AUGMENTOR,
                 DataFlowGraph.NodeType.DATA_AGGREGATOR,
             }:
-                node_id_mapping[node_id] = self.compute_node(node_obj, inputs, node_id)
+                node_id_mapping[node_id] = self.compute(node_obj, inputs, node_id)
 
             else:
                 raise NotImplementedError(f"Unexpected node type: {node_type}")

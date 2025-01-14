@@ -117,7 +117,7 @@ def add_constant(
         dtype = build_dtype_from_python_object(val)
 
     # add the constant node to the graph
-    ref = builder.const_node(val, dtype)
+    ref = builder.const(val, dtype)
     return build_feature_from_reference(ref)
 
 

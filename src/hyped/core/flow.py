@@ -340,7 +340,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
                 )
 
             # add the source node to the graph with the node id
-            src_ref = self._builder.source_node(instance.dtype)
+            src_ref = self._builder.source(instance.dtype)
             self._source_feature = replace(instance, ref=src_ref)
 
     @property
@@ -440,7 +440,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             # build the data type matching the object in case no data type was provided
             dtype = build_dtype_from_python_object(value)
         # add the constant node to the graph
-        ref = self._builder.const_node(value, dtype)
+        ref = self._builder.const(value, dtype)
         return build_feature_from_reference(ref)
 
     @overload
@@ -482,7 +482,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         # prepare the collect structure by extracting the references from the features
         # and add the collect node and all constants to the graph
         collect = map_recursive(lambda _, x: x.ref if isinstance(x, Feature) else x, collect)
-        ref = self._builder.collect_node(collect)
+        ref = self._builder.collect(collect)
         # return the collect feature
         return build_feature_from_reference(ref)
 
@@ -920,7 +920,7 @@ class ExecutableDataFlow(AbstractDataFlow):
                 for node in aggregator_nodes
             }
         )
-        source_ref = builder.source_node(source_dtype)
+        source_ref = builder.source(source_dtype)
         source = build_feature_from_reference(source_ref)
 
         if len(g.nodes) == 0:
@@ -931,9 +931,7 @@ class ExecutableDataFlow(AbstractDataFlow):
             assert len(aggregator_nodes) == 1
             node_id = next(iter(aggregator_nodes))
             # forward the output of the aggregator node
-            builder.compute_node(
-                MappingGetItem(key=node_id), {"mapping": source_ref}, node_id=node_id
-            )
+            builder.compute(MappingGetItem(key=node_id), {"mapping": source_ref}, node_id=node_id)
             return builder.graph
 
         # rebuild the aggregates graph

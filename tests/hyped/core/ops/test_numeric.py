@@ -53,7 +53,7 @@ def test_add_constant(val: Any, candidate_dtype: DType, expected_dtype: DType) -
     builder = MagicMock(spec=DataFlowGraphBuilder)
     # Call the add_constant function
     add_constant(val, candidate_dtype, builder)
-    builder.const_node.assert_called_once_with(val, expected_dtype)
+    builder.const.assert_called_once_with(val, expected_dtype)
 
 
 @patch("hyped.core.ops.numeric.add_constant")

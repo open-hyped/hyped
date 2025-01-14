@@ -21,27 +21,27 @@ class AbstractDataFlowGraphBuilder(ABC):
     """Abstract data flow graph builder base class."""
 
     @abstractmethod
-    def source_node(self, *args: Any, **kwargs: Any) -> "ConcreteReference":
+    def source(self, *args: Any, **kwargs: Any) -> "ConcreteReference":
         """Add a the source node to the graph."""
         ...
 
     @abstractmethod
-    def const_node(self, *args: Any, **kwargs: Any) -> "ConcreteReference":
+    def const(self, *args: Any, **kwargs: Any) -> "ConcreteReference":
         """Adds a constant node to the data flow graph."""
         ...
 
     @abstractmethod
-    def cast_node(self, *args: Any, **kwargs: Any) -> "ConcreteReference":
+    def cast(self, *args: Any, **kwargs: Any) -> "ConcreteReference":
         """Add a cast node to the data flow graph."""
         ...
 
     @abstractmethod
-    def collect_node(self, *args: Any, **kwargs: Any) -> "ConcreteReference":
+    def collect(self, *args: Any, **kwargs: Any) -> "ConcreteReference":
         """Adds a collect node to the data flow graph."""
         ...
 
     @abstractmethod
-    def compute_node(self, *args, **kwargs) -> "ConcreteReference":
+    def compute(self, *args, **kwargs) -> "ConcreteReference":
         """Add a compute node to the data flow graph."""
         ...
 

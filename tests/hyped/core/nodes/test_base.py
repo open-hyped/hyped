@@ -198,4 +198,4 @@ class TestBaseNode:
         node = MockNode()
         node.call(flow, x, y)
         # make sure the compute node was added correctly
-        builder.compute_node.assert_called_once_with(node, {"x": x.ref, "y": y.ref})
+        builder.compute.assert_called_once_with(node, {"x": x.ref, "y": y.ref})

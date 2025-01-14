@@ -23,4 +23,4 @@ def test_cast() -> None:
     ):
         # cast the feature to an integer and check the output and internals
         assert cast(Int, feature) == mock_build_feature_from_ref.return_value
-        builder.cast_node.assert_called_once_with(feature.ref, ANY)
+        builder.cast.assert_called_once_with(feature.ref, ANY)

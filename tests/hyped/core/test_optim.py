@@ -280,11 +280,11 @@ class TestDataFlowGraphOptimizer:
         accessed_src_dtype: DType,
     ) -> None:
         builder = DataFlowGraphBuilder()
-        builder.source_node(src_dtype, 0)
+        builder.source(src_dtype, 0)
         # add all edges assuming that all non-source nodes
         # are get-item nodes
         for u, v, k in edges_with_keys:
-            builder.compute_node(
+            builder.compute(
                 MappingGetItem(key=k), {"mapping": ConcreteReference(u, builder.graph, builder)}, v
             )
         # apply accessed fields

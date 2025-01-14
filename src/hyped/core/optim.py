@@ -242,10 +242,10 @@ class DataFlowGraphOptimizer(object):
 
             # create a builder instance and add a dummy source node
             const_builder = DataFlowGraphBuilder(const_graph)
-            const_builder.source_node(dummy_type)
+            const_builder.source(dummy_type)
 
             # collect all outputs of all constant nodes in the graph
-            collect = const_builder.collect_node(
+            collect = const_builder.collect(
                 {
                     node_id: ConcreteReference(
                         _node_id=node_id, _graph=const_graph, _builder=const_builder
@@ -279,7 +279,7 @@ class DataFlowGraphOptimizer(object):
                 # get the expected data type of the constant value
                 dtype = const_graph.nodes[node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
                 # add the constant node and track it
-                ref = builder.const_node(out.field(node_id)[0], dtype, node_id)
+                ref = builder.const(out.field(node_id)[0], dtype, node_id)
                 const_lookup[node_id] = ref
 
             # add all required constants
@@ -290,7 +290,7 @@ class DataFlowGraphOptimizer(object):
                         DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
                     ]
                     # add the constant node to the graph
-                    ref = builder.const_node(out.field(const_node_id)[0], dtype, const_node_id)
+                    ref = builder.const(out.field(const_node_id)[0], dtype, const_node_id)
                     const_lookup[const_node_id] = ref
 
                 # get the reference object from the lookup

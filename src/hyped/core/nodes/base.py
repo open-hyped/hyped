@@ -620,5 +620,5 @@ class BaseNode(BaseConfigurable[C], ABC):
         # extract reference instances from all features in the inputs
         inputs = map_recursive(lambda _, x: x.ref if isinstance(x, _Feature) else x, bound_args)
         # add the compute node to the graph and build the output feature instance
-        ref = builder.compute_node(self, inputs)
+        ref = builder.compute(self, inputs)
         return build_feature_from_reference(ref)

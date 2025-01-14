@@ -115,7 +115,7 @@ def build_graph(
     # add all the nodes from the tmp graph
     for node in nx.topological_sort(tmp_graph):
         if node_types[node] == DataFlowGraph.NodeType.SOURCE:
-            refs[node] = builder.source_node(output_type, node_id=node)
+            refs[node] = builder.source(output_type, node_id=node)
 
         else:
             refs[node] = builder._add_node_to_graph(

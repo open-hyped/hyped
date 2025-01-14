@@ -101,7 +101,7 @@ class TestDataFlow:
         with patch("hyped.core.flow.build_dtype_from_python_object") as mock_build_dtype:
             flow.const(42)
             # make sure the constant was added to the graph as expected
-            flow._builder.const_node.assert_called_once_with(42, mock_build_dtype.return_value)
+            flow._builder.const.assert_called_once_with(42, mock_build_dtype.return_value)
 
         # reset the mock graph
         flow._builder.reset_mock()
@@ -113,7 +113,7 @@ class TestDataFlow:
             # make sure the type adapter was called
             mock_type_adapter.assert_called_once_with(dtype)
             # make sure the constant was added to the graph as expected
-            flow._builder.const_node.assert_called_once_with(
+            flow._builder.const.assert_called_once_with(
                 42, mock_type_adapter.return_value.validate_python.return_value.dtype
             )
 
@@ -128,7 +128,7 @@ class TestDataFlow:
         assert feature == flow.collect(feature)
 
         flow.collect({"x": feature})
-        flow._builder.collect_node.assert_called_once_with({"x": feature.ref})
+        flow._builder.collect.assert_called_once_with({"x": feature.ref})
 
     @patch("hyped.core.flow.DataFlowGraphBuilder")
     @patch("hyped.core.flow.ExecutableDataFlow")
@@ -459,10 +459,10 @@ class TestExecutableDataFlow:
         from hyped.core.ops.numeric import Sum
 
         builder = DataFlowGraphBuilder()
-        src_ref = builder.source_node(dtype_A)
-        val_ref = builder.compute_node(MappingGetItem(key="field"), {"mapping": src_ref})
-        sum_ref = builder.compute_node(Sum(), {"val": val_ref})
-        agg_ref = builder.collect_node({"sum": sum_ref})
+        src_ref = builder.source(dtype_A)
+        val_ref = builder.compute(MappingGetItem(key="field"), {"mapping": src_ref})
+        sum_ref = builder.compute(Sum(), {"val": val_ref})
+        agg_ref = builder.collect({"sum": sum_ref})
         # create the executable data flow instance
         mock_manager = MagicMock(
             values_proxy={sum_ref._node_id: MagicMock(type=Int16Type.arrow_type)}
