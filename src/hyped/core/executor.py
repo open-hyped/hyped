@@ -127,7 +127,8 @@ class ExecutionState(object):
             assert u in self.index, f"Partition {u} not registered yet!"
             self.index[v] = np.asarray(self.index[u])[trace_index].tolist()
             # mark partition as registered
-            self.partition_registered_event[v].set()
+            if v in self.partition_registered_event:
+                self.partition_registered_event[v].set()
 
     def collect_value(self, ref: ConcreteReference) -> pa.Array:
         """Collect the values requested by the feature reference.
