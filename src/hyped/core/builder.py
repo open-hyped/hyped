@@ -24,6 +24,7 @@ from .nodes.base import BaseNode, RunContext
 from .nodes.collect import CollectNode
 from .nodes.const import ConstNode
 from .nodes.processor import BaseDataProcessor
+from .nodes.trace import TraceNode
 from .typing import NodeId, PartitionId
 from .utils import NestedType, map_recursive, random_uuid
 
@@ -80,14 +81,15 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
         # create fixed ordering over inputs
         # this is to ensure that whenever the input type is inferred from the dictionary
         # the ordering of the fields in the input mapping is consistent
-        inputs = OrderedDict({key: ref._node_id for key, ref in inputs.items()})
+        inputs = OrderedDict[str, ConcreteReference](inputs)
+        input_ids = OrderedDict({key: ref._node_id for key, ref in inputs.items()})
 
         # create a random node id if no was given
         node_id = node_id if node_id is not None else str(random_uuid())
         # infer the node partition
-        partition = self._infer_node_partition(node_type, list(inputs.values()))
+        partition = self._infer_node_partition(node_type, list(input_ids.values()))
         out_partition = self._infer_node_output_partition(
-            node_id, node_obj, node_type, partition, inputs, output_dtype
+            node_id, node_obj, node_type, partition, input_ids, output_dtype
         )
 
         # aggregated partition currently only supports processor type nodes
@@ -104,11 +106,16 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
                 f"or collect operations, got {node_type}."
             )
 
+        # trace all inputs to the node partition
+        traced_input_ids = OrderedDict(
+            (key, self.trace(ref, partition)._node_id) for key, ref in inputs.items()
+        )
+
         # add the node to the graph
         node_id = self._graph.add_node(
             node_obj=node_obj,
             node_type=node_type,
-            inputs=inputs,
+            inputs=traced_input_ids,
             output_dtype=output_dtype,
             partition=partition,
             out_partition=out_partition,
@@ -284,6 +291,10 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
             )
             # infer the output partition of the node
             return node_obj.infer_output_partition(ctx, partition)
+
+        elif node_type == DataFlowGraph.NodeType.TRACE:
+            # trace nodes always point into their target partition
+            return node_obj.config.path[-1]
 
         else:
             # other node types don't transition between partitions
@@ -528,6 +539,51 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
             node_type=DataFlowGraph.NodeType.COLLECT,
             inputs=inputs,
             output_dtype=output_type,
+            node_id=node_id,
+        )
+
+    def trace(
+        self, ref: ConcreteReference, tgt: PartitionId, node_id: None | NodeId = None
+    ) -> ConcreteReference:
+        """Adds a trace node to the data flow graph.
+
+        The trace node follows the shortest path through the partition graph from the source
+        partition of the provided reference to the specified target partition. It transforms
+        the values associated with the reference according to the trace indices of the path.
+
+        If the source and target partitions are the same, no trace node is added, and the
+        reference is returned as-is.
+
+        Args:
+            ref (ConcreteReference): A reference to the value or node whose partition needs to
+                be traced.
+            tgt (PartitionId): The identifier of the target partition in the partition graph.
+            node_id (None | NodeId): A unique identifier for the trace node. If :code:`None`, a
+                random UUID is generated. Defaults to :code:`None`.
+
+        Returns:
+            ConcreteReference: A reference to the newly created trace node, or the original
+                reference if no trace is required.
+        """
+        # get the partition of the reference
+        src = self._graph.nodes[ref._node_id][DataFlowGraph.NodeAttribute.OUT_PARTITION]
+
+        # check if the value needs to be traced
+        if src == tgt:
+            return ref
+
+        # compute the shortest path through the partition graph
+        partition_graph = self._build_partition_graph()
+        path = nx.shortest_path(partition_graph, src, tgt)
+        # get the output data type of the trace node
+        out_dtype = self.graph.nodes[ref._node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
+
+        # add the trace node to the graph
+        return self._add_node_to_graph(
+            node_obj=TraceNode(path=path),
+            node_type=DataFlowGraph.NodeType.TRACE,
+            inputs={"value": ref},
+            output_dtype=out_dtype,
             node_id=node_id,
         )
 

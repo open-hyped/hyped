@@ -7,18 +7,15 @@ are executed in the correct order, and collects the results.
 import asyncio
 import logging
 import typing
-from collections import defaultdict
 from contextlib import nullcontext
 from types import MappingProxyType
 
-import networkx as nx
 import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 
 from hyped.common._worker import get_worker_info
 
-from .builder import DataFlowGraphBuilder
 from .features.dtypes import MappingType
 from .features.reference import ConcreteReference
 from .graph import DataFlowGraph
@@ -40,7 +37,6 @@ class ExecutionState(object):
     def __init__(
         self,
         graph: DataFlowGraph,
-        p_graph: nx.DiGraph,
         batch: pa.Array,
         index: IndexList,
         rank: Rank,
@@ -49,14 +45,12 @@ class ExecutionState(object):
 
         Args:
             graph (DataFlowGraph): The data flow graph being executed.
-            p_graph (nx.DiGraph): The partition graph to the data flow graph.
             batch (pa.Array): The initial batch of data.
             index (IndexList): The index of the batch.
             rank (Rank): The rank of the process in a distributed setting.
         """
         self.rank = rank
         self.graph = graph
-        self.p_graph = p_graph
 
         # partition graph attributes
         self.index = {
@@ -88,49 +82,6 @@ class ExecutionState(object):
         if node_id in self.ready:
             await self.ready[node_id].wait()
 
-    def trace_through_partition_path(
-        self, values: list[pa.Array], src: str, tgt: str
-    ) -> list[pa.Array]:
-        """Apply trace indices through the partition path to transform the provided values.
-
-        This method traces the path in the partition graph from the source partition to the
-        target partition. It applies the trace indices of each partition transition to transform
-        the provided values. This transformation might involve reordering, filtering, or otherwise
-        modifying the values according to the computed trace indices.
-
-        Args:
-            values (list[list[Any]]): A list of lists where each inner list contains values
-                that are transformed based on the computed trace indices.
-            src (str): The identifier of the source partition in the partition graph.
-            tgt (str): The identifier of the target partition in the partition graph.
-
-        Returns:
-            list[list[Any]]: A list of lists where each inner list has been transformed
-                according to the computed trace indices, reflecting the path from the source
-                to the target partition.
-
-        Raises:
-            AssertionError: If either the source or target partitions are not present in
-                the partition graph, or if the lengths of the inner lists in `values` do not
-                match the length of the index associated with the source partition.
-        """
-        # make sure the partitions are valid nodes in the partition graph
-        assert src in self.p_graph, f"Source partition '{src}' not included in partition graph."
-        assert tgt in self.p_graph, f"Target partition '{tgt}' not included in partition graph."
-        # get the index to the source partition
-        index = self.index[src]
-        assert all(len(vals) == len(index) for vals in values)
-
-        trace_index = np.arange(len(index))
-        # follow the path from partition u to partition v and apply the trace
-        # of each partition transition to build the final trace index
-        path = nx.shortest_path(self.p_graph, src, tgt)
-        for edge in zip(path[:-1], path[1:], strict=True):
-            trace_index = trace_index[self.traces[edge]]
-
-        # apply the final trace index to the given values
-        return [vals.take(trace_index) for vals in values]
-
     def register_partition_trace(self, node_id: NodeId, trace_index: TraceIndexList) -> None:
         """Register trace and index mappings for the transition between partitions.
 
@@ -152,17 +103,11 @@ class ExecutionState(object):
         v = self.graph.nodes[node_id][DataFlowGraph.NodeAttribute.OUT_PARTITION]
 
         if u != v:
-            # must be an edge in the partition graph
-            assert self.p_graph.has_edge(
-                u, v
-            ), f"No edge between partitions '{u}' and '{v}' in the partition graph."
             # register the trace
             self.traces[(u, v)] = np.asarray(trace_index)
             # get the index of the source partition and transform it
             assert u in self.index, f"Partition {u} not registered yet!"
-            self.index[v] = self.trace_through_partition_path(
-                [pa.array(self.index[u])], src=u, tgt=v
-            )[0].to_pylist()
+            self.index[v] = np.asarray(self.index[u])[trace_index].tolist()
 
     def collect_value(self, ref: ConcreteReference) -> pa.Array:
         """Collect the values requested by the feature reference.
@@ -189,41 +134,12 @@ class ExecutionState(object):
         Returns:
             tuple[dict[str, pa.Array], IndexList]: The collected inputs to the processor
                 and the corresponding index
-
-        Raises:
-            AssertionError: If inputs are collected from a node that is not ready.
-            AssertionError: If the collected values are not of the expected type.
         """
-        inputs = {}
-        src_partitions = defaultdict(list)
-        # TODO: first group edges by reference to the same feature
-        #       then collect the feature only once
-        for u, _, name in self.graph.in_edges(node_id, keys=True):
-            assert (u == self.graph.src_node_id) or self.ready[
-                u
-            ].is_set(), f"Node {u} is not ready."
-            # get the requestest values
-            inputs[name] = self.outputs[u]
-            # keep track of the source partition
-            partition = self.graph.nodes[u][DataFlowGraph.NodeAttribute.OUT_PARTITION]
-            src_partitions[partition].append(name)
-
-        # get the node partition and the partition info
-        tgt_partition = self.graph.nodes[node_id][DataFlowGraph.NodeAttribute.PARTITION]
-        index = self.index[tgt_partition]
-
-        # we dont need to trace the values of the target partition
-        src_partitions.pop(tgt_partition, None)
-        # handle the constant partition as an edge case
-        for name in src_partitions.pop(DataFlowGraph.Partition.CONST, []):
-            inputs[name] = pa.chunked_array([inputs[name]] * len(index))
-
-        for src, names in src_partitions.items():
-            # trace values from their origin partition to the target partition
-            values = [inputs[name] for name in names]
-            values = self.trace_through_partition_path(values, src=src, tgt=tgt_partition)
-            # update the values in the inputs
-            inputs.update(dict(zip(names, values, strict=True)))
+        # collect all inputs from the incoming edges
+        inputs = {key: self.outputs[u] for u, _, key in self.graph.in_edges(node_id, keys=True)}
+        # get the index
+        partition = self.graph.nodes[node_id][DataFlowGraph.NodeAttribute.PARTITION]
+        index = self.index[partition]
 
         return inputs, index
 
@@ -270,7 +186,6 @@ class DataFlowGraphExecutor(object):
             TypeError: If the collect feature is not of type datasets.Features.
         """
         self.graph = graph
-        self.p_graph = DataFlowGraphBuilder(graph)._build_partition_graph()
         self.collect = collect
         self.aggregation_manager = aggregation_manager
 
@@ -354,6 +269,13 @@ class DataFlowGraphExecutor(object):
                 values = node_obj.collect(ctx, inputs)
                 state.capture_output(node_id, values)
 
+            elif node_type == DataFlowGraph.NodeType.TRACE:
+                # trace the value through to the target partition
+                values = node_obj.trace_values_through_partition_path(
+                    ctx, inputs["value"], state.traces
+                )
+                state.capture_output(node_id, values)
+
             elif node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
                 # run processor and check the output batch size
                 out = await node_obj.run(ctx, inputs)
@@ -390,7 +312,7 @@ class DataFlowGraphExecutor(object):
             pa.Array: The final collected batch of data.
         """
         # create an execution state
-        state = ExecutionState(self.graph, self.p_graph, batch, index, rank)
+        state = ExecutionState(self.graph, batch, index, rank)
         # execute all processors in the flow
         await asyncio.gather(
             *[

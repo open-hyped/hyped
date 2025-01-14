@@ -123,6 +123,7 @@ def plot_data_flow(
         DataFlowGraph.NodeType.CONST: cmap.colors[1],
         DataFlowGraph.NodeType.CAST: cmap.colors[5],
         DataFlowGraph.NodeType.COLLECT: cmap.colors[6],
+        DataFlowGraph.NodeType.TRACE: cmap.colors[7],
         DataFlowGraph.NodeType.DATA_PROCESSOR: cmap.colors[2],
         DataFlowGraph.NodeType.DATA_AUGMENTOR: cmap.colors[3],
         DataFlowGraph.NodeType.DATA_AGGREGATOR: cmap.colors[4],
@@ -949,7 +950,7 @@ class ExecutableDataFlow(AbstractDataFlow):
             builder._add_node_to_graph(
                 node_obj=data[DataFlowGraph.NodeAttribute.NODE_OBJ],
                 node_type=data[DataFlowGraph.NodeAttribute.NODE_TYPE],
-                inputs=inputs,
+                input_ids=inputs,
                 output_dtype=data[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
                 node_id=node_id,
             )

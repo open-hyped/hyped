@@ -171,6 +171,15 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         as fixed inputs to the subsequent processing stages.
         """
 
+        CAST = "CAST_NODE"
+        """
+        Represents a cast node in the data flow graph.
+
+        This type of node is responsible for type conversion within the data flow.
+        It transforms data from one type to another, ensuring compatibility between
+        different nodes or preparing the data for specific processing requirements.
+        """
+
         COLLECT = "COLLECT_NODE"
         """
         Represents a collect node in the data flow graph.
@@ -181,13 +190,13 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         downstream.
         """
 
-        CAST = "CAST_NODE"
+        TRACE = "TRACE NODE"
         """
-        Represents a cast node in the data flow graph.
+        Represents a trace node in the data flow graph.
 
-        This type of node is responsible for type conversion within the data flow.
-        It transforms data from one type to another, ensuring compatibility between
-        different nodes or preparing the data for specific processing requirements.
+        This type of node is responsible for tracing values through different
+        partitions of the graph. It transforms data of a specific partition into
+        the index-space of a target partition.
         """
 
         DATA_PROCESSOR = "DATA_PROCESSOR_NODE"
