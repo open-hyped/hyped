@@ -10,6 +10,7 @@ import typing
 from contextlib import nullcontext
 from types import MappingProxyType
 
+import networkx as nx
 import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
@@ -22,7 +23,7 @@ from .graph import DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import BaseNode, RunContext, RunSession
 from .nodes.const import ConstNode
-from .typing import IndexList, NodeId, Rank, TraceIndexList
+from .typing import IndexList, NodeId, PartitionId, Rank, TraceIndexList
 
 logger = logging.getLogger(__name__)
 
@@ -59,28 +60,45 @@ class ExecutionState(object):
         }
         self.traces: dict[tuple[str, str], np.ndarray] = {}
 
-        # execution graph attributes
+        # buffer to capture all node outputs
         self.outputs = {graph.src_node_id: batch}
-        self.ready = {
-            node_id: asyncio.Event()
-            for node_id, attrs in graph.nodes(data=True)
-            if (
-                (node_id != graph.src_node_id)
-                and (
-                    attrs[DataFlowGraph.NodeAttribute.NODE_TYPE]
-                    != DataFlowGraph.NodeType.DATA_AGGREGATOR
-                )
-            )
+        # create an event for each executable nodes
+        nodes = self.graph.nodes(data=DataFlowGraph.NodeAttribute.NODE_TYPE)
+        self.node_done_event = {
+            n: asyncio.Event()
+            for n, t in nodes
+            if t not in {DataFlowGraph.NodeType.DATA_AGGREGATOR, DataFlowGraph.NodeType.SOURCE}
+        }
+        # create an event capturing if a non-default partition is initialized
+        partitions = nx.get_node_attributes(graph, DataFlowGraph.NodeAttribute.OUT_PARTITION)
+        self.partition_registered_event = {
+            p: asyncio.Event()
+            for p in set(partitions.values())
+            if p
+            not in {
+                DataFlowGraph.Partition.DEFAULT,
+                DataFlowGraph.Partition.CONST,
+                DataFlowGraph.Partition.AGGREGATED,
+            }
         }
 
     async def wait_for(self, node_id: str) -> None:
-        """Wait until the specified node is ready.
+        """Wait until the specified node finished its execution.
 
         Args:
             node_id (str): The ID of the node to wait for.
         """
-        if node_id in self.ready:
-            await self.ready[node_id].wait()
+        if node_id in self.node_done_event:
+            await self.node_done_event[node_id].wait()
+
+    async def wait_for_partition_registered(self, partition_id: PartitionId) -> None:
+        """Wait until a partition is registered.
+
+        Args:
+            partition_id (PartitionId): The ID of the partition to wait for.
+        """
+        if partition_id in self.partition_registered_event:
+            await self.partition_registered_event[partition_id].wait()
 
     def register_partition_trace(self, node_id: NodeId, trace_index: TraceIndexList) -> None:
         """Register trace and index mappings for the transition between partitions.
@@ -108,6 +126,8 @@ class ExecutionState(object):
             # get the index of the source partition and transform it
             assert u in self.index, f"Partition {u} not registered yet!"
             self.index[v] = np.asarray(self.index[u])[trace_index].tolist()
+            # mark partition as registered
+            self.partition_registered_event[v].set()
 
     def collect_value(self, ref: ConcreteReference) -> pa.Array:
         """Collect the values requested by the feature reference.
@@ -153,11 +173,11 @@ class ExecutionState(object):
         Raises:
             AssertionError: If the node is already set
         """
-        assert not self.ready[node_id].is_set(), f"Node {node_id} is already set."
+        assert not self.node_done_event[node_id].is_set(), f"Node {node_id} is already set."
         # apply indexing wrapper to array, required for feature key
         # indexing of arrow arrays
         self.outputs[node_id] = output
-        self.ready[node_id].set()
+        self.node_done_event[node_id].set()
 
 
 class DataFlowGraphExecutor(object):
@@ -270,9 +290,14 @@ class DataFlowGraphExecutor(object):
                 state.capture_output(node_id, values)
 
             elif node_type == DataFlowGraph.NodeType.TRACE:
+                # wait for the target partition to be registered before tracing to it
+                target_partition = node_attrs[DataFlowGraph.NodeAttribute.OUT_PARTITION]
+                await state.wait_for_partition_registered(target_partition)
+                # get the target batch size
+                target_batch_size = len(state.index[target_partition])
                 # trace the value through to the target partition
                 values = node_obj.trace_values_through_partition_path(
-                    ctx, inputs["value"], state.traces
+                    ctx, inputs["value"], target_batch_size, state.traces
                 )
                 state.capture_output(node_id, values)
 

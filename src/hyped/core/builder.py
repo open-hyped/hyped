@@ -572,12 +572,16 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
         if src == tgt:
             return ref
 
-        # compute the shortest path through the partition graph
-        partition_graph = self._build_partition_graph()
-        path = nx.shortest_path(partition_graph, src, tgt)
+        if src == DataFlowGraph.Partition.CONST:
+            # constant partition can be directly traced to any partition
+            path = (src, tgt)
+        else:
+            # compute the shortest path through the partition graph
+            partition_graph = self._build_partition_graph()
+            path = nx.shortest_path(partition_graph, src, tgt)
+
         # get the output data type of the trace node
         out_dtype = self.graph.nodes[ref._node_id][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
-
         # add the trace node to the graph
         return self._add_node_to_graph(
             node_obj=TraceNode(path=path),

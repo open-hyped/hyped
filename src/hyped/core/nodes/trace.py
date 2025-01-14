@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 import pyarrow as pa
 
+from ..graph import DataFlowGraph
 from ..typing import PartitionId
 from .base import BaseNode, BaseNodeConfig, RunContext
 
@@ -37,6 +38,7 @@ class TraceNode(BaseNode[TraceNodeConfig]):
         self,
         ctx: RunContext,
         values: pa.Array,
+        target_batch_size: int,
         traces: dict[tuple[PartitionId, PartitionId], np.ndarray],
     ) -> pa.Array:
         """Apply trace indices through the partition path to transform the provided values.
@@ -48,6 +50,7 @@ class TraceNode(BaseNode[TraceNodeConfig]):
         Args:
             ctx (RunContext): The runtime context.
             values (pa.Array): The values to be transformed.
+            target_batch_size (int): The target batch size.
             traces (dict[tuple[PartitionId, PartitionId], np.ndarray]): A dictionary mapping
                 partition transitions to their corresponding trace indices.
 
@@ -55,6 +58,9 @@ class TraceNode(BaseNode[TraceNodeConfig]):
             pa.Array: A transformed PyArrow array where values have been modified
                 according to the trace indices along the specified path.
         """
+        if self.config.path[0] == DataFlowGraph.Partition.CONST:
+            return pa.chunked_array([values] * target_batch_size, type=ctx.output_dtype.arrow_type)
+
         trace_index = np.arange(len(ctx.index))
         # follow the path from partition u to partition v and apply the trace
         # of each partition transition to build the final trace index
