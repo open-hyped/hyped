@@ -950,7 +950,7 @@ class ExecutableDataFlow(AbstractDataFlow):
             builder._add_node_to_graph(
                 node_obj=data[DataFlowGraph.NodeAttribute.NODE_OBJ],
                 node_type=data[DataFlowGraph.NodeAttribute.NODE_TYPE],
-                input_ids=inputs,
+                inputs=inputs,
                 output_dtype=data[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
                 node_id=node_id,
             )

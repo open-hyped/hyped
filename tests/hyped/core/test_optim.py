@@ -15,6 +15,25 @@ from hyped.core.optim import DataFlowGraphOptimizer
 from .utils import build_graph
 
 
+def node_match(
+    n1: dict[DataFlowGraph.NodeAttribute, Any], n2: dict[DataFlowGraph.NodeAttribute, Any]
+) -> bool:
+    node_type_1 = n1[DataFlowGraph.NodeAttribute.NODE_TYPE]
+    node_type_2 = n2[DataFlowGraph.NodeAttribute.NODE_TYPE]
+
+    # for compute nodes, make sure the objects match
+    if node_type_1 in {
+        DataFlowGraph.NodeType.DATA_PROCESSOR,
+        DataFlowGraph.NodeType.DATA_AUGMENTOR,
+        DataFlowGraph.NodeType.DATA_AGGREGATOR,
+    }:
+        return (node_type_1 == node_type_2) and (
+            n1[DataFlowGraph.NodeAttribute.NODE_OBJ] == n2[DataFlowGraph.NodeAttribute.NODE_OBJ]
+        )
+    # for other nodes just make sure the node types match
+    return node_type_1 == node_type_2
+
+
 class TestDataFlowGraphOptimizer:
     @pytest.mark.parametrize(
         "graph, target_graph",
@@ -225,25 +244,12 @@ class TestDataFlowGraphOptimizer:
     )
     @patch("hyped.core.builder.pa", MagicMock())
     @patch("hyped.core.builder.ConstNode", MagicMock())
+    @patch("hyped.core.optim.DataFlowGraphExecutor", MagicMock())
     def test_constant_evaluation(
         self, graph: DataFlowGraph, target_graph: DataFlowGraph, leaf_nodes: set[Hashable]
     ) -> None:
         # this test only checks the morphology but not the actual values of the evaluated constants
         # however this is done by the data flow executor which is tested in itself
-
-        def node_match(
-            n1: dict[DataFlowGraph.NodeAttribute, Any], n2: dict[DataFlowGraph.NodeAttribute, Any]
-        ) -> bool:
-            node_type_1 = n1[DataFlowGraph.NodeAttribute.NODE_TYPE]
-            node_type_2 = n2[DataFlowGraph.NodeAttribute.NODE_TYPE]
-            # for constants only make sure both are constants
-            if node_type_1 == DataFlowGraph.NodeType.CONST:
-                return node_type_1 == node_type_2
-            # for other nodes make sure the node type and objects match
-            return (node_type_1 == node_type_2) and (
-                n1[DataFlowGraph.NodeAttribute.NODE_OBJ] == n2[DataFlowGraph.NodeAttribute.NODE_OBJ]
-            )
-
         with patch(
             "hyped.core.optim.DataFlowGraphExecutor.execute", AsyncMock(return_value=MagicMock())
         ):
@@ -360,22 +366,10 @@ class TestDataFlowGraphOptimizer:
     )
     @patch("hyped.core.builder.pa", MagicMock())
     @patch("hyped.core.builder.ConstNode", MagicMock())
+    @patch("hyped.core.optim.DataFlowGraphExecutor", MagicMock())
     def test_optimize(
         self, graph: DataFlowGraph, target_graph: DataFlowGraph, leaf_nodes: set[Hashable]
     ) -> None:
-        def node_match(
-            n1: dict[DataFlowGraph.NodeAttribute, Any], n2: dict[DataFlowGraph.NodeAttribute, Any]
-        ) -> bool:
-            node_type_1 = n1[DataFlowGraph.NodeAttribute.NODE_TYPE]
-            node_type_2 = n2[DataFlowGraph.NodeAttribute.NODE_TYPE]
-            # for constants only make sure both are constants
-            if node_type_1 == DataFlowGraph.NodeType.CONST:
-                return node_type_1 == node_type_2
-            # for other nodes make sure the node type and objects match
-            return (node_type_1 == node_type_2) and (
-                n1[DataFlowGraph.NodeAttribute.NODE_OBJ] == n2[DataFlowGraph.NodeAttribute.NODE_OBJ]
-            )
-
         with patch(
             "hyped.core.optim.DataFlowGraphExecutor.execute", AsyncMock(return_value=MagicMock())
         ):

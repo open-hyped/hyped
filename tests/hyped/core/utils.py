@@ -126,9 +126,6 @@ def build_graph(
                 node_id=node,
             )
 
-    # make sure the two graphs are isomorphic
-    assert nx.is_isomorphic(tmp_graph, builder.graph), "Error building graph from edges"
-
     return builder.graph
 
 

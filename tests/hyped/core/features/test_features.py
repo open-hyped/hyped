@@ -52,7 +52,7 @@ from hyped.core.features.features import _MappingFeature as MappingFeature
 from hyped.core.features.features import build_feature_from_annotation, build_feature_from_reference
 from hyped.core.features.reference import ForwardReference
 from hyped.core.features.session import ValidationSession
-from hyped.core.nodes.base import BaseNode, BaseNodeConfig
+from hyped.core.nodes.base import BaseNodeConfig
 from hyped.core.ops import boolean, mapping, numeric, sequence, string
 
 if not is_python_version_less_than(3, 11):
@@ -100,9 +100,13 @@ def _test_call_to_registered_method(
     type(feature).get_method.assert_called_once_with(registered_fn_name)
 
     if expected_node_config is not None:
+        # make sure a node with the expected configuration was added
+        # if might not be the only added node to due tracing and casting operations
         builder._add_node_to_graph.assert_called()
-        node: BaseNode = builder._add_node_to_graph.mock_calls[-1].kwargs["node_obj"]
-        assert node.config == expected_node_config
+        assert any(
+            call.kwargs["node_obj"].config == expected_node_config
+            for call in builder._add_node_to_graph.mock_calls
+        )
 
 
 class TestPrimitiveFeatures:
