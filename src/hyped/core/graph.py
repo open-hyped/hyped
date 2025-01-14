@@ -23,10 +23,11 @@ from .typing import NodeId, PartitionId
 from .utils import random_uuid
 
 DEFAULT_NODE_FORMAT = (
+    "[{{ node_id[:4] }}] "
     "{% if node_type == 'SOURCE_NODE' %}"
     "Source"
     "{% else %}"
-    "[{{ node_id[:4] }}] {{ node_object }}"
+    "{{ node_object }}"
     "{% endif %}"
 )
 

@@ -180,13 +180,17 @@ def plot_data_flow(
     node_labels = {}
     # build node labels
     for node, data in flow._graph.format(format=node_format).nodes(data=True):
-        # split string into words
-        words = re.split(r" |(?<=[a-z])(?=[A-Z])", data["label"])
-        # group words such that each group has a limited number of characers
-        lengths = np.cumsum(list(map(len, words))) // max_line_length
-        groups = groupby(range(len(words)), key=lengths.__getitem__)
-        # join groups with newlines inbetween
-        node_labels[node] = "\n".join(["".join([words[i] for i in group]) for _, group in groups])
+        formatted_parts = []
+        for part in data["label"].split():
+            # split string into words
+            words = re.split(r"(?<=[a-z])(?=[A-Z])", part)
+            # group words such that each group has a limited number of characers
+            lengths = np.cumsum(list(map(len, words))) // max_line_length
+            groups = groupby(range(len(words)), key=lengths.__getitem__)
+            # join groups with newlines inbetween
+            formatted_part = "\n".join(["".join([words[i] for i in group]) for _, group in groups])
+            formatted_parts.append(formatted_part)
+        node_labels[node] = "\n".join(formatted_parts)
 
     # add node labels
     nx.draw_networkx_labels(
