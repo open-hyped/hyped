@@ -86,6 +86,7 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
 
         # create a random node id if no was given
         node_id = node_id if node_id is not None else str(random_uuid())
+
         # infer the node partition
         partition = self._infer_node_partition(node_type, list(input_ids.values()))
         out_partition = self._infer_node_output_partition(

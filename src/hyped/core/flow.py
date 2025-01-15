@@ -772,8 +772,13 @@ class ExecutableDataFlow(AbstractDataFlow):
         if not isinstance(self._collect_feature, MappingFeature):
             raise RuntimeError("The collect feature must be a mapping.")
 
-        # create read-only view on the instance partition of the graph
-        self._instance_graph = graph.drop_partition(DataFlowGraph.Partition.AGGREGATED)
+        # get all aggregation nodes in the optimized graph
+        nodes = self._graph.nodes(data=DataFlowGraph.NodeAttribute.NODE_TYPE)
+        aggregator_ids = {i for i, t in nodes if t == DataFlowGraph.NodeType.DATA_AGGREGATOR}
+
+        # compute the instance sub-graph of the data flow graph
+        # which includes the aggregator nodes
+        self._instance_graph = self._graph.dependency_graph({collect._node_id} | aggregator_ids)
 
         # set defaults for aggregation execution
         self._aggregates_graph: None | DataFlowGraph = None
@@ -781,15 +786,8 @@ class ExecutableDataFlow(AbstractDataFlow):
         self._aggregates_executor: None | DataFlowGraphExecutor = None
 
         if aggregate is not None:
-            # get all aggregator nodes in the instance graph
-            nodes = self._instance_graph.nodes(data=DataFlowGraph.NodeAttribute.NODE_TYPE)
-            nodes = [
-                node
-                for node, node_type in nodes
-                if node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR
-            ]
             # there must be at least one aggregator node in the graph
-            assert len(nodes) > 0
+            assert len(aggregator_ids) > 0
 
             # create new aggregate reference
             aggregate_ref = ConcreteReference(aggregate._node_id, self._graph, None)
@@ -797,11 +795,13 @@ class ExecutableDataFlow(AbstractDataFlow):
             # build the data aggregation manager instance and the aggregates graph,
             # which implements the operations performed on top of aggregated values
             self._aggregation_manager = (
-                self._build_aggregation_manager(nodes)
+                self._build_aggregation_manager(list(aggregator_ids))
                 if aggregation_manager is None
-                else self._check_aggregation_manager(nodes, aggregation_manager)
+                else self._check_aggregation_manager(list(aggregator_ids), aggregation_manager)
             )
-            self._aggregates_graph = self._build_post_aggregation_graph(aggregate_ref, set(nodes))
+            self._aggregates_graph = self._build_post_aggregation_graph(
+                aggregate_ref, aggregator_ids
+            )
 
             # initialize the aggregates executor from the graph and manager
             self._aggregates_executor = LazyDataFlowGraphExecutor(
@@ -915,7 +915,7 @@ class ExecutableDataFlow(AbstractDataFlow):
         g = self._graph.dependency_graph({aggregate._node_id}, stop_nodes=aggregator_nodes)
         # remove the aggregator nodes themselves as these are included in the
         # instance graph
-        g = nx.restricted_view(g, aggregator_nodes, [])
+        g: DataFlowGraph = nx.restricted_view(g, aggregator_nodes, [])
 
         builder = DataFlowGraphBuilder()
         # add a source node
@@ -939,21 +939,30 @@ class ExecutableDataFlow(AbstractDataFlow):
             builder.compute(MappingGetItem(key=node_id), {"mapping": source_ref}, node_id=node_id)
             return builder.graph
 
+        skip_trace_nodes_mapping: dict[NodeId, NodeId] = {}
         # rebuild the aggregates graph
         for node_id in nx.topological_sort(g):
+            data = self._graph.nodes[node_id]
+            node_obj = data[DataFlowGraph.NodeAttribute.NODE_OBJ]
+            node_type = data[DataFlowGraph.NodeAttribute.NODE_TYPE]
+
+            # skip trace nodes
+            if node_type == DataFlowGraph.NodeType.TRACE:
+                src_node_id, _ = next(iter(self._graph.in_edges(node_id)))
+                skip_trace_nodes_mapping[node_id] = src_node_id
+                continue
+
             # collect all the inputs to the node
-            edges = self._graph.in_edges(node_id, keys=True)
             inputs = {
                 key: source[u].ref
                 if u in aggregator_nodes
-                else ConcreteReference(u, builder.graph, builder)
-                for u, _, key in edges
+                else ConcreteReference(skip_trace_nodes_mapping.get(u, u), builder.graph, builder)
+                for u, _, key in self._graph.in_edges(node_id, keys=True)
             }
             # add the node to the graph
-            data = self._graph.nodes[node_id]
             builder._add_node_to_graph(
-                node_obj=data[DataFlowGraph.NodeAttribute.NODE_OBJ],
-                node_type=data[DataFlowGraph.NodeAttribute.NODE_TYPE],
+                node_obj=node_obj,
+                node_type=node_type,
                 inputs=inputs,
                 output_dtype=data[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
                 node_id=node_id,
