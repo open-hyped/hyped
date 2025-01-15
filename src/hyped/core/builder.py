@@ -361,6 +361,17 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
     def _add_consts_from_nested(
         self, val: NestedType[ConcreteReference | Any], dtype: None | DType = None
     ) -> NestedType[ConcreteReference]:
+        """Add constants contained in a nested structure.
+
+        Args:
+            val (NestedType[ConcreteReference | Any]): The nested structure to process.
+            dtype (DType): The target data type of the nested structure.
+
+        Returns:
+            NestedType[ConcreteReference]: A nested structure mirroring the input
+            but with constant values replaced by references pointing to the corresponsing
+            constant nodes.
+        """
         if isinstance(val, dict):
             assert (dtype is None) or isinstance(dtype, MappingType)
 
