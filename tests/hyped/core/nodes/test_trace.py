@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 import pyarrow as pa
 import pytest
 
+from hyped.core.features.dtypes import Int32Type
 from hyped.core.graph import DataFlowGraph
 from hyped.core.nodes.trace import TraceNode
 from hyped.core.typing import IndexList, PartitionId, TraceIndexList
@@ -18,6 +19,13 @@ class TestTraceNode:
                 [0],
                 [0] * 16,
                 16,
+            ),
+            (
+                (DataFlowGraph.Partition.DEFAULT, "PARTITION_A"),
+                {(DataFlowGraph.Partition.DEFAULT, "PARTITION_A"): []},
+                [0, 1, 2, 3],
+                [],
+                0,
             ),
             (
                 (DataFlowGraph.Partition.DEFAULT, "PARTITION_A"),
@@ -82,8 +90,8 @@ class TestTraceNode:
         out_index: IndexList,
         target_batch_size: int,
     ) -> None:
-        mock_ctx = MagicMock(index=src_index)
-        mock_values = pa.array(src_index)
+        mock_ctx = MagicMock(index=src_index, output_dtype=Int32Type)
+        mock_values = pa.array(src_index, type=Int32Type.arrow_type)
 
         node = TraceNode(path=path)
         actual_out = node.trace_values_through_partition_path(
