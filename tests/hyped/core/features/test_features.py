@@ -53,7 +53,7 @@ from hyped.core.features.features import build_feature_from_annotation, build_fe
 from hyped.core.features.reference import ForwardReference
 from hyped.core.features.session import ValidationSession
 from hyped.core.nodes.base import BaseNodeConfig
-from hyped.core.ops import boolean, mapping, numeric, sequence, string
+from hyped.core.ops import boolean, mapping, numeric, sequence, string, utils
 
 if not is_python_version_less_than(3, 11):
     from typing import get_overloads
@@ -118,6 +118,31 @@ class TestPrimitiveFeatures:
         "expected_return_feature_type,"
         "expected_node_config",
         [
+            # Base Feature methods
+            (
+                BoolFeature,
+                BoolFeature.filter,
+                "filter",
+                (BoolFeature,),
+                BoolFeature,
+                utils.GlobalFilterConfig(),
+            ),
+            (
+                Int32Feature,
+                Int32Feature.filter,
+                "filter",
+                (BoolFeature,),
+                Int32Feature,
+                utils.GlobalFilterConfig(),
+            ),
+            (
+                Float64Feature,
+                Float64Feature.filter,
+                "filter",
+                (BoolFeature,),
+                Float64Feature,
+                utils.GlobalFilterConfig(),
+            ),
             # Boolean methods
             (
                 BoolFeature,
