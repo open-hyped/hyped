@@ -101,10 +101,7 @@ class RunContext:
     """
 
     session: None | RunSession
-    """The run session instance.
-
-    This attribute
-    """
+    """The run session instance."""
 
     node_id: NodeId
     """The id of the node in the data flow graph.
