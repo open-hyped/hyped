@@ -3,6 +3,7 @@
 __all__ = [
     "zip_",
     "cast",
+    "filter_",
     "boolean",
     "string",
     "numeric",
@@ -14,3 +15,4 @@ __all__ = [
 from . import boolean, mapping, numeric, sequence, string
 from .cast import cast
 from .sequence import zip_
+from .utils import filter_

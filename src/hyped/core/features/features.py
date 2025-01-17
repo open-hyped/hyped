@@ -101,6 +101,17 @@ class Feature(MethodRegistryMixin, Generic[DataType]):
         assert dtype is not None
         return dtype
 
+    def filter(self, condition: BoolFeature) -> Self:
+        """Filters elements based on a boolean condition.
+
+        Args:
+            condition (Bool): A boolean array indicating which elements to retain.
+
+        Returns:
+            T: The filtered values that satisfy the given condition.
+        """
+        return self.execute_method("filter", condition)
+
     @classmethod
     def __get_pydantic_core_schema__(
         cls, source_type: Any, handler: pydantic.GetCoreSchemaHandler
