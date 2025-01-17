@@ -450,6 +450,19 @@ class StringFeature(PrimitiveFeature[dtypes.StringType]):
         """
         return self.execute_method("find", pattern)
 
+    def contains(self, pattern: str) -> BoolFeature:
+        """Check if a pattern is contained in the string.
+
+        Args:
+            string (String): The string column to search.
+            pattern (str): The pattern to match in each string.
+
+        Returns:
+            BoolFeature: A column of boolean values indicating whether the string
+            contains the pattern.
+        """
+        return self.execute_method("contains", pattern)
+
     def split(
         self, pattern: str = " ", maxsplits: None | int = None
     ) -> SequenceFeature[StringFeature]:

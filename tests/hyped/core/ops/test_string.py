@@ -1,6 +1,7 @@
 from hyped.core.ops.string import (
     StringAdd,
     StringCapitalize,
+    StringContains,
     StringEndsWith,
     StringFind,
     StringFormat,
@@ -266,6 +267,22 @@ class TestStringFind(BaseDataProcessorTest):
         10,  # Position of "test"
         -1,  # No match
         -1,  # Empty input
+    ]
+
+
+class TestStringContains(BaseDataProcessorTest):
+    processor = StringContains(pattern="test")
+    input_features = {"string": String}
+    input_data = [
+        {"string": "this is a test"},
+        {"string": "no match here"},
+        {"string": ""},
+    ]
+    expected_output_feature = Bool
+    expected_output_data = [
+        True,
+        False,
+        False,
     ]
 
 

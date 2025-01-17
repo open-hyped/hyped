@@ -372,6 +372,14 @@ class TestPrimitiveFeatures:
             ),
             (
                 StringFeature,
+                StringFeature.contains,
+                "contains",
+                ("PATTERN",),
+                BoolFeature,
+                string.StringContainsConfig(pattern="PATTERN"),
+            ),
+            (
+                StringFeature,
                 StringFeature.split,
                 "split",
                 ("PATTERN",),

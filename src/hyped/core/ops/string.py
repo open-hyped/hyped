@@ -381,6 +381,31 @@ class StringFind(BaseDataProcessor[StringFindConfig]):
         return pc.find_substring(string, self.config.pattern)
 
 
+class StringContainsConfig(BaseDataProcessorConfig):
+    """Configuration for the :class:`StringContains` processor."""
+
+    pattern: str
+    """The pattern to match in each string."""
+
+
+class StringContains(BaseDataProcessor[StringContainsConfig]):
+    """Data processor for finding the position of a pattern in strings."""
+
+    @process_mode(batched=True, backend="arrow")
+    def process(self, ctx: RunContext, string: String) -> BoolFeature:
+        """Check if the pattern is contained in each string.
+
+        Args:
+            ctx (RunContext): The execution context.
+            string (String): The string column to search.
+
+        Returns:
+            BoolFeature: A column of boolean values indicating whether the string
+            contains the pattern.
+        """
+        return pc.match_substring(string, self.config.pattern)
+
+
 class StringSplitConfig(BaseDataProcessorConfig):
     """Configuration for the :class:`StringSplit` processor."""
 
@@ -568,6 +593,21 @@ def string_find(string: String, pattern: str) -> Int32Feature:
         string.
     """
     return StringFind(pattern=pattern).call(string)
+
+
+@StringFeature.register_method("contains")
+def string_contains(string: String, pattern: str) -> BoolFeature:
+    """Check if a specific pattern is contained in each string.
+
+    Args:
+        string (String): The string column to search.
+        pattern (str): The pattern to match in each string.
+
+    Returns:
+        BoolFeature: A column of boolean values indicating whether the string
+        contains the pattern.
+    """
+    return StringContains(pattern=pattern).call(string)
 
 
 @StringFeature.register_method("split")
