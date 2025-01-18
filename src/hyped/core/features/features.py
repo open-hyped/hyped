@@ -128,7 +128,13 @@ class Feature(MethodRegistryMixin, Generic[DataType]):
             core_schema.CoreSchema: The generated core schema for the :class:`Feature` class,
                 indicating that it is an instance schema.
         """
-        return core_schema.is_instance_schema(cls)
+
+        def validator_fn(inst: Feature | BaseReference) -> Feature:
+            return Feature(inst) if isinstance(inst, BaseReference) else inst
+
+        return core_schema.no_info_before_validator_function(
+            validator_fn, schema=core_schema.is_instance_schema(cls)
+        )
 
 
 @dataclass(eq=True, frozen=False)

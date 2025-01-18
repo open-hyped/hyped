@@ -285,7 +285,7 @@ class FeatureEngine(object):
 
     def get_features_and_objects(
         self, *args: Feature | Any, **kwargs: Feature | Any
-    ) -> tuple[dict[str, Feature], dict[str, Any], dict[str, DType]]:
+    ) -> tuple[dict[str, Feature], dict[str, Any], dict[str, None | DType]]:
         """Separate input feature references and constants from the arguments.
 
         Args:
@@ -294,7 +294,7 @@ class FeatureEngine(object):
 
         Returns:
             tuple[dict[str, Feature], dict[str, Any], dict[str, DType]]: Tuple containing
-            input features and objects.
+            input features, non-feature objects and their dtypes if they can be inferred.
         """
         # bind inputs to signature and extract the keyword arguments
         arguments = self.signature.bind(*args, **kwargs).arguments
@@ -310,18 +310,18 @@ class FeatureEngine(object):
 
         # infer the data types of the constant inputs from the signature
         const_dtypes = {
-            key: self.build_feature_with_context(
+            key: self._build_feature_with_context(
                 annotation=self.signature.parameters[
                     key if key not in kwargs else self.kwargs_param.name
                 ].annotation,
                 inputs=inputs,
-            ).dtype
+            ).ref.get_dtype()  # might return None
             for key in consts.keys()
         }
 
         return inputs, consts, const_dtypes
 
-    def build_feature_with_context(
+    def _build_feature_with_context(
         self, annotation: Any, inputs: None | dict[str, Feature]
     ) -> Feature:
         """Create a feature based on type annotation and inputs in a specific context.
@@ -356,4 +356,4 @@ class FeatureEngine(object):
         Returns:
             Feature: The constructed return feature.
         """
-        return self.build_feature_with_context(self.signature.return_annotation, inputs)
+        return self._build_feature_with_context(self.signature.return_annotation, inputs)
