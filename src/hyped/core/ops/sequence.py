@@ -618,7 +618,8 @@ def sequence_get_item(
     elif isinstance(index, SequenceFeature):
         return SequenceGetItems().call(seq=sequence, index=index)
 
-    elif isinstance(index, (tuple, list)):
+    # TODO: Remove this once `builder.compute` fixes the auto-adding of const sequences
+    elif isinstance(index, list):
         ref = sequence.ref._builder.const(index, SequenceType(Int64Type, len(index)))
         index_feature = build_feature_from_reference(ref)
         return SequenceGetItems().call(seq=sequence, index=index_feature)
