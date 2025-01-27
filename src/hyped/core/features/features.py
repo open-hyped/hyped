@@ -30,7 +30,7 @@ from dataclasses import dataclass, field, replace
 from enum import IntEnum
 from functools import partial
 from types import GenericAlias
-from typing import Any, Callable, ClassVar, Final, Generic, TypeVar, overload
+from typing import Any, Callable, ClassVar, Final, Generic, TypeAlias, TypeVar, Union, overload
 
 import pydantic
 from pydantic_core import PydanticCustomError, core_schema
@@ -3640,6 +3640,18 @@ class UInt64Feature(
             feature.
         """
         return type(self).get_method("__floordiv__")(other, self)
+
+
+IntFeature: TypeAlias = Union[
+    Int8Feature,
+    Int16Feature,
+    Int32Feature,
+    Int64Feature,
+    UInt8Feature,
+    UInt16Feature,
+    UInt32Feature,
+    UInt64Feature,
+]
 
 
 class Float32Feature(

@@ -19,8 +19,14 @@ import pyarrow.compute as pc
 from hyped.common._pyarrow import flatten_list_array, unflatten_list_array
 from hyped.core.typing import PartitionId
 
-from ..features.dtypes import UNDEFINED_SEQUENCE_LENGTH, MappingType
-from ..features.features import Feature, Int32Feature, SequenceFeature
+from ..features.dtypes import UNDEFINED_SEQUENCE_LENGTH, Int64Type, MappingType, SequenceType
+from ..features.features import (
+    Feature,
+    Int32Feature,
+    IntFeature,
+    SequenceFeature,
+    build_feature_from_reference,
+)
 from ..features.reference import ConcreteReference
 from ..features.validators import FeatureResolver, Len, MatchFeatures
 from ..graph import DataFlowGraph
@@ -129,32 +135,91 @@ class SequenceSum(BaseDataProcessor[SequenceSumConfig]):
 ItemType = TypeVar("ItemType")
 
 
-class SequenceGetItemConfig(BaseDataAugmentorConfig):
+class SequenceGetItemConfig(BaseDataProcessorConfig):
     """Configuration class for the :class:`SequenceGetItem` processor."""
-
-    index: int
-    """The index of the item to retrieve from the sequence."""
 
 
 class SequenceGetItem(BaseDataProcessor[SequenceGetItemConfig]):
     """Processor to retrieve an item from a sequence based on a specific index.
 
     This processor extracts a single element from a sequence at the position specified
-    by the :code:`index` attribute in its configuration.
+    by the :code:`index` argument.
     """
 
     @process_mode(batched=True, backend="arrow")
-    def process(self, ctx: RunContext, seq: Sequence[ItemType]) -> ItemType:
+    def process(self, ctx: RunContext, seq: Sequence[ItemType], index: Int) -> ItemType:
         """Retrieve an item from a sequence.
 
         Args:
             ctx (RunContext): Context object containing runtime information.
             seq (Sequence[ItemType]): Input sequence from which to extract the item.
+            index (Int): Index to get.
 
         Returns:
             ItemType: The item at the specified index in the sequence.
         """
-        return pc.list_element(seq, self.config.index)
+        if isinstance(seq, pa.ChunkedArray):
+            seq = seq.combine_chunks()
+        if isinstance(index, pa.ChunkedArray):
+            index = index.combine_chunks()
+
+        # flatten
+        seq_flattened, seq_offsets = flatten_list_array(seq)
+        # convert negative indices to positives
+        index = pc.if_else(pc.less(index, 0), pc.add(index, seq.value_lengths()), index)
+        # convert indices to indices in flattened sequence array
+        flat_indices = pc.add(index, seq_offsets[:-1])
+        # collect items
+        return pc.take(seq.flatten(), flat_indices)
+
+
+class SequenceGetItemsConfig(BaseDataProcessorConfig):
+    """Configuration class for the :class:`SequenceGetItems` processor."""
+
+
+L = Len()
+
+
+class SequenceGetItems(BaseDataProcessor[SequenceGetItemsConfig]):
+    """Processor to retrieve an item from a sequence based on a specific index.
+
+    This processor extracts a subsequence from a sequence at the positions specified
+    by the :code:`index` argument.
+    """
+
+    @process_mode(batched=True, backend="arrow")
+    def process(
+        self, ctx: RunContext, seq: Sequence[ItemType], index: Annotated[Sequence[Int], L]
+    ) -> Annotated[Sequence[ItemType], L]:
+        """Retrieve an item from a sequence.
+
+        Args:
+            ctx (RunContext): Context object containing runtime information.
+            seq (Sequence[ItemType]): Input sequence from which to extract the item.
+            index (Sequence[Int]): Sequence of indices to get.
+
+        Returns:
+            Sequence[ItemType]: The items at the specified indices in the sequence.
+        """
+        if isinstance(seq, pa.ChunkedArray):
+            seq = seq.combine_chunks()
+        if isinstance(index, pa.ChunkedArray):
+            index = index.combine_chunks()
+        # flatten
+        seq_flattened, seq_offsets = flatten_list_array(seq)
+        index_flatten, index_offsets = flatten_list_array(index)
+        # convert negative indices to positives
+        lengths_flatten = np.array(seq.value_lengths()).repeat(index.value_lengths())
+        index_flatten = pc.if_else(
+            pc.less(index_flatten, 0), pc.add(index_flatten, lengths_flatten), index_flatten
+        )
+        # convert flattened indices to indices in flattened sequence array
+        flat_indices = pc.add(
+            index_flatten, np.array(seq_offsets[:-1]).repeat(index.value_lengths())
+        )
+        items_flatten = pc.take(seq.flatten(), flat_indices)
+        # return unflattened items
+        return unflatten_list_array(items_flatten, index_offsets)
 
 
 class SequenceGetSliceConfig(BaseDataAugmentorConfig):
@@ -525,7 +590,9 @@ def sequence_max(seq: Sequence[NumericType], default: Any = None) -> NumericType
 
 
 @SequenceFeature.register_method("__getitem__")
-def sequence_get_item(sequence: Sequence[ItemType], index: int | slice) -> ItemType:
+def sequence_get_item(
+    sequence: Sequence[ItemType], index: int | slice | list | Int | Sequence[Int]
+) -> ItemType:
     """Retrieve an item or a subsequence from a sequence using an integer index or a slice.
 
     This method uses the :class:`SequenceGetItem` and :class:`SequenceGetSlice` processors
@@ -545,19 +612,18 @@ def sequence_get_item(sequence: Sequence[ItemType], index: int | slice) -> ItemT
         RuntimeError: If negative indices or slices are used with sequences of
             undefined length.
     """
-    if isinstance(index, int):
-        if (index < 0) and len(sequence.dtype) != UNDEFINED_SEQUENCE_LENGTH:
-            index = len(sequence.dtype) + index
+    if isinstance(index, (int, IntFeature)):
+        return SequenceGetItem().call(seq=sequence, index=index)
 
-        elif index < 0:
-            raise RuntimeError(
-                "Negative indices are not allowed for lists with unknown lengths, "
-                f"got index {index}."
-            )
+    elif isinstance(index, SequenceFeature):
+        return SequenceGetItems().call(seq=sequence, index=index)
 
-        return SequenceGetItem(index=index).call(sequence)
+    elif isinstance(index, (tuple, list)):
+        ref = sequence.ref._builder.const(index, SequenceType(Int64Type, len(index)))
+        index_feature = build_feature_from_reference(ref)
+        return SequenceGetItems().call(seq=sequence, index=index_feature)
 
-    if isinstance(index, slice):
+    elif isinstance(index, slice):
         if len(sequence.dtype) != UNDEFINED_SEQUENCE_LENGTH:
             start, stop, step = index.indices(len(sequence.dtype))
 
@@ -576,7 +642,8 @@ def sequence_get_item(sequence: Sequence[ItemType], index: int | slice) -> ItemT
 
         return SequenceGetSlice(start=start, stop=stop, step=step).call(sequence)
 
-    raise NotImplementedError(f"Index type not supported, got {index}")
+    else:
+        raise ValueError(f"Index type not supported, got {index}")
 
 
 @overload
