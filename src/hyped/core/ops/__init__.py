@@ -13,6 +13,6 @@ __all__ = [
 
 # import all to register all methods
 from . import boolean, mapping, numeric, sequence, string
-from .cast import cast
+from .casting import cast
 from .sequence import zip_
 from .utils import filter_

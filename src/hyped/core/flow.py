@@ -54,7 +54,7 @@ from .features.session import ValidationSession
 from .graph import DEFAULT_NODE_FORMAT, DataFlowGraph
 from .nodes.aggregator import DataAggregationManager
 from .nodes.base import RunContext
-from .ops.cast import cast
+from .ops.casting import cast
 from .ops.mapping import MappingGetItem
 from .optim import DataFlowGraphOptimizer
 from .typing import NodeId
