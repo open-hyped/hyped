@@ -7381,7 +7381,7 @@ class TestSequenceFeature:
                 (-1,),
                 Int64Feature,
                 None,
-                True,
+                False,
             ),
             (
                 SequenceFeature(ForwardReference(SequenceType(Int64Type))),
