@@ -158,13 +158,14 @@ class SequenceGetItem(BaseDataProcessor[SequenceGetItemConfig]):
         Returns:
             ItemType: The item at the specified index in the sequence.
         """
-        if isinstance(seq, pa.ChunkedArray):
-            seq = seq.combine_chunks()
-        if isinstance(index, pa.ChunkedArray):
-            index = index.combine_chunks()
+        seq = seq.combine_chunks() if isinstance(seq, pa.ChunkedArray) else seq
+        index = index.combine_chunks() if isinstance(index, pa.ChunkedArray) else index
 
         # flatten
-        seq_flattened, seq_offsets = flatten_list_array(seq)
+        _, seq_offsets = flatten_list_array(seq)
+        seq_offsets = (
+            np.arange(len(seq) + 1) * seq_offsets if isinstance(seq_offsets, int) else seq_offsets
+        )
         # convert negative indices to positives
         index = pc.if_else(pc.less(index, 0), pc.add(index, seq.value_lengths()), index)
         # convert indices to indices in flattened sequence array
@@ -201,12 +202,14 @@ class SequenceGetItems(BaseDataProcessor[SequenceGetItemsConfig]):
         Returns:
             Sequence[ItemType]: The items at the specified indices in the sequence.
         """
-        if isinstance(seq, pa.ChunkedArray):
-            seq = seq.combine_chunks()
-        if isinstance(index, pa.ChunkedArray):
-            index = index.combine_chunks()
+        seq = seq.combine_chunks() if isinstance(seq, pa.ChunkedArray) else seq
+        index = index.combine_chunks() if isinstance(index, pa.ChunkedArray) else index
         # flatten
-        seq_flattened, seq_offsets = flatten_list_array(seq)
+        _, seq_offsets = flatten_list_array(seq)
+        seq_offsets = (
+            np.arange(len(seq) + 1) * seq_offsets if isinstance(seq_offsets, int) else seq_offsets
+        )
+        # print(seq_offsets)
         index_flatten, index_offsets = flatten_list_array(index)
         # convert negative indices to positives
         lengths_flatten = np.array(seq.value_lengths()).repeat(index.value_lengths())

@@ -90,6 +90,17 @@ class TestSequenceGetItems(BaseDataProcessorTest):
     expected_output_data = [[0, 1, 2], [7, 5]]
 
 
+class TestSequenceGetItemsFixedSizeList(BaseDataProcessorTest):
+    processor = SequenceGetItems()
+    input_features = {"seq": Annotated[Sequence[Int], Len(3)], "index": Sequence[Int]}
+    input_data = [
+        {"seq": [2, 1, 0], "index": [2, 1, 0]},
+        {"seq": [5, 3, 7], "index": [2, 0]},
+    ]
+    expected_output_feature = Sequence[Int]
+    expected_output_data = [[0, 1, 2], [7, 5]]
+
+
 class TestSequenceGetItemsNegative(BaseDataProcessorTest):
     processor = SequenceGetItems()
     input_features = {"seq": Sequence[Int], "index": Sequence[Int]}
