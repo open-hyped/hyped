@@ -3,7 +3,7 @@ from unittest.mock import ANY, MagicMock, patch
 from hyped.core.builder import DataFlowGraphBuilder
 from hyped.core.features.features import Feature
 from hyped.core.features.reference import ConcreteReference
-from hyped.core.ops.cast import cast
+from hyped.core.ops.casting import cast
 from hyped.core.typing import Int
 
 
@@ -18,8 +18,8 @@ def test_cast() -> None:
 
     # patch the function that retrieves the concrete data type to cast to
     with (
-        patch("hyped.core.ops.cast.build_feature_from_annotation"),
-        patch("hyped.core.ops.cast.build_feature_from_reference") as mock_build_feature_from_ref,
+        patch("hyped.core.ops.casting.build_feature_from_annotation"),
+        patch("hyped.core.ops.casting.build_feature_from_reference") as mock_build_feature_from_ref,
     ):
         # cast the feature to an integer and check the output and internals
         assert cast(Int, feature) == mock_build_feature_from_ref.return_value
