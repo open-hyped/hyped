@@ -337,7 +337,7 @@ class SequenceUnpack(BaseDataAugmentor[SequenceUnpackConfig]):
         """
         length: int = ctx.input_dtype["seq"].length
         if length != UNDEFINED_SEQUENCE_LENGTH:
-            return str(uuid5(UUID(partition), length.to_bytes(4)))
+            return str(uuid5(UUID(partition), length.to_bytes(4, byteorder="big").decode()))
 
         return super(SequenceUnpack, self).infer_output_partition(ctx, partition)
 
@@ -383,7 +383,7 @@ class SequenceUnpackWithIndex(BaseDataAugmentor[SequenceUnpackWithIndexConfig]):
         """
         length: int = ctx.input_dtype["seq"].length
         if length != UNDEFINED_SEQUENCE_LENGTH:
-            return str(uuid5(UUID(partition), length.to_bytes(4)))
+            return str(uuid5(UUID(partition), length.to_bytes(4, byteorder="big").decode()))
 
         return super(SequenceUnpackWithIndex, self).infer_output_partition(ctx, partition)
 
