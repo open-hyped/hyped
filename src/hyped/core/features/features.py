@@ -669,7 +669,10 @@ class OrderableFeatureMixin:
 
 
 class Int8Feature(
-    PrimitiveFeature[dtypes.Int8Type], OrderableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.Int8Type],
+    ComparableFeatureMixin,
+    OrderableFeatureMixin,
+    StatisticalFeatureMixin,
 ):
     """A primitive feature representing a signed 8-bit integer."""
 
@@ -1041,7 +1044,10 @@ class Int8Feature(
 
 
 class Int16Feature(
-    PrimitiveFeature[dtypes.Int16Type], OrderableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.Int16Type],
+    ComparableFeatureMixin,
+    OrderableFeatureMixin,
+    StatisticalFeatureMixin,
 ):
     """A primitive feature representing a signed 16-bit integer."""
 
@@ -1413,7 +1419,10 @@ class Int16Feature(
 
 
 class Int32Feature(
-    PrimitiveFeature[dtypes.Int32Type], OrderableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.Int32Type],
+    ComparableFeatureMixin,
+    OrderableFeatureMixin,
+    StatisticalFeatureMixin,
 ):
     """A primitive feature representing a signed 32-bit integer."""
 
@@ -1787,7 +1796,10 @@ class Int32Feature(
 
 
 class Int64Feature(
-    PrimitiveFeature[dtypes.Int64Type], OrderableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.Int64Type],
+    ComparableFeatureMixin,
+    OrderableFeatureMixin,
+    StatisticalFeatureMixin,
 ):
     """A primitive feature representing a signed 64-bit integer."""
 
@@ -2159,7 +2171,10 @@ class Int64Feature(
 
 
 class UInt8Feature(
-    PrimitiveFeature[dtypes.UInt8Type], OrderableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.UInt8Type],
+    ComparableFeatureMixin,
+    OrderableFeatureMixin,
+    StatisticalFeatureMixin,
 ):
     """A primitive feature representing an unsigned 8-bit integer."""
 
@@ -2531,7 +2546,10 @@ class UInt8Feature(
 
 
 class UInt16Feature(
-    PrimitiveFeature[dtypes.UInt16Type], OrderableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.UInt16Type],
+    ComparableFeatureMixin,
+    OrderableFeatureMixin,
+    StatisticalFeatureMixin,
 ):
     """A primitive feature representing an unsigned 16-bit integer."""
 
@@ -2903,7 +2921,10 @@ class UInt16Feature(
 
 
 class UInt32Feature(
-    PrimitiveFeature[dtypes.UInt32Type], OrderableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.UInt32Type],
+    ComparableFeatureMixin,
+    OrderableFeatureMixin,
+    StatisticalFeatureMixin,
 ):
     """A primitive feature representing an unsigned 32-bit integer."""
 
@@ -3275,7 +3296,10 @@ class UInt32Feature(
 
 
 class UInt64Feature(
-    PrimitiveFeature[dtypes.UInt64Type], OrderableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.UInt64Type],
+    ComparableFeatureMixin,
+    OrderableFeatureMixin,
+    StatisticalFeatureMixin,
 ):
     """A primitive feature representing an unsigned 64-bit integer."""
 
@@ -3659,7 +3683,10 @@ IntFeature: TypeAlias = Union[
 
 
 class Float32Feature(
-    PrimitiveFeature[dtypes.Float32Type], OrderableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.Float32Type],
+    ComparableFeatureMixin,
+    OrderableFeatureMixin,
+    StatisticalFeatureMixin,
 ):
     """A primitive feature representing a 32-bit floating-point number."""
 
@@ -3894,7 +3921,10 @@ class Float32Feature(
 
 
 class Float64Feature(
-    PrimitiveFeature[dtypes.Float64Type], OrderableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.Float64Type],
+    ComparableFeatureMixin,
+    OrderableFeatureMixin,
+    StatisticalFeatureMixin,
 ):
     """A primitive feature representing a 64-bit floating-point number."""
 
