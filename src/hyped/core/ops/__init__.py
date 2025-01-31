@@ -4,6 +4,7 @@ __all__ = [
     "zip_",
     "cast",
     "filter_",
+    "comparison",
     "boolean",
     "string",
     "numeric",
@@ -12,7 +13,7 @@ __all__ = [
 ]
 
 # import all to register all methods
-from . import boolean, mapping, numeric, sequence, string
+from . import boolean, comparison, mapping, numeric, sequence, string
 from .casting import cast
 from .sequence import zip_
 from .utils import filter_

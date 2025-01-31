@@ -66,7 +66,7 @@ logger = logging.getLogger(__name__)
 DataType = TypeVar("DataType", bound=dtypes.DType)
 
 
-@dataclass(eq=True, frozen=False)
+@dataclass(eq=False, frozen=False)
 class Feature(MethodRegistryMixin, Generic[DataType]):
     """Base class for defining features in a data flow graph.
 
@@ -131,7 +131,33 @@ class Feature(MethodRegistryMixin, Generic[DataType]):
         return core_schema.is_instance_schema(cls)
 
 
-@dataclass(eq=True, frozen=False)
+class ComparableFeatureMixin:
+    """Mixin providing comparison operations features."""
+
+    def __eq__(self: Feature, other: Feature) -> BoolFeature:
+        """Compares if the feature is equal to another value.
+
+        Args:
+            other (Any): The value to compare with.
+
+        Returns:
+            BoolFeature: A boolean feature indicating whether the values are equal.
+        """
+        return self.execute_method("__eq__", other)
+
+    def __ne__(self: Feature, other: Feature) -> BoolFeature:
+        """Compares if the feature is not equal to another value.
+
+        Args:
+            other (Any): The value to compare with.
+
+        Returns:
+            BoolFeature: A boolean feature indicating whether the values are not equal.
+        """
+        return self.execute_method("__ne__", other)
+
+
+@dataclass(eq=False, frozen=False)
 class PrimitiveFeature(Feature[DataType]):
     """Base class for primitive feature types.
 
@@ -207,7 +233,7 @@ class PrimitiveFeature(Feature[DataType]):
         )
 
 
-class BoolFeature(PrimitiveFeature[dtypes.BoolType]):
+class BoolFeature(PrimitiveFeature[dtypes.BoolType], ComparableFeatureMixin):
     """A primitive feature representing a boolean value."""
 
     _expected_dtype: Final[dtypes.DType] = dtypes.BoolType
@@ -288,7 +314,7 @@ class BoolFeature(PrimitiveFeature[dtypes.BoolType]):
         return self.execute_method("__rxor__", other)
 
 
-class StringFeature(PrimitiveFeature[dtypes.StringType]):
+class StringFeature(PrimitiveFeature[dtypes.StringType], ComparableFeatureMixin):
     """A primitive feature representing a string value."""
 
     _expected_dtype: Final[dtypes.DType] = dtypes.StringType
@@ -569,8 +595,8 @@ class StatisticalFeatureMixin:
         return self.execute_method("mean")
 
 
-class ComparableFeatureMixin:
-    """Mixin providing comparison operations for primitive features.
+class OrderableFeatureMixin:
+    """Mixin providing operations that require a features to be total ordered.
 
     This mixin defines methods for comparing primitive features and for obtaining
     minimum and maximum values. Subclasses implementing primitive features can
@@ -592,28 +618,6 @@ class ComparableFeatureMixin:
             Self: A new feature instance representing the maximum value.
         """
         return self.execute_method("max")
-
-    def __eq__(self: PrimitiveFeature, other: Any) -> BoolFeature:
-        """Compares if the feature is equal to another value.
-
-        Args:
-            other (Any): The value to compare with.
-
-        Returns:
-            BoolFeature: A boolean feature indicating whether the values are equal.
-        """
-        return self.execute_method("__eq__")
-
-    def __ne__(self: PrimitiveFeature, other: Any) -> BoolFeature:
-        """Compares if the feature is not equal to another value.
-
-        Args:
-            other (Any): The value to compare with.
-
-        Returns:
-            BoolFeature: A boolean feature indicating whether the values are not equal.
-        """
-        return self.execute_method("__ne__")
 
     def __lt__(self: PrimitiveFeature, other: Any) -> BoolFeature:
         """Compares if the feature is less than another value.
@@ -665,7 +669,7 @@ class ComparableFeatureMixin:
 
 
 class Int8Feature(
-    PrimitiveFeature[dtypes.Int8Type], ComparableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.Int8Type], OrderableFeatureMixin, StatisticalFeatureMixin
 ):
     """A primitive feature representing a signed 8-bit integer."""
 
@@ -1037,7 +1041,7 @@ class Int8Feature(
 
 
 class Int16Feature(
-    PrimitiveFeature[dtypes.Int16Type], ComparableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.Int16Type], OrderableFeatureMixin, StatisticalFeatureMixin
 ):
     """A primitive feature representing a signed 16-bit integer."""
 
@@ -1409,7 +1413,7 @@ class Int16Feature(
 
 
 class Int32Feature(
-    PrimitiveFeature[dtypes.Int32Type], ComparableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.Int32Type], OrderableFeatureMixin, StatisticalFeatureMixin
 ):
     """A primitive feature representing a signed 32-bit integer."""
 
@@ -1783,7 +1787,7 @@ class Int32Feature(
 
 
 class Int64Feature(
-    PrimitiveFeature[dtypes.Int64Type], ComparableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.Int64Type], OrderableFeatureMixin, StatisticalFeatureMixin
 ):
     """A primitive feature representing a signed 64-bit integer."""
 
@@ -2155,7 +2159,7 @@ class Int64Feature(
 
 
 class UInt8Feature(
-    PrimitiveFeature[dtypes.UInt8Type], ComparableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.UInt8Type], OrderableFeatureMixin, StatisticalFeatureMixin
 ):
     """A primitive feature representing an unsigned 8-bit integer."""
 
@@ -2527,7 +2531,7 @@ class UInt8Feature(
 
 
 class UInt16Feature(
-    PrimitiveFeature[dtypes.UInt16Type], ComparableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.UInt16Type], OrderableFeatureMixin, StatisticalFeatureMixin
 ):
     """A primitive feature representing an unsigned 16-bit integer."""
 
@@ -2899,7 +2903,7 @@ class UInt16Feature(
 
 
 class UInt32Feature(
-    PrimitiveFeature[dtypes.UInt32Type], ComparableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.UInt32Type], OrderableFeatureMixin, StatisticalFeatureMixin
 ):
     """A primitive feature representing an unsigned 32-bit integer."""
 
@@ -3271,7 +3275,7 @@ class UInt32Feature(
 
 
 class UInt64Feature(
-    PrimitiveFeature[dtypes.UInt64Type], ComparableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.UInt64Type], OrderableFeatureMixin, StatisticalFeatureMixin
 ):
     """A primitive feature representing an unsigned 64-bit integer."""
 
@@ -3643,7 +3647,7 @@ class UInt64Feature(
 
 
 class Float32Feature(
-    PrimitiveFeature[dtypes.Float32Type], ComparableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.Float32Type], OrderableFeatureMixin, StatisticalFeatureMixin
 ):
     """A primitive feature representing a 32-bit floating-point number."""
 
@@ -3878,7 +3882,7 @@ class Float32Feature(
 
 
 class Float64Feature(
-    PrimitiveFeature[dtypes.Float64Type], ComparableFeatureMixin, StatisticalFeatureMixin
+    PrimitiveFeature[dtypes.Float64Type], OrderableFeatureMixin, StatisticalFeatureMixin
 ):
     """A primitive feature representing a 64-bit floating-point number."""
 
@@ -4101,7 +4105,7 @@ class Float64Feature(
         return type(self).get_method("__floordiv__")(other, self)
 
 
-@dataclass(eq=True, frozen=False)
+@dataclass(eq=False, frozen=False)
 class ClassLabelFeature(Int64Feature):
     """A base class for defining strongly-typed categorical class labels.
 
@@ -4280,8 +4284,8 @@ class ClassLabelFeature(Int64Feature):
 T = TypeVar("T")
 
 
-@dataclass(eq=True, frozen=False)
-class SequenceFeature(typing.Sequence[T], Feature[dtypes.SequenceType]):
+@dataclass(eq=False, frozen=False)
+class SequenceFeature(typing.Sequence[T], Feature[dtypes.SequenceType], ComparableFeatureMixin):
     """A feature representing a sequence of items.
 
     The :class:`SequenceFeature` class models a feature where the data type is a sequence,
@@ -4574,8 +4578,8 @@ class ExcludeFieldIf(pydantic.AfterValidator):
         super(ExcludeFieldIf, self).__init__(wrapped_condition)
 
 
-@dataclass(eq=True, frozen=False)
-class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
+@dataclass(eq=False, frozen=False)
+class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType], ComparableFeatureMixin):
     """A base class for defining strongly-typed mappings.
 
     Represents a strongly-typed mapping feature, which can be used to define fields
