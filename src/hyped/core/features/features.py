@@ -207,10 +207,16 @@ class PrimitiveFeature(Feature[DataType]):
         )
 
 
+Feat = TypeVar("Feat", bound=Feature)
+
+
 class BoolFeature(PrimitiveFeature[dtypes.BoolType]):
     """A primitive feature representing a boolean value."""
 
     _expected_dtype: Final[dtypes.DType] = dtypes.BoolType
+
+    def ifelse(self, a: Feat, b: Feat) -> Feat:
+        return self.execute_method("ifelse", a, b)
 
     def __invert__(self) -> BoolFeature:
         """Performs boolean negation ('~').
