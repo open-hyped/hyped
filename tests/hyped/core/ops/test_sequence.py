@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 from hyped.core.graph import DataFlowGraph
 from hyped.core.ops.sequence import (
     SequenceGetItem,
+    SequenceGetItems,
     SequenceGetSlice,
     SequenceLength,
     SequenceMax,
@@ -57,14 +58,69 @@ class TestSequenceSum(BaseDataProcessorTest):
 
 
 class TestSequenceGetItem(BaseDataProcessorTest):
-    processor = SequenceGetItem(index=1)  # Retrieving the second item in the sequence
-    input_features = {"seq": Sequence[Int]}
+    processor = SequenceGetItem()
+    input_features = {"seq": Sequence[Int], "index": Int}
     input_data = [
-        {"seq": [2, 1, 0]},  # Item at index 1 is 1
-        {"seq": [5, 3, 7]},  # Item at index 1 is 3
+        {"seq": [2, 1, 0], "index": 1},
+        {"seq": [5, 3, 7], "index": 0},
     ]
     expected_output_feature = Int
-    expected_output_data = [1, 3]
+    expected_output_data = [1, 5]
+
+
+class TestSequenceGetItemNegative(BaseDataProcessorTest):
+    processor = SequenceGetItem()
+    input_features = {"seq": Sequence[Int], "index": Int}
+    input_data = [
+        {"seq": [2, 1, 0], "index": -2},
+        {"seq": [5, 3, 7], "index": -1},
+    ]
+    expected_output_feature = Int
+    expected_output_data = [1, 7]
+
+
+class TestSequenceGetItems(BaseDataProcessorTest):
+    processor = SequenceGetItems()
+    input_features = {"seq": Sequence[Int], "index": Sequence[Int]}
+    input_data = [
+        {"seq": [2, 1, 0], "index": [2, 1, 0]},
+        {"seq": [5, 3, 7], "index": [2, 0]},
+    ]
+    expected_output_feature = Sequence[Int]
+    expected_output_data = [[0, 1, 2], [7, 5]]
+
+
+class TestSequenceGetItemsFixedSizeList(BaseDataProcessorTest):
+    processor = SequenceGetItems()
+    input_features = {"seq": Annotated[Sequence[Int], Len(3)], "index": Sequence[Int]}
+    input_data = [
+        {"seq": [2, 1, 0], "index": [2, 1, 0]},
+        {"seq": [5, 3, 7], "index": [2, 0]},
+    ]
+    expected_output_feature = Sequence[Int]
+    expected_output_data = [[0, 1, 2], [7, 5]]
+
+
+class TestSequenceGetItemsNegative(BaseDataProcessorTest):
+    processor = SequenceGetItems()
+    input_features = {"seq": Sequence[Int], "index": Sequence[Int]}
+    input_data = [
+        {"seq": [2, 1, 0], "index": [-2, 1, -1]},
+        {"seq": [5, 3, 7], "index": [-1, 1]},
+    ]
+    expected_output_feature = Sequence[Int]
+    expected_output_data = [[1, 1, 0], [7, 3]]
+
+
+class TestSequenceGetItemsOutputLength(BaseDataProcessorTest):
+    processor = SequenceGetItems()
+    input_features = {"seq": Sequence[Int], "index": Annotated[Sequence[Int], Len(3)]}
+    input_data = [
+        {"seq": [2, 1, 0], "index": [-2, 1, -1]},
+        {"seq": [5, 3, 7], "index": [-1, 1, 0]},
+    ]
+    expected_output_feature = Annotated[Sequence[Int], Len(3, strict=True)]
+    expected_output_data = [[1, 1, 0], [7, 3, 5]]
 
 
 class TestSequenceGetSlice(BaseDataProcessorTest):
