@@ -9,12 +9,14 @@ These processors are registered as methods on the `BoolFeature` class, enabling 
 application to Boolean features.
 """
 
+from typing import TypeVar
+
 import pyarrow.compute as pc
 
-from ..features.features import BoolFeature
+from ..features.features import BoolFeature, Feature
 from ..nodes.base import RunContext, process_mode
 from ..nodes.processor import BaseDataProcessor, BaseDataProcessorConfig
-from ..typing import Bool
+from ..typing import Annotated, Bool, MatchFeatures
 
 
 class InvertConfig(BaseDataProcessorConfig):
@@ -104,7 +106,38 @@ class Xor(BaseDataProcessor[XorConfig]):
         return pc.xor(a, b)
 
 
+class WhereConfig(BaseDataProcessorConfig):
+    """Configuration for the :class:`Where` processor."""
+
+
+class Where(BaseDataProcessor[WhereConfig]):
+    """Data processor that selects between two values based on a Boolean condition.
+
+    This processor returns the first value if the condition is true,
+    otherwise it returns the second value. It acts similarly to the
+    ternary expression `a if cond else b`.
+    """
+
+    T = Annotated[TypeVar("T", bound=Feature), MatchFeatures()]
+
+    @process_mode(batched=False, backend="python")
+    def process(self, ctx: RunContext, cond: Bool, a: T, b: T) -> T:
+        """Selects one of two values based on a Boolean condition.
+
+        Args:
+            ctx (RunContext): The execution context.
+            cond (Bool): The Boolean condition to evaluate.
+            a (T): The value to return if `cond` is True.
+            b (T): The value to return if `cond` is False.
+
+        Returns:
+            T: The selected value based on the condition.
+        """
+        return a if cond else b
+
+
 # Register all methods
+BoolFeature.register_method("where")(Where().call)
 BoolFeature.register_method("__invert__")(Invert().call)
 BoolFeature.register_method("__and__")(BoolFeature.register_method("__rand__")(And().call))
 BoolFeature.register_method("__or__")(BoolFeature.register_method("__ror__")(Or().call))
