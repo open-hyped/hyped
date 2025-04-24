@@ -120,7 +120,7 @@ class Where(BaseDataProcessor[WhereConfig]):
 
     T = Annotated[TypeVar("T", bound=Feature), MatchFeatures()]
 
-    @process_mode(batched=False, backend="python")
+    @process_mode(batched=True, backend="arrow")
     def process(self, ctx: RunContext, cond: Bool, a: T, b: T) -> T:
         """Selects one of two values based on a Boolean condition.
 
@@ -133,7 +133,7 @@ class Where(BaseDataProcessor[WhereConfig]):
         Returns:
             T: The selected value based on the condition.
         """
-        return a if cond else b
+        return pc.choose(cond, b, a)
 
 
 # Register all methods

@@ -98,10 +98,10 @@ class DataFlowGraphOptimizer(object):
 
             node_type: DataFlowGraph.NodeType
             node_config: Any
-            in_edge_identifiers: list[tuple[NodeId, str]]
-            node_id: NodeId = field(default=None, compare=False)
+            in_edge_identifiers: list[tuple[ConcreteReference, str]]
+            ref: ConcreteReference = field(default=None, compare=False)
 
-        cse_graph = DataFlowGraph()
+        builder = DataFlowGraphBuilder()
         # maps nodes of the original graph to the nodes in the cse-graph
         # this is a non-injective function as multiple nodes in the original
         # graph can be mapped to the same target node during optimization
@@ -124,8 +124,6 @@ class DataFlowGraphOptimizer(object):
                 node_data = graph.nodes[node_id]
                 node_type = node_data[DataFlowGraph.NodeAttribute.NODE_TYPE]
                 node_obj = node_data[DataFlowGraph.NodeAttribute.NODE_OBJ]
-                partition = node_data[DataFlowGraph.NodeAttribute.PARTITION]
-                out_partition = node_data[DataFlowGraph.NodeAttribute.OUT_PARTITION]
                 # create cse node identifier
                 identifier = NodeIdentifier(
                     node_type=node_type,
@@ -137,8 +135,8 @@ class DataFlowGraphOptimizer(object):
                 if identifier in cse_layer:
                     identifier = cse_layer[cse_layer.index(identifier)]
 
-                    assert identifier.node_id is not None
-                    node_mapping[node_id] = identifier.node_id
+                    assert identifier.ref is not None
+                    node_mapping[node_id] = identifier.ref
 
                 else:
                     # read node feature properties
@@ -146,41 +144,38 @@ class DataFlowGraphOptimizer(object):
                     out_feature_type = node_data[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
 
                     # build input references object from in-edge identifiers
-                    inputs: dict[str, NodeId] = {
-                        name: node_mapping[src_node_id] for src_node_id, name in in_edge_identifiers
+                    inputs: dict[str, ConcreteReference] = {
+                        name: node_mapping[src_node_ref._node_id]
+                        for src_node_ref, name in in_edge_identifiers
                     }
 
                     if identifier.node_type == DataFlowGraph.NodeType.SOURCE:
-                        identifier.node_id = cse_graph.add_source_node(
-                            out_feature_type, node_id=node_id
-                        )
+                        identifier.ref = builder.source(out_feature_type, node_id=node_id)
 
                     else:
-                        identifier.node_id = cse_graph.add_node(
+                        identifier.ref = builder._add_node_to_graph(
                             node_obj=node_obj,
                             node_type=node_type,
                             inputs=inputs,
                             output_dtype=out_feature_type,
-                            partition=partition,
-                            out_partition=out_partition,
                             node_id=node_id,
                         )
 
                     # make sure the input feature type
                     assert (
                         in_feature_type
-                        == cse_graph.nodes[identifier.node_id][
+                        == builder.graph.nodes[identifier.ref._node_id][
                             DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE
                         ]
                     )
 
                     # update cse layer and node id mapping
-                    assert identifier.node_id is not None
+                    assert identifier.ref is not None
                     cse_layer.append(identifier)
                     # the node keeps the same id
-                    node_mapping[node_id] = node_id
+                    node_mapping[node_id] = identifier.ref
 
-        return cse_graph, node_mapping
+        return builder.graph, {k: v._node_id for k, v in node_mapping.items()}
 
     def constant_evaluation(self, graph: DataFlowGraph, leaf_nodes: set[NodeId]) -> DataFlowGraph:
         """Pre-computes the constant partition of the data flow graph.
