@@ -17,7 +17,7 @@ from .features.dtypes import (
 from .features.engine import FeatureEngine
 from .features.features import Feature, build_feature_from_reference
 from .features.reference import ConcreteReference
-from .graph import DataFlowGraph, _build_dependency_graph, _compute_node_depth
+from .graph import DataFlowGraph, _build_dependency_graph
 from .nodes.aggregator import BaseDataAggregator
 from .nodes.augmentor import BaseDataAugmentor
 from .nodes.base import BaseNode, RunContext
@@ -216,11 +216,11 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
 
         # build the partition graph and compute the depth of each node
         p_graph = self._build_partition_graph()
-        p_depths = _compute_node_depth(p_graph)
+        p_depth = nx.single_source_shortest_path_length(p_graph, DataFlowGraph.Partition.DEFAULT)
 
         # select the candidate partition that is deepest in the partition graph
         # as it is the only one that can consume all candidate partitions
-        candidate = max(candidate_partitions, key=p_depths.get)
+        candidate = max(candidate_partitions, key=p_depth.get)
 
         p_dep_graph = _build_dependency_graph(p_graph, {candidate})
         # build the set of allowed partitions
@@ -306,15 +306,14 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
 
         This method builds a directed graph where each node represents a partition
         within the data flow graph, and edges represent the flow of data between
-        these partitions. The resulting partition graph is required to have a tree
-        structure, where each partition (except the root) has a single parent partition.
+        these partitions.
 
-        Note that while the data flow graph itself is asyclic, the partition graph
-        doesn't need to be.
+        The partition graph may be acyclic, as augmentors can decide independently which
+        partition to point into.
 
         Note that while the partition graph includes the constant partition, it does not
         model the flow of constants to other partitions, i.e. the constant partition is
-        not isolated from the remaining partition graph. Reason for this design choice is
+        isolated from the remaining partition graph. Reason for this design choice is
         that constants are special in that they can be used in any partition.
 
         Returns:
