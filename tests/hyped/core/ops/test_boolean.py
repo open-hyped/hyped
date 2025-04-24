@@ -1,6 +1,6 @@
-from hyped.core.ops.boolean import And, Invert, Or, Xor
+from hyped.core.ops.boolean import And, Invert, Or, Where, Xor
 from hyped.core.testing.processor import BaseDataProcessorTest
-from hyped.core.typing import Bool
+from hyped.core.typing import Bool, Int
 
 
 class TestInvert(BaseDataProcessorTest):
@@ -48,3 +48,19 @@ class TestXOr(BaseDataProcessorTest):
     ]
     expected_output_feature = Bool
     expected_output_data = [False, True, True, False]
+
+
+class TestWhere(BaseDataProcessorTest):
+    processor = Where()
+    input_features = {"cond": Bool, "a": Int, "b": Int}
+    input_data = [
+        {"cond": True, "a": 0, "b": 1},
+        {"cond": False, "a": 0, "b": 1},
+        {"cond": False, "a": 0, "b": 1},
+        {"cond": True, "a": 0, "b": 1},
+        {"cond": True, "a": 0, "b": 1},
+        {"cond": False, "a": 0, "b": 1},
+        {"cond": True, "a": 0, "b": 1},
+    ]
+    expected_output_feature = Int
+    expected_output_data = [0, 1, 1, 0, 0, 1, 0]
