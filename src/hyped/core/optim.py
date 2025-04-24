@@ -23,6 +23,7 @@ which can be applied individually or in combination to optimize a given data flo
 """
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass, field
 from itertools import groupby
 from typing import Any
@@ -36,7 +37,7 @@ from .features.dtypes import BoolType, DType, MappingType
 from .features.reference import ConcreteReference
 from .graph import DataFlowGraph
 from .ops.mapping import MappingGetItem
-from .typing import NodeId
+from .typing import NodeId, PartitionId
 
 
 class DataFlowGraphOptimizer(object):
@@ -107,23 +108,70 @@ class DataFlowGraphOptimizer(object):
         # graph can be mapped to the same target node during optimization
         node_mapping: dict[NodeId, NodeId] = {}
 
+        # backlog of trace nodes that occured during processing but
+        # were not added to the graph yet
+        trace_nodes: dict[PartitionId, set[NodeId]] = defaultdict(set)
+        partition_mapping: dict[PartitionId, PartitionId] = {}
+
         def key(n):
             return graph.nodes[n][DataFlowGraph.NodeAttribute.DEPTH]
 
         for _, layer in groupby(sorted(graph, key=key), key=key):
             cse_layer: list[NodeIdentifier] = []
 
-            for node_id in layer:
+            # separate trace nodes from non-trace nodes
+            nt = {n: graph.nodes[n][DataFlowGraph.NodeAttribute.NODE_TYPE] for n in layer}
+            layer_trace_nodes = [n for n, t in nt.items() if t == DataFlowGraph.NodeType.TRACE]
+            layer_other_nodes = [n for n, t in nt.items() if t != DataFlowGraph.NodeType.TRACE]
+
+            # capture trace nodes in backlog
+            for trace_node in layer_trace_nodes:
+                partition = graph.nodes[trace_node][DataFlowGraph.NodeAttribute.OUT_PARTITION]
+                trace_nodes[partition].add(trace_node)
+
+            # process all trace nodes which have defined target
+            # partitions in the cse graph
+            for tgt_partition in list(trace_nodes.keys()):
+                if tgt_partition in partition_mapping.keys():
+                    new_tgt_partition = partition_mapping[tgt_partition]
+
+                    for trace_node_id in trace_nodes.pop(tgt_partition):
+                        # trace nodes only have a single in-edge
+                        src_node_id, _, k = next(iter(graph.in_edges(trace_node_id, keys=True)))
+                        src_node_ref = node_mapping[src_node_id]
+
+                        # create a node identifier for the trace node, use the new target
+                        # partition of the trace node as an alias of its config
+                        identifier = NodeIdentifier(
+                            node_type=DataFlowGraph.NodeType.TRACE,
+                            node_config=new_tgt_partition,
+                            in_edge_identifiers=[(src_node_ref, k)],
+                        )
+
+                        if identifier in cse_layer:
+                            identifier = cse_layer[cse_layer.index(identifier)]
+                            node_mapping[trace_node_id] = identifier.ref
+
+                        else:
+                            identifier.ref = builder.trace(
+                                ref=src_node_ref, tgt=new_tgt_partition, node_id=trace_node_id
+                            )
+                            cse_layer.append(identifier)
+                            node_mapping[trace_node_id] = identifier.ref
+
+            # process all other nodes
+            for node_id in layer_other_nodes:
                 # build identifiers for incoming edges with
                 # source nodes mapped to nodes in optimized graph
                 in_edge_identifiers = [
-                    (node_mapping[src_node_id], key)
-                    for src_node_id, _, key in graph.in_edges(node_id, keys=True)
+                    (node_mapping[src_node_id], k)
+                    for src_node_id, _, k in graph.in_edges(node_id, keys=True)
                 ]
 
                 node_data = graph.nodes[node_id]
                 node_type = node_data[DataFlowGraph.NodeAttribute.NODE_TYPE]
                 node_obj = node_data[DataFlowGraph.NodeAttribute.NODE_OBJ]
+                node_out_partition = node_data[DataFlowGraph.NodeAttribute.OUT_PARTITION]
                 # create cse node identifier
                 identifier = NodeIdentifier(
                     node_type=node_type,
@@ -137,33 +185,34 @@ class DataFlowGraphOptimizer(object):
 
                     assert identifier.ref is not None
                     node_mapping[node_id] = identifier.ref
+                    partition_mapping[node_out_partition] = builder.graph.nodes[
+                        identifier.ref._node_id
+                    ][DataFlowGraph.NodeAttribute.OUT_PARTITION]
 
                 else:
                     # read node feature properties
-                    in_feature_type = node_data[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE]
-                    out_feature_type = node_data[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
-
-                    # build input references object from in-edge identifiers
-                    inputs: dict[str, ConcreteReference] = {
-                        name: node_mapping[src_node_ref._node_id]
-                        for src_node_ref, name in in_edge_identifiers
-                    }
+                    in_dtype = node_data[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE]
+                    out_dtype = node_data[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
 
                     if identifier.node_type == DataFlowGraph.NodeType.SOURCE:
-                        identifier.ref = builder.source(out_feature_type, node_id=node_id)
+                        identifier.ref = builder.source(out_dtype, node_id=node_id)
 
                     else:
+                        inputs: dict[str, ConcreteReference] = {
+                            name: node_mapping[src_node_ref._node_id]
+                            for src_node_ref, name in in_edge_identifiers
+                        }
                         identifier.ref = builder._add_node_to_graph(
                             node_obj=node_obj,
                             node_type=node_type,
                             inputs=inputs,
-                            output_dtype=out_feature_type,
+                            output_dtype=out_dtype,
                             node_id=node_id,
                         )
 
                     # make sure the input feature type
                     assert (
-                        in_feature_type
+                        in_dtype
                         == builder.graph.nodes[identifier.ref._node_id][
                             DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE
                         ]
@@ -174,6 +223,9 @@ class DataFlowGraphOptimizer(object):
                     cse_layer.append(identifier)
                     # the node keeps the same id
                     node_mapping[node_id] = identifier.ref
+                    partition_mapping[node_out_partition] = builder.graph.nodes[
+                        identifier.ref._node_id
+                    ][DataFlowGraph.NodeAttribute.OUT_PARTITION]
 
         return builder.graph, {k: v._node_id for k, v in node_mapping.items()}
 
