@@ -212,6 +212,24 @@ class BoolFeature(PrimitiveFeature[dtypes.BoolType]):
 
     _expected_dtype: Final[dtypes.DType] = dtypes.BoolType
 
+    T = TypeVar("T", bound=Feature)
+
+    def where(self, a: T, b: T) -> T:
+        """Selects values based on the Boolean condition.
+
+        For each element, if the corresponding value in this :class:`BoolFeature`
+        is :code:`True`, the value from :code:`a` is selected, otherwise, the
+        value from :code:`b` is used.
+
+        Args:
+            a (T): The value or feature to select when the condition is :code:`True`.
+            b (T): The value or feature to select when the condition is :code:`False`.
+
+        Returns:
+            T: A new feature with values conditionally selected from :code:`a` or :code:`b`.
+        """
+        return self.execute_method("where", a, b)
+
     def __invert__(self) -> BoolFeature:
         """Performs boolean negation ('~').
 

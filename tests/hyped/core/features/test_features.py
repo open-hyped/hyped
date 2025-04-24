@@ -217,6 +217,14 @@ class TestPrimitiveFeatures:
                 BoolFeature,
                 boolean.XorConfig(),
             ),
+            (
+                BoolFeature,
+                BoolFeature.where,
+                "where",
+                (Int32Feature, Int32Feature),
+                Int32Feature,
+                boolean.WhereConfig(),
+            ),
             # String methods
             (
                 StringFeature,
