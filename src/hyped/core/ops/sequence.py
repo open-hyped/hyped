@@ -718,7 +718,7 @@ def pack_sequence(
     # get the partition of the node that performs the flattening operation
     # and use it as the target partition of the unflattening operation
     partition = (
-        node._graph.nodes[node._node_id][DataFlowGraph.NodeAttribute.PARTITION]
+        node._graph.nodes[node._node_id][DataFlowGraph.NodeAttribute.OUT_PARTITION]
         if node is not None
         else None
     )
