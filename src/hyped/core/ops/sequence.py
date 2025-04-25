@@ -472,6 +472,7 @@ class SequenceUnpackWithIndex(BaseDataAugmentor[SequenceUnpackWithIndexConfig]):
         # flatten the sequence and compute the trace indices
         flattened, _ = flatten_list_array(seq)
         trace_indices = pc.list_parent_indices(seq)
+
         # TODO: not sure how expensive this operation is
         #       could use StructArray.from_arrays instead but chunked
         #       array inputs must be handled manually then
@@ -549,17 +550,19 @@ class SequencePack(BaseDataAugmentor[SequencePackConfig]):
             if isinstance(trace_index, pa.ChunkedArray)
             else trace_index
         )
+
         # compute the offsets where to cut off the array
-        offsets = pa.concat_arrays(
-            [
-                pa.array([0], pa.uint64()),
-                pc.indices_nonzero(pc.pairwise_diff(trace_index)),
-                pa.array([len(trace_index)], pa.uint64()),
-            ]
-        )
+        diffs = np.diff(trace_index.to_numpy(), prepend=0)
+        offsets = np.repeat(np.arange(len(diffs)), diffs)
+        offsets = np.concatenate(([0], offsets, [len(diffs)]))
+
         # unflatten the sequence
-        cutoffs = offsets if self.config.original_length is None else self.config.original_length
-        return unflatten_list_array(values, cutoffs), offsets[:-1].to_pylist()
+        cutoffs = (
+            pa.array(offsets)
+            if self.config.original_length is None
+            else self.config.original_length
+        )
+        return unflatten_list_array(values, cutoffs), offsets[:-1]
 
 
 @SequenceFeature.register_method("min")
@@ -715,7 +718,7 @@ def pack_sequence(
     # get the partition of the node that performs the flattening operation
     # and use it as the target partition of the unflattening operation
     partition = (
-        node._graph.nodes[node._node_id][DataFlowGraph.NodeAttribute.PARTITION]
+        node._graph.nodes[node._node_id][DataFlowGraph.NodeAttribute.OUT_PARTITION]
         if node is not None
         else None
     )

@@ -28,6 +28,38 @@ from .typing import IndexList, NodeId, PartitionId, Rank, TraceIndexList
 logger = logging.getLogger(__name__)
 
 
+class NodeExecutionError(Exception):
+    """Custom exception raised when a node execution fails in the data flow graph."""
+
+    def __init__(self, node_id: NodeId, node_obj: BaseNode, exception: Exception) -> None:
+        """Initializes the :class:`NodeExecutionError`.
+
+        Args:
+            node_id (NodeId): The ID of the node that failed execution.
+            node_obj (BaseNode): The node object that failed execution.
+            exception (Exception): The original exception that caused the failure.
+        """
+        self.node_id = node_id
+        self.node_obj = node_obj
+        self.exception = exception
+
+        RESET = "\033[0m"  # noqa: N806
+        BOLD = "\033[1m"  # noqa: N806
+        RED = "\033[91m"  # noqa: N806
+        CYAN = "\033[96m"  # noqa: N806
+        YELLOW = "\033[93m"  # noqa: N806
+        DIM = "\033[2m"  # noqa: N806
+
+        message = (
+            f"{BOLD}{RED}Failed to execute node '{node_id}'{RESET}\n"
+            f"{CYAN}├─ Node Type:{RESET} {type(node_obj)}\n"
+            f"{CYAN}├─ Config:{RESET} {DIM}{repr(node_obj.config)}{RESET}\n"
+            f"{CYAN}└─ Cause:{RESET} {YELLOW}{type(exception).__name__}{RESET}: {exception}"
+        )
+
+        super().__init__(message)
+
+
 class ExecutionState(object):
     """Tracks the state during the execution of a data flow graph.
 
@@ -251,8 +283,8 @@ class DataFlowGraphExecutor(object):
             state (ExecutionState): The current execution state.
 
         Raises:
-            AssertionError: If the output batch size doesn't match
-                the input batch size.
+            NodeExecutionError: If the node raises an exception during execution.
+            AssertionError: If the output batch size doesn't match the input batch size.
         """
         if self.graph.in_degree(node_id) > 0:
             # wait for all dependencies of the current node
@@ -269,62 +301,68 @@ class DataFlowGraphExecutor(object):
         # build the run context
         ctx = self.build_run_context(node_id, index, state.rank)
 
-        with (
-            node_obj.with_state(self.session.get_context(node_id))
-            if isinstance(node_obj, BaseNode)
-            else nullcontext()
-        ):
-            if node_type == DataFlowGraph.NodeType.CONST:
-                assert isinstance(node_obj, ConstNode)
-                # for constant nodes the node object is a pyarrow array
-                # of a single entry holding the value
-                state.capture_output(node_id, node_obj.config.value)
+        try:
+            with (
+                node_obj.with_state(self.session.get_context(node_id))
+                if isinstance(node_obj, BaseNode)
+                else nullcontext()
+            ):
+                if node_type == DataFlowGraph.NodeType.CONST:
+                    assert isinstance(node_obj, ConstNode)
+                    # for constant nodes the node object is a pyarrow array
+                    # of a single entry holding the value
+                    state.capture_output(node_id, node_obj.config.value)
 
-            elif node_type == DataFlowGraph.NodeType.CAST:
-                # cast the value to the expected data type
-                cast_value = pc.cast(inputs["value"], ctx.output_dtype.arrow_type)
-                state.capture_output(node_id, cast_value)
+                elif node_type == DataFlowGraph.NodeType.CAST:
+                    # cast the value to the expected data type
+                    cast_value = pc.cast(inputs["value"], ctx.output_dtype.arrow_type)
+                    state.capture_output(node_id, cast_value)
 
-            elif node_type == DataFlowGraph.NodeType.COLLECT:
-                # collect values and capture values
-                values = node_obj.collect(ctx, inputs)
-                state.capture_output(node_id, values)
+                elif node_type == DataFlowGraph.NodeType.COLLECT:
+                    # collect values and capture values
+                    values = node_obj.collect(ctx, inputs)
+                    state.capture_output(node_id, values)
 
-            elif node_type == DataFlowGraph.NodeType.TRACE:
-                # wait for the target partition to be registered before tracing to it
-                target_partition = node_attrs[DataFlowGraph.NodeAttribute.OUT_PARTITION]
-                await state.wait_for_partition_registered(target_partition)
-                # get the target batch size
-                target_batch_size = len(state.index[target_partition])
-                # trace the value through to the target partition
-                values = node_obj.trace_values_through_partition_path(
-                    ctx, inputs["value"], target_batch_size, state.traces
-                )
-                state.capture_output(node_id, values)
+                elif node_type == DataFlowGraph.NodeType.TRACE:
+                    # wait for the target partition to be registered before tracing to it
+                    target_partition = node_attrs[DataFlowGraph.NodeAttribute.OUT_PARTITION]
+                    await state.wait_for_partition_registered(target_partition)
+                    # get the target batch size
+                    target_batch_size = len(state.index[target_partition])
+                    # trace the value through to the target partition
+                    values = node_obj.trace_values_through_partition_path(
+                        ctx, inputs["value"], target_batch_size, state.traces
+                    )
+                    state.capture_output(node_id, values)
 
-            elif node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
-                # run processor and check the output batch size
-                out = await node_obj.run(ctx, inputs)
-                assert out.type == ctx.output_dtype.arrow_type, "Unexpected output type"
-                assert len(out) == len(index), "Output values length does not match index length."
-                # capture output in execution state
-                state.capture_output(node_id, out)
+                elif node_type == DataFlowGraph.NodeType.DATA_PROCESSOR:
+                    # run processor and check the output batch size
+                    out = await node_obj.run(ctx, inputs)
+                    assert out.type == ctx.output_dtype.arrow_type, "Unexpected output type"
+                    assert len(out) == len(
+                        index
+                    ), "Output values length does not match index length."
+                    # capture output in execution state
+                    state.capture_output(node_id, out)
 
-            elif node_type == DataFlowGraph.NodeType.DATA_AUGMENTOR:
-                # run processor and check the output batch size
-                out, trace_index = await node_obj.run(ctx, inputs)
-                assert out.type == ctx.output_dtype.arrow_type, "Unexpected output type"
-                # register output partition and capture output in execution state
-                state.register_partition_trace(node_id, trace_index)
-                state.capture_output(node_id, out)
+                elif node_type == DataFlowGraph.NodeType.DATA_AUGMENTOR:
+                    # run processor and check the output batch size
+                    out, trace_index = await node_obj.run(ctx, inputs)
+                    assert out.type == ctx.output_dtype.arrow_type, "Unexpected output type"
+                    # register output partition and capture output in execution state
+                    state.register_partition_trace(node_id, trace_index)
+                    state.capture_output(node_id, out)
 
-            elif node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
-                # run aggregator
-                assert self.aggregation_manager is not None
-                await self.aggregation_manager.aggregate(node_obj, ctx, inputs)
+                elif node_type == DataFlowGraph.NodeType.DATA_AGGREGATOR:
+                    # run aggregator
+                    assert self.aggregation_manager is not None
+                    await self.aggregation_manager.aggregate(node_obj, ctx, inputs)
 
-            else:  # pragma: not covered
-                raise TypeError(f"Unsupported node type: {node_type}")
+                else:  # pragma: not covered
+                    raise TypeError(f"Unsupported node type: {node_type}")
+
+        except Exception as e:  # pragma: not covered
+            raise NodeExecutionError(node_id, node_obj, e) from e
 
     async def execute(self, batch: pa.Array, index: IndexList, rank: Rank) -> pa.Array:
         """Execute the entire data flow graph.
