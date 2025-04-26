@@ -9,6 +9,7 @@ from hyped.core.ops.sequence import (
     SequenceMax,
     SequenceMin,
     SequencePack,
+    SequencePad,
     SequenceSum,
     SequenceUnpack,
     SequenceUnpackWithIndex,
@@ -52,9 +53,25 @@ class TestSequenceMax(BaseDataProcessorTest):
 class TestSequenceSum(BaseDataProcessorTest):
     processor = SequenceSum()
     input_features = {"seq": Sequence[Int]}
-    input_data = [{"seq": [2, 1, 0]}, {"seq": [5, 3, 7]}]  # Sum is 3  # Sum is 15
+    input_data = [{"seq": [2, 1, 0]}, {"seq": [5, 3, 7]}]
     expected_output_feature = Int
     expected_output_data = [3, 15]
+
+
+class TestSequencePadToFixedLength(BaseDataProcessorTest):
+    processor = SequencePad(length=5)
+    input_features = {"seq": Sequence[Int], "fill_value": Int}
+    input_data = [{"seq": [2, 1], "fill_value": -1}, {"seq": [5, 3, 7], "fill_value": -2}]
+    expected_output_feature = Annotated[Sequence[Int], Len(5)]
+    expected_output_data = [[2, 1, -1, -1, -1], [5, 3, 7, -2, -2]]
+
+
+class TestSequencePadToInferredLength(BaseDataProcessorTest):
+    processor = SequencePad()
+    input_features = {"seq": Sequence[Int], "fill_value": Int}
+    input_data = [{"seq": [2, 1], "fill_value": 0}, {"seq": [5, 3, 7], "fill_value": 0}]
+    expected_output_feature = Annotated[Sequence[Int], Len(5)]
+    expected_output_data = [[2, 1, 0], [5, 3, 7]]
 
 
 class TestSequenceGetItem(BaseDataProcessorTest):

@@ -135,6 +135,55 @@ class SequenceSum(BaseDataProcessor[SequenceSumConfig]):
 ItemType = TypeVar("ItemType")
 
 
+class SequencePadConfig(BaseDataProcessorConfig):
+    """Configuration class for the :class:`SequencePad` processor."""
+
+    length: None | int = None
+    """The target length to pad each sequence to.
+
+    If :code:`None`, the processor pads sequences to match the length of the longest
+    sequence in the current batch.
+    """
+
+
+class SequencePad(BaseDataProcessor[SequencePadConfig]):
+    """Processor to pad sequences to a specified length.
+
+    This processor pads input sequences with a specified fill value to either a
+    user-defined target length or, if not provided, the length of the longest
+    sequence in the current batch.
+    """
+
+    @process_mode(batched=True, backend="python")
+    def process(
+        self, ctx: RunContext, seq: Sequence[ItemType], fill_value: ItemType
+    ) -> Annotated[
+        Sequence[ItemType],
+        FeatureResolver(
+            lambda c, i, _: (
+                Sequence[ItemType]
+                if c.length is None
+                else Annotated[Sequence[ItemType], Len(c.length)]
+            )
+        ),
+    ]:
+        """Pad sequences to a uniform length with a fill value.
+
+        Args:
+            ctx (RunContext): Context object containing runtime information.
+            seq (Sequence[ItemType]): A batch of sequences to be padded.
+            fill_value (ItemType): The value to use for padding.
+
+        Returns:
+            Sequence[ItemType]: A batch of padded sequences. Each sequence will have
+            the same length, either matching the user-specified target length or
+            the longest sequence in the batch if no target length is specified.
+        """
+        # get length to pad each sequence to
+        length = self.config.length or max(map(len, seq))
+        return [s + [v] * (length - len(s)) for s, v in zip(seq, fill_value, strict=True)]
+
+
 class SequenceGetItemConfig(BaseDataProcessorConfig):
     """Configuration class for the :class:`SequenceGetItem` processor."""
 
@@ -593,6 +642,27 @@ def sequence_max(seq: Sequence[NumericType], default: Any = None) -> NumericType
         default value if the sequence is empty.
     """
     return SequenceMax(default=default).call(seq)
+
+
+@SequenceFeature.register_method("pad")
+def sequence_pad(seq: Sequence[ItemType], fill_value: ItemType, length: None | int) -> ItemType:
+    """Pad the sequence to a specified length with a given fill value.
+
+    If :code:`length` is provided, the sequence is padded to the specified length.
+    If :code:`length` is :code:`None`, the sequence is padded to match the length
+    of the longest sequence in the current batch.
+
+    Args:
+        seq (Sequence[ItemType]): The sequence to pad.
+        fill_value (ItemType): The value to use for padding.
+        length (None | int): The desired length to pad the sequence to.
+            Defaults to `None`, in which case the longest sequence in the batch is used.
+
+    Returns:
+        SequenceFeature[T]: A new :class:`SequenceFeature` instance containing the
+        padded sequence.
+    """
+    return SequencePad(length=length).call(seq, fill_value)
 
 
 @SequenceFeature.register_method("__getitem__")
