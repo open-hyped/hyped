@@ -7366,11 +7366,20 @@ class TestSequenceFeature:
             ),
             (
                 SequenceFeature(ForwardReference(SequenceType(Int64Type))),
+                SequenceFeature.pad,
+                "pad",
+                (Int64Feature, 5),
+                SequenceFeature,
+                sequence.SequencePadConfig(length=5),
+                False,
+            ),
+            (
+                SequenceFeature(ForwardReference(SequenceType(Int64Type))),
                 SequenceFeature.__getitem__,
                 "__getitem__",
                 (0,),
                 Int64Feature,
-                sequence.SequenceGetItemConfig(index=0),
+                sequence.SequenceGetItemConfig(),
                 False,
             ),
             (
@@ -7406,7 +7415,7 @@ class TestSequenceFeature:
                 "__getitem__",
                 (-1,),
                 Int64Feature,
-                sequence.SequenceGetItemConfig(index=4),
+                sequence.SequenceGetItemConfig(),
                 False,
             ),
             (
@@ -7430,6 +7439,12 @@ class TestSequenceFeature:
         expected_node_config: None | BaseNodeConfig,
         raises_error: bool,
     ) -> None:
+        args = tuple(
+            val(ForwardReference(val._expected_dtype))
+            if isinstance(val, type) and issubclass(val, PrimitiveFeature)
+            else val
+            for val in args
+        )
         test = partial(
             _test_call_to_registered_method,
             feature=feature,

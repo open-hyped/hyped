@@ -25,7 +25,7 @@ class BaseConfig(Registrable, BaseModel, metaclass=RegisterModelMeta):
     """Base Configuration Pydantic Model."""
 
     # validate default argument
-    model_config = ConfigDict(validate_default=True)
+    model_config = ConfigDict(validate_default=True, extra="forbid")
 
     def to_dict(self) -> dict[str, Any]:
         """Convert configuration object to dictionary."""

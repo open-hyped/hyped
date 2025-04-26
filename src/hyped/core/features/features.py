@@ -4393,6 +4393,24 @@ class SequenceFeature(typing.Sequence[T], Feature[dtypes.SequenceType]):
         """
         return self.execute_method("sum")
 
+    def pad(self, fill_value: T, length: None | int = None) -> SequenceFeature[T]:
+        """Pad the sequence to a specified length with a given fill value.
+
+        If :code:`length` is provided, the sequence is padded to the specified length.
+        If :code:`length` is :code:`None`, the sequence is padded to match the length
+        of the longest sequence in the current batch.
+
+        Args:
+            fill_value (T): The value to use for padding.
+            length (None | int): The desired length to pad the sequence to.
+                Defaults to `None`, in which case the longest sequence in the batch is used.
+
+        Returns:
+            SequenceFeature[T]: A new :class:`SequenceFeature` instance containing the
+            padded sequence.
+        """
+        return self.execute_method("pad", fill_value, length)
+
     U = TypeVar("U")
 
     def foreach(self, fn: Callable[[T], U]) -> SequenceFeature[U]:
