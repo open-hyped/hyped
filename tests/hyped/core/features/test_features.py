@@ -53,7 +53,7 @@ from hyped.core.features.features import build_feature_from_annotation, build_fe
 from hyped.core.features.reference import ForwardReference
 from hyped.core.features.session import ValidationSession
 from hyped.core.nodes.base import BaseNodeConfig
-from hyped.core.ops import boolean, mapping, numeric, sequence, string, utils
+from hyped.core.ops import boolean, common, mapping, numeric, sequence, string
 
 if not is_python_version_less_than(3, 11):
     from typing import get_overloads
@@ -118,14 +118,30 @@ class TestPrimitiveFeatures:
         "expected_return_feature_type,"
         "expected_node_config",
         [
-            # Base Feature methods
+            # Common Feature methods
+            (
+                BoolFeature,
+                BoolFeature.__eq__,
+                "__eq__",
+                (BoolFeature,),
+                BoolFeature,
+                common.EqConfig(),
+            ),
+            (
+                BoolFeature,
+                BoolFeature.__ne__,
+                "__ne__",
+                (BoolFeature,),
+                BoolFeature,
+                common.NotEqConfig(),
+            ),
             (
                 BoolFeature,
                 BoolFeature.filter,
                 "filter",
                 (BoolFeature,),
                 BoolFeature,
-                utils.GlobalFilterConfig(),
+                common.GlobalFilterConfig(),
             ),
             (
                 Int32Feature,
@@ -133,7 +149,7 @@ class TestPrimitiveFeatures:
                 "filter",
                 (BoolFeature,),
                 Int32Feature,
-                utils.GlobalFilterConfig(),
+                common.GlobalFilterConfig(),
             ),
             (
                 Float64Feature,
@@ -141,7 +157,7 @@ class TestPrimitiveFeatures:
                 "filter",
                 (BoolFeature,),
                 Float64Feature,
-                utils.GlobalFilterConfig(),
+                common.GlobalFilterConfig(),
             ),
             # Boolean methods
             (

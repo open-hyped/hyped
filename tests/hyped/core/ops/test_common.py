@@ -1,8 +1,37 @@
 from unittest.mock import MagicMock, patch
 
-from hyped.core.ops.utils import GlobalFilter, filter_
+from hyped.core.ops.common import Eq, GlobalFilter, NotEq, filter_
 from hyped.core.testing.augmentor import BaseDataAugmentorTest
+from hyped.core.testing.processor import BaseDataProcessorTest
 from hyped.typing import Bool, Int
+
+
+class TestEq(BaseDataProcessorTest):
+    processor = Eq()
+    input_features = {"a": Bool, "b": Bool}
+    input_data = [
+        # True
+        {"a": True, "b": True},
+        {"a": False, "b": False},
+        # False
+        {"a": False, "b": True},
+    ]
+    expected_output_feature = Bool
+    expected_output_data = [True, True, False]
+
+
+class TestNotEqu(BaseDataProcessorTest):
+    processor = NotEq()
+    input_features = {"a": Bool, "b": Bool}
+    input_data = [
+        # True
+        {"a": True, "b": True},
+        {"a": False, "b": False},
+        # False
+        {"a": False, "b": True},
+    ]
+    expected_output_feature = Bool
+    expected_output_data = [False, False, True]
 
 
 class TestGlobalFilter(BaseDataAugmentorTest):
@@ -54,7 +83,7 @@ def test_filter_uses_global_filter():
     mock_filtered_value = MagicMock(name="filtered_value")
 
     # Patch GlobalFilter to mock its behavior
-    with patch("hyped.core.ops.utils.GlobalFilter") as MockGlobalFilter:
+    with patch("hyped.core.ops.common.GlobalFilter") as MockGlobalFilter:
         # Configure the mock GlobalFilter instance
         mock_instance = MockGlobalFilter.return_value
         mock_instance.call.return_value = mock_filtered_value

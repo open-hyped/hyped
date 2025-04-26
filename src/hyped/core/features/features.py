@@ -66,7 +66,7 @@ logger = logging.getLogger(__name__)
 DataType = TypeVar("DataType", bound=dtypes.DType)
 
 
-@dataclass(eq=True, frozen=False)
+@dataclass(eq=False, frozen=False)
 class Feature(MethodRegistryMixin, Generic[DataType]):
     """Base class for defining features in a data flow graph.
 
@@ -101,6 +101,28 @@ class Feature(MethodRegistryMixin, Generic[DataType]):
         assert dtype is not None
         return dtype
 
+    def __eq__(self, other: Feature) -> BoolFeature:
+        """Compares this feature with another for equality.
+
+        Args:
+            other (Feature): The feature to compare against.
+
+        Returns:
+            BoolFeature: A feature indicating where the elements are equal.
+        """
+        return self.execute_method("__eq__", other)
+
+    def __ne__(self, other: Feature) -> BoolFeature:
+        """Compares this feature with another for inequality.
+
+        Args:
+            other (Feature): The feature to compare against.
+
+        Returns:
+            BoolFeature: A feature indicating where the elements are not equal.
+        """
+        return self.execute_method("__ne__", other)
+
     def filter(self, condition: BoolFeature) -> Self:
         """Filters elements based on a boolean condition.
 
@@ -131,7 +153,7 @@ class Feature(MethodRegistryMixin, Generic[DataType]):
         return core_schema.is_instance_schema(cls)
 
 
-@dataclass(eq=True, frozen=False)
+@dataclass(eq=False, frozen=False)
 class PrimitiveFeature(Feature[DataType]):
     """Base class for primitive feature types.
 
@@ -4131,7 +4153,7 @@ class Float64Feature(
         return type(self).get_method("__floordiv__")(other, self)
 
 
-@dataclass(eq=True, frozen=False)
+@dataclass(eq=False, frozen=False)
 class ClassLabelFeature(Int64Feature):
     """A base class for defining strongly-typed categorical class labels.
 
@@ -4310,7 +4332,7 @@ class ClassLabelFeature(Int64Feature):
 T = TypeVar("T")
 
 
-@dataclass(eq=True, frozen=False)
+@dataclass(eq=False, frozen=False)
 class SequenceFeature(typing.Sequence[T], Feature[dtypes.SequenceType]):
     """A feature representing a sequence of items.
 
@@ -4622,7 +4644,7 @@ class ExcludeFieldIf(pydantic.AfterValidator):
         super(ExcludeFieldIf, self).__init__(wrapped_condition)
 
 
-@dataclass(eq=True, frozen=False)
+@dataclass(eq=False, frozen=False)
 class _MappingFeature(typing.Mapping, Feature[dtypes.MappingType]):
     """A base class for defining strongly-typed mappings.
 
