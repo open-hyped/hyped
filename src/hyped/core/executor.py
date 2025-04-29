@@ -308,17 +308,26 @@ class DataFlowGraphExecutor(object):
             NodeExecutionError: If the node raises an exception during execution.
             AssertionError: If the output batch size doesn't match the input batch size.
         """
+        # read node attributes
+        node_attrs = self.graph.nodes[node_id]
+        node_obj = node_attrs[DataFlowGraph.NodeAttribute.NODE_OBJ]
+        node_type = node_attrs[DataFlowGraph.NodeAttribute.NODE_TYPE]
+
         if self.graph.in_degree(node_id) > 0:
             # wait for all dependencies of the current node
             deps = self.graph.predecessors(node_id)
             futures = map(state.wait_for, deps)
             await asyncio.gather(*futures)
 
+        # wait for the target partition to be registered before execution
+        # in case of trace nodes, this is to ensure that the run context
+        # contains the correct target batch size
+        if node_type == DataFlowGraph.NodeType.TRACE:
+            target_partition = node_attrs[DataFlowGraph.NodeAttribute.OUT_PARTITION]
+            await state.wait_for_partition_registered(target_partition)
+
         # collect inputs for processor execution
         inputs, index = state.collect_inputs(node_id)
-        node_attrs = self.graph.nodes[node_id]
-        node_obj = node_attrs[DataFlowGraph.NodeAttribute.NODE_OBJ]
-        node_type = node_attrs[DataFlowGraph.NodeAttribute.NODE_TYPE]
 
         # build the run context
         ctx = self.build_run_context(node_id, index, state.rank, state)
@@ -346,14 +355,9 @@ class DataFlowGraphExecutor(object):
                     state.capture_output(node_id, values)
 
                 elif node_type == DataFlowGraph.NodeType.TRACE:
-                    # wait for the target partition to be registered before tracing to it
-                    target_partition = node_attrs[DataFlowGraph.NodeAttribute.OUT_PARTITION]
-                    await state.wait_for_partition_registered(target_partition)
-                    # get the target batch size
-                    target_batch_size = len(state.index[target_partition])
                     # trace the value through to the target partition
                     values = node_obj.trace_values_through_partition_path(
-                        ctx, inputs["value"], target_batch_size, state.traces
+                        ctx, inputs["value"], state.traces
                     )
                     state.capture_output(node_id, values)
 

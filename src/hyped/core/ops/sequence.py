@@ -478,7 +478,7 @@ class SequenceUnpack(BaseDataAugmentor[SequenceUnpackConfig]):
         # flatten the sequence and compute the trace indices
         flattened, _ = flatten_list_array(seq)
         trace_indices = pc.list_parent_indices(seq)
-        return flattened, trace_indices.to_pylist()
+        return flattened, trace_indices.to_numpy()
 
 
 class SequenceUnpackWithIndexConfig(BaseDataAugmentorConfig):
@@ -532,7 +532,7 @@ class SequenceUnpackWithIndex(BaseDataAugmentor[SequenceUnpackWithIndexConfig]):
             output = pa.table(
                 {"value": flattened, "index": trace_indices}, schema=ctx.output_dtype.arrow_schema
             )
-            return output.to_struct_array(), trace_indices.to_pylist()
+            return output.to_struct_array(), trace_indices.to_numpy()
 
         else:
             output = pa.chunked_array([], type=ctx.output_dtype.arrow_type)
