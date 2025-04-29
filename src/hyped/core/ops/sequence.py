@@ -394,7 +394,7 @@ MixedSequenceType = TypeVar("MixedSequenceType", bound=Feature)
 class SequenceZipMapping(BaseDataProcessor[SequenceZipMappingConfig]):
     """Data Processor for zipping mapping of sequences to sequence of mapping."""
 
-    @process_mode(batched=False, backend="python")
+    @process_mode(batched=True, backend="arrow")
     def process(
         self, ctx: RunContext, **seqs: Annotated[Sequence[MixedSequenceType], SequenceZipLength]
     ) -> Annotated[
@@ -420,14 +420,19 @@ class SequenceZipMapping(BaseDataProcessor[SequenceZipMappingConfig]):
         Returns:
             Sequence[Mapping]: The zipped sequences.
         """
-        lengths = {len(v) for v in seqs.values()}
-        if len(lengths) > 1:
-            raise ValueError("All lists in the dictionary must be of the same length.")
-
-        # Zip the lists into a list of dictionaries
-        keys = seqs.keys()
-        zipped_values = zip(*seqs.values(), strict=True)
-        return [dict(zip(keys, values, strict=True)) for values in zipped_values]
+        flat_seqs = {}
+        offsets = None
+        # flatten all sequences
+        for key, seq in seqs.items():
+            flat_seqs[key], seq_offsets = flatten_list_array(seq)
+            # make sure offsets match
+            assert pc.all(offsets == seq_offsets), "Trying to zip sequences of different lengths"
+            offsets = seq_offsets
+        # zip flattened sequences
+        zipped_flat_seqs = pa.table(flat_seqs, schema=ctx.output_dtype.value_type.arrow_schema)
+        zipped_flat_seqs = zipped_flat_seqs.to_struct_array().combine_chunks()
+        # unflatten
+        return unflatten_list_array(zipped_flat_seqs, offsets)
 
 
 class SequenceUnpackConfig(BaseDataAugmentorConfig):
