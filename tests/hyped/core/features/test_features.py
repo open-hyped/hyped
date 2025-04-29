@@ -6780,7 +6780,7 @@ class TestClassLabelFeature:
 
         # base type supports arbitrary label names
         adapter = TypeAdapterWithArbitraryTypesAllowed(ClassLabelFeature)
-        assert adapter.validate_python(inst) == inst
+        assert object.__eq__(adapter.validate_python(inst), inst)
 
         # cast to custom type
         adapter = TypeAdapterWithArbitraryTypesAllowed(CustomClassLabel)
@@ -7481,12 +7481,12 @@ class TestSequenceFeature:
         # test validation of sequence feature
         seq = SequenceFeature(ForwardReference(SequenceType(BoolType)))
         adapter = TypeAdapterWithArbitraryTypesAllowed(SequenceFeature)
-        assert seq == adapter.validate_python(seq)
+        assert object.__eq__(adapter.validate_python(seq), seq)
 
         # test validation of strongly-typed sequence feature
         seq = SequenceFeature(ForwardReference(SequenceType(BoolType)))
         adapter = TypeAdapterWithArbitraryTypesAllowed(SequenceFeature[BoolFeature])
-        assert seq == adapter.validate_python(seq)
+        assert object.__eq__(adapter.validate_python(seq), seq)
 
         # test validation error on value type mismatch
         seq = SequenceFeature(ForwardReference(SequenceType(BoolType)))
@@ -7497,7 +7497,7 @@ class TestSequenceFeature:
         # test create sequence feature from reference
         seq = SequenceFeature(ForwardReference(SequenceType(BoolType)))
         adapter = TypeAdapterWithArbitraryTypesAllowed(SequenceFeature[BoolFeature])
-        assert adapter.validate_python(ForwardReference()) == seq
+        assert object.__eq__(adapter.validate_python(ForwardReference()), seq)
 
         # cannot infer sequence feature type from annotation
         with pytest.raises(RuntimeError):
@@ -7616,7 +7616,7 @@ class TestMappingFeature:
 
         # base type supports arbitrary structures
         adapter = TypeAdapterWithArbitraryTypesAllowed(MappingFeature)
-        assert adapter.validate_python(mapping, context=context) == mapping
+        assert object.__eq__(adapter.validate_python(mapping, context=context), mapping)
 
         # validate and convert to specific mapping type
         mapping = MappingFeature(ForwardReference(dtype))
@@ -7632,7 +7632,7 @@ class TestMappingFeature:
         # validate generic mapping type
         mapping = GenericMappingFeature[StringFeature](ForwardReference(dtype))
         adapter = TypeAdapterWithArbitraryTypesAllowed(GenericMappingFeature[StringFeature])
-        assert adapter.validate_python(mapping, context=context) == mapping
+        assert object.__eq__(adapter.validate_python(mapping, context=context), mapping)
 
         # cannot infer mapping fields
         adapter = TypeAdapterWithArbitraryTypesAllowed(MappingFeature)
