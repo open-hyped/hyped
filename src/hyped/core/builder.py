@@ -288,6 +288,7 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
                 rank=0,
                 input_dtype=input_dtype,
                 output_dtype=output_dtype,
+                target_batch_size=None,
                 session=None,
             )
             # infer the output partition of the node

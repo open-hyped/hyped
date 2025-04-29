@@ -90,12 +90,12 @@ class TestTraceNode:
         out_index: IndexList,
         target_batch_size: int,
     ) -> None:
-        mock_ctx = MagicMock(index=src_index, output_dtype=Int32Type)
+        mock_ctx = MagicMock(
+            index=src_index, output_dtype=Int32Type, target_batch_size=target_batch_size
+        )
         mock_values = pa.array(src_index, type=Int32Type.arrow_type)
 
         node = TraceNode(path=path)
-        actual_out = node.trace_values_through_partition_path(
-            mock_ctx, mock_values, target_batch_size, traces
-        )
+        actual_out = node.trace_values_through_partition_path(mock_ctx, mock_values, traces)
 
         assert actual_out.to_pylist() == out_index

@@ -8,6 +8,7 @@ from hyped.common._pyarrow import flatten_list_array, unflatten_list_array
     "array",
     [
         # Simple ListArray
+        pa.array([[]]),
         pa.array([[1, 2, 3], [4, 5], [], [6, 7, 8, 9]]),
         pa.array([[b"a", b"b"], [b"c"]], type=pa.list_(pa.binary())),
         pa.array([[True, False], [False]], type=pa.list_(pa.bool_())),

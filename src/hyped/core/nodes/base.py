@@ -142,6 +142,12 @@ class RunContext:
     undergoes and the format of the resulting data.
     """
 
+    target_batch_size: None | int
+    """The expected target batch size.
+
+    This attribute defines the batch size of the target partition of the node if set.
+    """
+
     def __hash__(self) -> int:
         """Returns a hash value based on the node ID.
 
@@ -356,8 +362,12 @@ def _python_batch_to_arrow(arrow_type: pa.DataType, values: Iterable[list[Any]])
 
 
 @ProcessMode.register_to_arrow_converter(ProcessMode(batched=True, backend="arrow"))
-def arrow_batch_to_arrow(arrow_type: pa.DataType, values: Iterable[pa.Array]) -> pa.Array:
+def _arrow_batch_to_arrow(arrow_type: pa.DataType, values: Iterable[pa.Array]) -> pa.Array:
     """Converts a batched iterable of Arrow arrays to a chunked Arrow array."""
+    values = list(values)
+    if len(values) == 1:
+        assert values[0].type == arrow_type
+        return values[0]
     return pa.chunked_array(values, type=arrow_type)
 
 

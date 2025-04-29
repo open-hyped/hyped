@@ -311,7 +311,7 @@ class TestDataFlowGraphExecutor:
         elif node_types[node] == DataFlowGraph.NodeType.TRACE:
             state.wait_for_partition_registered.assert_called()
             node_obj.trace_values_through_partition_path.assert_called_once_with(
-                mock_run_context, mock_inputs.__getitem__.return_value, ANY, state.traces
+                mock_run_context, mock_inputs.__getitem__.return_value, state.traces
             )
             state.capture_output.assert_called_once_with(
                 node, node_obj.trace_values_through_partition_path.return_value

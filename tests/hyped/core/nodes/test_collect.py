@@ -100,6 +100,7 @@ class TestCollectNode:
             rank=0,
             input_dtype=MappingType.construct(input_types | required_casts),
             output_dtype=dtype,
+            target_batch_size=None,
         )
 
         # convert the input objects to pyarrow arrays

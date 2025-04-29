@@ -38,7 +38,6 @@ class TraceNode(BaseNode[TraceNodeConfig]):
         self,
         ctx: RunContext,
         values: pa.Array,
-        target_batch_size: int,
         traces: dict[tuple[PartitionId, PartitionId], np.ndarray],
     ) -> pa.Array:
         """Apply trace indices through the partition path to transform the provided values.
@@ -59,7 +58,9 @@ class TraceNode(BaseNode[TraceNodeConfig]):
                 according to the trace indices along the specified path.
         """
         if self.config.path[0] == DataFlowGraph.Partition.CONST:
-            return pa.chunked_array([values] * target_batch_size, type=ctx.output_dtype.arrow_type)
+            return pa.chunked_array(
+                [values] * ctx.target_batch_size, type=ctx.output_dtype.arrow_type
+            )
 
         trace_index = np.arange(len(ctx.index))
         # follow the path from partition u to partition v and apply the trace

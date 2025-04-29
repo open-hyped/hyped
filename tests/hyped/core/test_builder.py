@@ -487,25 +487,25 @@ class TestDataFlowGraphBuilder:
             # call the builder
             builder.compute(mock_node, {"x": ref, "y": False})
 
-            # make sure the feature engine was called
-            mock_feature_engine_type.return_value.validate_signature.assert_called_once()
-            mock_feature_engine_type.return_value.validate_arguments.assert_called_once_with(
-                x=build_feature_from_reference(ref), y=False
-            )
-            # make sure all objects where collected
-            builder.collect.assert_called_once_with(False, MockType)
-            # make sure the output feature was inferred correctly
-            mock_feature_engine_type.return_value.build_return_feature.assert_called_once_with(
-                {
-                    "x": build_feature_from_reference(ref),
-                    "y": build_feature_from_reference(builder.collect.return_value),
-                }
-            )
-            # make sure the compute node was added to the graph
-            mock_add_node.assert_called_once_with(
-                node_obj=mock_node,
-                node_type=DataFlowGraph.NodeType.DATA_AUGMENTOR,
-                inputs={"x": ref, "y": builder.collect.return_value},
-                output_dtype=mock_feature_engine_type.return_value.build_return_feature.return_value.dtype,
-                node_id=None,
-            )
+        # make sure the feature engine was called
+        mock_feature_engine_type.return_value.validate_signature.assert_called_once()
+        mock_feature_engine_type.return_value.validate_arguments.assert_called_once_with(
+            x=build_feature_from_reference(ref), y=False
+        )
+        # make sure all objects where collected
+        builder.collect.assert_called_once_with(False, MockType)
+        # make sure the output feature was inferred correctly
+        mock_feature_engine_type.return_value.build_return_feature.assert_called_once_with(
+            {
+                "x": build_feature_from_reference(ref),
+                "y": build_feature_from_reference(builder.collect.return_value),
+            }
+        )
+        # make sure the compute node was added to the graph
+        mock_add_node.assert_called_once_with(
+            node_obj=mock_node,
+            node_type=DataFlowGraph.NodeType.DATA_AUGMENTOR,
+            inputs={"x": ref, "y": builder.collect.return_value},
+            output_dtype=mock_feature_engine_type.return_value.build_return_feature.return_value.dtype,
+            node_id=None,
+        )
