@@ -59,6 +59,7 @@ def test_foreach_with_augmenter(ds: datasets.Dataset) -> None:
 def test_foreach_on_empty_sequence() -> None:
     # create dataset containing empty sequences
     ds = datasets.Dataset.from_dict(
+        # {"x": [[0, 1], [], [], [], [2, 3]]},
         {"x": [[0, 1], [], [2, 3]]},
         features=datasets.Features(
             {
@@ -73,3 +74,23 @@ def test_foreach_on_empty_sequence() -> None:
     out_ds = flow.apply(ds, collect={"out": outA})
     # check output data
     assert out_ds.to_dict()["out"] == [[0, 2], [], [4, 6]]
+
+
+@pytest.mark.integration_test
+def test_foreach_on_empty_sequence_only() -> None:
+    # create dataset containing empty sequences
+    ds = datasets.Dataset.from_dict(
+        {"x": [[]]},
+        features=datasets.Features(
+            {
+                "x": datasets.Sequence(datasets.Value("int32")),
+            }
+        ),
+    )
+    # create the data flow
+    flow = hyped.DataFlow(ds.features)
+    outA = flow.source["x"].foreach(lambda x: x * 2)
+    # apply the flow
+    out_ds = flow.apply(ds, collect={"out": outA})
+    # check output data
+    assert out_ds.to_dict()["out"] == [[]]

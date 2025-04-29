@@ -142,6 +142,12 @@ class RunContext:
     undergoes and the format of the resulting data.
     """
 
+    target_batch_size: None | int
+    """The expected target batch size.
+
+    This attribute defines the batch size of the target partition of the node if set.
+    """
+
     def __hash__(self) -> int:
         """Returns a hash value based on the node ID.
 

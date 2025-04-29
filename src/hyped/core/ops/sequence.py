@@ -520,16 +520,18 @@ class SequenceUnpackWithIndex(BaseDataAugmentor[SequenceUnpackWithIndexConfig]):
         """
         # flatten the sequence and compute the trace indices
         flattened, _ = flatten_list_array(seq)
-        trace_indices = pc.list_parent_indices(seq)
 
-        # TODO: not sure how expensive this operation is
-        #       could use StructArray.from_arrays instead but chunked
-        #       array inputs must be handled manually then
-        output = pa.table(
-            {"value": flattened, "index": trace_indices}, schema=ctx.output_dtype.arrow_schema
-        ).to_struct_array()
+        if len(flattened) > 0:
+            trace_indices = pc.list_parent_indices(seq)
+            # zip values with trace indices
+            output = pa.table(
+                {"value": flattened, "index": trace_indices}, schema=ctx.output_dtype.arrow_schema
+            )
+            return output.to_struct_array(), trace_indices.to_pylist()
 
-        return output, trace_indices.to_pylist()
+        else:
+            output = pa.chunked_array([], type=ctx.output_dtype.arrow_type)
+            return output, []
 
 
 class SequencePackConfig(BaseDataAugmentorConfig):
@@ -603,15 +605,36 @@ class SequencePack(BaseDataAugmentor[SequencePackConfig]):
         # compute the offsets where to cut off the array
         diffs = np.diff(trace_index.to_numpy(), prepend=0)
         offsets = np.repeat(np.arange(len(diffs)), diffs)
-        offsets = np.concatenate(([0], offsets, [len(diffs)]))
-
-        # unflatten the sequence
-        cutoffs = (
-            pa.array(offsets)
-            if self.config.original_length is None
-            else self.config.original_length
+        offsets = np.concatenate(
+            (
+                np.asarray([0], dtype=offsets.dtype),
+                offsets,
+                np.asarray(
+                    [len(diffs)]
+                    * (
+                        1
+                        if ctx.target_batch_size is None
+                        else (ctx.target_batch_size - len(offsets))
+                    ),
+                    dtype=offsets.dtype,
+                ),
+            ),
+            dtype=offsets.dtype,
         )
-        return unflatten_list_array(values, cutoffs), offsets[:-1]
+        # pack sequence
+        packed_sequence = unflatten_list_array(
+            array=values,
+            offsets=(
+                pa.array(offsets)
+                if self.config.original_length is None
+                else self.config.original_length
+            ),
+        )
+        # compute the trace index
+        out_trace_index = offsets[:-1]
+        out_trace_index[offsets[:-1] == offsets[1:]] = -1
+        # return the packed sequence and the trace indices
+        return packed_sequence, out_trace_index
 
 
 @SequenceFeature.register_method("min")

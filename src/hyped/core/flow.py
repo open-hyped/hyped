@@ -1022,6 +1022,7 @@ class ExecutableDataFlow(AbstractDataFlow):
                 rank=0,
                 input_dtype=self._graph.nodes[node][DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE],
                 output_dtype=self._graph.nodes[node][DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
+                target_batch_size=1,  # the aggregation partition has target batch size 1
             )
             for node in nodes
         ]

@@ -154,10 +154,18 @@ class ExecutionState(object):
 
         if u != v:
             # register the trace
-            self.traces[(u, v)] = np.asarray(trace_index)
+            trace_index = np.asarray(trace_index, dtype=np.int32)
+            self.traces[(u, v)] = trace_index
             # get the index of the source partition and transform it
             assert u in self.index, f"Partition {u} not registered yet!"
-            self.index[v] = np.asarray(self.index[u])[trace_index].tolist()
+            # compute the partition index by tracing valid indices from the
+            # source partition to the target partition, invalids are currently
+            # mapped to 0
+            valid = trace_index != -1
+            partition_index = np.zeros_like(trace_index)
+            partition_index[valid] = np.asarray(self.index[u])[trace_index[valid]]
+            # set the partition index
+            self.index[v] = partition_index.tolist()
             # mark partition as registered
             if v in self.partition_registered_event:
                 self.partition_registered_event[v].set()
@@ -253,18 +261,31 @@ class DataFlowGraphExecutor(object):
                 "manager was provided."
             )
 
-    def build_run_context(self, node_id: NodeId, index: IndexList, rank: Rank) -> RunContext:
+    def build_run_context(
+        self, node_id: NodeId, index: IndexList, rank: int, state: None | ExecutionState = None
+    ) -> RunContext:
         """Build the run context for a specified node.
 
         Args:
             node_id (NodeId): The id of the node.
             index (IndexList): The index list of the current batch.
-            rank (Rank): The multiprocess rank.
+            rank (int): The multiprocessing rank.
+            state (None | ExecutionState): The execution state if available.
 
         Returns:
             RunContext: The context for the node execution.
         """
         node_attrs = self.graph.nodes[node_id]
+
+        out_batch_size = None
+        if state is not None:
+            assert state.rank == rank
+            # get the batch size of the target partition if it is already registered
+            out_partition = node_attrs[DataFlowGraph.NodeAttribute.OUT_PARTITION]
+            out_batch_size = (
+                len(state.index[out_partition]) if out_partition in state.index else None
+            )
+
         # build the run context
         return RunContext(
             node_id=node_id,
@@ -272,6 +293,7 @@ class DataFlowGraphExecutor(object):
             rank=rank,
             input_dtype=node_attrs[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE],
             output_dtype=node_attrs[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE],
+            target_batch_size=out_batch_size,
             session=self.session,
         )
 
@@ -299,7 +321,7 @@ class DataFlowGraphExecutor(object):
         node_type = node_attrs[DataFlowGraph.NodeAttribute.NODE_TYPE]
 
         # build the run context
-        ctx = self.build_run_context(node_id, index, state.rank)
+        ctx = self.build_run_context(node_id, index, state.rank, state)
 
         try:
             with (
@@ -434,7 +456,7 @@ class DataFlowGraphExecutor(object):
                 }
                 # initialize the node and capture the state
                 with node_obj.with_state(state):
-                    ctx = self.build_run_context(node_id, [], rank)
+                    ctx = self.build_run_context(node_id, [], rank, None)
                     node_obj.initialize(ctx)
                 # capture the initialized state in the session
                 self.session.set_context(node_id, state)

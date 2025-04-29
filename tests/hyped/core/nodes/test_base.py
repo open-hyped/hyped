@@ -76,6 +76,7 @@ class TestProcessMode:
             rank=MagicMock(),
             input_dtype=MagicMock(),
             output_dtype=MagicMock(),
+            target_batch_size=MagicMock(),
         )
 
         # create mock keyword arguments and prepare them
@@ -106,6 +107,7 @@ class TestProcessMode:
             rank=MagicMock(),
             input_dtype=MagicMock(),
             output_dtype=MagicMock(),
+            target_batch_size=MagicMock(),
         )
 
         # create mock keyword arguments and prepare them
@@ -160,6 +162,7 @@ class TestProcessMode:
             rank=0,
             input_dtype=MappingType.construct({"field": Int32Type}),
             output_dtype=Int32Type,
+            target_batch_size=None,
         )
         # create an array
         arr = pa.array([0, 1, 2, 3, 4], type=Int32Type.arrow_type)
