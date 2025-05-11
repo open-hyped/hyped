@@ -366,7 +366,7 @@ def _arrow_batch_to_arrow(arrow_type: pa.DataType, values: Iterable[pa.Array]) -
     """Converts a batched iterable of Arrow arrays to a chunked Arrow array."""
     values = list(values)
     if len(values) == 1:
-        assert values[0].type == arrow_type
+        assert values[0].type == arrow_type, f"{values[0].type} != {arrow_type}"
         return values[0]
     return pa.chunked_array(values, type=arrow_type)
 
