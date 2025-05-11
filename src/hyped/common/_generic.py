@@ -1,27 +1,41 @@
 """Helper functionality to work with generic types."""
-from typing import Generic, TypeVar, _GenericAlias, get_args, get_origin
+from typing import TypeVar, get_args, get_origin
 
 
-def _get_typevar_index(t: type, var: TypeVar) -> None | int:
-    """Internal helper function."""
-    # trivial case
-    if not hasattr(t, "__orig_bases__"):
-        return None
-    # search for typevar in base types
-    for b in t.__orig_bases__:
-        if isinstance(b, _GenericAlias):
-            # check if base type is a generic alias
-            a = get_args(b)
-            if var in a:
-                return a.index(var)
+def build_typevar_mapping(t: type) -> dict[TypeVar, TypeVar | type | None]:
+    """Build a mapping from TypeVars to their concrete types within a given type.
 
-        else:
-            o, a = get_origin(b), get_args(b)
-            # return index of typevar if present
-            if (o == Generic) and (var in a):
-                return a.index(var)
-    # typevar not found
-    return None
+    This function analyzes a type, including its generic parameters and base classes,
+    to create a dictionary that maps TypeVar instances to their corresponding concrete
+    types.  It handles cases where TypeVars are directly assigned, bound, or inherited.
+
+    Args:
+        t (type): The type to analyze.  This could be a generic type
+            (e.g., List[T], MyClass[T, U]) or a concrete type.
+
+    Returns:
+        dict[TypeVar, TypeVar | type | None]: A dictionary where keys are TypeVar
+        instances found in the type's definition, and values are the corresponding
+        concrete types (if available) or the TypeVar's bound (if no concrete
+        type is available).  If the type has no TypeVars, an empty dictionary
+        is returned.
+    """
+    orig = get_origin(t) or t
+    args = get_args(t)
+    params = getattr(orig, "__parameters__", tuple())
+
+    mapping = (
+        {}
+        if (len(params) == 0)
+        else {var: var.__bound__ for var in params}
+        if ((len(args) == 0) and (len(params) != 0))
+        else dict(zip(params, args, strict=True))
+    )
+
+    for b in getattr(orig, "__orig_bases__", []):
+        mapping.update(build_typevar_mapping(b))
+
+    return mapping
 
 
 def solve_typevar(t: type, var: TypeVar) -> type | None:
@@ -36,36 +50,17 @@ def solve_typevar(t: type, var: TypeVar) -> type | None:
         otherwise falls back to typevars bound argument which might
         be None
     """
+    # build the typevar mapping
+    mapping = build_typevar_mapping(t)
 
-    def _solve(internal_t, internal_var):
-        if not hasattr(internal_t, "__orig_bases__"):
-            return internal_var.__bound__
-
-        for b in internal_t.__orig_bases__:
-            # check if the base is a generic type
-            if isinstance(b, _GenericAlias):
-                # get origin and arguments of generic type
-                origin = get_origin(b)
-                args = get_args(b)
-                # search for typevar in origin
-                index = _get_typevar_index(origin, internal_var)
-
-                if index is not None:
-                    return args[index]
-
-                # recurse to base types
-                candidate = _solve(origin, internal_var)
-                if candidate is not None:
-                    return candidate
-
-            else:
-                # not a generic type so just check the bases
-                candidate = _solve(b, internal_var)
-                if candidate is not None:
-                    return candidate
-
-    # follow typevar chain to specification
     while isinstance(var, TypeVar):
-        var = _solve(t, var)
+        if var not in mapping:
+            raise TypeError(f"Type variable '{var}' not found in the inheritance tree of '{t}'")
+        assert var != mapping[var], (
+            f"Type variable '{var}' should not map to itself in '{t}'. This indicates "
+            "a potential infinite loop in type variable resolution or an invalid "
+            "TypeVar usage."
+        )
+        var = mapping[var]
 
     return var

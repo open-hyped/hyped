@@ -29,8 +29,10 @@ class WorkerInfo(object):
 
     rank: Rank
     """The rank or ID of the worker."""
+
     num_workers: int
     """The total number of workers."""
+
     seed: int
     """The seed used for random number generation in this worker."""
 
@@ -61,7 +63,7 @@ def get_worker_info() -> None | WorkerInfo:
             ctx = SimpleNamespace(dataset=info.dataset)
             return WorkerInfo(info.id, info.num_workers, info.seed, ctx)
 
-    if is_package_installed("crane"):
+    elif is_package_installed("crane"):
         from crane.core.worker import get_worker_info as crane_get_worker_info
 
         info = crane_get_worker_info()

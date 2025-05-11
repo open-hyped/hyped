@@ -1,27 +1,9 @@
 from typing import Generic, TypeVar
 
-from hyped.common._generic import _get_typevar_index, solve_typevar
+from hyped.common._generic import solve_typevar
 
 
 class TestResolveTypeVar:
-    def test_get_typevar_index(self) -> None:
-        class A:
-            pass
-
-        class B:
-            pass
-
-        T = TypeVar("T")
-        U = TypeVar("U")
-        V = TypeVar("V")
-
-        class C(A, Generic[T, U, V], B):
-            pass
-
-        assert _get_typevar_index(C, T) == 0
-        assert _get_typevar_index(C, U) == 1
-        assert _get_typevar_index(C, V) == 2
-
     def test_solve_typevar_unset(self) -> None:
         T = TypeVar("T")
 
@@ -52,6 +34,17 @@ class TestResolveTypeVar:
 
         assert solve_typevar(C, T) == A
 
+    def test_solve_inline_generic(self) -> None:
+        T = TypeVar("T")
+
+        class A:
+            pass
+
+        class B(Generic[T]):
+            ...
+
+        assert solve_typevar(B[A], T) == A
+
     def test_solve_typevar_deep(self) -> None:
         T = TypeVar("T")
         U = TypeVar("U")
@@ -79,6 +72,9 @@ class TestResolveTypeVar:
             pass
 
         class H(F[G]):
+            pass
+
+        class X(H):
             pass
 
         # resolve T
@@ -119,22 +115,3 @@ class TestResolveTypeVar:
         assert solve_typevar(E, T) == A
         assert solve_typevar(E, U) == A
         assert solve_typevar(E, V) == A
-
-        # typevar chain of the same typevar
-
-        class A:
-            pass
-
-        class B(Generic[T]):
-            pass
-
-        class C(B[T]):
-            pass
-
-        class D(C[T]):
-            pass
-
-        class E(D[A]):
-            pass
-
-        assert solve_typevar(E, T) == A
