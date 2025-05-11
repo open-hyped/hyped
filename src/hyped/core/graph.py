@@ -191,13 +191,21 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         downstream.
         """
 
-        TRACE = "TRACE NODE"
+        TRACE = "TRACE_NODE"
         """
         Represents a trace node in the data flow graph.
 
         This type of node is responsible for tracing values through different
         partitions of the graph. It transforms data of a specific partition into
         the index-space of a target partition.
+        """
+
+        DEBUG = "DEBUG_NODE"
+        """Represents a debug node for inspecting data flow.
+
+        Debug nodes do not transform data or produce integrated outputs. They
+        facilitate monitoring and debugging through mechanisms like logging or
+        asserting.
         """
 
         DATA_PROCESSOR = "DATA_PROCESSOR_NODE"
@@ -689,11 +697,11 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 None if obj is None else obj.config.to_dict()
             )
             # serialize feature types
+            out_dtype = node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
+            out_dtype = None if out_dtype is None else out_dtype.to_dict()
+            node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] = out_dtype
             node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] = node[
                 DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE
-            ].to_dict()
-            node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] = node[
-                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
             ].to_dict()
 
         return data
@@ -726,11 +734,11 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                     node[DataFlowGraph.NodeAttribute.PARTITION]
                 )
             # deserialize feature types
+            out_dtype = node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
+            out_dtype = None if out_dtype is None else build_dtype_from_dict(out_dtype)
+            node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] = out_dtype
             node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] = build_dtype_from_dict(
                 node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE]
-            )
-            node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] = build_dtype_from_dict(
-                node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
             )
             # deserialize node objects
             obj = node[DataFlowGraph.NodeAttribute.NODE_OBJ]

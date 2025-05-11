@@ -258,6 +258,7 @@ class BaseDataAggregator(BaseNode[C], ABC):
             TypeError: If the subclass does not implement valid :code:`extract` and :code:`update`
                 methods as per the :class:`_AggregatorProtocol`.
         """
+        super().__init_subclass__()
         # set default process modes for extract and update functions
         ProcessMode(batched=True, backend="python").validate().set_default(cls.extract)
         ProcessMode(batched=False, backend="python").validate().set_default(cls.update)

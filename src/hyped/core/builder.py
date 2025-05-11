@@ -23,6 +23,7 @@ from .nodes.augmentor import BaseDataAugmentor
 from .nodes.base import BaseNode, RunContext
 from .nodes.collect import CollectNode
 from .nodes.const import ConstNode
+from .nodes.debug import BaseDebugNode
 from .nodes.processor import BaseDataProcessor
 from .nodes.trace import TraceNode
 from .typing import NodeId, PartitionId
@@ -60,7 +61,7 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
         node_obj: Any,
         node_type: DataFlowGraph.NodeType,
         inputs: dict[str, ConcreteReference],
-        output_dtype: DType,
+        output_dtype: None | DType,
         node_id: None | NodeId = None,
     ) -> ConcreteReference:
         """Add a single node to the data flow graph.
@@ -71,7 +72,7 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
             inputs (dict[str, ConcreteReference]): A dictionary mapping input names to
                 :class:`ConcreteReference` instances that represent dependencies of this
                 node on other nodes in the graph.
-            output_dtype (DType): The output data type produced by this node.
+            output_dtype (None | DType): The output data type produced by this node.
             node_id (None | NodeId): The unique identifier for the node. If :code:`None`,
                 a random UUID will be generated. Defaults to :code:`None`.
 
@@ -240,7 +241,7 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
         node_type: DataFlowGraph.NodeType,
         partition: PartitionId,
         inputs: dict[str, NodeId],
-        output_dtype: DType,
+        output_dtype: None | DType,
     ) -> PartitionId:
         """Determine the output partition for a given node in the data flow graph.
 
@@ -263,7 +264,7 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
             node_type (DataFlowGraph.NodeType): The node type.
             partition (PartitionId): The partition of the node.
             inputs (dict[str, NodeId]): The inputs to the node.
-            output_dtype (DType): The output data type of the node.
+            output_dtype (None | DType): The output data type of the node.
 
         Returns:
             PartitionId: The partition that the node's output will be directed to.
@@ -637,6 +638,8 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
         node_type = (
             DataFlowGraph.NodeType.SOURCE
             if obj is None
+            else DataFlowGraph.NodeType.DEBUG
+            if isinstance(obj, BaseDebugNode)
             else DataFlowGraph.NodeType.DATA_PROCESSOR
             if isinstance(obj, BaseDataProcessor)
             else DataFlowGraph.NodeType.DATA_AGGREGATOR
@@ -672,7 +675,11 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
                 ref = self.collect(map_recursive(convert_to_ref, val), object_dtypes[key])
                 features[key] = build_feature_from_reference(ref)
             # build the output feature of the node
-            output_dtype = engine.build_return_feature(features).dtype
+            output_dtype = (
+                None
+                if node_type == DataFlowGraph.NodeType.DEBUG
+                else engine.build_return_feature(features).dtype
+            )
 
         input_refs = {key: feature.ref for key, feature in features.items()}
         # add the node to the graph
