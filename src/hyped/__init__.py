@@ -6,12 +6,17 @@ to be modular and flexible, allowing users to define data flows to handle
 a wide variety of data processing tasks.
 """
 
+import os
+
 from .__version__ import __version__, __version_tuple__  # noqa: F401
 
 # isort: off
 # keep logging setup at beginning of the file
 # to run the setup hook first
-from .logging.setup import setup_logging
+from hyped.common.logging import setup_logging
+
+# setup logging
+setup_logging(level=os.getenv("LOG_LEVEL", "WARNING").upper(), log_file=os.getenv("LOG_FILE", None))
 
 # isort: on
 
@@ -23,9 +28,7 @@ __all__ = [
     # core
     "DataFlow",
     "plot_data_flow",
-    # logging
-    "setup_logging",
 ]
 
-from . import core, ops, typing
-from .core.flow import DataFlow, plot_data_flow
+from . import core, ops, typing  # noqa: E402
+from .core.flow import DataFlow, plot_data_flow  # noqa: E402
