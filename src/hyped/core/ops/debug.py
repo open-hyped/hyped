@@ -18,7 +18,7 @@ RESET = "\033[0m"
 class PrintSampleConfig(BaseDebugNodeConfig):
     """Configuration for the :class:`PrintSample` node."""
 
-    format_string: str = "{feature}"
+    format_string: str
     """The format string for printing.
 
     This string uses standard Python formatting syntax to incorporate positional
