@@ -32,6 +32,11 @@ DEFAULT_NODE_FORMAT = (
 )
 
 
+def logical_imply(x, y):
+    """Returns the logical implication x -> y."""
+    return not x or y
+
+
 def _compute_node_depth(g: nx.DiGraph) -> dict[Hashable, int]:
     """Compute the depth of each node in the graph.
 
@@ -448,14 +453,14 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         # find larges layer in graph
         return max(len(list(layer)) for _, layer in layers)
 
-    def get_output_dtype(self, node_id: NodeId) -> DType:
+    def get_output_dtype(self, node_id: NodeId) -> None | DType:
         """Helper function to get the output data type of a node.
 
         Args:
             node_id (NodeId): The id of the node.
 
         Returns:
-            DType: The output data type of the node.
+            None | DType: The output data type of the node.
 
         Raises:
             RuntimeError: If the node id is not contained in the graph.
@@ -497,6 +502,9 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             NodeId: The node id of the added node.
         """
         assert node_id not in self.nodes, f"Node id '{node_id}' already in use."
+        assert logical_imply(
+            node_type == DataFlowGraph.NodeType.DEBUG, output_dtype is None
+        ), f"Expected output type for debug node to be None, got {output_dtype}"
         # compute the depth of the node in the graph based on it's input references
         depth = (
             0

@@ -669,7 +669,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         return ds if aggregate is None else (ds, flow.aggregates)
 
     @classmethod
-    def deserialize(cls, data: str) -> ExecutableDataFlow:
+    def deserialize(cls, data: str, debug: bool = True) -> ExecutableDataFlow:
         """Deserializes a JSON string into an :class:`ExecutableDataFlow` instance.
 
         This method parses a JSON string into a dictionary, validates its structure,
@@ -678,6 +678,9 @@ class DataFlow(AbstractDataFlow, Generic[T]):
 
         Args:
             data (str): The JSON string representing the serialized executable data flow.
+            debug (bool): If :code:`True`, the deserialized graph will include debug nodes
+                present in the serialized flow. If :code:`False`, debug nodes will be omitted
+                from the deserialized graph. Defaults to :code:`True`.
 
         Returns:
             ExecutableDataFlow: The deserialized executable data flow.
@@ -686,7 +689,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             ValueError: If the input JSON string does not contain the required keys
                 ("graph", "collect", and "aggregate").
         """
-        return ExecutableDataFlow.deserialize(data)
+        return ExecutableDataFlow.deserialize(data, debug=debug)
 
 
 class ExecutableDataFlow(AbstractDataFlow):
@@ -1449,7 +1452,7 @@ class ExecutableDataFlow(AbstractDataFlow):
         return json.dumps(data, indent=indent, sort_keys=True)
 
     @classmethod
-    def deserialize(cls, data: str) -> ExecutableDataFlow:
+    def deserialize(cls, data: str, debug: bool = True) -> ExecutableDataFlow:
         """Deserializes a JSON string into an :class:`ExecutableDataFlow` instance.
 
         This method parses a JSON string into a dictionary, validates its structure,
@@ -1458,6 +1461,9 @@ class ExecutableDataFlow(AbstractDataFlow):
 
         Args:
             data (str): The JSON string representing the serialized executable data flow.
+            debug (bool): If :code:`True`, the deserialized graph will include debug nodes
+                present in the serialized flow. If :code:`False`, debug nodes will be omitted
+                from the deserialized graph. Defaults to :code:`True`.
 
         Returns:
             ExecutableDataFlow: The deserialized executable data flow.
@@ -1493,4 +1499,4 @@ class ExecutableDataFlow(AbstractDataFlow):
         )
 
         # construct executable data flow
-        return ExecutableDataFlow(source_annotation, graph, collect, aggregate, None)
+        return ExecutableDataFlow(source_annotation, graph, collect, aggregate, None, debug=debug)

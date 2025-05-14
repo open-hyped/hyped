@@ -30,7 +30,7 @@ def test_plot_data_flow():
     )
 
     collect = ConcreteReference(2, graph, None)
-    flow = ExecutableDataFlow(None, graph, collect, None, None)
+    flow = ExecutableDataFlow(None, graph, collect, None, None, False)
 
     # Ensure the plot function runs without errors and returns an Axes object
     # Mock plt.show to avoid displaying the plot during tests
@@ -169,7 +169,7 @@ class TestDataFlow:
             patch("hyped.core.features.features.MappingFeature.__post_init__"),
             patch("hyped.core.flow.nx.restricted_view") as mock_restricted_view,
         ):
-            flow.build(collect=valid, aggregate=valid, aggregation_manager=manager)
+            flow.build(collect=valid, aggregate=valid, aggregation_manager=manager, debug=True)
 
             mock_restricted_view.assert_called_once_with(mock_builder.return_value._graph, [], [])
             mock_executable_flow.assert_called_once_with(
@@ -178,6 +178,7 @@ class TestDataFlow:
                 ConcreteReference(valid.ref._node_id, mock_restricted_view.return_value, None),
                 ConcreteReference(valid.ref._node_id, mock_restricted_view.return_value, None),
                 manager,
+                debug=True,
             )
 
     @patch("hyped.core.flow.DataFlow.build")
@@ -186,9 +187,9 @@ class TestDataFlow:
         collect = MagicMock()
         aggregate = MagicMock()
         # apply a data flow to a dataset
-        DataFlow().apply(ds, collect, aggregate)
+        DataFlow().apply(ds, collect, aggregate, debug=True)
         # make sure the flow was build and the executable flow was applied
-        mock_build.assert_called_once_with(collect, aggregate)
+        mock_build.assert_called_once_with(collect, aggregate, debug=True)
         mock_build.return_value.apply.assert_called_once_with(ds)
 
 
@@ -213,14 +214,14 @@ class TestExecutableDataFlow:
             with pytest.raises(RuntimeError):
                 # invalid node id in collect reference
                 collect = MagicMock(spec=ConcreteReference, _graph=mock_graph, _node_id=MagicMock())
-                ExecutableDataFlow(None, mock_graph, collect, None, None)
+                ExecutableDataFlow(None, mock_graph, collect, None, None, False)
 
             with pytest.raises(RuntimeError):
                 # collect node cannot be part of aggregated partition
                 collect = MagicMock(
                     spec=ConcreteReference, _graph=mock_graph, _node_id=mock_aggregate_node._node_id
                 )
-                ExecutableDataFlow(None, mock_graph, collect, None, None)
+                ExecutableDataFlow(None, mock_graph, collect, None, None, False)
 
             # valid collect reference
             collect = MagicMock(
@@ -232,14 +233,14 @@ class TestExecutableDataFlow:
                 aggregate = MagicMock(
                     spec=ConcreteReference, _graph=mock_graph, _node_id=MagicMock()
                 )
-                ExecutableDataFlow(None, mock_graph, collect, aggregate, None)
+                ExecutableDataFlow(None, mock_graph, collect, aggregate, None, False)
 
             with pytest.raises(RuntimeError):
                 # aggregate node must be part of aggregated partition
                 aggregate = MagicMock(
                     spec=ConcreteReference, _graph=mock_graph, _node_id=mock_feature_node._node_id
                 )
-                ExecutableDataFlow(None, mock_graph, collect, aggregate, None)
+                ExecutableDataFlow(None, mock_graph, collect, aggregate, None, False)
 
     @patch("hyped.core.flow.DataAggregationManager", MagicMock())
     def test_str(self) -> None:
@@ -259,14 +260,14 @@ class TestExecutableDataFlow:
         aggregate = ConcreteReference("4", graph, None)
 
         # create an executable data flow
-        flow = ExecutableDataFlow(None, graph, collect, aggregate, None)
+        flow = ExecutableDataFlow(None, graph, collect, aggregate, None, False)
         string = str(flow)
 
         assert "(Collect)" in string
         assert "(Aggregate)" in string
 
     @pytest.mark.parametrize(
-        "graph, collect, aggregate, expected_instance_graph, expected_aggregates_graph",
+        "graph, collect, aggregate, debug, expected_instance_graph, expected_aggregates_graph",
         [
             # Simple linear graph with no aggregators
             (
@@ -281,6 +282,7 @@ class TestExecutableDataFlow:
                 ),
                 2,
                 None,
+                False,
                 build_graph([(0, 1), (1, 2)]),
                 None,
             ),
@@ -297,6 +299,7 @@ class TestExecutableDataFlow:
                 ),
                 0,
                 2,
+                False,
                 build_graph([(0, 1)]),  # aggregator is contained in instance graph
                 build_graph([(0, 1), (1, 2)]),  # 1 is getitem operator
             ),
@@ -313,8 +316,78 @@ class TestExecutableDataFlow:
                 ),
                 "1",
                 "2",
+                False,
                 build_graph([("0", "1"), ("1", "2")]),  # aggregator is contained in instance graph
                 build_graph([("0", "1")]),  # 1 is getitem operator
+            ),
+            # Test graphs with debug nodes
+            (
+                build_graph(
+                    [("0", "1"), ("1", "2")],
+                    {
+                        "0": DataFlowGraph.NodeType.SOURCE,
+                        "1": DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        "2": DataFlowGraph.NodeType.DEBUG,
+                    },
+                    output_type=MappingType.construct({"x": BoolType}),
+                ),
+                "1",
+                None,
+                False,
+                build_graph([("0", "1")]),  # debug node is pruned
+                None,
+            ),
+            (
+                build_graph(
+                    [("0", "1"), ("1", "2")],
+                    {
+                        "0": DataFlowGraph.NodeType.SOURCE,
+                        "1": DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        "2": DataFlowGraph.NodeType.DEBUG,
+                    },
+                    output_type=MappingType.construct({"x": BoolType}),
+                ),
+                "1",
+                None,
+                True,
+                build_graph([("0", "1"), ("1", "2")]),  # debug node is not pruned
+                None,
+            ),
+            (
+                build_graph(
+                    [("0", "1"), ("1", "2"), ("1", "3"), ("3", "4")],
+                    {
+                        "0": DataFlowGraph.NodeType.SOURCE,
+                        "1": DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        "2": DataFlowGraph.NodeType.DEBUG,
+                        "3": DataFlowGraph.NodeType.DATA_AGGREGATOR,
+                        "4": DataFlowGraph.NodeType.DEBUG,
+                    },
+                    output_type=MappingType.construct({"x": BoolType}),
+                ),
+                "1",
+                "3",
+                True,
+                build_graph([("0", "1"), ("1", "2"), ("1", "3")]),
+                build_graph([("0", "1"), ("1", "2")]),  # source -> getitem -> debug
+            ),
+            (
+                build_graph(
+                    [("0", "1"), ("1", "2"), ("1", "3"), ("3", "4")],
+                    {
+                        "0": DataFlowGraph.NodeType.SOURCE,
+                        "1": DataFlowGraph.NodeType.DATA_PROCESSOR,
+                        "2": DataFlowGraph.NodeType.DEBUG,
+                        "3": DataFlowGraph.NodeType.DATA_AGGREGATOR,
+                        "4": DataFlowGraph.NodeType.DEBUG,
+                    },
+                    output_type=MappingType.construct({"x": BoolType}),
+                ),
+                "1",
+                "3",
+                False,
+                build_graph([("0", "1"), ("1", "2")]),
+                build_graph([("0", "1")]),  # source -> getitem -> debug
             ),
         ],
     )
@@ -323,6 +396,7 @@ class TestExecutableDataFlow:
         graph: DataFlowGraph,
         collect: Hashable,
         aggregate: Hashable,
+        debug: bool,
         expected_instance_graph: DataFlowGraph,
         expected_aggregates_graph: DataFlowGraph,
     ) -> None:
@@ -339,7 +413,7 @@ class TestExecutableDataFlow:
             patch("hyped.core.flow.DataAggregationManager"),
         ):
             # create the executable flow
-            flow = ExecutableDataFlow(None, graph, collect, aggregate, None)
+            flow = ExecutableDataFlow(None, graph, collect, aggregate, None, debug)
 
             # make sure the instance graph has the expected structure
             assert nx.is_isomorphic(flow._instance_graph, expected_instance_graph)
@@ -363,7 +437,7 @@ class TestExecutableDataFlow:
         # create the collect reference
         collect = ConcreteReference(graph.src_node_id, graph, None)
         # create the executable data flow instance
-        flow = ExecutableDataFlow(None, graph, collect, None, None)
+        flow = ExecutableDataFlow(None, graph, collect, None, None, False)
 
         with pytest.raises(ValueError):
             # not a dataset
@@ -467,7 +541,7 @@ class TestExecutableDataFlow:
         mock_manager = MagicMock(
             values_proxy={sum_ref._node_id: MagicMock(type=Int16Type.arrow_type)}
         )
-        flow = ExecutableDataFlow(None, builder.graph, src_ref, agg_ref, mock_manager)
+        flow = ExecutableDataFlow(None, builder.graph, src_ref, agg_ref, mock_manager, False)
 
         # create a mock dataset with features matching the second data type
         ds = MagicMock(spec=datasets.Dataset, features=dtype_B.hf_feature)
@@ -518,7 +592,7 @@ class TestExecutableDataFlow:
         # create the collect reference
         collect = ConcreteReference(graph.src_node_id, graph, None)
         # create the executable data flow instance
-        flow = ExecutableDataFlow(None, graph, collect, None, None)
+        flow = ExecutableDataFlow(None, graph, collect, None, None, False)
 
         with pytest.raises(ValueError, match="Expected one of `datasets.Dataset`,"):
             flow.apply(MagicMock())
@@ -537,7 +611,7 @@ class TestExecutableDataFlow:
             pytest.raises(RuntimeError, match="Dataset features do not align with the expected"),
             patch("hyped.core.flow.validate_hf_feature") as mock_validate_hf_feature,
         ):
-            flow = ExecutableDataFlow(MagicMock(), graph, collect, None, None)
+            flow = ExecutableDataFlow(MagicMock(), graph, collect, None, None, False)
             mock_validate_hf_feature.side_effect = Exception
             flow.apply(ds)
 
@@ -551,7 +625,7 @@ class TestExecutableDataFlow:
         # create the collect reference
         collect = ConcreteReference(graph.src_node_id, graph, None)
         # create the executable data flow instance
-        flow = ExecutableDataFlow(Inputs, graph, collect, None, None)
+        flow = ExecutableDataFlow(Inputs, graph, collect, None, None, False)
 
         serialized = flow.serialize()
         flow = DataFlow.deserialize(serialized)

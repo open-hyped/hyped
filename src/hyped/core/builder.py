@@ -101,6 +101,7 @@ class DataFlowGraphBuilder(AbstractDataFlowGraphBuilder):
                 DataFlowGraph.NodeType.CAST,
                 DataFlowGraph.NodeType.COLLECT,
                 DataFlowGraph.NodeType.DATA_PROCESSOR,
+                DataFlowGraph.NodeType.DEBUG,
             }
         ):
             raise NotImplementedError(
