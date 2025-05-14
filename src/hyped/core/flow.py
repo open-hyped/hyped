@@ -124,6 +124,7 @@ def plot_data_flow(
         DataFlowGraph.NodeType.CAST: cmap.colors[5],
         DataFlowGraph.NodeType.COLLECT: cmap.colors[6],
         DataFlowGraph.NodeType.TRACE: cmap.colors[7],
+        DataFlowGraph.NodeType.DEBUG: cmap.colors[8],
         DataFlowGraph.NodeType.DATA_PROCESSOR: cmap.colors[2],
         DataFlowGraph.NodeType.DATA_AUGMENTOR: cmap.colors[3],
         DataFlowGraph.NodeType.DATA_AGGREGATOR: cmap.colors[4],
@@ -497,6 +498,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         aggregate: None | Feature | dict[str, Any] = None,
         *,
         aggregation_manager: DataAggregationManager | None = None,
+        debug: bool = True,
     ) -> ExecutableDataFlow:
         """Build an executable data flow for computing and collecting features.
 
@@ -512,6 +514,8 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             *
             aggregation_manager (DataAggregationManager | None): The data aggregation manager
                 instance.
+            debug (bool): If True, includes debug nodes in the built data flow, allowing
+                for inspection of intermediate data. Defaults to :code:`True`.
 
         Returns:
             ExecutableDataFlow[T]: An executable data flow that encapsulates the graph,
@@ -546,7 +550,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         )
         # build executable data flow
         return ExecutableDataFlow(
-            self._source_annotation, graph, collect, aggregate, aggregation_manager
+            self._source_annotation, graph, collect, aggregate, aggregation_manager, debug=debug
         )
 
     @overload
@@ -555,6 +559,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         ds: Dataset,
         collect: Feature | dict[str, Any],
         *,
+        debug: bool = False,
         batch_size: int = 1000,
         drop_last_batch: bool = False,
         keep_in_memory: bool = False,
@@ -572,6 +577,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         collect: Feature | dict[str, Any],
         aggregate: Feature | dict[str, Any],
         *,
+        debug: bool = False,
         batch_size: int = 1000,
         drop_last_batch: bool = False,
         keep_in_memory: bool = False,
@@ -588,6 +594,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         ds: ItDataset,
         collect: Feature | dict[str, Any],
         *,
+        debug: bool = False,
         batch_size: int = 1000,
         drop_last_batch: bool = False,
     ) -> ItDataset:
@@ -600,6 +607,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         collect: Feature | dict[str, Any],
         aggregate: Feature | dict[str, Any],
         *,
+        debug: bool = False,
         batch_size: int = 1000,
         drop_last_batch: bool = False,
     ) -> tuple[ItDataset, dict[str, Any]]:
@@ -610,6 +618,8 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         ds: Dataset | ItDataset,
         collect: Feature,
         aggregate: None | Feature = None,
+        *,
+        debug: bool = False,
         **kwargs: Any,
     ) -> Dataset | ItDataset | tuple[Dataset, dict[str, Any]] | tuple[ItDataset, dict[str, Any]]:
         """Apply the data flow graph to a dataset.
@@ -627,6 +637,8 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             aggregate (None | Feature | dict[str, Any]): An optional aggregate feature, which
                 applies additional aggregate-level transformations. If not provided, aggregation
                 is skipped.
+            debug (bool): If True, executes debug nodes allowing for inspection of intermediate
+                data. Defaults to :code:`False`.
             batch_size (int): The number of samples to process in a batch. Defaults to 1000.
             drop_last_batch (bool): Whether to drop the last batch if it is smaller than
                 the specified batch size. Defaults to :code:`False`.
@@ -651,13 +663,13 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             is specified.
         """
         # build and apply the data flow to the dataset
-        flow = self.build(collect, aggregate)
+        flow = self.build(collect, aggregate, debug=debug)
         ds = flow.apply(ds, **kwargs)
         # return the transformed dataset and optionally the aggregates
         return ds if aggregate is None else (ds, flow.aggregates)
 
     @classmethod
-    def deserialize(cls, data: str) -> ExecutableDataFlow:
+    def deserialize(cls, data: str, debug: bool = True) -> ExecutableDataFlow:
         """Deserializes a JSON string into an :class:`ExecutableDataFlow` instance.
 
         This method parses a JSON string into a dictionary, validates its structure,
@@ -666,6 +678,9 @@ class DataFlow(AbstractDataFlow, Generic[T]):
 
         Args:
             data (str): The JSON string representing the serialized executable data flow.
+            debug (bool): If :code:`True`, the deserialized graph will include debug nodes
+                present in the serialized flow. If :code:`False`, debug nodes will be omitted
+                from the deserialized graph. Defaults to :code:`True`.
 
         Returns:
             ExecutableDataFlow: The deserialized executable data flow.
@@ -674,7 +689,7 @@ class DataFlow(AbstractDataFlow, Generic[T]):
             ValueError: If the input JSON string does not contain the required keys
                 ("graph", "collect", and "aggregate").
         """
-        return ExecutableDataFlow.deserialize(data)
+        return ExecutableDataFlow.deserialize(data, debug=debug)
 
 
 class ExecutableDataFlow(AbstractDataFlow):
@@ -696,6 +711,7 @@ class ExecutableDataFlow(AbstractDataFlow):
         collect: ConcreteReference,
         aggregate: ConcreteReference | None,
         aggregation_manager: DataAggregationManager | None,
+        debug: bool,
     ) -> None:
         """Initialize a :class:`ExecutableDataFlow`.
 
@@ -707,6 +723,8 @@ class ExecutableDataFlow(AbstractDataFlow):
                 if applicable.
             aggregation_manager (DataAggregationManager | None): The data aggregation
                 manager instance to use in case the flow contains aggregator nodes.
+            debug (bool): If True, includes debug nodes in the executable data flow,
+                allowing for inspection of intermediate data.
 
         Raises:
             RuntimeError: If the collect node is not part of the graph.
@@ -747,12 +765,40 @@ class ExecutableDataFlow(AbstractDataFlow):
             if not isinstance(build_feature_from_reference(aggregate), MappingFeature):
                 raise RuntimeError("The aggregate feature must be a mapping.")
 
+        # collect all leaf nodes
+        leaf_nodes = (
+            {collect._node_id} if aggregate is None else {collect._node_id, aggregate._node_id}
+        )
+        inst_debug_nodes = (
+            set()
+            if not debug
+            else {
+                n
+                for n, d in graph.nodes(data=True)
+                if (
+                    d[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.DEBUG
+                    and d[DataFlowGraph.NodeAttribute.PARTITION]
+                    != DataFlowGraph.Partition.AGGREGATED
+                )
+            }
+        )
+        agg_debug_nodes = (
+            set()
+            if not debug
+            else {
+                n
+                for n, d in graph.nodes(data=True)
+                if (
+                    d[DataFlowGraph.NodeAttribute.NODE_TYPE] == DataFlowGraph.NodeType.DEBUG
+                    and d[DataFlowGraph.NodeAttribute.PARTITION]
+                    == DataFlowGraph.Partition.AGGREGATED
+                )
+            }
+        )
+
         # optimize data flow
         graph = DataFlowGraphOptimizer().optimize(
-            graph,
-            leaf_nodes=(
-                {collect._node_id} if aggregate is None else {collect._node_id, aggregate._node_id}
-            ),
+            graph, leaf_nodes=leaf_nodes | inst_debug_nodes | agg_debug_nodes
         )
 
         # create read only view on optimized graph
@@ -778,7 +824,8 @@ class ExecutableDataFlow(AbstractDataFlow):
 
         # compute the instance sub-graph of the data flow graph
         # which includes the aggregator nodes
-        self._instance_graph = self._graph.dependency_graph({collect._node_id} | aggregator_ids)
+        inst_nodes = {collect._node_id} | aggregator_ids | inst_debug_nodes
+        self._instance_graph = self._graph.dependency_graph(inst_nodes)
 
         # set defaults for aggregation execution
         self._aggregates_graph: None | DataFlowGraph = None
@@ -800,7 +847,7 @@ class ExecutableDataFlow(AbstractDataFlow):
                 else self._check_aggregation_manager(list(aggregator_ids), aggregation_manager)
             )
             self._aggregates_graph = self._build_post_aggregation_graph(
-                aggregate_ref, aggregator_ids
+                {aggregate_ref._node_id} | agg_debug_nodes, aggregator_ids
             )
 
             # initialize the aggregates executor from the graph and manager
@@ -888,7 +935,7 @@ class ExecutableDataFlow(AbstractDataFlow):
         return self._aggregates_executor  # pragma: not covered
 
     def _build_post_aggregation_graph(
-        self, aggregate: ConcreteReference, aggregator_nodes: set[NodeId]
+        self, leaf_nodes: ConcreteReference, aggregator_nodes: set[NodeId]
     ) -> DataFlowGraph:
         """Build the post-aggregation graph.
 
@@ -901,8 +948,7 @@ class ExecutableDataFlow(AbstractDataFlow):
         aggregation manager.
 
         Args:
-            aggregate (ConcreteReference): The aggregate reference for which the dependency graph
-                will be built.
+            leaf_nodes (set[NodeId]): The leaf nodes in the aggregated partition.
             aggregator_nodes (set[NodeId]): A set of node IDs representing the aggregator nodes
                 that act as stopping points in the dependency graph.
 
@@ -912,7 +958,7 @@ class ExecutableDataFlow(AbstractDataFlow):
         """
         # build the dependency graph of the aggregate up to the aggregator nodes
         # note that this also includes constants
-        g = self._graph.dependency_graph({aggregate._node_id}, stop_nodes=aggregator_nodes)
+        g = self._graph.dependency_graph(leaf_nodes, stop_nodes=aggregator_nodes)
         # remove the aggregator nodes themselves as these are included in the
         # instance graph
         g: DataFlowGraph = nx.restricted_view(g, aggregator_nodes, [])
@@ -1161,9 +1207,10 @@ class ExecutableDataFlow(AbstractDataFlow):
                 # rebuild the data flow graph by attaching it to the casted source
                 # node of the new flow and build it, use the same aggregation
                 # manager to make sure the aggregation is not reset
+                # use debug=True because debug nodes should be kept if they are in the original flow
                 collect, aggregate = self.attach(casted_source)
                 exec_flow = flow.build(
-                    collect, aggregate, aggregation_manager=self._aggregation_manager
+                    collect, aggregate, aggregation_manager=self._aggregation_manager, debug=True
                 )
 
             except Exception as e:
@@ -1405,7 +1452,7 @@ class ExecutableDataFlow(AbstractDataFlow):
         return json.dumps(data, indent=indent, sort_keys=True)
 
     @classmethod
-    def deserialize(cls, data: str) -> ExecutableDataFlow:
+    def deserialize(cls, data: str, debug: bool = True) -> ExecutableDataFlow:
         """Deserializes a JSON string into an :class:`ExecutableDataFlow` instance.
 
         This method parses a JSON string into a dictionary, validates its structure,
@@ -1414,6 +1461,9 @@ class ExecutableDataFlow(AbstractDataFlow):
 
         Args:
             data (str): The JSON string representing the serialized executable data flow.
+            debug (bool): If :code:`True`, the deserialized graph will include debug nodes
+                present in the serialized flow. If :code:`False`, debug nodes will be omitted
+                from the deserialized graph. Defaults to :code:`True`.
 
         Returns:
             ExecutableDataFlow: The deserialized executable data flow.
@@ -1449,4 +1499,4 @@ class ExecutableDataFlow(AbstractDataFlow):
         )
 
         # construct executable data flow
-        return ExecutableDataFlow(source_annotation, graph, collect, aggregate, None)
+        return ExecutableDataFlow(source_annotation, graph, collect, aggregate, None, debug=debug)

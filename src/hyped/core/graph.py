@@ -32,6 +32,11 @@ DEFAULT_NODE_FORMAT = (
 )
 
 
+def logical_imply(x, y):
+    """Returns the logical implication x -> y."""
+    return not x or y
+
+
 def _compute_node_depth(g: nx.DiGraph) -> dict[Hashable, int]:
     """Compute the depth of each node in the graph.
 
@@ -191,13 +196,21 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         downstream.
         """
 
-        TRACE = "TRACE NODE"
+        TRACE = "TRACE_NODE"
         """
         Represents a trace node in the data flow graph.
 
         This type of node is responsible for tracing values through different
         partitions of the graph. It transforms data of a specific partition into
         the index-space of a target partition.
+        """
+
+        DEBUG = "DEBUG_NODE"
+        """Represents a debug node for inspecting data flow.
+
+        Debug nodes do not transform data or produce integrated outputs. They
+        facilitate monitoring and debugging through mechanisms like logging or
+        asserting.
         """
 
         DATA_PROCESSOR = "DATA_PROCESSOR_NODE"
@@ -440,14 +453,14 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
         # find larges layer in graph
         return max(len(list(layer)) for _, layer in layers)
 
-    def get_output_dtype(self, node_id: NodeId) -> DType:
+    def get_output_dtype(self, node_id: NodeId) -> None | DType:
         """Helper function to get the output data type of a node.
 
         Args:
             node_id (NodeId): The id of the node.
 
         Returns:
-            DType: The output data type of the node.
+            None | DType: The output data type of the node.
 
         Raises:
             RuntimeError: If the node id is not contained in the graph.
@@ -489,6 +502,9 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
             NodeId: The node id of the added node.
         """
         assert node_id not in self.nodes, f"Node id '{node_id}' already in use."
+        assert logical_imply(
+            node_type == DataFlowGraph.NodeType.DEBUG, output_dtype is None
+        ), f"Expected output type for debug node to be None, got {output_dtype}"
         # compute the depth of the node in the graph based on it's input references
         depth = (
             0
@@ -689,11 +705,11 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                 None if obj is None else obj.config.to_dict()
             )
             # serialize feature types
+            out_dtype = node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
+            out_dtype = None if out_dtype is None else out_dtype.to_dict()
+            node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] = out_dtype
             node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] = node[
                 DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE
-            ].to_dict()
-            node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] = node[
-                DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE
             ].to_dict()
 
         return data
@@ -726,11 +742,11 @@ class DataFlowGraph(nx.MultiDiGraph, AbstractDataFlowGraph):
                     node[DataFlowGraph.NodeAttribute.PARTITION]
                 )
             # deserialize feature types
+            out_dtype = node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
+            out_dtype = None if out_dtype is None else build_dtype_from_dict(out_dtype)
+            node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] = out_dtype
             node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE] = build_dtype_from_dict(
                 node[DataFlowGraph.NodeAttribute.IN_FEATURE_TYPE]
-            )
-            node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE] = build_dtype_from_dict(
-                node[DataFlowGraph.NodeAttribute.OUT_FEATURE_TYPE]
             )
             # deserialize node objects
             obj = node[DataFlowGraph.NodeAttribute.NODE_OBJ]

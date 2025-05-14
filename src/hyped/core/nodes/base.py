@@ -134,7 +134,7 @@ class RunContext:
     should be processed.
     """
 
-    output_dtype: DType
+    output_dtype: None | DType
     """The type of data the processor will produce as output.
 
     This attribute defines the expected structure or type of the output that the processor will

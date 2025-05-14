@@ -4487,6 +4487,7 @@ class SequenceFeature(typing.Sequence[T], Feature[dtypes.SequenceType]):
     @classmethod
     def __init_subclass__(cls) -> None:
         """Prevents subclassing of the :class:`SequenceFeature` class."""
+        super().__init_subclass__()
         raise EnvironmentError("Cannot inherit from type")
 
     @classmethod

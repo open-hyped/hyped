@@ -226,6 +226,7 @@ class BaseDataAugmentor(BaseNode[C], ABC):
             TypeError: If the subclass does not implement a valid :code:`process` method
                 that adheres to one of the defined process function protocols.
         """
+        super().__init_subclass__()
         # set default process mode for process function
         ProcessMode(batched=False, backend="python").validate().set_default(cls.process)
 
@@ -288,14 +289,10 @@ class BaseDataAugmentor(BaseNode[C], ABC):
     def process(
         self, ctx: RunContext, *args: Feature, **kwargs: Feature
     ) -> Iterable[Feature] | AsyncIterable[Feature] | tuple[Feature, TraceIndexList]:
-        """Defines the augmentation logic to be applied to individual samples.
+        """Defines the augmentation logic to be applied.
 
-        This method should be overridden by subclasses to define the augmentation of a single
-        data sample. It may either be synchronous or asynchronous, depending on the subclass.
-
-        It also defines the interface of the node and must be implemented by subclasses. Even if
-        the :func:`batch_process` method implements the primary processing logic, :func:`process`
-        is still required to define the input and output features of the node.
+        This method should be overridden by subclasses to define the augmentation logic.
+        It may either be synchronous or asynchronous, depending on the subclass.
 
         Args:
             ctx (RunContext): Context information for the data augmentor's execution.

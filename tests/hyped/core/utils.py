@@ -122,7 +122,9 @@ def build_graph(
                 node_obj=node_objects.get(node, MagicMock()),
                 node_type=node_types[node],
                 inputs={k: refs[u] for u, _, k in tmp_graph.in_edges(node, keys=True)},
-                output_dtype=output_type,
+                output_dtype=output_type
+                if node_types[node] != DataFlowGraph.NodeType.DEBUG
+                else None,
                 node_id=node,
             )
 

@@ -1,7 +1,9 @@
 """Helper functionality to work with generic types."""
+from functools import cache
 from typing import TypeVar, get_args, get_origin
 
 
+@cache
 def build_typevar_mapping(t: type) -> dict[TypeVar, TypeVar | type | None]:
     """Build a mapping from TypeVars to their concrete types within a given type.
 

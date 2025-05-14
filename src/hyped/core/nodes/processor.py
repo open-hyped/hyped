@@ -115,6 +115,7 @@ class BaseDataProcessor(BaseNode[C], ABC):
             TypeError: If the subclass does not implement a :code:`process` method
             that matches the :class:`_ProcessFunctionProtocol` signature.
         """
+        super().__init_subclass__()
         # apply default process mode, only sets the process mode if the
         # function doesn't have a process mode applied to it yet
         ProcessMode(batched=False, backend="python").validate().set_default(cls.process)
@@ -166,14 +167,10 @@ class BaseDataProcessor(BaseNode[C], ABC):
 
     @abstractmethod
     def process(self, ctx: RunContext, *args: Feature, **kwargs: Feature) -> Feature:
-        """Process a single data sample.
+        """Process function.
 
-        This method should be implemented by subclasses to define the processing of a single
-        data sample. It may either be synchronous or asynchronous, depending on the subclass.
-
-        It also defines the interface of the node and must be implemented by subclasses. Even if
-        the :func:`batch_process` method implements the primary processing logic, :func:`process`
-        is still required to define the input and output features of the node.
+        This method should be implemented by subclasses to define the processing logic.
+        It may either be synchronous or asynchronous, depending on the subclass.
 
         Args:
             ctx (RunContext): The context for the current process call.

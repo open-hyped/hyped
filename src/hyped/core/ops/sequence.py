@@ -777,6 +777,7 @@ def zip_(*args: Sequence, **kwargs: Sequence) -> Sequence[Sequence] | Sequence[M
         raise ValueError("Must specify either sequences as *args or **kwargs, not both!")
 
     if len(args):
+        # TODO: pass *args to processor call when supported
         proc_kwargs = {str(i): args[i] for i in range(len(args))}
         try:
             return SequenceZip().call(**proc_kwargs)

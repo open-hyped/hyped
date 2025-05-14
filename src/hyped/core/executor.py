@@ -384,6 +384,10 @@ class DataFlowGraphExecutor(object):
                     assert self.aggregation_manager is not None
                     await self.aggregation_manager.aggregate(node_obj, ctx, inputs)
 
+                elif node_type == DataFlowGraph.NodeType.DEBUG:
+                    # run debug node
+                    await node_obj.run(ctx, inputs)
+
                 else:  # pragma: not covered
                     raise TypeError(f"Unsupported node type: {node_type}")
 
