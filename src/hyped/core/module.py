@@ -79,20 +79,8 @@ class DataFlowModule(ABC):
         self.debug = debug
         self._flow: None | DataFlow = None
 
-    def _build_flow(self, debug: bool = True) -> ExecutableDataFlow:
-        """Builds the executable data flow for this module.
-
-        This method inspects the signature of the :meth:`call` method to
-        determine the input and output features, constructs a :class:`~.flow.DataFlow`
-        instance, and then builds an :class:`~.flow.ExecutableDataFlow`.
-
-        Args:
-            debug (bool, optional): Whether to build the flow in debug mode.
-                Defaults to :code:`True`.
-
-        Returns:
-            ExecutableDataFlow: The built executable data flow.
-        """
+    def _build_src_dtype(self) -> MappingType:
+        """Infers the source data type from the :code:`call` method signature."""
         typevar_mapping: dict[TypeVar, DType] = {}
         if hasattr(self, "__orig_class__") and hasattr(self, "__parameters__"):
             for v in self.__parameters__:
@@ -101,7 +89,7 @@ class DataFlowModule(ABC):
 
         sig = inspect.signature(self._unwrapped_call)
         # build source features from signature
-        src_dtype = MappingType.construct(
+        return MappingType.construct(
             {
                 k: build_feature_from_annotation(
                     p.annotation, typevar_mapping=typevar_mapping
@@ -110,6 +98,17 @@ class DataFlowModule(ABC):
             }
         )
 
+    def _build_flow(self, debug: bool = True) -> ExecutableDataFlow:
+        """Builds the executable data flow for this module.
+
+        Args:
+            debug (bool, optional): Whether to build the flow in debug mode.
+                Defaults to :code:`True`.
+
+        Returns:
+            ExecutableDataFlow: The built executable data flow.
+        """
+        src_dtype = self._build_src_dtype()
         # create the data flow and call the module on the source features
         flow = DataFlow(src_dtype.hf_feature)
         output = self.call(**flow.source)
