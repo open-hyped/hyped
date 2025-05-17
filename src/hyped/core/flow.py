@@ -15,7 +15,7 @@ import pickle
 import re
 from dataclasses import replace
 from itertools import groupby
-from typing import Any, Generic, Mapping, TypeVar, get_args, overload
+from typing import Any, Generic, Mapping, TypeVar, overload
 
 import datasets
 import nest_asyncio
@@ -26,6 +26,7 @@ from matplotlib import colormaps
 from matplotlib import lines as mlines
 from matplotlib import pyplot as plt
 
+from hyped.common._generic import solve_typevar
 from hyped.common._pydantic import TypeAdapterWithArbitraryTypesAllowed
 
 from .abc import AbstractDataFlow
@@ -273,7 +274,8 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         """Initialize the DataFlow.
 
         Args:
-            features (datasets.Features): The features of the source node.
+            features (None | datasets.Features | MappingType): The source node
+                features.
         """
         self._builder = DataFlowGraphBuilder()
         # save source features
@@ -301,7 +303,9 @@ class DataFlow(AbstractDataFlow, Generic[T]):
     @property
     def _source_annotation(self) -> Any:
         """Retrieves the source features annotation if present."""
-        return None if not hasattr(self, "__orig_class__") else get_args(self.__orig_class__)[0]
+        return (
+            None if not hasattr(self, "__orig_class__") else solve_typevar(self.__orig_class__, T)
+        )
 
     def _initialize(self) -> None:
         """Initialize the data flow graph by defining the source node.
