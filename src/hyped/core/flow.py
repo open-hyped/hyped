@@ -282,6 +282,20 @@ class DataFlow(AbstractDataFlow, Generic[T]):
         self._hf_source_features = features
         self._source_feature: None | T = None
 
+    @classmethod
+    def _from_builder(cls, builder: DataFlowGraphBuilder) -> DataFlow:
+        # create a new data flow
+        flow = cls()
+        flow._builder = builder
+
+        if builder._graph.src_node_id is not None:
+            ref = ConcreteReference(
+                _node_id=builder._graph.src_node_id, _graph=builder._graph, _builder=builder
+            )
+            flow._source_feature = build_feature_from_reference(ref)
+
+        return flow
+
     @property
     def _graph(self) -> DataFlowGraph:
         """The data flow graph instance."""

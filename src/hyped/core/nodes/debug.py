@@ -17,7 +17,7 @@ from ..abc import AbstractDataFlow
 from ..features.features import Feature as _Feature
 from ..typing import Feature
 from ..utils import map_recursive
-from .base import ProcessMode, RunContext
+from .base import ProcessMode, RunContext, _extract_builder_from_args
 from .processor import BaseDataProcessor, BaseDataProcessorConfig
 
 
@@ -86,7 +86,7 @@ class BaseDebugNode(BaseDataProcessor[D], ABC):
                 arguments.
         """
         # extract the graph builder and prepare the input arguments
-        builder, args, kwargs = self._extract_builder_from_args(args, kwargs)
+        builder, args, kwargs = _extract_builder_from_args(args, kwargs)
 
         # bind arguments to signature and unpack dynamic keyword arguments
         bound_args = self.signature.bind(*args, **kwargs).arguments

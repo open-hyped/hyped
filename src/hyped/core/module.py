@@ -7,18 +7,44 @@ logic and automatically handling data flow construction.
 """
 import inspect
 from abc import ABC, abstractmethod
-from typing import TypeVar
+from functools import partialmethod, update_wrapper
+from typing import Any, Callable, TypeVar
 
 from jinja2 import Template
 from matplotlib import pyplot as plt
 
 from hyped.common._generic import solve_typevar
+from hyped.common.utils import tmp_setattr
 
 from .features.dtypes import DType, MappingType
 from .features.features import MappingFeature, build_feature_from_annotation
 from .flow import DEFAULT_NODE_FORMAT, DataFlow, ExecutableDataFlow, plot_data_flow
 from .graph import DataFlowGraph
+from .nodes.base import _extract_builder_from_args
 from .typing import Feature
+
+
+def _call_wrapper(self, *args: Any, __unwrapped_call: Callable, **kwargs: Any) -> Any:
+    """Wraps the :code:`DataFlowModule.call` method to provide data flow context.
+
+    This wrapper extracts the data flow builder from the arguments,
+    creates a :class:`~.flow.DataFlow` instance, and makes it available
+    via the :code:`_flow` attribute within the :code:`call` method.
+
+    Args:
+        self (DataFlowModule): The instance of the :class:`DataFlowModule`.
+        *args:  Positional arguments passed to the :code:`call` method.
+        __unwrapped_call (Callable): The original :code:`call` method.
+        **kwargs: Keyword arguments passed to the :code:`call` method.
+
+    Returns:
+        Any: The result of the original :code:`call` method.
+    """
+    builder, _, _ = _extract_builder_from_args(args, kwargs)
+    flow = DataFlow._from_builder(builder)
+
+    with tmp_setattr(self, "_flow", flow):
+        return __unwrapped_call(self, *args, **kwargs)
 
 
 class DataFlowModule(ABC):
@@ -29,6 +55,20 @@ class DataFlowModule(ABC):
     of the module.
     """
 
+    def __init_subclass__(cls) -> None:
+        """Handles subclass initialization.
+
+        This method wraps the :code:`call` method of the subclass with
+        :func:`call_wrapper` to provide data flow context.
+        """
+        cls._unwrapped_call = cls.call
+        cls.call = update_wrapper(
+            wrapper=partialmethod(_call_wrapper, __unwrapped_call=cls._unwrapped_call),
+            wrapped=cls._unwrapped_call,
+        )
+
+        return super().__init_subclass__()
+
     def __init__(self, debug: bool = True) -> None:
         """Initializes a DataFlowModule.
 
@@ -37,6 +77,7 @@ class DataFlowModule(ABC):
                 building the data flow. Defaults to :code:`True`.
         """
         self.debug = debug
+        self._flow: None | DataFlow = None
 
     def _build_flow(self, debug: bool = True) -> ExecutableDataFlow:
         """Builds the executable data flow for this module.
@@ -58,7 +99,7 @@ class DataFlowModule(ABC):
                 annotation = solve_typevar(self.__orig_class__, v)
                 typevar_mapping[v] = build_feature_from_annotation(annotation).dtype
 
-        sig = inspect.signature(self.call)
+        sig = inspect.signature(self._unwrapped_call)
         # build source features from signature
         src_dtype = MappingType.construct(
             {
@@ -74,22 +115,34 @@ class DataFlowModule(ABC):
         output = self.call(**flow.source)
 
         # collect the output in a mapping
-        if not isinstance(output, MappingFeature):
+        if isinstance(output, dict):
+            output = flow.collect(output)
+        elif not isinstance(output, MappingFeature):
             output = flow.collect({"output": output})
 
         # build the data flow
         return flow.build(collect=output, debug=debug)
 
     @property
-    def flow(self) -> ExecutableDataFlow:
+    def flow(self) -> DataFlow | ExecutableDataFlow:
         """The executable data flow for this module.
 
-        This property lazily builds and returns the :class:`~.flow.ExecutableDataFlow`
-        instance associated with this module.
+        This property lazily builds and returns the data flow instance.
+
+        -   Within the :meth:`call` method, this returns a mutable
+            :class:`~.flow.DataFlow` instance, giving access to functionality
+            like `~.flow.DataFlow.collect`.
+
+        -   Outside of :meth:`call`, this returns the build
+            :class:`~.flow.ExecutableDataFlow`, which represents the
+            fully constructed and optimized data flow, ready for execution.
 
         Returns:
-            ExecutableDataFlow: The executable data flow.
+            DataFlow | ExecutableDataFlow: The data flow.
         """
+        if getattr(self, "_flow", None) is not None:
+            return self._flow
+
         debug = getattr(self, "debug", True)
         return self._build_flow(debug=debug)
 
@@ -150,6 +203,10 @@ class DataFlowModule(ABC):
         are processed to produce output features. The signature of this method
         determines the input features of the data flow, and the return type
         determines the output feature.
+
+        Within this method, the :py:attr:`flow` property provides access to
+        a :class:`~.flow.DataFlow` instance, giving access to functionality
+        like `~.flow.DataFlow.collect`.
 
         Args:
             *args (Feature): Positional input features.
