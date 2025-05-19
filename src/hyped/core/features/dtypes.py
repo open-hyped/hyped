@@ -179,6 +179,9 @@ BoolType = PrimitiveType(pa.bool_())
 StringType = PrimitiveType(pa.utf8())
 """String type."""
 
+BinaryType = PrimitiveType(pa.binary())
+"""Binary String type."""
+
 # Signed Integer Types
 Int8Type = PrimitiveType(pa.int8())
 """8-bit signed integer type."""

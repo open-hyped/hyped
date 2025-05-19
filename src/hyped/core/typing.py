@@ -9,7 +9,7 @@ import pyarrow as pa
 
 from hyped.common._worker import Rank
 
-from .features.features import BoolFeature, ClassLabelFeature, ExcludeFieldIf
+from .features.features import BinaryFeature, BoolFeature, ClassLabelFeature, ExcludeFieldIf
 from .features.features import Feature as _Feature
 from .features.features import (
     Float32Feature,
@@ -40,6 +40,7 @@ __all__ = [
     "Annotated",
     "Feature",
     "String",
+    "Binary",
     "Bool",
     "Int",
     "Int8",
@@ -129,6 +130,17 @@ Supported types include:
  - Built-in types: :class:`str`, :class:`list[str]`
  - PyArrow scalar types: :class:`pyarrow.StringScalar`
  - PyArrow array types: :class:`pyarrow.StringArray`
+"""
+
+Binary: TypeAlias = Union[BinaryFeature, bytes, list[bytes], pa.BinaryScalar, pa.BinaryArray]
+"""
+Binary: Type alias for a bytes object.
+
+Supported types include:
+ - Feature Types: :class:`BinaryFeature`
+ - Built-in types: :class:`bytes`, :class:`list[bytes]`
+ - PyArrow scalar types: :class:`pyarrow.BinaryScalar`
+ - PyArrow array types: :class:`pyarrow.BinaryArray`
 """
 
 Bool: TypeAlias = Union[BoolFeature, bool, list[bool], pa.BooleanScalar, pa.BooleanArray]

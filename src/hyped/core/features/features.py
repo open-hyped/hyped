@@ -577,6 +577,12 @@ class StringFeature(PrimitiveFeature[dtypes.StringType]):
         return self.execute_method("format", *args, **kwargs)
 
 
+class BinaryFeature(PrimitiveFeature[dtypes.BinaryType]):
+    """A primitive feature representing a binary (bytes) value."""
+
+    _expected_dtype: Final[dtypes.DType] = dtypes.BinaryType
+
+
 class StatisticalFeatureMixin:
     """Mixin class that adds statistical operations for features.
 
@@ -4949,6 +4955,7 @@ else:
 PRIMITIVE_FEATURE_MAPPING = {
     dtypes.BoolType: BoolFeature,
     dtypes.StringType: StringFeature,
+    dtypes.BinaryType: BinaryFeature,
     dtypes.UInt8Type: UInt8Feature,
     dtypes.UInt16Type: UInt16Feature,
     dtypes.UInt32Type: UInt32Feature,
