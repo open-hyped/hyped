@@ -46,8 +46,8 @@ class TestBaseConfig:
         assert b == AutoConfig.from_dict(b_dict)
 
         # test reconstruction from type identifier
-        a_dict.pop("__type_hash__")
-        b_dict.pop("__type_hash__")
+        a_dict.pop("type_hash__")
+        b_dict.pop("type_hash__")
         assert a == AutoConfig.from_dict(a_dict)
         assert b == AutoConfig.from_dict(b_dict)
 
@@ -78,8 +78,8 @@ class TestBaseConfig:
         # test reconstruction from type identifier
         a_dict = json.loads(a_json)
         b_dict = json.loads(b_json)
-        a_dict.pop("__type_hash__")
-        b_dict.pop("__type_hash__")
+        a_dict.pop("type_hash__")
+        b_dict.pop("type_hash__")
         a_json = json.dumps(a_dict)
         b_json = json.dumps(b_dict)
         assert a == AutoConfig.from_json(a_json)
