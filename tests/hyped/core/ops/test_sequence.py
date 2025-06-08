@@ -5,6 +5,7 @@ from hyped.core.ops.sequence import (
     SequenceGetItem,
     SequenceGetItems,
     SequenceGetSlice,
+    SequenceIndex,
     SequenceLength,
     SequenceMax,
     SequenceMin,
@@ -23,7 +24,7 @@ from hyped.core.testing.processor import BaseDataProcessorTest
 from hyped.typing import Annotated, Bool, Float64, Int, Int32, Len, Mapping, Sequence, String
 
 
-class TestStringAdd(BaseDataProcessorTest):
+class TestSequenceLength(BaseDataProcessorTest):
     processor = SequenceLength()
     input_features = {"seq": Sequence[Bool]}
     input_data = [{"seq": [False, False, False]}, {"seq": [True, True]}]
@@ -31,7 +32,7 @@ class TestStringAdd(BaseDataProcessorTest):
     expected_output_data = [3, 2]
 
 
-class TestStringMin(BaseDataProcessorTest):
+class TestSequenceMin(BaseDataProcessorTest):
     processor = SequenceMin()
     input_features = {"seq": Sequence[Int]}
     input_data = [{"seq": [2, 1, 0]}, {"seq": [5, 3, 7]}]
@@ -56,6 +57,38 @@ class TestSequenceSum(BaseDataProcessorTest):
     input_data = [{"seq": [2, 1, 0]}, {"seq": [5, 3, 7]}]
     expected_output_feature = Int
     expected_output_data = [3, 15]
+
+
+class TestSequenceIndex(BaseDataProcessorTest):
+    processor = SequenceIndex()
+    input_features = {"seq": Sequence[Int], "val": Int}
+    input_data = [
+        {"seq": [10, 20, 30], "val": 20},  # val is in the middle
+        {"seq": [5, 15, 25, 35], "val": 5},  # val is at the beginning
+        {"seq": [1, 2, 3, 4, 5], "val": 5},  # val is at the end
+    ]
+    expected_output_feature = Int
+    expected_output_data = [1, 0, 4]
+
+
+class TestSequenceIndexNotFound(BaseDataProcessorTest):
+    processor = SequenceIndex()
+    input_features = {"seq": Sequence[Int], "val": Int, "default": Int}
+    input_data = [
+        {"seq": [10, 20, 30], "val": 40, "default": None},  # val not in sequence
+    ]
+    expected_output_feature = Int
+    expected_execution_error = ValueError
+
+
+class TestSequenceIndexNotFoundWithDefault(BaseDataProcessorTest):
+    processor = SequenceIndex()
+    input_features = {"seq": Sequence[Int], "val": Int, "default": Int}
+    input_data = [
+        {"seq": [10, 20, 30], "val": 40, "default": -100},  # val not in sequence
+    ]
+    expected_output_feature = Int
+    expected_output_data = [-100]
 
 
 class TestSequencePadToFixedLength(BaseDataProcessorTest):

@@ -4391,6 +4391,27 @@ class SequenceFeature(typing.Sequence[T], Feature[dtypes.SequenceType]):
             else self.execute_method("length")
         )
 
+    def index(self, val: T, default: None | T = None) -> Int32Feature:
+        """Returns a feature representing the first index of a given value in the sequence.
+
+        This method is used to dynamically resolve the index of a specific item (:code:`val`)
+        within the sequence during execution.
+
+        Args:
+            val (T): The value to search for within the sequence.
+            default (None | T, optional): The value to return if :code:`val` is not found
+                in the sequence. If not provided, a :code:`ValueError` will be raised if
+                :code:`val` is not found
+
+        Returns:
+            Int32Feature: A feature that resolves to the zero-based index of the first
+            occurrence of :code:`val` in the sequence.
+
+        Raises:
+            ValueError: If :code:`val` is not found in the sequence.
+        """
+        return self.execute_method("index", val, default)
+
     def min(self) -> T:
         """Returns the minimum value in the sequence.
 

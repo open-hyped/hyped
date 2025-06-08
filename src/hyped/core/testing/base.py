@@ -15,6 +15,7 @@ import pydantic
 import pytest
 
 from hyped.common._pydantic import TypeAdapterWithArbitraryTypesAllowed
+from hyped.core.executor import NodeExecutionError
 from hyped.core.features.dtypes import MappingType
 from hyped.core.features.features import MappingFeature, build_feature_from_annotation
 from hyped.core.features.session import ValidationSession
@@ -299,14 +300,16 @@ class BaseNodeTest(ABC):
             input_index = cls.build_input_index()
 
             with (
-                pytest.raises(cls.expected_execution_error)
+                pytest.raises((cls.expected_execution_error, NodeExecutionError))
                 if cls.expected_execution_error is not None
                 else nullcontext()
-            ):
+            ) as excinfo:
                 # execute data flow while cathcing potential execution error
                 output_data = flow._instance_executor.run(input_array, input_index, cls.input_rank)
 
             if cls.expected_execution_error is not None:
+                if excinfo.errisinstance(NodeExecutionError):
+                    assert isinstance(excinfo.value.exception, cls.expected_execution_error)
                 # successfully catched execution error
                 raise TestSuccessful()
 

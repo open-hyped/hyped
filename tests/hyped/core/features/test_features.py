@@ -7382,6 +7382,15 @@ class TestSequenceFeature:
             ),
             (
                 SequenceFeature(ForwardReference(SequenceType(Int64Type))),
+                SequenceFeature.index,
+                "index",
+                (Int64Feature,),
+                Int32Feature,
+                sequence.SequenceIndexConfig(),
+                False,
+            ),
+            (
+                SequenceFeature(ForwardReference(SequenceType(Int64Type))),
                 SequenceFeature.pad,
                 "pad",
                 (Int64Feature, 5),

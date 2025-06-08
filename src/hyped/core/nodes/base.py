@@ -397,6 +397,59 @@ def process_mode(batched: bool = False, backend: Backend = "python") -> Callable
     return ProcessMode(batched=batched, backend=backend).validate().decorate
 
 
+def _extract_builder_from_args(
+    args: tuple[AbstractDataFlow | Feature], kwargs: dict[str, AbstractDataFlow | Feature]
+) -> tuple[AbstractDataFlowGraphBuilder, tuple[Feature], dict[str, Feature]]:
+    """Extract the data flow graph builder from the arguments.
+
+    This method attempts to extract the data flow graph builder from either the positional or
+    keyword arguments passed to the node. The method searches for an :code:`AbstractDataFlow`
+    or :code:`Feature` to infer the associated graph builder from. If no flow is found, a
+    runtime error is raised.
+
+    Args:
+        args (tuple[AbstractDataFlow | Feature]): Positional arguments that might contain
+            the data flow or references to features.
+        kwargs (dict[str, AbstractDataFlow | Feature]): Keyword arguments that might contain
+            the data flow or references to features.
+
+    Returns:
+        tuple[AbstractDataFlowGraphBuilder, tuple[Feature], dict[str, Feature]]:
+            A tuple containing the data flow graph builder and the remaining positional
+            and keyword arguments.
+
+    Raises:
+        RuntimeError: If the builder cannot be inferred from the arguments.
+    """
+    # try to extract the data flow from
+    # the positional arguments
+    flow: None | AbstractDataFlow = (
+        None if len(args) == 0 else None if not isinstance(args[0], AbstractDataFlow) else args[0]
+    )
+
+    if flow is not None:
+        # flow was found
+        return flow._builder, args[1:], kwargs
+
+    # try to extract the flow from the keyword arguments
+    if "flow" in kwargs.keys():
+        flow: AbstractDataFlow = kwargs.pop("flow")
+        return flow._builder, args, kwargs
+
+    # try to infer the flow from any feature argument
+    all_args = chain(args, kwargs.values())
+    features = filter(lambda f: isinstance(f, _Feature), all_args)
+
+    # try to get the first reference in the arguments
+    first: None | _Feature = next(features, None)
+    if first is None:
+        raise RuntimeError("DataFlow instance cannot be inferred from arguments!")
+
+    # get the flow from the reference
+    assert isinstance(first.ref, ConcreteReference)
+    return first.ref._builder, args, kwargs
+
+
 Params = ParamSpec("Params")
 Return = TypeVar("Return", covariant=True)
 
@@ -529,62 +582,6 @@ class BaseNode(BaseConfigurable[C], ABC):
         """
         return type(self).__name__
 
-    def _extract_builder_from_args(
-        self, args: tuple[AbstractDataFlow | Feature], kwargs: dict[str, AbstractDataFlow | Feature]
-    ) -> tuple[AbstractDataFlowGraphBuilder, tuple[Feature], dict[str, Feature]]:
-        """Extract the data flow graph builder from the arguments.
-
-        This method attempts to extract the data flow graph builder from either the positional or
-        keyword arguments passed to the node. The method searches for an :code:`AbstractDataFlow`
-        or :code:`Feature` to infer the associated graph builder from. If no flow is found, a
-        runtime error is raised.
-
-        Args:
-            args (tuple[AbstractDataFlow | Feature]): Positional arguments that might contain
-                the data flow or references to features.
-            kwargs (dict[str, AbstractDataFlow | Feature]): Keyword arguments that might contain
-                the data flow or references to features.
-
-        Returns:
-            tuple[AbstractDataFlowGraphBuilder, tuple[Feature], dict[str, Feature]]:
-                A tuple containing the data flow graph builder and the remaining positional
-                and keyword arguments.
-
-        Raises:
-            RuntimeError: If the builder cannot be inferred from the arguments.
-        """
-        # try to extract the data flow from
-        # the positional arguments
-        flow: None | AbstractDataFlow = (
-            None
-            if len(args) == 0
-            else None
-            if not isinstance(args[0], AbstractDataFlow)
-            else args[0]
-        )
-
-        if flow is not None:
-            # flow was found
-            return flow._builder, args[1:], kwargs
-
-        # try to extract the flow from the keyword arguments
-        if "flow" in kwargs.keys():
-            flow: AbstractDataFlow = kwargs.pop("flow")
-            return flow._builder, args, kwargs
-
-        # try to infer the flow from any feature argument
-        all_args = chain(args, kwargs.values())
-        features = filter(lambda f: isinstance(f, _Feature), all_args)
-
-        # try to get the first reference in the arguments
-        first: None | _Feature = next(features, None)
-        if first is None:
-            raise RuntimeError("DataFlow instance cannot be inferred from arguments!")
-
-        # get the flow from the reference
-        assert isinstance(first.ref, ConcreteReference)
-        return first.ref._builder, args, kwargs
-
     @overload
     def call(self, *args: Feature, **kwargs: Feature) -> Feature:
         ...
@@ -615,7 +612,7 @@ class BaseNode(BaseConfigurable[C], ABC):
             RuntimeError: If the flow cannot be inferred from the arguments.
         """
         # extract the graph builder and prepare the input arguments
-        builder, args, kwargs = self._extract_builder_from_args(args, kwargs)
+        builder, args, kwargs = _extract_builder_from_args(args, kwargs)
 
         # bind arguments to signature and unpack dynamic keyword arguments
         bound_args = self.signature.bind(*args, **kwargs).arguments
