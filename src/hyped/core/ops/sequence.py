@@ -135,6 +135,44 @@ class SequenceSum(BaseDataProcessor[SequenceSumConfig]):
 ItemType = TypeVar("ItemType")
 
 
+class SequenceIndexConfig(BaseDataProcessorConfig):
+    """Configuration for the SequenceIndex processor."""
+
+
+class SequenceIndex(BaseDataProcessor[SequenceIndexConfig]):
+    """Processor to find the index of a specific value within a sequence."""
+
+    @process_mode(batched=False, backend="python")
+    def process(
+        self,
+        ctx: RunContext,
+        seq: Sequence[ItemType],
+        val: ItemType,
+        default: None | ItemType = None,
+    ) -> Int32:
+        """Find the first index of a given value in a sequence.
+
+        This method attempts to locate the first occurrence of `val` within `seq`.
+
+        Args:
+            ctx (RunContext): Context object containing runtime information.
+            seq (Sequence[ItemType]): The input sequence to search within.
+            val (ItemType): The value to search for in the sequence.
+            default (None | ItemType, optional): The default value to return
+                if :code:`val` is not found in :code:`seq`.
+
+        Returns:
+            Int32: The zero-based index of the first occurrence of :code:`val` in :code:`seq`.
+            If :code:`val` is not found and a :code:`default` value was provided, the
+            :code:`default` value is returned.
+
+        Raises:
+            ValueError: If :code:`val` is not found in :code:`seq` and
+                :code:`default` is :code:`None`.
+        """
+        return seq.index(val) if (default is None) or (val in set(seq)) else default
+
+
 class SequencePadConfig(BaseDataProcessorConfig):
     """Configuration class for the :class:`SequencePad` processor."""
 
@@ -831,4 +869,5 @@ def pack_sequence(
 SequenceFeature.register_method("sum")(SequenceSum().call)
 SequenceFeature.register_method("length")(SequenceLength().call)
 SequenceFeature.register_method("unpack")(SequenceUnpack().call)
+SequenceFeature.register_method("index")(SequenceIndex().call)
 SequenceFeature.register_method("unpack_with_index")(SequenceUnpackWithIndex().call)
