@@ -35,9 +35,9 @@ tests = [
     "pytest-integration",
 ]
 docs = ["sphinx", "furo", "nbsphinx", "nbsphinx-link"]
-serve = ["hyped-extensions-serve @ git+https://github.com/open-hyped/hyped-extensions-serve.git"]
-nlp = ["hyped-extensions-nlp @ git+https://github.com/open-hyped/hyped-extensions-nlp.git"]
-parsers = ["hyped-extensions-parsers[cas] @ git+https://github.com/open-hyped/hyped-extensions-parsers.git"]
+serve = ["hyped-extensions-serve"]
+nlp = ["hyped-extensions-nlp"]
+parsers = ["hyped-extensions-parsers[cas]"]
 
 [build-system]
 requires = ["setuptools >= 61.0.0", "setuptools_scm>=8.0.0"]
