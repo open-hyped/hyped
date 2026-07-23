@@ -1,9 +1,10 @@
 """Base Auto Class."""
+from __future__ import annotations
+
 from typing import Generic, TypeVar
 
-from hyped.common._generic import solve_typevar
-
 from .registry import Registrable, RootedTypeRegistryView, TypeRegistry, default_registry
+from .utils import solve_typevar
 
 T = TypeVar("T", bound=Registrable)
 
@@ -25,7 +26,6 @@ class BaseAutoClass(Generic[T]):
         )
 
     @classmethod
-    @property
     def type_registry(cls) -> RootedTypeRegistryView:
         """Type registry of base type."""
         # resolve generic type

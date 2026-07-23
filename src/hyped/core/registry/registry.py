@@ -1,21 +1,33 @@
 """Type Register."""
 import inspect
 import logging
+import re
 from abc import ABC, ABCMeta
+from hashlib import sha256
 from types import MappingProxyType
 from typing import ClassVar, Iterator
 
-from datasets.packaged_modules import _hash_python_lines
-
 logger = logging.getLogger(__name__)
+
+
+def _hash_python_lines(lines: list[str]) -> str:
+    filtered_lines = []
+    for line in lines:
+        line = re.sub(r"#.*", "", line)  # remove comments
+        if line:
+            filtered_lines.append(line)
+    full_str = "\n".join(filtered_lines)
+
+    # Make a hash from all this code
+    full_bytes = full_str.encode("utf-8")
+    return sha256(full_bytes, usedforsecurity=False).hexdigest()
 
 
 class Registrable(ABC):  # noqa: B024
     """Base Class for Registrable Types."""
 
     @classmethod
-    @property
-    def type_id(cls) -> str | None:
+    def get_type_id(cls) -> str | None:
         """Type identifier.
 
         If None, the type will not be registered.
@@ -23,8 +35,7 @@ class Registrable(ABC):  # noqa: B024
         return ".".join([cls.__module__, cls.__qualname__])
 
     @classmethod
-    @property
-    def type_hash(cls) -> str:
+    def get_type_hash(cls) -> str:
         """Get type hash.
 
         The computed hash-code is based on the source code of the
@@ -75,29 +86,29 @@ class TypeRegistry(object):
             raise TypeError("Registrable types must inherit from `%s`" % str(Registrable))
 
         # do not register types with type id set to None
-        if var.type_id is None:
+        if var.get_type_id() is None:
             return
 
         # make sure type is not registered yet
-        if var.type_id in self.global_hash_register:
-            if var.type_hash == self.global_hash_register[var.type_id]:
-                logger.debug(f"Skipped re-registering {var.type_id} with same type hash.")
+        if var.get_type_id() in self.global_hash_register:
+            if var.get_type_hash() == self.global_hash_register[var.get_type_id()]:
+                logger.debug(f"Skipped re-registering {var.get_type_id()} with same type hash.")
                 return
 
-            raise RuntimeError(f"Type with id '{var.type_id}' already registered!")
+            raise RuntimeError(f"Type with id '{var.get_type_id()}' already registered!")
 
-        h = var.type_hash
+        h = var.get_type_hash()
         # update registers
-        self.global_hash_register[var.type_id] = h
+        self.global_hash_register[var.get_type_id()] = h
         self.global_type_register[h] = var
         # add type hash to all base nodes of the type
-        for b in [b.type_hash for b in bases if issubclass(b, Registrable)]:
+        for b in [b.get_type_hash() for b in bases if issubclass(b, Registrable)]:
             if b in self.hash_tree:
                 self.hash_tree[b].add(h)
         # add node for type in hash tree
         self.hash_tree[h] = set()
 
-        logger.debug(f"Registered type with id '{var.type_id}'")
+        logger.debug(f"Registered type with id '{var.get_type_id()}'")
 
     def hash_tree_bfs(self, root: str) -> Iterator[str]:
         """Breadth-Frist Search through inheritance tree rooted at given type.
@@ -134,7 +145,7 @@ class TypeRegistry(object):
         # build inverted hash register mapping hash to type-id
         inv_hash_register = {h: t for t, h in self.global_hash_register.items()}
         # build up-to-date sub-tree hash register
-        subtree = list(self.hash_tree_bfs(root=root.type_hash))
+        subtree = list(self.hash_tree_bfs(root=root.get_type_hash()))
         return {inv_hash_register[h]: h for h in subtree} | {
             inv_hash_register[h]: h for h in filter(inv_hash_register.__contains__, subtree)
         }
@@ -150,7 +161,9 @@ class TypeRegistry(object):
                 the type register mapping type hashes to types for
                 types that inherit the root type
         """
-        return {h: self.global_type_register[h] for h in self.hash_tree_bfs(root=root.type_hash)}
+        return {
+            h: self.global_type_register[h] for h in self.hash_tree_bfs(root=root.get_type_hash())
+        }
 
 
 class RootedTypeRegistryView(object):
