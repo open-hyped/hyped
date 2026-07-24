@@ -88,6 +88,23 @@ def test_hf_feature(dtype: DType, hf_feature: FeatureType) -> None:
     assert dtype.hf_feature == hf_feature
 
 
+def test_sequence_of_mapping_hf_feature_is_row_oriented() -> None:
+    """Regression: a sequence of mappings must stay row-oriented through ``hf_feature``.
+
+    ``datasets.Sequence`` transposes a struct value type into a columnar "struct of lists",
+    which disagreed with ``SequenceType.arrow_type`` (``list<struct>``) and made the
+    ``hf_feature`` round-trip lossy for sequences of mappings.
+    """
+    dtype = SequenceType(MappingType.construct({"a": Int64Type, "b": BoolType}))
+
+    # arrow_type is row-oriented: list<struct<...>>
+    assert pa.types.is_list(dtype.arrow_type)
+    assert pa.types.is_struct(dtype.arrow_type.value_type)
+
+    # the hf_feature round-trip must be lossless (not collapse into a columnar mapping)
+    assert build_dtype_from_hf_feature(dtype.hf_feature) == dtype
+
+
 class TestSequenceType:
     @pytest.mark.parametrize("length", [UNDEFINED_SEQUENCE_LENGTH, 5, 15])
     @pytest.mark.parametrize(
