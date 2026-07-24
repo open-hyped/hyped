@@ -1,0 +1,7 @@
+hyped.core.testing.augmentor module
+===================================
+
+.. automodule:: hyped.core.testing.augmentor
+   :members:
+   :show-inheritance:
+   :undoc-members:

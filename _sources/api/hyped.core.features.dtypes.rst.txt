@@ -1,0 +1,7 @@
+hyped.core.features.dtypes module
+=================================
+
+.. automodule:: hyped.core.features.dtypes
+   :members:
+   :show-inheritance:
+   :undoc-members:

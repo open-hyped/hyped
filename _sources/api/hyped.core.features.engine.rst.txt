@@ -1,0 +1,7 @@
+hyped.core.features.engine module
+=================================
+
+.. automodule:: hyped.core.features.engine
+   :members:
+   :show-inheritance:
+   :undoc-members:

@@ -1,0 +1,7 @@
+hyped.common.lazy\_module module
+================================
+
+.. automodule:: hyped.common.lazy_module
+   :members:
+   :show-inheritance:
+   :undoc-members:

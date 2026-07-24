@@ -1,0 +1,7 @@
+hyped.core.nodes.trace module
+=============================
+
+.. automodule:: hyped.core.nodes.trace
+   :members:
+   :show-inheritance:
+   :undoc-members:

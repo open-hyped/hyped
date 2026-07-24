@@ -1,0 +1,7 @@
+hyped.core.features.mixins module
+=================================
+
+.. automodule:: hyped.core.features.mixins
+   :members:
+   :show-inheritance:
+   :undoc-members:

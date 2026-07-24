@@ -1,0 +1,25 @@
+hyped.core.nodes package
+========================
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 3
+
+   hyped.core.nodes.aggregator
+   hyped.core.nodes.augmentor
+   hyped.core.nodes.base
+   hyped.core.nodes.collect
+   hyped.core.nodes.const
+   hyped.core.nodes.debug
+   hyped.core.nodes.processor
+   hyped.core.nodes.trace
+
+Module contents
+---------------
+
+.. automodule:: hyped.core.nodes
+   :members:
+   :show-inheritance:
+   :undoc-members:

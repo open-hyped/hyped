@@ -1,0 +1,7 @@
+hyped.core.nodes.debug module
+=============================
+
+.. automodule:: hyped.core.nodes.debug
+   :members:
+   :show-inheritance:
+   :undoc-members:

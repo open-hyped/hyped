@@ -1,0 +1,24 @@
+hyped.core.features package
+===========================
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 3
+
+   hyped.core.features.dtypes
+   hyped.core.features.engine
+   hyped.core.features.features
+   hyped.core.features.mixins
+   hyped.core.features.reference
+   hyped.core.features.session
+   hyped.core.features.validators
+
+Module contents
+---------------
+
+.. automodule:: hyped.core.features
+   :members:
+   :show-inheritance:
+   :undoc-members:

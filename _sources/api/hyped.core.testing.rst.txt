@@ -1,0 +1,21 @@
+hyped.core.testing package
+==========================
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 3
+
+   hyped.core.testing.aggregator
+   hyped.core.testing.augmentor
+   hyped.core.testing.base
+   hyped.core.testing.processor
+
+Module contents
+---------------
+
+.. automodule:: hyped.core.testing
+   :members:
+   :show-inheritance:
+   :undoc-members:

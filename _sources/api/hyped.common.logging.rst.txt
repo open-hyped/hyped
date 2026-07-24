@@ -1,0 +1,7 @@
+hyped.common.logging module
+===========================
+
+.. automodule:: hyped.common.logging
+   :members:
+   :show-inheritance:
+   :undoc-members:

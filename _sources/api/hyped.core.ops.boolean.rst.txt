@@ -1,0 +1,7 @@
+hyped.core.ops.boolean module
+=============================
+
+.. automodule:: hyped.core.ops.boolean
+   :members:
+   :show-inheritance:
+   :undoc-members:

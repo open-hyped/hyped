@@ -1,0 +1,38 @@
+hyped.core package
+==================
+
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 3
+
+   hyped.core.features
+   hyped.core.nodes
+   hyped.core.ops
+   hyped.core.registry
+   hyped.core.testing
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 3
+
+   hyped.core.abc
+   hyped.core.builder
+   hyped.core.executor
+   hyped.core.flow
+   hyped.core.graph
+   hyped.core.module
+   hyped.core.optim
+   hyped.core.typing
+   hyped.core.utils
+
+Module contents
+---------------
+
+.. automodule:: hyped.core
+   :members:
+   :show-inheritance:
+   :undoc-members:

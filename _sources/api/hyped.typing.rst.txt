@@ -1,0 +1,7 @@
+hyped.typing module
+===================
+
+.. automodule:: hyped.typing
+   :members:
+   :show-inheritance:
+   :undoc-members:

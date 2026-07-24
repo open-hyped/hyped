@@ -1,0 +1,7 @@
+hyped.core.nodes.collect module
+===============================
+
+.. automodule:: hyped.core.nodes.collect
+   :members:
+   :show-inheritance:
+   :undoc-members:

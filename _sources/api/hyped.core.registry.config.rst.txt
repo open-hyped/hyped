@@ -1,0 +1,7 @@
+hyped.core.registry.config module
+=================================
+
+.. automodule:: hyped.core.registry.config
+   :members:
+   :show-inheritance:
+   :undoc-members:

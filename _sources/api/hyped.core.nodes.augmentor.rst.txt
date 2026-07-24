@@ -1,0 +1,7 @@
+hyped.core.nodes.augmentor module
+=================================
+
+.. automodule:: hyped.core.nodes.augmentor
+   :members:
+   :show-inheritance:
+   :undoc-members:

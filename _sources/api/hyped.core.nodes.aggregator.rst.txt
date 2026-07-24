@@ -1,0 +1,7 @@
+hyped.core.nodes.aggregator module
+==================================
+
+.. automodule:: hyped.core.nodes.aggregator
+   :members:
+   :show-inheritance:
+   :undoc-members:

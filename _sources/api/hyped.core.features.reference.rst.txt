@@ -1,0 +1,7 @@
+hyped.core.features.reference module
+====================================
+
+.. automodule:: hyped.core.features.reference
+   :members:
+   :show-inheritance:
+   :undoc-members:

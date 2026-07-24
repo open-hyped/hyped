@@ -1,0 +1,7 @@
+hyped.core.features.session module
+==================================
+
+.. automodule:: hyped.core.features.session
+   :members:
+   :show-inheritance:
+   :undoc-members:

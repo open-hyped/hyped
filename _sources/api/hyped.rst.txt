@@ -1,0 +1,28 @@
+hyped package
+=============
+
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 3
+
+   hyped.common
+   hyped.core
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 3
+
+   hyped.ops
+   hyped.typing
+
+Module contents
+---------------
+
+.. automodule:: hyped
+   :members:
+   :show-inheritance:
+   :undoc-members:

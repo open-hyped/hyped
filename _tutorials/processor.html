@@ -1,0 +1,1010 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="Custom Data Augmentors" href="augmentor.html"><link rel="prev" title="Basics of Data Flows" href="basics.html">
+
+    <!-- Generated with Sphinx 9.0.4 and Furo 2025.12.19 -->
+        <title>Custom Data Processors - hyped 0.2.0a4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../_static/nbsphinx-code-cells.css?v=2aa19091" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=8dab3a3b" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">hyped 0.2.0a4 documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
+  
+  <span class="sidebar-brand-text">hyped 0.2.0a4 documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../getting_started.html">Getting Started</a></li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="../tutorials.html">Tutorials</a><input aria-label="Toggle navigation of Tutorials" checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="basics.html">Basics of Data Flows</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Custom Data Processors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="augmentor.html">Custom Data Augmentors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="aggregator.html">Custom Data Aggregators</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../extensions.html">Extensions</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Techincal Docs</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../_technical/data_flow.html">Data Flow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../_technical/data_processors.html">Data Processors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../_technical/data_augmentors.html">Data Augmentors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../_technical/data_aggregators.html">Data Aggregators</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API References</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../api/hyped.html">hyped package</a><input aria-label="Toggle navigation of hyped package" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../api/hyped.common.html">hyped.common package</a><input aria-label="Toggle navigation of hyped.common package" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../api/hyped.common.lazy_module.html">hyped.common.lazy_module module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/hyped.common.logging.html">hyped.common.logging module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/hyped.common.utils.html">hyped.common.utils module</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../api/hyped.core.html">hyped.core package</a><input aria-label="Toggle navigation of hyped.core package" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../api/hyped.core.features.html">hyped.core.features package</a><input aria-label="Toggle navigation of hyped.core.features package" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.features.dtypes.html">hyped.core.features.dtypes module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.features.engine.html">hyped.core.features.engine module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.features.features.html">hyped.core.features.features module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.features.mixins.html">hyped.core.features.mixins module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.features.reference.html">hyped.core.features.reference module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.features.session.html">hyped.core.features.session module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.features.validators.html">hyped.core.features.validators module</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../api/hyped.core.nodes.html">hyped.core.nodes package</a><input aria-label="Toggle navigation of hyped.core.nodes package" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.nodes.aggregator.html">hyped.core.nodes.aggregator module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.nodes.augmentor.html">hyped.core.nodes.augmentor module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.nodes.base.html">hyped.core.nodes.base module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.nodes.collect.html">hyped.core.nodes.collect module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.nodes.const.html">hyped.core.nodes.const module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.nodes.debug.html">hyped.core.nodes.debug module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.nodes.processor.html">hyped.core.nodes.processor module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.nodes.trace.html">hyped.core.nodes.trace module</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../api/hyped.core.ops.html">hyped.core.ops package</a><input aria-label="Toggle navigation of hyped.core.ops package" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.ops.boolean.html">hyped.core.ops.boolean module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.ops.casting.html">hyped.core.ops.casting module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.ops.common.html">hyped.core.ops.common module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.ops.debug.html">hyped.core.ops.debug module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.ops.mapping.html">hyped.core.ops.mapping module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.ops.numeric.html">hyped.core.ops.numeric module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.ops.sequence.html">hyped.core.ops.sequence module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.ops.string.html">hyped.core.ops.string module</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../api/hyped.core.registry.html">hyped.core.registry package</a><input aria-label="Toggle navigation of hyped.core.registry package" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.registry.auto.html">hyped.core.registry.auto module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.registry.config.html">hyped.core.registry.config module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.registry.registry.html">hyped.core.registry.registry module</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../api/hyped.core.testing.html">hyped.core.testing package</a><input aria-label="Toggle navigation of hyped.core.testing package" class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.testing.aggregator.html">hyped.core.testing.aggregator module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.testing.augmentor.html">hyped.core.testing.augmentor module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.testing.base.html">hyped.core.testing.base module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/hyped.core.testing.processor.html">hyped.core.testing.processor module</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../api/hyped.core.abc.html">hyped.core.abc module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/hyped.core.builder.html">hyped.core.builder module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/hyped.core.executor.html">hyped.core.executor module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/hyped.core.flow.html">hyped.core.flow module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/hyped.core.graph.html">hyped.core.graph module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/hyped.core.module.html">hyped.core.module module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/hyped.core.optim.html">hyped.core.optim module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/hyped.core.typing.html">hyped.core.typing module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/hyped.core.utils.html">hyped.core.utils module</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../api/hyped.ops.html">hyped.ops module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/hyped.typing.html">hyped.typing module</a></li>
+</ul>
+</li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="../_sources/_tutorials/processor.nblink.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="Custom-Data-Processors">
+<h1>Custom Data Processors<a class="headerlink" href="#Custom-Data-Processors" title="Link to this heading">¶</a></h1>
+<p>One of the foundational components of this framework is the <code class="docutils literal notranslate"><span class="pre">Data</span> <span class="pre">Processor</span></code> node. These nodes are responsible for transforming individual examples of data, making them essential for feature engineering and enrichment tasks.</p>
+<p>In this tutorial, we’ll guide you through the process of implementing a custom data processor that can be integrated seamlessly into a <code class="docutils literal notranslate"><span class="pre">DataFlow</span></code>. By the end, you will understand how to:</p>
+<ol class="arabic simple">
+<li><p>Define your own processor class.</p></li>
+<li><p>Integrate your custom processor into a data flow graph.</p></li>
+<li><p>Execute a complete workflow to see your processor in action.</p></li>
+</ol>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[1]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>%config InlineBackend.figure_format = &#39;svg&#39;
+</pre></div>
+</div>
+</div>
+<section id="Imports">
+<h2>Imports<a class="headerlink" href="#Imports" title="Link to this heading">¶</a></h2>
+<p>Before diving into implementing a custom data processor, let’s start by importing the necessary components:</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[2]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>import datasets
+from hyped import DataFlow, plot_data_flow
+from hyped.core import BaseDataProcessor, BaseDataProcessorConfig, RunContext, ValidationSession, process_mode
+from hyped.typing import Int, Float, Mapping, FeatureValidator, FeatureResolver, ExcludeFieldIf, Annotated
+</pre></div>
+</div>
+</div>
+</section>
+<section id="Creating-a-Data-Flow">
+<h2>Creating a Data Flow<a class="headerlink" href="#Creating-a-Data-Flow" title="Link to this heading">¶</a></h2>
+<p>Next, we’ll create a simple dataset and a data flow instance from it:</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[3]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>ds = datasets.Dataset.from_dict({&quot;x&quot;: [0, 1, 2, 3, 4]})
+flow = DataFlow(ds.features)
+</pre></div>
+</div>
+</div>
+</section>
+<section id="Implementing-a-Custom-Data-Processor">
+<h2>Implementing a Custom Data Processor<a class="headerlink" href="#Implementing-a-Custom-Data-Processor" title="Link to this heading">¶</a></h2>
+<p>In this section, we’ll demonstrate how to create a custom data processor by building on the core components of <code class="docutils literal notranslate"><span class="pre">hyped</span></code>. A custom data processor consists of two primary parts:</p>
+<ol class="arabic simple">
+<li><p>A configuration class that defines the processor’s parameters.</p></li>
+<li><p>The processor class itself, which implements the transformation logic.</p></li>
+</ol>
+<p>Let’s start with a simple example.</p>
+<section id="Step-1:-Define-the-Processor-Configuration">
+<h3>Step 1: Define the Processor Configuration<a class="headerlink" href="#Step-1:-Define-the-Processor-Configuration" title="Link to this heading">¶</a></h3>
+<p>The configuration class specifies the parameters your custom processor will use. It inherits from <code class="docutils literal notranslate"><span class="pre">BaseDataProcessorConfig</span></code> and allows you to define any settings or hyperparameters required for your transformation.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[4]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>class CustomProcessorConfig(BaseDataProcessorConfig):
+    val: int
+</pre></div>
+</div>
+</div>
+<p>In this example, <code class="docutils literal notranslate"><span class="pre">val</span></code> is an integer parameter that controls the behavior of the processor. You can add more fields to this class as needed to support additional configuration options.</p>
+</section>
+<section id="Step-2:-Implement-the-Processor-Logic">
+<h3>Step 2: Implement the Processor Logic<a class="headerlink" href="#Step-2:-Implement-the-Processor-Logic" title="Link to this heading">¶</a></h3>
+<p>The processor class contains the actual transformation logic. It inherits from <code class="docutils literal notranslate"><span class="pre">BaseDataProcessor</span></code>, which provides a structured interface for defining custom processors. Specifically, you need to implement the process method, which takes in a <code class="docutils literal notranslate"><span class="pre">RunContext</span></code> object and the input data to be processed. In this case, it’s an integer (<code class="docutils literal notranslate"><span class="pre">Int</span></code>), as specified by the type hint.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>class CustomProcessor(BaseDataProcessor[CustomProcessorConfig]):
+    def process(self, ctx: RunContext, x: Int) -&gt; Int:
+        return x * self.config.val
+</pre></div>
+</div>
+</div>
+<p><strong>Importance of Type Annotations</strong></p>
+<p>One of the key features of the <code class="docutils literal notranslate"><span class="pre">hyped</span></code> is its ability to validate input and infer output types from the type annotations. Make sure to always use the types provided by <code class="docutils literal notranslate"><span class="pre">hyped.typing</span></code> to annotate the <code class="docutils literal notranslate"><span class="pre">process</span></code> function.</p>
+<p>During the construction of the data flow, these type annotations are used to infer and propagate feature types across the pipeline. This ensures that the data flow is consistent and that downstream processors receive the correct types.</p>
+</section>
+</section>
+<section id="Using-the-Custom-Data-Processor">
+<h2>Using the Custom Data Processor<a class="headerlink" href="#Using-the-Custom-Data-Processor" title="Link to this heading">¶</a></h2>
+<p>Now that we’ve implemented a custom data processor, let’s see how to integrate it into a DataFlow pipeline. This section will walk you through the steps using the custom processor and executing the pipeline to transform your dataset.</p>
+<p>To use the custom processor in your data flow, you instantiate it with its configuration parameters and call it on a feature from the flow’s source.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[6]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>out = CustomProcessor(val=4).call(x=flow.source[&quot;x&quot;])
+</pre></div>
+</div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">CustomProcessor(val=4)</span></code>: Creates an instance of the processor with <code class="docutils literal notranslate"><span class="pre">val=4</span></code> as its configuration parameter.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.call(x=flow.source[&quot;x&quot;])</span></code>: Specifies that the processor will operate on the feature <code class="docutils literal notranslate"><span class="pre">&quot;x&quot;</span></code> from the data flow’s source. The output is captured in the variable <code class="docutils literal notranslate"><span class="pre">out</span></code>.</p></li>
+</ul>
+<p>Once you’ve defined your data flow, you can visualize its structure to verify that the custom processor is added to the underlying processing graph.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[7]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>plot_data_flow(flow);
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/_tutorials_processor_16_0.svg" src="../_images/_tutorials_processor_16_0.svg" />
+</div>
+</div>
+<p>To process a dataset using the data flow, call the <code class="docutils literal notranslate"><span class="pre">apply</span></code> method. This method applies the transformations defined in the data flow to the dataset and collects the specified outputs.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[8]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>out_ds = flow.apply(ds, collect={&quot;out&quot;: out})
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<script type="application/vnd.jupyter.widget-view+json">{"model_id": "ee02164c1f024630bc783d0db83dd2da", "version_major": 2, "version_minor": 0}</script></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">collect={&quot;out&quot;:</span> <span class="pre">out}</span></code> specifies that the output of the processor should be collected in the resulting dataset under the key <code class="docutils literal notranslate"><span class="pre">&quot;out&quot;</span></code>.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[9]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>out_ds.to_dict()
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[9]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+{&#39;out&#39;: [0, 4, 8, 12, 16]}
+</pre></div></div>
+</div>
+</section>
+<section id="Advanced-Usage">
+<h2>Advanced Usage<a class="headerlink" href="#Advanced-Usage" title="Link to this heading">¶</a></h2>
+<p>The DataFlow framework provides advanced features that enable greater flexibility and efficiency in data processing. In this section, we’ll explore some of these features, starting with the <code class="docutils literal notranslate"><span class="pre">process_mode</span></code> decorator.</p>
+</section>
+<section id="Returning-Multiple-Outputs">
+<h2>Returning Multiple Outputs<a class="headerlink" href="#Returning-Multiple-Outputs" title="Link to this heading">¶</a></h2>
+<p>In some scenarios, a processor needs to generate multiple outputs instead of a single value. The framework supports this by allowing the processor to return a custom mapping type. Each field in the mapping represents a distinct output that can be used downstream in the data flow.</p>
+<p>Here’s how you can define and use a processor that generates multiple outputs:</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[10]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>class CustomOutput(Mapping):
+    fieldA: Int
+    fieldB: Int
+
+class CustomProcessorConfigV2(BaseDataProcessorConfig):
+    val: int
+
+class CustomProcessorV2(BaseDataProcessor[CustomProcessorConfigV2]):
+
+    def process(self, ctx: RunContext, x: Int) -&gt; CustomOutput:
+        return {
+            &quot;fieldA&quot;: x * self.config.val,
+            &quot;fieldB&quot;: x * self.config.val ** 2
+        }
+<br/></pre></div>
+</div>
+</div>
+<p>In this example, the processor returns a <code class="docutils literal notranslate"><span class="pre">CustomOutput</span></code> type, which is a mpping where each key-value pair corresponds to a specific output field. The <code class="docutils literal notranslate"><span class="pre">process</span></code> method generates a dictionary matching the structure defined by <code class="docutils literal notranslate"><span class="pre">CustomOutput</span></code>.</p>
+<p>Once the processor is defined, it can be seamlessly integrated into the data flow, and its outputs can be collected as part of the dataset:</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[11]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span># Define the output of the processor
+out = CustomProcessorV2(val=2).call(x=flow.source[&quot;x&quot;])
+
+# Apply the data flow to the dataset, collecting the outputs
+out_ds = flow.apply(ds, collect=out)
+
+# Convert the resulting dataset to a dictionary for inspection
+out_ds.to_dict()
+</pre></div>
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<script type="application/vnd.jupyter.widget-view+json">{"model_id": "f23759c1587e4e4b8d5be97e8013423d", "version_major": 2, "version_minor": 0}</script></div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[11]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+{&#39;fieldA&#39;: [0, 2, 4, 6, 8], &#39;fieldB&#39;: [0, 4, 8, 12, 16]}
+</pre></div></div>
+</div>
+<p>Note how in this case we can pass the output directly as the collect feature. The collect feature requires a mapping data type which is satisfied by the output of the processor.</p>
+</section>
+<section id="Conditional-Output-Fields">
+<h2>Conditional Output Fields<a class="headerlink" href="#Conditional-Output-Fields" title="Link to this heading">¶</a></h2>
+<p>In some scenarios, the fields included in the processor’s output need to be determined dynamically based on configuration values. The framework allows you to define conditional outputs by combining a custom mapping type with dynamic field exclusions.</p>
+<p>Here’s how you can define a processor that conditionally includes or excludes certain fields in its output:</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[12]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>class CustomProcessorConfigV3(BaseDataProcessorConfig):
+    val: int
+    returns_fieldB: bool
+
+class CustomOutput(Mapping):
+    fieldA: Int
+    fieldB: Annotated[Int, ExcludeFieldIf(lambda c, i, _: not c.returns_fieldB)]
+
+class CustomProcessorV3(BaseDataProcessor[CustomProcessorConfigV3]):
+
+    def process(self, ctx: RunContext, x: Int) -&gt; CustomOutput:
+        if self.config.returns_fieldB:
+            # return both fieldA and fieldB
+            return {
+                &quot;fieldA&quot;: x * self.config.val,
+                &quot;fieldB&quot;: x * self.config.val ** 2
+            }
+        else:
+            # return only fieldA
+            return {&quot;fieldA&quot;: x * self.config.val}
+<br/></pre></div>
+</div>
+</div>
+<p>Here, <code class="docutils literal notranslate"><span class="pre">CustomOutput</span></code> is a mapping that conditionally includes <code class="docutils literal notranslate"><span class="pre">fieldB</span></code>. The <code class="docutils literal notranslate"><span class="pre">ExcludeFieldIf</span></code> decorator ensures that <code class="docutils literal notranslate"><span class="pre">fieldB</span></code> is excluded if the condition <code class="docutils literal notranslate"><span class="pre">not</span> <span class="pre">c.returns_fieldB</span></code> evaluates to <code class="docutils literal notranslate"><span class="pre">True</span></code>. The <code class="docutils literal notranslate"><span class="pre">process</span></code> method dynamically adjusts the returned mapping based on the <code class="docutils literal notranslate"><span class="pre">returns_fieldB</span></code> flag in the configuration.</p>
+<p>You can easily integrate the processor into a data flow and collect its outputs dynamically:</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[13]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span># Define the output of the processor
+out_without_fieldB = CustomProcessorV3(val=2, returns_fieldB=False).call(x=flow.source[&quot;x&quot;])
+out_with_fieldB = CustomProcessorV3(val=2, returns_fieldB=True).call(x=flow.source[&quot;x&quot;])
+
+# Apply the data flow to the dataset, collecting the outputs
+out_ds = flow.apply(
+    ds,
+    collect={
+        &quot;outA&quot;: out_without_fieldB,
+        &quot;outB&quot;: out_with_fieldB,
+    }
+)
+
+# Convert the resulting dataset to a dictionary for inspection
+print(&quot;returns_fieldB=False:&quot;, out_ds.to_dict()[&quot;outA&quot;])
+print(&quot;returns_fieldB=True: &quot;, out_ds.to_dict()[&quot;outB&quot;])
+</pre></div>
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<script type="application/vnd.jupyter.widget-view+json">{"model_id": "bccb0c78514f475f9589ae377246878e", "version_major": 2, "version_minor": 0}</script></div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+returns_fieldB=False: [{&#39;fieldA&#39;: 0}, {&#39;fieldA&#39;: 2}, {&#39;fieldA&#39;: 4}, {&#39;fieldA&#39;: 6}, {&#39;fieldA&#39;: 8}]
+returns_fieldB=True:  [{&#39;fieldA&#39;: 0, &#39;fieldB&#39;: 0}, {&#39;fieldA&#39;: 2, &#39;fieldB&#39;: 4}, {&#39;fieldA&#39;: 4, &#39;fieldB&#39;: 8}, {&#39;fieldA&#39;: 6, &#39;fieldB&#39;: 12}, {&#39;fieldA&#39;: 8, &#39;fieldB&#39;: 16}]
+</pre></div></div>
+</div>
+<p>Note how the output dataset only includes <code class="docutils literal notranslate"><span class="pre">fieldA</span></code> in the first case where the processor was initialized with <code class="docutils literal notranslate"><span class="pre">returns_fieldB=False</span></code>, while it includes both fields in the other case.</p>
+<section id="Using-the-process_mode-Decorator">
+<h3>Using the <code class="docutils literal notranslate"><span class="pre">process_mode</span></code> Decorator<a class="headerlink" href="#Using-the-process_mode-Decorator" title="Link to this heading">¶</a></h3>
+<p>By default, the <code class="docutils literal notranslate"><span class="pre">process</span></code> method in a custom processor operates on individual examples. However, there are cases where processing multiple examples at once (in batches) can significantly improve performance, especially when working with large datasets or computationally intensive transformations.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">process_mode</span></code> decorator allows you to specify whether the process method operates in a batched or single-example mode.</p>
+<p>Here’s how to define a processor that operates in batched mode:</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[14]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>class CustomProcessorConfigV4(BaseDataProcessorConfig):
+    val: int
+
+class CustomProcessorV4(BaseDataProcessor[CustomProcessorConfigV4]):
+
+    @process_mode(batched=True)
+    def process(self, ctx: RunContext, x: Int) -&gt; Int:
+        return [v * self.config.val for v in x]
+</pre></div>
+</div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">process_mode(batched=True)</span></code> decorator indicates that the process method will receive a batch of inputs (e.g., a list of integers) instead of a single example. The method must return a batch of outputs of the same length as the input batch.</p>
+<p>Note that the new batched <code class="docutils literal notranslate"><span class="pre">CustomProcessorV2</span></code> achieves the same result as the basic implementation in <code class="docutils literal notranslate"><span class="pre">CustomProcessor</span></code> but processes inputs in batches:</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[15]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span># Use the batched CustomProcessorV2
+out = CustomProcessorV4(val=4).call(x=flow.source[&quot;x&quot;])
+
+# Apply the data flow to the dataset
+out_ds = flow.apply(ds, collect={&quot;out&quot;: out})
+
+print(out_ds.to_dict())
+</pre></div>
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<script type="application/vnd.jupyter.widget-view+json">{"model_id": "b390568c88a549c2a4b1e8ecdb610a31", "version_major": 2, "version_minor": 0}</script></div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+{&#39;out&#39;: [0, 4, 8, 12, 16]}
+</pre></div></div>
+</div>
+</section>
+<section id="Using-Type-Variables">
+<h3>Using Type Variables<a class="headerlink" href="#Using-Type-Variables" title="Link to this heading">¶</a></h3>
+<p>In more advanced use cases, you may want to define processors that are type-agnostic or can work with different types of data. The <code class="docutils literal notranslate"><span class="pre">TypeVar</span></code> from Python’s <code class="docutils literal notranslate"><span class="pre">typing</span></code> module allows you to define such flexible processor signatures by introducing type parameters. This allows your processors to handle multiple data types while ensuring type safety.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[16]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>from typing import TypeVar
+
+class CustomProcessorConfigV5(BaseDataProcessorConfig):
+    ...
+
+T = TypeVar(&quot;T&quot;, Int, Float)
+
+class CustomProcessorV5(BaseDataProcessor[CustomProcessorConfigV5]):
+    def process(self, ctx: RunContext, x: T, y: T) -&gt; T:
+        return x + y
+</pre></div>
+</div>
+</div>
+<p>When using <code class="docutils literal notranslate"><span class="pre">TypeVar</span></code> in a processor’s signature, the output type is dynamically inferred from the input arguments. However, it’s important to understand that <code class="docutils literal notranslate"><span class="pre">TypeVar</span></code> doesn’t enforce exact matching between the input types; instead, it allows types that are castable to each other.</p>
+<p>This behavior makes the processor more flexible, as it can work with different but compatible types, such as an <code class="docutils literal notranslate"><span class="pre">Int</span></code> and a <code class="docutils literal notranslate"><span class="pre">Float</span></code>, and automatically adjust the result to a compatible output type.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[17]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>from hyped.typing import cast
+
+int_feature = flow.source[&quot;x&quot;]
+float_feature = cast(Float, flow.source[&quot;x&quot;])
+
+int_out = CustomProcessorV5().call(x=int_feature, y=int_feature)
+float_out = CustomProcessorV5().call(x=float_feature, y=float_feature)
+mixed_out = CustomProcessorV5().call(x=int_feature, y=float_feature)
+
+print(&quot;x: Int, y: Int -&gt;    &quot;, int_out.dtype)
+print(&quot;x: Float, y: Float -&gt;&quot;, float_out.dtype)
+print(&quot;x: Int, y: Float -&gt;  &quot;, mixed_out.dtype)
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+<span class="ansi-red-fg">---------------------------------------------------------------------------</span>
+<span class="ansi-red-fg">ImportError</span>                               Traceback (most recent call last)
+Cell <span class="ansi-green-fg">In[17], line 1</span>
+<span class="ansi-green-fg">----&gt; 1</span> <span class="ansi-bold" style="color: rgb(0,135,0)">from</span> <span class="ansi-bold" style="color: rgb(0,0,255)">hyped</span><span class="ansi-bold" style="color: rgb(0,0,255)">.</span><span class="ansi-bold" style="color: rgb(0,0,255)">typing</span> <span class="ansi-bold" style="color: rgb(0,135,0)">import</span> cast
+<span class="ansi-green-intense-fg ansi-bold">      3</span> int_feature <span style="color: rgb(98,98,98)">=</span> flow<span style="color: rgb(98,98,98)">.</span>source[<span style="color: rgb(175,0,0)">&#34;</span><span style="color: rgb(175,0,0)">x</span><span style="color: rgb(175,0,0)">&#34;</span>]
+<span class="ansi-green-intense-fg ansi-bold">      4</span> float_feature <span style="color: rgb(98,98,98)">=</span> cast(Float, flow<span style="color: rgb(98,98,98)">.</span>source[<span style="color: rgb(175,0,0)">&#34;</span><span style="color: rgb(175,0,0)">x</span><span style="color: rgb(175,0,0)">&#34;</span>])
+
+<span class="ansi-red-fg">ImportError</span>: cannot import name &#39;cast&#39; from &#39;hyped.typing&#39; (/Users/ndoll/dev/open-hyped/hyped/src/hyped/typing.py)
+</pre></div></div>
+</div>
+</section>
+<section id="Custom-Feature-Validation">
+<h3>Custom Feature Validation<a class="headerlink" href="#Custom-Feature-Validation" title="Link to this heading">¶</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">FeatureValidator</span></code> allows you to implement custom feature validation based on processor configuration. This is particularly useful when your processor needs to enforce specific constraints on the input features, depending on how it has been configured.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[17]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>class CustomProcessorConfigV6(BaseDataProcessorConfig):
+    expects_float: bool
+
+def custom_feature_validation(
+    feature: Int | Float,
+    config: CustomProcessorConfigV6,
+    session: ValidationSession
+) -&gt; Int | Float:
+    if isinstance(feature, Int) and config.expects_float:
+        raise TypeError(&quot;Expected Float&quot;)
+    return feature
+
+class CustomProcessorV6(BaseDataProcessor[CustomProcessorConfigV6]):
+
+    def process(
+        self,
+        ctx: RunContext,
+        x: Annotated[Int | Float, FeatureValidator(custom_feature_validation)]
+    ) -&gt; Int:
+        return int(x)
+</pre></div>
+</div>
+</div>
+<p>In this example, we combine configuration-specific logic with feature validation to ensure that the inputs to our processor match the expected types. Let’s break down the key components:</p>
+<ol class="arabic simple">
+<li><p><strong>Configuration-Specific Logic</strong>: The <code class="docutils literal notranslate"><span class="pre">CustomProcessorConfigV3</span></code> class has a configuration parameter <code class="docutils literal notranslate"><span class="pre">expects_float</span></code>, which controls whether the processor expects its input to be a <code class="docutils literal notranslate"><span class="pre">Float</span></code>. This configuration is passed to the processor and determines the validation rules for the features.</p></li>
+<li><p><strong>Feature Validation</strong>: The <code class="docutils literal notranslate"><span class="pre">custom_feature_validation</span></code> function is a custom validator that checks the type of the input feature. If the feature is an <code class="docutils literal notranslate"><span class="pre">Int</span></code> but the configuration expects a <code class="docutils literal notranslate"><span class="pre">Float</span></code>, the function raises a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>. This ensures that the input meets the necessary criteria before the processor does any further work.</p></li>
+<li><p><strong>Using the ``FeatureValidator``</strong>: In the <code class="docutils literal notranslate"><span class="pre">process</span></code> method of the <code class="docutils literal notranslate"><span class="pre">processor</span></code>, we annotate the input feature <code class="docutils literal notranslate"><span class="pre">x</span></code> with <code class="docutils literal notranslate"><span class="pre">FeatureValidator(custom_feature_validation)</span></code>. This tells the framework to apply the <code class="docutils literal notranslate"><span class="pre">custom_feature_validation</span></code> function to <code class="docutils literal notranslate"><span class="pre">x</span></code> before it proceeds with processing. The validator checks whether the feature matches the expected type based on the configuration.</p></li>
+</ol>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[18]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span># expects float but receives int
+out = CustomProcessorV6(expects_float=True).call(x=flow.source[&quot;x&quot;])
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+<span class="ansi-red-fg">---------------------------------------------------------------------------</span>
+<span class="ansi-red-fg">TypeError</span>                                 Traceback (most recent call last)
+Cell <span class="ansi-green-fg">In[18], line 2</span>
+<span class="ansi-green-intense-fg ansi-bold">      1</span> <span style="color: rgb(95,135,135)"># expects float but receives int</span>
+<span class="ansi-green-fg">----&gt; 2</span> out <span style="color: rgb(98,98,98)">=</span> <span class="ansi-yellow-bg">CustomProcessorV6</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg">expects_float</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">=</span><span class="ansi-yellow-bg ansi-bold" style="color: rgb(0,135,0)">True</span><span class="ansi-yellow-bg">)</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">call</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg">x</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">=</span><span class="ansi-yellow-bg">flow</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">source</span><span class="ansi-yellow-bg">[</span><span class="ansi-yellow-bg" style="color: rgb(175,0,0)">&#34;</span><span class="ansi-yellow-bg" style="color: rgb(175,0,0)">x</span><span class="ansi-yellow-bg" style="color: rgb(175,0,0)">&#34;</span><span class="ansi-yellow-bg">]</span><span class="ansi-yellow-bg">)</span>
+
+File <span class="ansi-green-fg">~/dev/open-hyped/hyped/src/hyped/core/nodes/base.py:505</span>, in <span class="ansi-cyan-fg">BaseNode.call</span><span class="ansi-blue-fg">(self, *args, **kwargs)</span>
+<span class="ansi-green-intense-fg ansi-bold">    502</span> <span class="ansi-bold" style="color: rgb(0,135,0)">with</span> FeatureEngine(name, <span style="color: rgb(0,135,0)">self</span><span style="color: rgb(98,98,98)">.</span>config, <span style="color: rgb(0,135,0)">self</span><span style="color: rgb(98,98,98)">.</span>signature) <span class="ansi-bold" style="color: rgb(0,135,0)">as</span> engine:
+<span class="ansi-green-intense-fg ansi-bold">    503</span>     <span style="color: rgb(95,135,135)"># validate the node signature and input arguments</span>
+<span class="ansi-green-intense-fg ansi-bold">    504</span>     engine<span style="color: rgb(98,98,98)">.</span>validate_signature()
+<span class="ansi-green-fg">--&gt; 505</span>     <span class="ansi-yellow-bg">engine</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">validate_arguments</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg">args</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg">kwargs</span><span class="ansi-yellow-bg">)</span>
+<span class="ansi-green-intense-fg ansi-bold">    506</span>     <span style="color: rgb(95,135,135)"># split the input features from the input constants</span>
+<span class="ansi-green-intense-fg ansi-bold">    507</span>     references, objects, object_dtypes <span style="color: rgb(98,98,98)">=</span> engine<span style="color: rgb(98,98,98)">.</span>get_references_and_objects(<span style="color: rgb(98,98,98)">*</span>args, <span style="color: rgb(98,98,98)">*</span><span style="color: rgb(98,98,98)">*</span>kwargs)
+
+File <span class="ansi-green-fg">~/dev/open-hyped/hyped/src/hyped/core/features/engine.py:278</span>, in <span class="ansi-cyan-fg">FeatureEngine.validate_arguments</span><span class="ansi-blue-fg">(self, *args, **kwargs)</span>
+<span class="ansi-green-intense-fg ansi-bold">    275</span> <span class="ansi-bold" style="color: rgb(0,135,0)">try</span>:
+<span class="ansi-green-intense-fg ansi-bold">    276</span>     <span style="color: rgb(95,135,135)"># validate input arguments</span>
+<span class="ansi-green-intense-fg ansi-bold">    277</span>     context <span style="color: rgb(98,98,98)">=</span> {<span style="color: rgb(175,0,0)">&#34;</span><span style="color: rgb(175,0,0)">config</span><span style="color: rgb(175,0,0)">&#34;</span>: <span style="color: rgb(0,135,0)">self</span><span style="color: rgb(98,98,98)">.</span>config, <span style="color: rgb(175,0,0)">&#34;</span><span style="color: rgb(175,0,0)">session</span><span style="color: rgb(175,0,0)">&#34;</span>: <span style="color: rgb(0,135,0)">self</span><span style="color: rgb(98,98,98)">.</span>session}
+<span class="ansi-green-fg">--&gt; 278</span>     <span class="ansi-yellow-bg" style="color: rgb(0,135,0)">self</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">validator</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">model_validate</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg">bound_args</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">arguments</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">context</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">=</span><span class="ansi-yellow-bg">context</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">strict</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">=</span><span class="ansi-yellow-bg ansi-bold" style="color: rgb(0,135,0)">True</span><span class="ansi-yellow-bg">)</span>
+<span class="ansi-green-intense-fg ansi-bold">    280</span> <span class="ansi-bold" style="color: rgb(0,135,0)">except</span> pydantic<span style="color: rgb(98,98,98)">.</span>ValidationError <span class="ansi-bold" style="color: rgb(0,135,0)">as</span> e:
+<span class="ansi-green-intense-fg ansi-bold">    281</span>     <span style="color: rgb(95,135,135)"># TODO: improve error message to include error keys and expected type</span>
+<span class="ansi-green-intense-fg ansi-bold">    282</span>     <span class="ansi-bold" style="color: rgb(0,135,0)">raise</span> <span class="ansi-bold" style="color: rgb(215,95,95)">TypeError</span>(
+<span class="ansi-green-intense-fg ansi-bold">    283</span>         <span style="color: rgb(175,0,0)">f</span><span style="color: rgb(175,0,0)">&#34;</span><span style="color: rgb(175,0,0)">Invalid argument types provided in the call to </span><span style="color: rgb(175,0,0)">&#39;</span><span class="ansi-bold" style="color: rgb(175,95,135)">{</span><span style="color: rgb(0,135,0)">self</span><span style="color: rgb(98,98,98)">.</span>name<span class="ansi-bold" style="color: rgb(175,95,135)">}</span><span style="color: rgb(175,0,0)">&#39;</span><span style="color: rgb(175,0,0)">. </span><span style="color: rgb(175,0,0)">&#34;</span>
+<span class="ansi-green-intense-fg ansi-bold">    284</span>     ) <span class="ansi-bold" style="color: rgb(0,135,0)">from</span> <span class="ansi-bold" style="color: rgb(0,0,255)">e</span>
+
+    <span class="ansi-red-fg">[... skipping hidden 1 frame]</span>
+
+File <span class="ansi-green-fg">~/dev/open-hyped/hyped/src/hyped/core/features/validators.py:118</span>, in <span class="ansi-cyan-fg">FeatureValidator.__init__.&lt;locals&gt;.wrapped_validator</span><span class="ansi-blue-fg">(val, info)</span>
+<span class="ansi-green-intense-fg ansi-bold">    108</span> <span class="ansi-bold" style="color: rgb(0,135,0)">if</span> (
+<span class="ansi-green-intense-fg ansi-bold">    109</span>     (info<span style="color: rgb(98,98,98)">.</span>context <span class="ansi-bold" style="color: rgb(175,0,255)">is</span> <span class="ansi-bold" style="color: rgb(0,135,0)">None</span>)
+<span class="ansi-green-intense-fg ansi-bold">    110</span>     <span class="ansi-bold" style="color: rgb(175,0,255)">or</span> (<span style="color: rgb(175,0,0)">&#34;</span><span style="color: rgb(175,0,0)">config</span><span style="color: rgb(175,0,0)">&#34;</span> <span class="ansi-bold" style="color: rgb(175,0,255)">not</span> <span class="ansi-bold" style="color: rgb(175,0,255)">in</span> info<span style="color: rgb(98,98,98)">.</span>context)
+<span class="ansi-green-intense-fg ansi-bold">    111</span>     <span class="ansi-bold" style="color: rgb(175,0,255)">or</span> (<span style="color: rgb(175,0,0)">&#34;</span><span style="color: rgb(175,0,0)">session</span><span style="color: rgb(175,0,0)">&#34;</span> <span class="ansi-bold" style="color: rgb(175,0,255)">not</span> <span class="ansi-bold" style="color: rgb(175,0,255)">in</span> info<span style="color: rgb(98,98,98)">.</span>context)
+<span class="ansi-green-intense-fg ansi-bold">    112</span> ):
+<span class="ansi-green-intense-fg ansi-bold">    113</span>     <span class="ansi-bold" style="color: rgb(0,135,0)">raise</span> <span class="ansi-bold" style="color: rgb(215,95,95)">RuntimeError</span>(
+<span class="ansi-green-intense-fg ansi-bold">    114</span>         <span style="color: rgb(175,0,0)">&#34;</span><span style="color: rgb(175,0,0)">FeatureValidator requires </span><span style="color: rgb(175,0,0)">&#39;</span><span style="color: rgb(175,0,0)">config</span><span style="color: rgb(175,0,0)">&#39;</span><span style="color: rgb(175,0,0)"> and </span><span style="color: rgb(175,0,0)">&#39;</span><span style="color: rgb(175,0,0)">session</span><span style="color: rgb(175,0,0)">&#39;</span><span style="color: rgb(175,0,0)"> to be present </span><span style="color: rgb(175,0,0)">&#34;</span>
+<span class="ansi-green-intense-fg ansi-bold">    115</span>         <span style="color: rgb(175,0,0)">&#34;</span><span style="color: rgb(175,0,0)">in the validation context. Ensure that these are provided.</span><span style="color: rgb(175,0,0)">&#34;</span>
+<span class="ansi-green-intense-fg ansi-bold">    116</span>     )
+<span class="ansi-green-fg">--&gt; 118</span> <span class="ansi-bold" style="color: rgb(0,135,0)">return</span> <span class="ansi-yellow-bg">validator</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg">val</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">info</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">context</span><span class="ansi-yellow-bg">[</span><span class="ansi-yellow-bg" style="color: rgb(175,0,0)">&#34;</span><span class="ansi-yellow-bg" style="color: rgb(175,0,0)">config</span><span class="ansi-yellow-bg" style="color: rgb(175,0,0)">&#34;</span><span class="ansi-yellow-bg">]</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">info</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">context</span><span class="ansi-yellow-bg">[</span><span class="ansi-yellow-bg" style="color: rgb(175,0,0)">&#34;</span><span class="ansi-yellow-bg" style="color: rgb(175,0,0)">session</span><span class="ansi-yellow-bg" style="color: rgb(175,0,0)">&#34;</span><span class="ansi-yellow-bg">]</span><span class="ansi-yellow-bg">)</span>
+
+Cell <span class="ansi-green-fg">In[17], line 10</span>, in <span class="ansi-cyan-fg">custom_feature_validation</span><span class="ansi-blue-fg">(feature, config, session)</span>
+<span class="ansi-green-intense-fg ansi-bold">      4</span> <span class="ansi-bold" style="color: rgb(0,135,0)">def</span> <span style="color: rgb(0,0,255)">custom_feature_validation</span>(
+<span class="ansi-green-intense-fg ansi-bold">      5</span>     feature: Int <span style="color: rgb(98,98,98)">|</span> Float,
+<span class="ansi-green-intense-fg ansi-bold">      6</span>     config: CustomProcessorConfigV6,
+<span class="ansi-green-intense-fg ansi-bold">      7</span>     session: ValidationSession
+<span class="ansi-green-intense-fg ansi-bold">      8</span> ) <span style="color: rgb(98,98,98)">-</span><span style="color: rgb(98,98,98)">&gt;</span> Int <span style="color: rgb(98,98,98)">|</span> Float:
+<span class="ansi-green-intense-fg ansi-bold">      9</span>     <span class="ansi-bold" style="color: rgb(0,135,0)">if</span> <span style="color: rgb(0,135,0)">isinstance</span>(feature, Int) <span class="ansi-bold" style="color: rgb(175,0,255)">and</span> config<span style="color: rgb(98,98,98)">.</span>expects_float:
+<span class="ansi-green-fg">---&gt; 10</span>         <span class="ansi-bold" style="color: rgb(0,135,0)">raise</span> <span class="ansi-bold" style="color: rgb(215,95,95)">TypeError</span>(<span style="color: rgb(175,0,0)">&#34;</span><span style="color: rgb(175,0,0)">Expected Float</span><span style="color: rgb(175,0,0)">&#34;</span>)
+<span class="ansi-green-intense-fg ansi-bold">     11</span>     <span class="ansi-bold" style="color: rgb(0,135,0)">return</span> feature
+
+<span class="ansi-red-fg">TypeError</span>: Expected Float
+</pre></div></div>
+</div>
+</section>
+<section id="Feature-Validation-Session">
+<h3>Feature Validation Session<a class="headerlink" href="#Feature-Validation-Session" title="Link to this heading">¶</a></h3>
+<p>In more complex scenarios, you may need to perform validation that goes beyond simple type checking. The <strong>FeatureValidator</strong> provides a powerful mechanism for dynamic validation, allowing you to store and manage additional context across multiple validation functions within the same <strong>session</strong>.</p>
+<p>What makes the <strong>FeatureValidator</strong> system particularly powerful is that the <code class="docutils literal notranslate"><span class="pre">session</span></code> is not limited to validating a single feature. Instead, it can be used to manage the validation context across various features, even across multiple validation functions. Information stored in the context can then be accessed and referenced throughout the entire validation process, allowing for more sophisticated validation logic that depends on the accumulated context.</p>
+<p>The <strong>lifetime of the validation session</strong> is tied to the validation of the function signature. Specifically, the session remains active from the moment the input arguments are validated until the output features are constructed. This means the session spans the entire duration of the validation process, ensuring that the context persists across the validation of both inputs and outputs.</p>
+<p>The following example makes use of the validation <code class="docutils literal notranslate"><span class="pre">session</span></code> to ensure that two input features are of the exact same data type.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[18]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>class CustomProcessorConfigV7(BaseDataProcessorConfig):
+    outputs_float: bool
+
+def match_feature_validator(
+    feature: Int | Float,
+    config: CustomProcessorConfigV7,
+    session: ValidationSession
+):
+    # capture data type of the feature in the validation session
+    if session.get_context(&quot;feature_dtype&quot;) is None:
+        session.set_context(&quot;feature_dtype&quot;, feature.dtype)
+
+    # compare the dtype of the feature with the captured dtype
+    if feature.dtype != session.get_context(&quot;feature_dtype&quot;):
+        raise TypeError(&quot;DType Mismatch&quot;)
+
+class CustomProcessorV7(BaseDataProcessor[CustomProcessorConfigV7]):
+
+    def process(
+        self,
+        ctx: RunContext,
+        x: Annotated[Int | Float, FeatureValidator(match_feature_validator)],
+        y: Annotated[Int | Float, FeatureValidator(match_feature_validator)]
+    ) -&gt; Int:
+        return int(x + y)
+</pre></div>
+</div>
+</div>
+<p>In this example, we make use of the validation session to store the data type of the input feature as context information.</p>
+<ol class="arabic simple">
+<li><p><strong>Validation Context</strong>: In the <code class="docutils literal notranslate"><span class="pre">match_feature_validator</span></code> function, the data type (<code class="docutils literal notranslate"><span class="pre">dtype</span></code>) of the feature is stored in the session using <code class="docutils literal notranslate"><span class="pre">session.set_context</span></code>. This allows us to track the data type of the feature across multiple validation calls and enforce consistency. If the data type of the next feature doesn’t match the first one, we raise a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>.</p></li>
+<li><p><strong>Multiple Inputs</strong>: The process method in <code class="docutils literal notranslate"><span class="pre">CustomProcessorV4</span></code> takes two inputs, <code class="docutils literal notranslate"><span class="pre">x</span></code> and <code class="docutils literal notranslate"><span class="pre">y</span></code>, both of which are validated using the <code class="docutils literal notranslate"><span class="pre">match_feature_validator</span></code>. Both features are compared to ensure they share the same data type, ensuring the processor operates on consistent inputs.</p></li>
+</ol>
+</section>
+<section id="Custom-Feature-Resolver">
+<h3>Custom Feature Resolver<a class="headerlink" href="#Custom-Feature-Resolver" title="Link to this heading">¶</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">FeatureResolver</span></code> is a powerful tool that allows you to implement custom logic for determining the output feature type of a <code class="docutils literal notranslate"><span class="pre">processor</span></code>. This can be particularly useful when you need to dynamically infer the type of the output based on certain conditions, such as the configuration or the types of input features.</p>
+<p>By using the feature resolver, you can define custom logic that adapts the data processing pipeline to different requirements, making it more flexible and dynamic.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[19]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>class CustomProcessorConfigV8(BaseDataProcessorConfig):
+    outputs_float: bool
+
+def custom_feature_resolver(
+    config: None | CustomProcessorConfigV8,
+    inputs: dict[str, Int | Float],
+    session: ValidationSession
+) -&gt; type[Int] | type[Float]:
+    return Float if config.outputs_float else Int
+
+class CustomProcessorV8(BaseDataProcessor[CustomProcessorConfigV8]):
+
+    def process(
+        self,
+        ctx: RunContext,
+        x: Int,
+    ) -&gt; Annotated[Int | Float, FeatureResolver(custom_feature_resolver)]:
+        ...
+</pre></div>
+</div>
+</div>
+<p>In this example, the <code class="docutils literal notranslate"><span class="pre">custom_feature_resolver</span></code> function is responsible for inferring the output feature type. It takes in the <code class="docutils literal notranslate"><span class="pre">config</span></code>, a dictionary of <code class="docutils literal notranslate"><span class="pre">inputs</span></code>, and a <code class="docutils literal notranslate"><span class="pre">session</span></code> as arguments. The <code class="docutils literal notranslate"><span class="pre">process</span></code> method in the <code class="docutils literal notranslate"><span class="pre">CustomProcessorV5</span></code> class uses the <code class="docutils literal notranslate"><span class="pre">FeatureResolver</span></code> decorator to apply the <code class="docutils literal notranslate"><span class="pre">custom_feature_resolver</span></code> function to determine the output type of the processor.</p>
+<p>We can check the behavior by calling the processor with different configurations:</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[20]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>int_out = CustomProcessorV8(outputs_float=False).call(x=flow.source[&quot;x&quot;])
+float_out = CustomProcessorV8(outputs_float=True).call(x=flow.source[&quot;x&quot;])
+
+print(&quot;Output dtyle (outputs_float=False):&quot;, int_out.dtype)
+print(&quot;Output dtyle (outputs_float=True): &quot;, float_out.dtype)
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+Output dtyle (outputs_float=False): Int64
+Output dtyle (outputs_float=True):  Double
+</pre></div></div>
+</div>
+</section>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="augmentor.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Custom Data Augmentors</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="basics.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Basics of Data Flows</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2024, open-hyped
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Custom Data Processors</a><ul>
+<li><a class="reference internal" href="#Imports">Imports</a></li>
+<li><a class="reference internal" href="#Creating-a-Data-Flow">Creating a Data Flow</a></li>
+<li><a class="reference internal" href="#Implementing-a-Custom-Data-Processor">Implementing a Custom Data Processor</a><ul>
+<li><a class="reference internal" href="#Step-1:-Define-the-Processor-Configuration">Step 1: Define the Processor Configuration</a></li>
+<li><a class="reference internal" href="#Step-2:-Implement-the-Processor-Logic">Step 2: Implement the Processor Logic</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#Using-the-Custom-Data-Processor">Using the Custom Data Processor</a></li>
+<li><a class="reference internal" href="#Advanced-Usage">Advanced Usage</a></li>
+<li><a class="reference internal" href="#Returning-Multiple-Outputs">Returning Multiple Outputs</a></li>
+<li><a class="reference internal" href="#Conditional-Output-Fields">Conditional Output Fields</a><ul>
+<li><a class="reference internal" href="#Using-the-process_mode-Decorator">Using the <code class="docutils literal notranslate"><span class="pre">process_mode</span></code> Decorator</a></li>
+<li><a class="reference internal" href="#Using-Type-Variables">Using Type Variables</a></li>
+<li><a class="reference internal" href="#Custom-Feature-Validation">Custom Feature Validation</a></li>
+<li><a class="reference internal" href="#Feature-Validation-Session">Feature Validation Session</a></li>
+<li><a class="reference internal" href="#Custom-Feature-Resolver">Custom Feature Resolver</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="../_static/documentation_options.js?v=cd5d3e8d"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/scripts/furo.js?v=46bd48cc"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    </body>
+</html>

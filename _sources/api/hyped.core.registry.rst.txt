@@ -1,0 +1,20 @@
+hyped.core.registry package
+===========================
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 3
+
+   hyped.core.registry.auto
+   hyped.core.registry.config
+   hyped.core.registry.registry
+
+Module contents
+---------------
+
+.. automodule:: hyped.core.registry
+   :members:
+   :show-inheritance:
+   :undoc-members:

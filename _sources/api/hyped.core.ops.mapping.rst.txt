@@ -1,0 +1,7 @@
+hyped.core.ops.mapping module
+=============================
+
+.. automodule:: hyped.core.ops.mapping
+   :members:
+   :show-inheritance:
+   :undoc-members:

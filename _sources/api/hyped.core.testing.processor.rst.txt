@@ -1,0 +1,7 @@
+hyped.core.testing.processor module
+===================================
+
+.. automodule:: hyped.core.testing.processor
+   :members:
+   :show-inheritance:
+   :undoc-members:

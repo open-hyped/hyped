@@ -1,0 +1,7 @@
+hyped.core.executor module
+==========================
+
+.. automodule:: hyped.core.executor
+   :members:
+   :show-inheritance:
+   :undoc-members:

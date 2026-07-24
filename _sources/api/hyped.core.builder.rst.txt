@@ -1,0 +1,7 @@
+hyped.core.builder module
+=========================
+
+.. automodule:: hyped.core.builder
+   :members:
+   :show-inheritance:
+   :undoc-members:

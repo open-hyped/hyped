@@ -1,0 +1,7 @@
+hyped.core.ops.casting module
+=============================
+
+.. automodule:: hyped.core.ops.casting
+   :members:
+   :show-inheritance:
+   :undoc-members:

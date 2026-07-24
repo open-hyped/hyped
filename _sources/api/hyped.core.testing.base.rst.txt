@@ -1,0 +1,7 @@
+hyped.core.testing.base module
+==============================
+
+.. automodule:: hyped.core.testing.base
+   :members:
+   :show-inheritance:
+   :undoc-members:

@@ -1,0 +1,7 @@
+hyped.core.ops.sequence module
+==============================
+
+.. automodule:: hyped.core.ops.sequence
+   :members:
+   :show-inheritance:
+   :undoc-members:

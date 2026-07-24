@@ -1,0 +1,7 @@
+hyped.core.ops.numeric module
+=============================
+
+.. automodule:: hyped.core.ops.numeric
+   :members:
+   :show-inheritance:
+   :undoc-members:

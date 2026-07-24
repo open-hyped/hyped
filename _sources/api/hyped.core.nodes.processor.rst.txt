@@ -1,0 +1,7 @@
+hyped.core.nodes.processor module
+=================================
+
+.. automodule:: hyped.core.nodes.processor
+   :members:
+   :show-inheritance:
+   :undoc-members:

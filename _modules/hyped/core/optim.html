@@ -1,0 +1,833 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../../../">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
+
+    <!-- Generated with Sphinx 9.0.4 and Furo 2025.12.19 -->
+        <title>hyped.core.optim - hyped 0.2.0a4 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=8dab3a3b" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../../index.html"><div class="brand">hyped 0.2.0a4 documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../../index.html">
+  
+  <span class="sidebar-brand-text">hyped 0.2.0a4 documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../getting_started.html">Getting Started</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../tutorials.html">Tutorials</a><input aria-label="Toggle navigation of Tutorials" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../_tutorials/basics.html">Basics of Data Flows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../_tutorials/processor.html">Custom Data Processors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../_tutorials/augmentor.html">Custom Data Augmentors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../_tutorials/aggregator.html">Custom Data Aggregators</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../extensions.html">Extensions</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Techincal Docs</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../_technical/data_flow.html">Data Flow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../_technical/data_processors.html">Data Processors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../_technical/data_augmentors.html">Data Augmentors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../_technical/data_aggregators.html">Data Aggregators</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API References</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/hyped.html">hyped package</a><input aria-label="Toggle navigation of hyped package" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/hyped.common.html">hyped.common package</a><input aria-label="Toggle navigation of hyped.common package" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/hyped.common.lazy_module.html">hyped.common.lazy_module module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/hyped.common.logging.html">hyped.common.logging module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/hyped.common.utils.html">hyped.common.utils module</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/hyped.core.html">hyped.core package</a><input aria-label="Toggle navigation of hyped.core package" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../api/hyped.core.features.html">hyped.core.features package</a><input aria-label="Toggle navigation of hyped.core.features package" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.features.dtypes.html">hyped.core.features.dtypes module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.features.engine.html">hyped.core.features.engine module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.features.features.html">hyped.core.features.features module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.features.mixins.html">hyped.core.features.mixins module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.features.reference.html">hyped.core.features.reference module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.features.session.html">hyped.core.features.session module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.features.validators.html">hyped.core.features.validators module</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../api/hyped.core.nodes.html">hyped.core.nodes package</a><input aria-label="Toggle navigation of hyped.core.nodes package" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.nodes.aggregator.html">hyped.core.nodes.aggregator module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.nodes.augmentor.html">hyped.core.nodes.augmentor module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.nodes.base.html">hyped.core.nodes.base module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.nodes.collect.html">hyped.core.nodes.collect module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.nodes.const.html">hyped.core.nodes.const module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.nodes.debug.html">hyped.core.nodes.debug module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.nodes.processor.html">hyped.core.nodes.processor module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.nodes.trace.html">hyped.core.nodes.trace module</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../api/hyped.core.ops.html">hyped.core.ops package</a><input aria-label="Toggle navigation of hyped.core.ops package" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.ops.boolean.html">hyped.core.ops.boolean module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.ops.casting.html">hyped.core.ops.casting module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.ops.common.html">hyped.core.ops.common module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.ops.debug.html">hyped.core.ops.debug module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.ops.mapping.html">hyped.core.ops.mapping module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.ops.numeric.html">hyped.core.ops.numeric module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.ops.sequence.html">hyped.core.ops.sequence module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.ops.string.html">hyped.core.ops.string module</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../api/hyped.core.registry.html">hyped.core.registry package</a><input aria-label="Toggle navigation of hyped.core.registry package" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.registry.auto.html">hyped.core.registry.auto module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.registry.config.html">hyped.core.registry.config module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.registry.registry.html">hyped.core.registry.registry module</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../api/hyped.core.testing.html">hyped.core.testing package</a><input aria-label="Toggle navigation of hyped.core.testing package" class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.testing.aggregator.html">hyped.core.testing.aggregator module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.testing.augmentor.html">hyped.core.testing.augmentor module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.testing.base.html">hyped.core.testing.base module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/hyped.core.testing.processor.html">hyped.core.testing.processor module</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/hyped.core.abc.html">hyped.core.abc module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/hyped.core.builder.html">hyped.core.builder module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/hyped.core.executor.html">hyped.core.executor module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/hyped.core.flow.html">hyped.core.flow module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/hyped.core.graph.html">hyped.core.graph module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/hyped.core.module.html">hyped.core.module module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/hyped.core.optim.html">hyped.core.optim module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/hyped.core.typing.html">hyped.core.typing module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/hyped.core.utils.html">hyped.core.utils module</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/hyped.ops.html">hyped.ops module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/hyped.typing.html">hyped.typing module</a></li>
+</ul>
+</li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <h1>Source code for hyped.core.optim</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Module for Data Flow Graph Optimization.</span>
+
+<span class="sd">This module provides an optimizer for data flow graphs, which applies various optimization</span>
+<span class="sd">techniques to improve program efficiency and reduce redundant computations.</span>
+
+<span class="sd">The optimizer module includes methods for optimizing data flow graphs, such as:</span>
+
+<span class="sd">1. **Prune Redundant Nodes**: The optimizer prunes the data flow graph, removing nodes that</span>
+<span class="sd">   do not contribute to producing the desired output.</span>
+
+<span class="sd">2. **Constant Expression Evaluation**: Pre-computes the constant partition of the graph, which</span>
+<span class="sd">   consists solely of constant values and has no dependencies on other parts of the graph, and</span>
+<span class="sd">   replaces these constants with their computed values.</span>
+
+<span class="sd">3. **Common Subexpression Elimination (CSE)**: Identifies and eliminates redundant computations</span>
+<span class="sd">   by recognizing and reusing common subexpressions in the data flow graph.</span>
+
+<span class="sd">4. **Constant Folding/Propagation**: Evaluates constant expressions at compile time and replaces</span>
+<span class="sd">   them with their computed values to simplify the data flow graph.</span>
+
+<span class="sd">The DataFlowGraphOptimizer class within this module provides these optimization methods,</span>
+<span class="sd">which can be applied individually or in combination to optimize a given data flow graph.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">defaultdict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">itertools</span><span class="w"> </span><span class="kn">import</span> <span class="n">groupby</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">networkx</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nx</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.builder</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataFlowGraphBuilder</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.executor</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataFlowGraphExecutor</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.features.dtypes</span><span class="w"> </span><span class="kn">import</span> <span class="n">BoolType</span><span class="p">,</span> <span class="n">DType</span><span class="p">,</span> <span class="n">MappingType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.features.reference</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConcreteReference</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.graph</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataFlowGraph</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.ops.mapping</span><span class="w"> </span><span class="kn">import</span> <span class="n">MappingGetItem</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">NodeId</span><span class="p">,</span> <span class="n">PartitionId</span>
+
+
+<div class="viewcode-block" id="DataFlowGraphOptimizer">
+<a class="viewcode-back" href="../../../api/hyped.core.optim.html#hyped.core.optim.DataFlowGraphOptimizer">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">DataFlowGraphOptimizer</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Optimizer for Data Flow Graphs.</span>
+
+<span class="sd">    This optimizer applies several optimization techniques to the given data flow graph</span>
+<span class="sd">    in order to improve its efficiency and reduce redundant computations. The optimization</span>
+<span class="sd">    steps include:</span>
+
+<span class="sd">    1. Prune Unnecessary Nodes</span>
+<span class="sd">    2. Constant Expressions Evaluation</span>
+<span class="sd">    3. Common Subexpression Elimination (CSE)</span>
+<span class="sd">    4. Constant Folding/Propagation</span>
+
+<span class="sd">    Note the difference between constant expression evaluation and constant folding. Constant</span>
+<span class="sd">    expression evaluation focuses on evaluating the constant partition of the graph, which</span>
+<span class="sd">    consists solely of constant values and has no dependencies on other parts of the graph.</span>
+<span class="sd">    In contrast, constant folding aims to simplify expressions that include both constant</span>
+<span class="sd">    and non-constant values by precomputing the constant parts of these expressions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="DataFlowGraphOptimizer.cse">
+<a class="viewcode-back" href="../../../api/hyped.core.optim.html#hyped.core.optim.DataFlowGraphOptimizer.cse">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">cse</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="n">DataFlowGraph</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">DataFlowGraph</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n">NodeId</span><span class="p">,</span> <span class="n">NodeId</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Performs Common Subexpression Elimination (CSE) on the data flow graph.</span>
+
+<span class="sd">        This method performs Common Subexpression Elimination (CSE) on the given data flow graph.</span>
+<span class="sd">        It optimizes the graph by identifying and eliminating redundant computations.</span>
+
+<span class="sd">        Consider the following data flow graph:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            x = a + b</span>
+<span class="sd">            y = c * d</span>
+<span class="sd">            z = a + b</span>
+
+<span class="sd">        After applying Common Subexpression Elimination (CSE), the redundant computation</span>
+<span class="sd">        :code:`a + b` is eliminated, resulting in the following optimized graph:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            x = a + b</span>
+<span class="sd">            y = c * d</span>
+<span class="sd">            z = x</span>
+
+<span class="sd">        The node IDs before and after optimization are mapped as follows:</span>
+<span class="sd">        :code:`{0: 0, 1: 1, 2: 0}`</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            graph (DataFlowGraph): The data flow graph.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            DataFlowGraph, dict[NodeId, NodeId]]: The optimized data flow graph and a mapping</span>
+<span class="sd">                of node IDs before and after optimization.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="nd">@dataclass</span>
+        <span class="k">class</span><span class="w"> </span><span class="nc">NodeIdentifier</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Helper class to identify redundant nodes.&quot;&quot;&quot;</span>
+
+            <span class="n">node_type</span><span class="p">:</span> <span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeType</span>
+            <span class="n">node_config</span><span class="p">:</span> <span class="n">Any</span>
+            <span class="n">in_edge_identifiers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">ConcreteReference</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span>
+            <span class="n">ref</span><span class="p">:</span> <span class="n">ConcreteReference</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">compare</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="n">builder</span> <span class="o">=</span> <span class="n">DataFlowGraphBuilder</span><span class="p">()</span>
+        <span class="c1"># maps nodes of the original graph to the nodes in the cse-graph</span>
+        <span class="c1"># this is a non-injective function as multiple nodes in the original</span>
+        <span class="c1"># graph can be mapped to the same target node during optimization</span>
+        <span class="n">node_mapping</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">NodeId</span><span class="p">,</span> <span class="n">NodeId</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># backlog of trace nodes that occured during processing but</span>
+        <span class="c1"># were not added to the graph yet</span>
+        <span class="n">trace_nodes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">PartitionId</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="n">NodeId</span><span class="p">]]</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">set</span><span class="p">)</span>
+        <span class="n">partition_mapping</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">PartitionId</span><span class="p">,</span> <span class="n">PartitionId</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">key</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">n</span><span class="p">][</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">DEPTH</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">groupby</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">):</span>
+            <span class="n">cse_layer</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">NodeIdentifier</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+            <span class="c1"># separate trace nodes from non-trace nodes</span>
+            <span class="n">nt</span> <span class="o">=</span> <span class="p">{</span><span class="n">n</span><span class="p">:</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">n</span><span class="p">][</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">NODE_TYPE</span><span class="p">]</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">layer</span><span class="p">}</span>
+            <span class="n">layer_trace_nodes</span> <span class="o">=</span> <span class="p">[</span><span class="n">n</span> <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">nt</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeType</span><span class="o">.</span><span class="n">TRACE</span><span class="p">]</span>
+            <span class="n">layer_other_nodes</span> <span class="o">=</span> <span class="p">[</span><span class="n">n</span> <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">nt</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">t</span> <span class="o">!=</span> <span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeType</span><span class="o">.</span><span class="n">TRACE</span><span class="p">]</span>
+
+            <span class="c1"># capture trace nodes in backlog</span>
+            <span class="k">for</span> <span class="n">trace_node</span> <span class="ow">in</span> <span class="n">layer_trace_nodes</span><span class="p">:</span>
+                <span class="n">partition</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">trace_node</span><span class="p">][</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">OUT_PARTITION</span><span class="p">]</span>
+                <span class="n">trace_nodes</span><span class="p">[</span><span class="n">partition</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">trace_node</span><span class="p">)</span>
+
+            <span class="c1"># process all trace nodes which have defined target</span>
+            <span class="c1"># partitions in the cse graph</span>
+            <span class="k">for</span> <span class="n">tgt_partition</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">trace_nodes</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+                <span class="k">if</span> <span class="n">tgt_partition</span> <span class="ow">in</span> <span class="n">partition_mapping</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="n">new_tgt_partition</span> <span class="o">=</span> <span class="n">partition_mapping</span><span class="p">[</span><span class="n">tgt_partition</span><span class="p">]</span>
+
+                    <span class="k">for</span> <span class="n">trace_node_id</span> <span class="ow">in</span> <span class="n">trace_nodes</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">tgt_partition</span><span class="p">):</span>
+                        <span class="c1"># trace nodes only have a single in-edge</span>
+                        <span class="n">src_node_id</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">k</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">in_edges</span><span class="p">(</span><span class="n">trace_node_id</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="kc">True</span><span class="p">)))</span>
+                        <span class="n">src_node_ref</span> <span class="o">=</span> <span class="n">node_mapping</span><span class="p">[</span><span class="n">src_node_id</span><span class="p">]</span>
+
+                        <span class="c1"># create a node identifier for the trace node, use the new target</span>
+                        <span class="c1"># partition of the trace node as an alias of its config</span>
+                        <span class="n">identifier</span> <span class="o">=</span> <span class="n">NodeIdentifier</span><span class="p">(</span>
+                            <span class="n">node_type</span><span class="o">=</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeType</span><span class="o">.</span><span class="n">TRACE</span><span class="p">,</span>
+                            <span class="n">node_config</span><span class="o">=</span><span class="n">new_tgt_partition</span><span class="p">,</span>
+                            <span class="n">in_edge_identifiers</span><span class="o">=</span><span class="p">[(</span><span class="n">src_node_ref</span><span class="p">,</span> <span class="n">k</span><span class="p">)],</span>
+                        <span class="p">)</span>
+
+                        <span class="k">if</span> <span class="n">identifier</span> <span class="ow">in</span> <span class="n">cse_layer</span><span class="p">:</span>
+                            <span class="n">identifier</span> <span class="o">=</span> <span class="n">cse_layer</span><span class="p">[</span><span class="n">cse_layer</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">identifier</span><span class="p">)]</span>
+                            <span class="n">node_mapping</span><span class="p">[</span><span class="n">trace_node_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">identifier</span><span class="o">.</span><span class="n">ref</span>
+
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">identifier</span><span class="o">.</span><span class="n">ref</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">trace</span><span class="p">(</span>
+                                <span class="n">ref</span><span class="o">=</span><span class="n">src_node_ref</span><span class="p">,</span> <span class="n">tgt</span><span class="o">=</span><span class="n">new_tgt_partition</span><span class="p">,</span> <span class="n">node_id</span><span class="o">=</span><span class="n">trace_node_id</span>
+                            <span class="p">)</span>
+                            <span class="n">cse_layer</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">identifier</span><span class="p">)</span>
+                            <span class="n">node_mapping</span><span class="p">[</span><span class="n">trace_node_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">identifier</span><span class="o">.</span><span class="n">ref</span>
+
+            <span class="c1"># process all other nodes</span>
+            <span class="k">for</span> <span class="n">node_id</span> <span class="ow">in</span> <span class="n">layer_other_nodes</span><span class="p">:</span>
+                <span class="c1"># build identifiers for incoming edges with</span>
+                <span class="c1"># source nodes mapped to nodes in optimized graph</span>
+                <span class="n">in_edge_identifiers</span> <span class="o">=</span> <span class="p">[</span>
+                    <span class="p">(</span><span class="n">node_mapping</span><span class="p">[</span><span class="n">src_node_id</span><span class="p">],</span> <span class="n">k</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">src_node_id</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">graph</span><span class="o">.</span><span class="n">in_edges</span><span class="p">(</span><span class="n">node_id</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="p">]</span>
+
+                <span class="n">node_data</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span>
+                <span class="n">node_type</span> <span class="o">=</span> <span class="n">node_data</span><span class="p">[</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">NODE_TYPE</span><span class="p">]</span>
+                <span class="n">node_obj</span> <span class="o">=</span> <span class="n">node_data</span><span class="p">[</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">NODE_OBJ</span><span class="p">]</span>
+                <span class="n">node_out_partition</span> <span class="o">=</span> <span class="n">node_data</span><span class="p">[</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">OUT_PARTITION</span><span class="p">]</span>
+                <span class="c1"># create cse node identifier</span>
+                <span class="n">identifier</span> <span class="o">=</span> <span class="n">NodeIdentifier</span><span class="p">(</span>
+                    <span class="n">node_type</span><span class="o">=</span><span class="n">node_type</span><span class="p">,</span>
+                    <span class="n">node_config</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">node_obj</span><span class="p">,</span> <span class="s2">&quot;config&quot;</span><span class="p">,</span> <span class="n">node_obj</span><span class="p">),</span>
+                    <span class="n">in_edge_identifiers</span><span class="o">=</span><span class="n">in_edge_identifiers</span><span class="p">,</span>
+                <span class="p">)</span>
+
+                <span class="c1"># do not add a new node if the node is already present in the layer</span>
+                <span class="k">if</span> <span class="n">identifier</span> <span class="ow">in</span> <span class="n">cse_layer</span><span class="p">:</span>
+                    <span class="n">identifier</span> <span class="o">=</span> <span class="n">cse_layer</span><span class="p">[</span><span class="n">cse_layer</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">identifier</span><span class="p">)]</span>
+
+                    <span class="k">assert</span> <span class="n">identifier</span><span class="o">.</span><span class="n">ref</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                    <span class="n">node_mapping</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">identifier</span><span class="o">.</span><span class="n">ref</span>
+                    <span class="n">partition_mapping</span><span class="p">[</span><span class="n">node_out_partition</span><span class="p">]</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span>
+                        <span class="n">identifier</span><span class="o">.</span><span class="n">ref</span><span class="o">.</span><span class="n">_node_id</span>
+                    <span class="p">][</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">OUT_PARTITION</span><span class="p">]</span>
+
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># read node feature properties</span>
+                    <span class="n">in_dtype</span> <span class="o">=</span> <span class="n">node_data</span><span class="p">[</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">IN_FEATURE_TYPE</span><span class="p">]</span>
+                    <span class="n">out_dtype</span> <span class="o">=</span> <span class="n">node_data</span><span class="p">[</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">OUT_FEATURE_TYPE</span><span class="p">]</span>
+
+                    <span class="k">if</span> <span class="n">identifier</span><span class="o">.</span><span class="n">node_type</span> <span class="o">==</span> <span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeType</span><span class="o">.</span><span class="n">SOURCE</span><span class="p">:</span>
+                        <span class="n">identifier</span><span class="o">.</span><span class="n">ref</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">source</span><span class="p">(</span><span class="n">out_dtype</span><span class="p">,</span> <span class="n">node_id</span><span class="o">=</span><span class="n">node_id</span><span class="p">)</span>
+
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">inputs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ConcreteReference</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                            <span class="n">name</span><span class="p">:</span> <span class="n">node_mapping</span><span class="p">[</span><span class="n">src_node_ref</span><span class="o">.</span><span class="n">_node_id</span><span class="p">]</span>
+                            <span class="k">for</span> <span class="n">src_node_ref</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">in_edge_identifiers</span>
+                        <span class="p">}</span>
+                        <span class="n">identifier</span><span class="o">.</span><span class="n">ref</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">_add_node_to_graph</span><span class="p">(</span>
+                            <span class="n">node_obj</span><span class="o">=</span><span class="n">node_obj</span><span class="p">,</span>
+                            <span class="n">node_type</span><span class="o">=</span><span class="n">node_type</span><span class="p">,</span>
+                            <span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">,</span>
+                            <span class="n">output_dtype</span><span class="o">=</span><span class="n">out_dtype</span><span class="p">,</span>
+                            <span class="n">node_id</span><span class="o">=</span><span class="n">node_id</span><span class="p">,</span>
+                        <span class="p">)</span>
+
+                    <span class="c1"># make sure the input feature type</span>
+                    <span class="k">assert</span> <span class="p">(</span>
+                        <span class="n">in_dtype</span>
+                        <span class="o">==</span> <span class="n">builder</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">identifier</span><span class="o">.</span><span class="n">ref</span><span class="o">.</span><span class="n">_node_id</span><span class="p">][</span>
+                            <span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">IN_FEATURE_TYPE</span>
+                        <span class="p">]</span>
+                    <span class="p">)</span>
+
+                    <span class="c1"># update cse layer and node id mapping</span>
+                    <span class="k">assert</span> <span class="n">identifier</span><span class="o">.</span><span class="n">ref</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                    <span class="n">cse_layer</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">identifier</span><span class="p">)</span>
+                    <span class="c1"># the node keeps the same id</span>
+                    <span class="n">node_mapping</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">identifier</span><span class="o">.</span><span class="n">ref</span>
+                    <span class="n">partition_mapping</span><span class="p">[</span><span class="n">node_out_partition</span><span class="p">]</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span>
+                        <span class="n">identifier</span><span class="o">.</span><span class="n">ref</span><span class="o">.</span><span class="n">_node_id</span>
+                    <span class="p">][</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">OUT_PARTITION</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">builder</span><span class="o">.</span><span class="n">graph</span><span class="p">,</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">_node_id</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">node_mapping</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span></div>
+
+
+<div class="viewcode-block" id="DataFlowGraphOptimizer.constant_evaluation">
+<a class="viewcode-back" href="../../../api/hyped.core.optim.html#hyped.core.optim.DataFlowGraphOptimizer.constant_evaluation">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">constant_evaluation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="n">DataFlowGraph</span><span class="p">,</span> <span class="n">leaf_nodes</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="n">NodeId</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">DataFlowGraph</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Pre-computes the constant partition of the data flow graph.</span>
+
+<span class="sd">        This method evaluates the constant partition of the data flow graph,</span>
+<span class="sd">        which is self-contained and has no outside dependencies. It creates a</span>
+<span class="sd">        new graph from this partition, collects all outputs, and executes them</span>
+<span class="sd">        using a data flow executor. The evaluated constants are then re-inserted</span>
+<span class="sd">        into the main graph with their computed values.</span>
+
+<span class="sd">        Consider the following example:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            x, y = 1, 2</span>
+<span class="sd">            z = x + y</span>
+
+<span class="sd">        After applying constant evaluation, the above is expression is precomputed to</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            z = 3</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            graph (DataFlowGraph): The data flow graph to be optimized.</span>
+<span class="sd">            leaf_nodes (set[NodeId]): The leaf nodes, ensured to be present in the optimized graph.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            DataFlowGraph: The optimized data flow graph with evaluated constants.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># get the constant partition of the graph and make sure</span>
+        <span class="c1"># the sub-flow is self-contained, i.e. has no outside dependencies</span>
+        <span class="n">const_graph</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">get_partition</span><span class="p">(</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">Partition</span><span class="o">.</span><span class="n">CONST</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">subgraph_in_edges</span><span class="p">(</span><span class="n">const_graph</span><span class="p">))</span> <span class="o">==</span> <span class="mi">0</span>
+
+        <span class="c1"># identify all the trace nodes in the constant partition</span>
+        <span class="n">trace_node_ids</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">node_id</span>
+            <span class="k">for</span> <span class="n">node_id</span><span class="p">,</span> <span class="n">node_type</span> <span class="ow">in</span> <span class="n">const_graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">NODE_TYPE</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">node_type</span> <span class="o">==</span> <span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeType</span><span class="o">.</span><span class="n">TRACE</span>
+        <span class="p">]</span>
+        <span class="c1"># trace nodes are gateways between partitions, thus all</span>
+        <span class="c1"># trace nodes in the constant partition should be leaf nodes</span>
+        <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">const_graph</span><span class="o">.</span><span class="n">out_degree</span><span class="p">(</span><span class="n">node_id</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">node_id</span> <span class="ow">in</span> <span class="n">trace_node_ids</span><span class="p">)</span>
+        <span class="c1"># drop the trace nodes</span>
+        <span class="n">const_graph</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">restricted_view</span><span class="p">(</span><span class="n">const_graph</span><span class="p">,</span> <span class="n">trace_node_ids</span><span class="p">,</span> <span class="p">[])</span>
+
+        <span class="c1"># check if there is anything to optimize in the constant partition</span>
+        <span class="c1"># there are operations to collapse only if there are any edges within</span>
+        <span class="c1"># the constant graph, otherwise the constant graph is either empty or</span>
+        <span class="c1"># all nodes in the constant partition are source nodes which cannot</span>
+        <span class="c1"># be optimized further</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">const_graph</span><span class="o">.</span><span class="n">edges</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">const_node_ids</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">const_graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span>
+
+            <span class="c1"># create a dummy input feature for execution</span>
+            <span class="n">dummy_type</span> <span class="o">=</span> <span class="n">MappingType</span><span class="o">.</span><span class="n">construct</span><span class="p">({</span><span class="s2">&quot;field&quot;</span><span class="p">:</span> <span class="n">BoolType</span><span class="p">})</span>
+            <span class="n">dummy_table</span> <span class="o">=</span> <span class="n">pa</span><span class="o">.</span><span class="n">table</span><span class="p">({</span><span class="s2">&quot;field&quot;</span><span class="p">:</span> <span class="p">[</span><span class="kc">True</span><span class="p">]},</span> <span class="n">schema</span><span class="o">=</span><span class="n">dummy_type</span><span class="o">.</span><span class="n">arrow_schema</span><span class="p">)</span>
+
+            <span class="c1"># create a new graph from the view and apply common</span>
+            <span class="c1"># sub-expression evaluation</span>
+            <span class="n">const_graph</span> <span class="o">=</span> <span class="n">DataFlowGraph</span><span class="p">(</span><span class="n">const_graph</span><span class="p">)</span>
+            <span class="n">const_graph</span><span class="p">,</span> <span class="n">node_mapping</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cse</span><span class="p">(</span><span class="n">const_graph</span><span class="p">)</span>
+
+            <span class="c1"># map constant node ids and leaf nodes to potentially new values</span>
+            <span class="n">leaf_nodes</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">node_mapping</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span> <span class="k">if</span> <span class="n">node_id</span> <span class="ow">in</span> <span class="n">const_node_ids</span> <span class="k">else</span> <span class="n">node_id</span>
+                <span class="k">for</span> <span class="n">node_id</span> <span class="ow">in</span> <span class="n">leaf_nodes</span>
+            <span class="p">]</span>
+            <span class="n">const_node_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">node_mapping</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span> <span class="k">for</span> <span class="n">node_id</span> <span class="ow">in</span> <span class="n">const_node_ids</span><span class="p">]</span>
+
+            <span class="c1"># create a builder instance and add a dummy source node</span>
+            <span class="n">const_builder</span> <span class="o">=</span> <span class="n">DataFlowGraphBuilder</span><span class="p">(</span><span class="n">const_graph</span><span class="p">)</span>
+            <span class="n">const_builder</span><span class="o">.</span><span class="n">source</span><span class="p">(</span><span class="n">dummy_type</span><span class="p">)</span>
+
+            <span class="c1"># collect all outputs of all constant nodes in the graph</span>
+            <span class="n">collect</span> <span class="o">=</span> <span class="n">const_builder</span><span class="o">.</span><span class="n">collect</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="n">node_id</span><span class="p">:</span> <span class="n">ConcreteReference</span><span class="p">(</span>
+                        <span class="n">_node_id</span><span class="o">=</span><span class="n">node_id</span><span class="p">,</span> <span class="n">_graph</span><span class="o">=</span><span class="n">const_graph</span><span class="p">,</span> <span class="n">_builder</span><span class="o">=</span><span class="n">const_builder</span>
+                    <span class="p">)</span>
+                    <span class="k">for</span> <span class="n">node_id</span> <span class="ow">in</span> <span class="n">const_node_ids</span>
+                <span class="p">}</span>
+            <span class="p">)</span>
+
+            <span class="c1"># create an executor for the constant partition</span>
+            <span class="n">executor</span> <span class="o">=</span> <span class="n">DataFlowGraphExecutor</span><span class="p">(</span>
+                <span class="n">graph</span><span class="o">=</span><span class="n">const_graph</span><span class="p">,</span> <span class="n">collect</span><span class="o">=</span><span class="n">collect</span><span class="p">,</span> <span class="n">aggregation_manager</span><span class="o">=</span><span class="kc">None</span>
+            <span class="p">)</span>
+
+            <span class="c1"># execute the constant partition</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">executor</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">dummy_table</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">rank</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="c1"># get usage of constants in the graph</span>
+            <span class="n">const_edges</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">subgraph_out_edges</span><span class="p">(</span><span class="n">const_graph</span><span class="p">)</span>
+
+            <span class="c1"># drop the constant partition in the original graph</span>
+            <span class="n">graph</span> <span class="o">=</span> <span class="n">DataFlowGraph</span><span class="p">(</span><span class="n">nx</span><span class="o">.</span><span class="n">restricted_view</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">const_graph</span><span class="p">,</span> <span class="p">[]))</span>
+            <span class="n">builder</span> <span class="o">=</span> <span class="n">DataFlowGraphBuilder</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span>
+
+            <span class="n">const_lookup</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">NodeId</span><span class="p">,</span> <span class="n">ConcreteReference</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="c1"># add constant leaf nodes</span>
+            <span class="k">for</span> <span class="n">node_id</span> <span class="ow">in</span> <span class="nb">filter</span><span class="p">(</span><span class="n">const_graph</span><span class="o">.</span><span class="fm">__contains__</span><span class="p">,</span> <span class="n">leaf_nodes</span><span class="p">):</span>
+                <span class="c1"># get the expected data type of the constant value</span>
+                <span class="n">dtype</span> <span class="o">=</span> <span class="n">const_graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">node_id</span><span class="p">][</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">OUT_FEATURE_TYPE</span><span class="p">]</span>
+                <span class="c1"># add the constant node and track it</span>
+                <span class="n">ref</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="n">out</span><span class="p">[</span><span class="n">node_id</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">node_id</span><span class="p">)</span>
+                <span class="n">const_lookup</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">ref</span>
+
+            <span class="c1"># add all required constants</span>
+            <span class="k">for</span> <span class="n">const_node_id</span><span class="p">,</span> <span class="n">tgt_node_id</span><span class="p">,</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">const_edges</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">const_node_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">const_lookup</span><span class="p">:</span>
+                    <span class="c1"># get the data type of the constant</span>
+                    <span class="n">dtype</span> <span class="o">=</span> <span class="n">const_graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">const_node_id</span><span class="p">][</span>
+                        <span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">OUT_FEATURE_TYPE</span>
+                    <span class="p">]</span>
+                    <span class="c1"># add the constant node to the graph</span>
+                    <span class="n">ref</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="n">out</span><span class="p">[</span><span class="n">const_node_id</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">const_node_id</span><span class="p">)</span>
+                    <span class="n">const_lookup</span><span class="p">[</span><span class="n">const_node_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">ref</span>
+
+                <span class="c1"># get the reference object from the lookup</span>
+                <span class="n">ref</span> <span class="o">=</span> <span class="n">const_lookup</span><span class="p">[</span><span class="n">const_node_id</span><span class="p">]</span>
+                <span class="c1"># add the edge to the graph</span>
+                <span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">ref</span><span class="o">.</span><span class="n">_node_id</span><span class="p">,</span> <span class="n">tgt_node_id</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">graph</span></div>
+
+
+<div class="viewcode-block" id="DataFlowGraphOptimizer.constant_folding">
+<a class="viewcode-back" href="../../../api/hyped.core.optim.html#hyped.core.optim.DataFlowGraphOptimizer.constant_folding">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">constant_folding</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="n">DataFlowGraph</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DataFlowGraph</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Performs constant folding optimization on the data flow graph.</span>
+
+<span class="sd">        Constant folding is an optimization technique used to evaluate constant expressions</span>
+<span class="sd">        at compile time and replace them with their computed values. This method traverses</span>
+<span class="sd">        the data flow graph and identifies expressions involving constants that can be</span>
+<span class="sd">        evaluated statically. It then replaces these expressions with their computed values,</span>
+<span class="sd">        eliminating redundant computations and simplifying the graph.</span>
+
+<span class="sd">        Consider the following example:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            z = x + (-y)</span>
+
+<span class="sd">        After applying constant folding optimization, the expression is simpified to</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            z = x - y</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            graph (DataFlowGraph): The data flow graph to be optimized.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            DataFlowGraph: The optimized data flow graph after constant folding.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">graph</span></div>
+
+
+<div class="viewcode-block" id="DataFlowGraphOptimizer.apply_accessed_fields">
+<a class="viewcode-back" href="../../../api/hyped.core.optim.html#hyped.core.optim.DataFlowGraphOptimizer.apply_accessed_fields">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">apply_accessed_fields</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="n">DataFlowGraph</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Restrict the source feature type to only the accessed fields.</span>
+
+<span class="sd">        This function retrieves the portion of the source node&#39;s data type that is</span>
+<span class="sd">        explicitly accessed or utilized within the data flow graph. It represents</span>
+<span class="sd">        the subset of features or fields from the source data type that are directly</span>
+<span class="sd">        referenced by downstream nodes in the graph. Any features in the source data</span>
+<span class="sd">        type that are not accessed remain excluded from this subset.</span>
+
+<span class="sd">        The source feature of the data flow graph is updated to the accessed sub-feature.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            graph (DataFlowGraph): The data flow graph to be optimized.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">get_accessed_dtype</span><span class="p">(</span><span class="n">node_id</span><span class="p">:</span> <span class="n">NodeId</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DType</span><span class="p">:</span>
+            <span class="n">source_dtype</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">node_id</span><span class="p">][</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">OUT_FEATURE_TYPE</span><span class="p">]</span>
+            <span class="c1"># only apply to non-leaf nodes and to mapping types</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">out_degree</span><span class="p">(</span><span class="n">node_id</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source_dtype</span><span class="p">,</span> <span class="n">MappingType</span><span class="p">)):</span>
+                <span class="k">return</span> <span class="n">source_dtype</span>
+
+            <span class="n">accessed_fields</span> <span class="o">=</span> <span class="p">{}</span>
+
+            <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">graph</span><span class="o">.</span><span class="n">out_edges</span><span class="p">(</span><span class="n">node_id</span><span class="p">):</span>
+                <span class="n">node</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">v</span><span class="p">][</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">NODE_OBJ</span><span class="p">]</span>
+                <span class="n">node_type</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">v</span><span class="p">][</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">NODE_TYPE</span><span class="p">]</span>
+
+                <span class="k">if</span> <span class="n">node_type</span> <span class="o">!=</span> <span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeType</span><span class="o">.</span><span class="n">DATA_PROCESSOR</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">node_id</span><span class="p">][</span><span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">OUT_FEATURE_TYPE</span><span class="p">]</span>
+
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">MappingGetItem</span><span class="p">):</span>
+                    <span class="c1"># only a sub-feature of the mapping is accessed</span>
+                    <span class="n">accessed_fields</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_accessed_dtype</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># the feature is used as a whole</span>
+                    <span class="k">return</span> <span class="n">source_dtype</span>
+
+            <span class="k">return</span> <span class="n">MappingType</span><span class="o">.</span><span class="n">construct</span><span class="p">(</span><span class="n">accessed_fields</span><span class="p">)</span>
+
+        <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">graph</span><span class="o">.</span><span class="n">src_node_id</span><span class="p">][</span>
+            <span class="n">DataFlowGraph</span><span class="o">.</span><span class="n">NodeAttribute</span><span class="o">.</span><span class="n">OUT_FEATURE_TYPE</span>
+        <span class="p">]</span> <span class="o">=</span> <span class="n">get_accessed_dtype</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">src_node_id</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="DataFlowGraphOptimizer.optimize">
+<a class="viewcode-back" href="../../../api/hyped.core.optim.html#hyped.core.optim.DataFlowGraphOptimizer.optimize">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">optimize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="n">DataFlowGraph</span><span class="p">,</span> <span class="n">leaf_nodes</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="n">NodeId</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">DataFlowGraph</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Optimizes the data flow graph for a specified set of leaf nodes.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            graph (DataFlowGraph): The data flow graph.</span>
+<span class="sd">            leaf_nodes (set[NodeId]): Set of leaf node IDs.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            DataFlowGraph: The optimized data flow graph.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            AssertionError: If not all leaf nodes are contained in the optimized graph.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># build dependency graph for the given set of nodes</span>
+        <span class="c1"># and always include the source node</span>
+        <span class="n">graph</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">dependency_graph</span><span class="p">(</span><span class="n">leaf_nodes</span> <span class="o">|</span> <span class="p">{</span><span class="n">graph</span><span class="o">.</span><span class="n">src_node_id</span><span class="p">})</span>
+
+        <span class="c1"># evaluate all constants</span>
+        <span class="n">graph</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">constant_evaluation</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">leaf_nodes</span><span class="p">)</span>
+
+        <span class="c1"># apply common sub-expresison elimination</span>
+        <span class="n">graph</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cse</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span>
+
+        <span class="c1"># apply constant folding/propagation</span>
+        <span class="n">graph</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">constant_folding</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span>
+
+        <span class="c1"># recompute all depths after optimiztion</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">recompute_depths</span><span class="p">()</span>
+
+        <span class="c1"># limit the source features to only the accessed source features</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">apply_accessed_fields</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span>
+
+        <span class="c1"># make sure all leaf nodes are present in the optimized graph</span>
+        <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">node_id</span> <span class="ow">in</span> <span class="n">graph</span> <span class="k">for</span> <span class="n">node_id</span> <span class="ow">in</span> <span class="n">leaf_nodes</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">graph</span></div>
+</div>
+
+</pre></div>
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2024, open-hyped
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer no-toc">
+      
+      
+      
+    </aside>
+  </div>
+</div><script src="../../../_static/documentation_options.js?v=cd5d3e8d"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/scripts/furo.js?v=46bd48cc"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    </body>
+</html>

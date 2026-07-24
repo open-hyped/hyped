@@ -1,0 +1,7 @@
+hyped.core.ops.common module
+============================
+
+.. automodule:: hyped.core.ops.common
+   :members:
+   :show-inheritance:
+   :undoc-members:

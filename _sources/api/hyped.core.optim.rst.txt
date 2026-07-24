@@ -1,0 +1,7 @@
+hyped.core.optim module
+=======================
+
+.. automodule:: hyped.core.optim
+   :members:
+   :show-inheritance:
+   :undoc-members:

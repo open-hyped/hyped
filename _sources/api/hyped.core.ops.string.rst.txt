@@ -1,0 +1,7 @@
+hyped.core.ops.string module
+============================
+
+.. automodule:: hyped.core.ops.string
+   :members:
+   :show-inheritance:
+   :undoc-members:

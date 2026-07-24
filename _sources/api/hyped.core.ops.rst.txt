@@ -1,0 +1,25 @@
+hyped.core.ops package
+======================
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 3
+
+   hyped.core.ops.boolean
+   hyped.core.ops.casting
+   hyped.core.ops.common
+   hyped.core.ops.debug
+   hyped.core.ops.mapping
+   hyped.core.ops.numeric
+   hyped.core.ops.sequence
+   hyped.core.ops.string
+
+Module contents
+---------------
+
+.. automodule:: hyped.core.ops
+   :members:
+   :show-inheritance:
+   :undoc-members:

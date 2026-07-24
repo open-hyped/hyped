@@ -1,0 +1,7 @@
+hyped.core.nodes.const module
+=============================
+
+.. automodule:: hyped.core.nodes.const
+   :members:
+   :show-inheritance:
+   :undoc-members:
