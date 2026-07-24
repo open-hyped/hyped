@@ -341,7 +341,11 @@ class SequenceType(DType, typing.Sequence):
         Returns:
             datasets.Features: The Hugging Face Feature representation of the type.
         """
-        return datasets.Sequence(
+        # Use `datasets.List` rather than `datasets.Sequence`: `datasets.Sequence` transposes a
+        # struct value type into a columnar "struct of lists", which disagrees with this type's
+        # row-oriented `arrow_type` (`list<struct>`) and breaks the hf_feature round-trip for
+        # sequences of mappings. `datasets.List` preserves the row-oriented `list<struct>` shape.
+        return datasets.List(
             self.value_type.hf_feature,
             length=-1 if self.length == UNDEFINED_SEQUENCE_LENGTH else self.length,
         )

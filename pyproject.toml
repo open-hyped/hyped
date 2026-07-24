@@ -16,7 +16,7 @@ authors = [
 requires-python = ">=3.10"
 license = {text = "Apache 2.0"}
 dependencies = [
-    "datasets>=3.2.0",
+    "datasets>=4.0.0",  # datasets.List (row-preserving sequence of structs) requires >=4.0.0
     "fsspec<=2023.9.2",
     "networkx>=3.4.2",
     "matplotlib>=3.8.2",
