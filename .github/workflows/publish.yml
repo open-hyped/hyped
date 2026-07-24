@@ -28,11 +28,13 @@ jobs:
         run: |
           python -m build --sdist --wheel --outdir dist
 
-      - name: Publish distribution to Test PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-          repository_url: https://test.pypi.org/legacy/
+      # Temporarily disabled: the ndoll1998 token lacks upload rights to the
+      # existing `hyped` project on Test PyPI (403). Re-enable once fixed.
+      # - name: Publish distribution to Test PyPI
+      #   uses: pypa/gh-action-pypi-publish@release/v1
+      #   with:
+      #     password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+      #     repository_url: https://test.pypi.org/legacy/
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
